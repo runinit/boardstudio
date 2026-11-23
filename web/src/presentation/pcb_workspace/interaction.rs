@@ -107,10 +107,8 @@ pub(super) fn part_pointer_down(
     let owner = frame.owner.clone();
     let accepted_token = frame.snapshot.token;
     let accepted_revision = frame.snapshot.document.revision;
-    let navigation = interaction.navigation.clone();
-    let space_down = navigation.space_key_state();
     let tree_cell_anchor = interaction.tree_cell_anchor.clone();
-    let canvas_interaction = interaction.arbiter.clone();
+    let canvas_interaction = use_context::<LayoutInteraction>();
     let (view_x, view_y, width, height) = (
         frame.camera.view_x,
         frame.camera.view_y,
@@ -141,22 +139,6 @@ pub(super) fn part_pointer_down(
         ) else {
             return;
         };
-        if space_down.get() {
-            if let Some(surface) = svg.borrow().as_ref() {
-                let _ = surface.set_pointer_capture(request.pointer_id as i32);
-                let options = web_sys::FocusOptions::new();
-                options.set_prevent_scroll(true);
-                let _ = surface.focus_with_options(&options);
-            }
-            navigation.start_space_pan(boardstudio_web_ui_shared::canvas_navigation::PanStart {
-                pointer_id: request.pointer_id,
-                scope: scope.clone(),
-                generation,
-                client: (f64::from(request.client_x), f64::from(request.client_y)),
-                camera: runtime.model().camera.center,
-            });
-            return;
-        }
         let model = runtime.model();
         let Some(board) = model.accepted.as_ref().and_then(|snapshot| {
             snapshot
@@ -280,6 +262,7 @@ pub(super) fn part_pointer_down(
             client_x: f64::from(request.client_x),
             client_y: f64::from(request.client_y),
             positions,
+            last_sample: None,
             active: false,
             pan: false,
             camera: Vec2::default(),
@@ -299,15 +282,13 @@ pub(super) fn empty_hit(
     let scope = frame.scope.clone();
     let generation = frame.owner.generation;
     let token = frame.snapshot.token;
-    let space_down = interaction.navigation.space_key_state();
     let drag = interaction.navigation.drag_interaction();
-    let canvas_interaction = interaction.arbiter.clone();
+    let canvas_interaction = use_context::<LayoutInteraction>();
     EventHandler::new(move |event: PointerEvent| {
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
         };
         if pointer.button() != 0
-            || space_down.get()
             || drag.borrow().is_some()
             || canvas_interaction.current().is_some()
             || workspace() != Workspace::Pcb

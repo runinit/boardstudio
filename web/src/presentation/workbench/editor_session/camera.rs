@@ -543,7 +543,6 @@ pub(in crate::presentation) struct PlacementBindingsInput<'a> {
     pub layout_target: Signal<Option<String>>,
     pub objects_open: Signal<bool>,
     pub inspect_open: Signal<bool>,
-    pub canvas_interaction: CanvasInteractionArbiter,
     pub matrix_setup: &'a mut objects::MatrixSetupMount,
     pub mirrored_pair: objects::MirroredPairMount,
     pub svg: Rc<RefCell<Option<SvgElement>>>,
@@ -553,7 +552,6 @@ pub(in crate::presentation) struct PlacementBindingsInput<'a> {
 pub(in crate::presentation) struct PlacementBindings {
     pub part_placement: part_placement::PartPlacementMount,
     pub drag: Rc<RefCell<Option<Drag>>>,
-    pub space_down: Rc<Cell<bool>>,
     pub interaction_version: Signal<u64>,
     pub observed_interaction_version: u64,
 }
@@ -561,6 +559,7 @@ pub(in crate::presentation) struct PlacementBindings {
 pub(in crate::presentation) fn use_placement_bindings(
     input: PlacementBindingsInput<'_>,
 ) -> PlacementBindings {
+    let canvas_interaction = use_context::<LayoutInteraction>();
     let PlacementBindingsInput {
         min_x,
         max_x,
@@ -579,7 +578,6 @@ pub(in crate::presentation) fn use_placement_bindings(
         layout_target,
         objects_open,
         inspect_open,
-        canvas_interaction,
         matrix_setup,
         mirrored_pair,
         svg,
@@ -608,7 +606,6 @@ pub(in crate::presentation) fn use_placement_bindings(
             canvas_center,
             objects_open,
             inspect_open,
-            canvas_interaction: canvas_interaction.clone(),
         });
     if canvas_interaction.current().is_some() {
         matrix_setup.can_open = false;
@@ -630,13 +627,11 @@ pub(in crate::presentation) fn use_placement_bindings(
         }
     }));
     let drag = canvas_navigation.drag_interaction();
-    let space_down = canvas_navigation.space_key_state();
     let interaction_version = use_signal(|| 0_u64);
-    let observed_interaction_version = interaction_version();
+    let observed_interaction_version = interaction_version() + canvas_interaction.version();
     PlacementBindings {
         part_placement,
         drag,
-        space_down,
         interaction_version,
         observed_interaction_version,
     }
@@ -714,7 +709,6 @@ pub(in crate::presentation) fn use_camera_bundle(
     let layout_target = state.view.layout_target;
     let objects_open = editor.panels.objects_open;
     let inspect_open = editor.panels.inspector_open;
-    let canvas_interaction = &state.canvas_interaction;
     let mirrored_pair = &state.matrix_pair.mirrored_pair;
     let canvas_navigation = &state.canvas_navigation;
     let SvgSurface {
@@ -784,7 +778,6 @@ pub(in crate::presentation) fn use_camera_bundle(
     let PlacementBindings {
         part_placement,
         drag,
-        space_down,
         interaction_version,
         observed_interaction_version,
     } = use_placement_bindings(PlacementBindingsInput {
@@ -805,7 +798,6 @@ pub(in crate::presentation) fn use_camera_bundle(
         layout_target,
         objects_open,
         inspect_open,
-        canvas_interaction: canvas_interaction.clone(),
         matrix_setup: &mut *matrix_setup,
         mirrored_pair: mirrored_pair.clone(),
         svg: svg.clone(),
@@ -821,7 +813,6 @@ pub(in crate::presentation) fn use_camera_bundle(
         placement: PlacementBindings {
             part_placement,
             drag,
-            space_down,
             interaction_version,
             observed_interaction_version,
         },

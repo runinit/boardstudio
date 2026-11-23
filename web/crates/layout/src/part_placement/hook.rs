@@ -10,7 +10,7 @@ use super::plan::{
     PlacementIntent, component_part, controller_part, document_with_pending_definition,
     grid_snap_point, placement_source_definition, update_pending_part,
 };
-use crate::canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner};
+use crate::canvas_interaction::{CanvasMode, LayoutInteraction};
 use crate::objects::{self, LayoutSnapSettings};
 use crate::parts::{PartsQuery, PartsSelection};
 use crate::runtime::Runtime;
@@ -62,7 +62,6 @@ pub struct PartPlacementHost {
     pub canvas_center: Vec2,
     pub objects_open: Signal<bool>,
     pub inspect_open: Signal<bool>,
-    pub canvas_interaction: CanvasInteractionArbiter,
 }
 
 pub type DefinitionLoader = Rc<
@@ -86,6 +85,7 @@ struct PlacementState {
 }
 
 pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
+    let canvas_interaction = use_context::<LayoutInteraction>();
     let chooser = use_signal(|| None::<ControllerChooserOwner>);
     let active = use_signal(|| None::<ActivePartPlacement>);
     let preparing = use_signal(|| None::<PlacementOwner>);
@@ -117,7 +117,6 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
         parts_selection,
         mut objects_open,
         mut inspect_open,
-        canvas_interaction,
         ..
     } = host;
 
@@ -137,7 +136,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
         let mut chooser = chooser;
         let mut selected_context = adapter.selected_context;
         let mut anchor_scope = adapter.anchor_scope;
-        let canvas_interaction = canvas_interaction.clone();
+
         move |_| {
             if canvas_interaction.current().is_some() {
                 return;
@@ -246,7 +245,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
             let runtime = runtime.clone();
             let mut workspace = workspace;
             let mut chooser = chooser;
-            let canvas_interaction = canvas_interaction.clone();
+
             EventHandler::new(move |_| {
                 if chooser.read().as_ref().is_some_and(|owner| {
                     owner.is_current(runtime.as_ref(), generation(), workspace())
@@ -387,9 +386,9 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
     ));
     let on_move = {
         let mut active = active;
-        let canvas_interaction = canvas_interaction.clone();
+
         move |at: Vec2| {
-            if !canvas_interaction.is_owner(CanvasInteractionOwner::PartPlacement) {
+            if canvas_interaction.current() != Some(CanvasMode::PlacingPart) {
                 return;
             }
             if let Some(mut placement) = active() {
@@ -406,11 +405,8 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
         let guide = guide_preferences;
         let mut selected_context = adapter.selected_context;
         let mut anchor_scope = adapter.anchor_scope;
-        let canvas_interaction = canvas_interaction.clone();
+
         move |_| {
-            if !canvas_interaction.is_owner(CanvasInteractionOwner::PartPlacement) {
-                return;
-            }
             if *committing.read() {
                 return;
             }
@@ -440,7 +436,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
             });
             active.set(None);
             preparing.set(None);
-            canvas_interaction.release(CanvasInteractionOwner::PartPlacement);
+            canvas_interaction.end(CanvasMode::PlacingPart);
             if current {
                 selected_context.set(None);
                 anchor_scope.set(None);
@@ -476,10 +472,9 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
     use_effect(use_reactive(
         (&version(), &workspace(), &generation(), &owns_canvas),
         {
-            let canvas_interaction = canvas_interaction.clone();
             move |(_, _, _, owns_canvas)| {
                 if !owns_canvas {
-                    canvas_interaction.release(CanvasInteractionOwner::PartPlacement);
+                    canvas_interaction.end(CanvasMode::PlacingPart);
                 }
             }
         },
@@ -535,56 +530,4 @@ fn browser_uuid() -> Result<String, String> {
         .map_err(|error| format!("Could not generate a component identity: {error:?}"))?
         .as_string()
         .ok_or_else(|| "Could not generate a component identity.".into())
-}
-
-pub struct LayoutPlacementCancellation {
-    pub parts: PartPlacementMount,
-    pub matrices: crate::objects::MatrixPlacementMount,
-    pub interactions: CanvasInteractionArbiter,
-}
-
-pub fn layout_view_mode_handler(
-    is_owner_current: impl Fn() -> bool + 'static,
-    is_assembly_3d: Signal<bool>,
-    mut set_assembly_3d: impl FnMut(bool) + 'static,
-    placements: LayoutPlacementCancellation,
-    before_placement_cancel: impl Fn() + 'static,
-    mut after_placement_cancel: impl FnMut() + 'static,
-) -> EventHandler<bool> {
-    EventHandler::new(move |assembly_3d| {
-        if !is_owner_current() {
-            return;
-        }
-        if assembly_3d && !is_assembly_3d() {
-            before_placement_cancel();
-            if placements.parts.busy || placements.parts.projection.is_some() {
-                placements.parts.on_cancel.call(());
-            }
-            after_placement_cancel();
-            match placements.interactions.current() {
-                Some(CanvasInteractionOwner::PartPlacement) => {
-                    placements
-                        .interactions
-                        .release(CanvasInteractionOwner::PartPlacement);
-                }
-                Some(CanvasInteractionOwner::OutlinePerimeter) => {
-                    placements
-                        .interactions
-                        .release(CanvasInteractionOwner::OutlinePerimeter);
-                }
-                Some(CanvasInteractionOwner::MatrixPlacement) => {
-                    if let Some(owner) = placements.matrices.cancel_owner.clone() {
-                        placements.matrices.on_cancel.call(owner);
-                    }
-                }
-                Some(CanvasInteractionOwner::MatrixTransform) => {
-                    placements
-                        .interactions
-                        .release(CanvasInteractionOwner::MatrixTransform);
-                }
-                Some(CanvasInteractionOwner::MirroredPair) | None => {}
-            }
-        }
-        set_assembly_3d(assembly_3d);
-    })
 }

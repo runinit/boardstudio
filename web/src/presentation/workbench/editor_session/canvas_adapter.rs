@@ -2,7 +2,6 @@ use super::super::*;
 use boardstudio_web_ui_model::Workspace;
 
 pub(super) struct MovePointerInput {
-    pub navigation: CanvasNavigationState,
     pub runtime: Rc<Runtime>,
     pub svg: Rc<RefCell<Option<SvgElement>>>,
     pub drag: Rc<RefCell<Option<Drag>>>,
@@ -14,7 +13,6 @@ pub(super) struct MovePointerInput {
     pub matrix_placement: objects::MatrixPlacementMount,
     pub tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
     pub mirrored_pair: objects::MirroredPairMount,
-    pub canvas_interaction: CanvasInteractionArbiter,
     pub workspace: Signal<Workspace>,
     pub view_x: f64,
     pub view_y: f64,
@@ -26,8 +24,8 @@ pub(super) struct MovePointerInput {
 pub(super) fn move_pointer_handler(
     input: MovePointerInput,
 ) -> impl FnMut(PointerEvent) + Clone + 'static {
+    let canvas_interaction = use_context::<LayoutInteraction>();
     let MovePointerInput {
-        navigation,
         runtime,
         svg,
         drag,
@@ -39,7 +37,6 @@ pub(super) fn move_pointer_handler(
         matrix_placement,
         tree_cell_anchor,
         mirrored_pair,
-        canvas_interaction,
         workspace,
         view_x,
         view_y,
@@ -51,10 +48,22 @@ pub(super) fn move_pointer_handler(
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
         };
-        if canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement) {
+        if canvas_interaction.route_pointer(&pointer, false) {
+            return;
+        }
+        if canvas_interaction
+            .pointer()
+            .is_some_and(|id| id != pointer.pointer_id())
+        {
+            return;
+        }
+        let mode = canvas_interaction.current();
+        if mode == Some(CanvasMode::Marquee) {
+            canvas_interaction.handle(marquee_sample(&pointer));
+            return;
+        }
+        if mode == Some(CanvasMode::PlacingMatrix) {
             let Some(active) = matrix_placement.placement.as_ref() else {
-                pointer.prevent_default();
-                pointer.stop_propagation();
                 return;
             };
             let owner = active.owner.clone();
@@ -72,10 +81,8 @@ pub(super) fn move_pointer_handler(
             }
             return;
         }
-        if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair) {
+        if mode == Some(CanvasMode::PlacingMirroredPair) {
             let Some(placement) = mirrored_pair.placement.as_ref() else {
-                pointer.prevent_default();
-                pointer.stop_propagation();
                 return;
             };
             let pair_owner = placement.owner.clone();
@@ -94,26 +101,24 @@ pub(super) fn move_pointer_handler(
             }
             return;
         }
-        if canvas_interaction.is_owner(CanvasInteractionOwner::PartPlacement) {
-            if let Some(active) = placement.projection.clone()
+        if mode == Some(CanvasMode::PlacingPart) {
+            if let Some(active) = placement.projection.as_ref()
                 && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
             {
                 let at = snap_placement(
                     &runtime,
                     &adapter,
-                    &active,
+                    active,
                     &snap_settings.read(),
                     point,
                     pointer.alt_key(),
                 );
                 placement.on_move.call(at);
-            } else {
-                pointer.prevent_default();
-                pointer.stop_propagation();
             }
             return;
         }
         let Some(mut current) = live_drag(
+            canvas_interaction,
             &drag,
             &svg,
             &runtime,
@@ -126,8 +131,7 @@ pub(super) fn move_pointer_handler(
         ) else {
             return;
         };
-        if navigation.consume_pan_pointer_move(current.pointer, &current.scope, current.generation)
-        {
+        if current.pan {
             return;
         }
         let Some((point, scale)) =
@@ -136,14 +140,24 @@ pub(super) fn move_pointer_handler(
             return;
         };
         if !current.active {
-            if !canvas_interaction::pending_part_drag_threshold_reached(
-                (current.client_x, current.client_y),
-                (f64::from(pointer.client_x()), f64::from(pointer.client_y())),
-            ) {
+            let client = client_point(&pointer);
+            let moved = if workspace() == Workspace::Layout {
+                canvas_interaction
+                    .handle(CanvasEvent::PointerMove {
+                        id: pointer.pointer_id(),
+                        client,
+                        operation: None,
+                    })
+                    .contains(&InteractionEffect::StartPartDrag)
+            } else {
+                client != (current.client_x, current.client_y)
+            };
+            if !moved {
                 return;
             }
             let current_model = runtime.model();
             if current_model.gesture.is_some() {
+                canvas_interaction.handle(CanvasEvent::PointerCancel(pointer.pointer_id()));
                 selection::cancel_scoped_drag(&runtime, &drag, &svg, Some(&current.scope));
                 return;
             }
@@ -183,6 +197,7 @@ pub(super) fn move_pointer_handler(
                 runtime.scope().as_ref() != Some(&current.scope)
                     || (adapter.generation)() != current.generation
             }) {
+                canvas_interaction.handle(CanvasEvent::PointerCancel(pointer.pointer_id()));
                 selection::cancel_scoped_drag(&runtime, &drag, &svg, Some(&current.scope));
                 return;
             }
@@ -190,11 +205,15 @@ pub(super) fn move_pointer_handler(
             current.gesture_generation = gesture.map(|gesture| gesture.generation);
             *drag.borrow_mut() = Some(current.clone());
         }
+        let alt = pointer.alt_key();
+        if let Some(stored) = drag.borrow_mut().as_mut() {
+            stored.last_sample = Some((point, scale, alt));
+        }
         runtime.submit(Event::GestureSample {
             pointer_id: current.pointer,
             positions: moved(&current, point),
             pixels_per_world: Some(scale),
-            alt: pointer.alt_key(),
+            alt,
         });
     }
 }
@@ -229,6 +248,7 @@ fn snap_placement(
 /// Resolve the captured pointer against the render that owns it before touching the edit session.
 #[allow(clippy::too_many_arguments)]
 fn live_drag(
+    interaction: LayoutInteraction,
     drag: &Rc<RefCell<Option<Drag>>>,
     svg: &Rc<RefCell<Option<SvgElement>>>,
     runtime: &Rc<Runtime>,
@@ -249,6 +269,7 @@ fn live_drag(
         || (adapter.generation)() != current.generation
         || (current.active && !current.pan && !selection::owns_session_gesture(runtime, &current))
     {
+        interaction.handle(CanvasEvent::PointerCancel(pointer));
         selection::cancel_scoped_drag(runtime, drag, svg, Some(render_scope));
         return None;
     }
@@ -266,7 +287,6 @@ pub(super) struct EndPointerInput {
     pub matrix_placement: objects::MatrixPlacementMount,
     pub snap_settings: Signal<objects::LayoutSnapSettings>,
     pub render_scope: Scope,
-    pub canvas_interaction: CanvasInteractionArbiter,
     pub workspace: Signal<Workspace>,
     pub view_x: f64,
     pub view_y: f64,
@@ -279,6 +299,7 @@ pub(super) struct EndPointerInput {
 pub(super) fn end_pointer_handler(
     input: EndPointerInput,
 ) -> impl FnMut(PointerEvent) + Clone + 'static {
+    let canvas_interaction = use_context::<LayoutInteraction>();
     let EndPointerInput {
         navigation,
         runtime,
@@ -290,7 +311,6 @@ pub(super) fn end_pointer_handler(
         matrix_placement,
         snap_settings,
         render_scope,
-        canvas_interaction,
         workspace,
         view_x,
         view_y,
@@ -303,7 +323,59 @@ pub(super) fn end_pointer_handler(
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
         };
-        if canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement) {
+        if canvas_interaction.route_pointer(&pointer, true) {
+            return;
+        }
+        if canvas_interaction
+            .pointer()
+            .is_some_and(|id| id != pointer.pointer_id())
+        {
+            return;
+        }
+        let mode = canvas_interaction.current();
+        if mode == Some(CanvasMode::Marquee) {
+            canvas_interaction.handle(marquee_sample(&pointer));
+            for effect in canvas_interaction.handle(CanvasEvent::PointerUp {
+                id: pointer.pointer_id(),
+                operation: None,
+            }) {
+                match effect {
+                    InteractionEffect::ReleasePointer(id) => {
+                        if let Some(surface) = svg.borrow().as_ref() {
+                            let _ = surface.release_pointer_capture(id);
+                        }
+                    }
+                    InteractionEffect::SelectMarquee(bounds)
+                        if layout_owner_is_current(&runtime, workspace, &adapter, &owner) =>
+                    {
+                        if let Some((min, max)) =
+                            marquee_world_bounds(&svg, bounds, (view_x, view_y, width, height))
+                        {
+                            select_marquee(&runtime, &adapter, min, max);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            return;
+        }
+        if matches!(
+            mode,
+            Some(
+                CanvasMode::PlacingPart
+                    | CanvasMode::PlacingMatrix
+                    | CanvasMode::PlacingMirroredPair
+            )
+        ) {
+            if canvas_interaction.pointer() != Some(pointer.pointer_id()) {
+                return;
+            }
+            canvas_interaction.handle(CanvasEvent::PointerUp {
+                id: pointer.pointer_id(),
+                operation: None,
+            });
+        }
+        if mode == Some(CanvasMode::PlacingMatrix) {
             pointer.prevent_default();
             pointer.stop_propagation();
             if pointer.button() == 0
@@ -325,12 +397,12 @@ pub(super) fn end_pointer_handler(
             }
             return;
         }
-        if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair) {
+        if mode == Some(CanvasMode::PlacingMirroredPair) {
             pointer.prevent_default();
             pointer.stop_propagation();
             return;
         }
-        if canvas_interaction.is_owner(CanvasInteractionOwner::PartPlacement) {
+        if mode == Some(CanvasMode::PlacingPart) {
             pointer.prevent_default();
             pointer.stop_propagation();
             if part_placement::pointer_release_commits(pointer.button())
@@ -350,6 +422,7 @@ pub(super) fn end_pointer_handler(
             return;
         }
         let Some(current) = live_drag(
+            canvas_interaction,
             &drag,
             &svg,
             &runtime,
@@ -362,6 +435,10 @@ pub(super) fn end_pointer_handler(
         ) else {
             return;
         };
+        canvas_interaction.handle(CanvasEvent::PointerUp {
+            id: pointer.pointer_id(),
+            operation: None,
+        });
         let mut interaction_version = interaction_version;
         interaction_version += 1;
         if current.pan {
@@ -375,14 +452,16 @@ pub(super) fn end_pointer_handler(
             return;
         }
         if current.active
-            && let Some((point, scale)) =
+            && let Some((point, scale, alt)) =
                 coordinates_with_scale(&svg, &pointer, view_x, view_y, width, height)
+                    .map(|(point, scale)| (point, scale, pointer.alt_key()))
+                    .or(current.last_sample)
         {
             runtime.submit(Event::GestureEnd {
                 pointer_id: current.pointer,
                 final_positions: moved(&current, point),
                 pixels_per_world: Some(scale),
-                alt: pointer.alt_key(),
+                alt,
             });
         } else if current.active {
             selection::cancel_drag_if_owned(&runtime, &current);
@@ -394,94 +473,160 @@ pub(super) fn end_pointer_handler(
     }
 }
 
-pub(super) struct CancelPointerInput {
-    pub runtime: Rc<Runtime>,
-    pub svg: Rc<RefCell<Option<SvgElement>>>,
-    pub drag: Rc<RefCell<Option<Drag>>>,
-    pub placement: part_placement::PartPlacementMount,
-    pub matrix_placement: objects::MatrixPlacementMount,
-    pub render_scope: Scope,
-    pub canvas_interaction: CanvasInteractionArbiter,
-    pub render_generation: u64,
-    pub interaction_version: Signal<u64>,
-}
-
 pub(super) fn cancel_pointer_handler(
-    input: CancelPointerInput,
+    runtime: Rc<Runtime>,
+    svg: Rc<RefCell<Option<SvgElement>>>,
+    drag: Rc<RefCell<Option<Drag>>>,
+    interaction_version: Signal<u64>,
+    lost_capture: bool,
 ) -> impl FnMut(PointerEvent) + Clone + 'static {
-    let CancelPointerInput {
-        runtime,
-        svg,
-        drag,
-        placement,
-        matrix_placement,
-        render_scope,
-        canvas_interaction,
-        render_generation,
-        interaction_version,
-    } = input;
+    let input = use_context::<layout_input::LayoutInput>();
     move |event: PointerEvent| {
-        match canvas_interaction.current() {
-            Some(CanvasInteractionOwner::MatrixPlacement) => {
-                if let Some(owner) = matrix_placement.cancel_owner.clone() {
-                    matrix_placement.on_cancel.call(owner);
-                }
-                return;
-            }
-            Some(CanvasInteractionOwner::MirroredPair) => return,
-            Some(CanvasInteractionOwner::PartPlacement) => {
-                if placement.projection.is_some() {
-                    placement.on_cancel.call(());
-                }
-                return;
-            }
-            Some(CanvasInteractionOwner::OutlinePerimeter) => return,
-            Some(CanvasInteractionOwner::MatrixTransform) => return,
-            None => {}
-        }
-        let pointer_id = event
-            .data()
-            .try_as_web_event()
-            .map(|event| event.pointer_id());
-        let Some(current) = drag.borrow().clone().filter(|current| {
-            current.scope == render_scope
-                && current.generation == render_generation
-                && pointer_id.is_none_or(|pointer| current.pointer == i64::from(pointer))
-        }) else {
+        let Some(pointer) = event.data().try_as_web_event() else {
             return;
         };
-        let mut interaction_version = interaction_version;
-        interaction_version += 1;
-        drag.borrow_mut().take();
-        if let Some(element) = svg.borrow().as_ref() {
-            let _ = element.release_pointer_capture(current.pointer as i32);
-        }
-        if current.scope == render_scope
-            && current.generation == render_generation
-            && runtime.scope().as_ref() == Some(&current.scope)
-            && current.active
-            && !current.pan
+        let id = pointer.pointer_id();
+        input.dispatch(if lost_capture {
+            CanvasEvent::LostPointerCapture(id)
+        } else {
+            CanvasEvent::PointerCancel(id)
+        });
+        if drag
+            .borrow()
+            .as_ref()
+            .is_some_and(|drag| drag.pointer == i64::from(id))
         {
-            selection::cancel_drag_if_owned(&runtime, &current);
+            selection::cancel_scoped_drag(&runtime, &drag, &svg, None);
+            let mut interaction_version = interaction_version;
+            interaction_version += 1;
         }
     }
 }
 
-pub(super) fn use_pointer_workspace_effect(
-    active_workspace: Workspace,
-    runtime: Rc<Runtime>,
-    drag: Rc<RefCell<Option<Drag>>>,
-    svg: Rc<RefCell<Option<SvgElement>>>,
-    space_down: Rc<Cell<bool>>,
-    render_scope: Scope,
-    interaction_version: Signal<u64>,
+pub(in crate::presentation) fn capture_layout_drag(
+    interaction: LayoutInteraction,
+    mode: CanvasMode,
+    pointer: &web_sys::PointerEvent,
+    runtime: &Rc<Runtime>,
+    drag: &Rc<RefCell<Option<Drag>>>,
+    svg: &Rc<RefCell<Option<SvgElement>>>,
+) -> bool {
+    let id = pointer.pointer_id();
+    if interaction.handle(CanvasEvent::PointerDown {
+        mode,
+        id,
+        client: client_point(pointer),
+        control: pointer.ctrl_key(),
+    }) != [InteractionEffect::CapturePointer(id)]
+    {
+        return false;
+    }
+    if let Some(surface) = svg.borrow().as_ref()
+        && surface.set_pointer_capture(id).is_ok()
+    {
+        focus_svg(surface);
+    } else {
+        interaction.end(mode);
+        return false;
+    }
+    let (runtime, drag, svg) = (runtime.clone(), drag.clone(), svg.clone());
+    interaction.on_cancel(move || {
+        if mode == CanvasMode::Marquee {
+            if let Some(surface) = svg.borrow().as_ref() {
+                let _ = surface.release_pointer_capture(id);
+            }
+        } else {
+            selection::cancel_scoped_drag(&runtime, &drag, &svg, None);
+        }
+    });
+    true
+}
+
+pub(in crate::presentation) fn start_pan(
+    runtime: &Rc<Runtime>,
+    navigation: &CanvasNavigationState,
+    svg: &Rc<RefCell<Option<SvgElement>>>,
+    scope: &Scope,
+    generation: u64,
+    pointer: &web_sys::PointerEvent,
+    interaction: LayoutInteraction,
 ) {
-    use_effect(use_reactive((&active_workspace,), move |_| {
-        space_down.set(false);
-        selection::cancel_scoped_drag(&runtime, &drag, &svg, Some(&render_scope));
-        let mut interaction_version = interaction_version;
-        interaction_version += 1;
-    }));
+    if capture_layout_drag(
+        interaction,
+        CanvasMode::Panning,
+        pointer,
+        runtime,
+        &navigation.drag_interaction(),
+        svg,
+    ) {
+        navigation.start_space_pan(boardstudio_web_ui_shared::canvas_navigation::PanStart {
+            pointer_id: i64::from(pointer.pointer_id()),
+            scope: scope.clone(),
+            generation,
+            client: client_point(pointer),
+            camera: runtime.with_model(|model| model.camera.center),
+        });
+    }
+}
+
+fn marquee_sample(pointer: &web_sys::PointerEvent) -> CanvasEvent {
+    CanvasEvent::PointerMove {
+        id: pointer.pointer_id(),
+        client: client_point(pointer),
+        operation: None,
+    }
+}
+
+pub(in crate::presentation) fn marquee_world_bounds(
+    svg: &Rc<RefCell<Option<SvgElement>>>,
+    bounds: MarqueeBounds,
+    (x, y, width, height): (f64, f64, f64, f64),
+) -> Option<(Vec2, Vec2)> {
+    let at = |(cx, cy): (f64, f64)| coordinates_at(svg, cx as i32, cy as i32, x, y, width, height);
+    let (a, b) = (at(bounds.start)?, at(bounds.end)?);
+    Some((
+        Vec2 {
+            x: a.x.min(b.x),
+            y: a.y.min(b.y),
+        },
+        Vec2 {
+            x: a.x.max(b.x),
+            y: a.y.max(b.y),
+        },
+    ))
+}
+
+fn select_marquee(runtime: &Rc<Runtime>, adapter: &SelectionAdapter, min: Vec2, max: Vec2) {
+    let ids = runtime.with_model(|model| {
+        let Some(accepted) = model.accepted.as_ref() else {
+            return Vec::new();
+        };
+        let eligible = selection::eligible_live_ids(model);
+        let eligible: HashSet<_> = eligible.iter().map(String::as_str).collect();
+        accepted
+            .scene
+            .transforms
+            .iter()
+            .filter(|transform| {
+                let at = transform.pose.at;
+                eligible.contains(transform.id.as_str())
+                    && (min.x..=max.x).contains(&at.x)
+                    && (min.y..=max.y).contains(&at.y)
+            })
+            .map(|transform| transform.id.clone())
+            .collect()
+    });
+    if !ids.is_empty() {
+        let (mut selected, mut anchor) = (adapter.selected_context, adapter.anchor_scope);
+        selected.set(None);
+        anchor.set(None);
+        runtime.submit(Event::SelectParts {
+            operation_id: runtime.operation(),
+            part_ids: ids,
+            range_part_ids: Vec::new(),
+            mode: SelectionMode::Add,
+        });
+    }
 }
 
 pub(super) fn moved(drag: &Drag, point: Vec2) -> Vec<Position> {

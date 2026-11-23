@@ -1,10 +1,12 @@
 use super::super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(super) fn use_pointer_bundle(
     state: &super::session_state::SessionState,
     cam: &super::camera::CamNamed,
     render_scope: &Scope,
 ) -> (
+    impl FnMut(PointerEvent) + Clone + 'static,
     impl FnMut(PointerEvent) + Clone + 'static,
     impl FnMut(PointerEvent) + Clone + 'static,
     impl FnMut(PointerEvent) + Clone + 'static,
@@ -21,7 +23,6 @@ pub(super) fn use_pointer_bundle(
     let matrix_placement = &state.matrix_pair.matrix_placement;
     let tree_cell_anchor = &state.tree_cell_anchor;
     let mirrored_pair = &state.matrix_pair.mirrored_pair;
-    let canvas_interaction = &state.canvas_interaction;
     let workspace = editor.workspace;
     let view_x = cam.scene_bounds.view_x;
     let view_y = cam.scene_bounds.view_y;
@@ -29,11 +30,8 @@ pub(super) fn use_pointer_bundle(
     let height = cam.scene_bounds.height;
     let render_generation = state.render_generation;
     let interaction_version = cam.placement.interaction_version;
-    let active_workspace = state.active_workspace;
-    let space_down = &cam.placement.space_down;
     let move_pointer =
         super::canvas_adapter::move_pointer_handler(super::canvas_adapter::MovePointerInput {
-            navigation: canvas_navigation.clone(),
             runtime: runtime.clone(),
             svg: svg.clone(),
             drag: drag.clone(),
@@ -45,7 +43,6 @@ pub(super) fn use_pointer_bundle(
             matrix_placement: matrix_placement.clone(),
             tree_cell_anchor: tree_cell_anchor.clone(),
             mirrored_pair: mirrored_pair.clone(),
-            canvas_interaction: canvas_interaction.clone(),
             workspace,
             view_x,
             view_y,
@@ -65,7 +62,6 @@ pub(super) fn use_pointer_bundle(
             matrix_placement: matrix_placement.clone(),
             snap_settings: layout_snap_settings,
             render_scope: render_scope.clone(),
-            canvas_interaction: canvas_interaction.clone(),
             workspace,
             view_x,
             view_y,
@@ -74,26 +70,41 @@ pub(super) fn use_pointer_bundle(
             render_generation,
             interaction_version,
         });
-    let cancel_pointer =
-        super::canvas_adapter::cancel_pointer_handler(super::canvas_adapter::CancelPointerInput {
-            runtime: runtime.clone(),
-            svg: svg.clone(),
-            drag: drag.clone(),
-            placement: part_placement.clone(),
-            matrix_placement: matrix_placement.clone(),
-            render_scope: render_scope.clone(),
-            canvas_interaction: canvas_interaction.clone(),
-            render_generation,
+    let active_workspace = state.active_workspace;
+    let previous_workspace = use_hook(move || Rc::new(Cell::new(active_workspace)));
+    let render_scope_for_cleanup = render_scope.clone();
+    use_effect(use_reactive((&active_workspace,), {
+        let (runtime, drag, svg) = (runtime.clone(), drag.clone(), svg.clone());
+        move |(current,)| {
+            if previous_workspace.replace(current) == Workspace::Pcb
+                && current != Workspace::Pcb
+                && drag
+                    .borrow()
+                    .as_ref()
+                    .is_some_and(|drag| drag.scope == render_scope_for_cleanup)
+            {
+                selection::cancel_scoped_drag(
+                    &runtime,
+                    &drag,
+                    &svg,
+                    Some(&render_scope_for_cleanup),
+                );
+            }
+        }
+    }));
+    let cancel_pointer = |lost| {
+        super::canvas_adapter::cancel_pointer_handler(
+            runtime.clone(),
+            svg.clone(),
+            drag.clone(),
             interaction_version,
-        });
-    super::canvas_adapter::use_pointer_workspace_effect(
-        active_workspace,
-        runtime.clone(),
-        drag.clone(),
-        svg.clone(),
-        space_down.clone(),
-        render_scope.clone(),
-        interaction_version,
-    );
-    (move_pointer, end_pointer, cancel_pointer)
+            lost,
+        )
+    };
+    (
+        move_pointer,
+        end_pointer,
+        cancel_pointer(false),
+        cancel_pointer(true),
+    )
 }

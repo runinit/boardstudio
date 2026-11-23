@@ -34,7 +34,7 @@ pub(super) fn start_placement(
     let query = host.parts_query;
     let load_definition = host.load_definition.clone();
     let adapter_for_async = host.adapter.clone();
-    let canvas_interaction = host.canvas_interaction.clone();
+    let canvas_interaction = use_context::<LayoutInteraction>();
     move |definition_id: String,
           kind: PartKind,
           workflow: PlacementWorkflow,
@@ -223,7 +223,7 @@ pub(super) fn start_placement(
         ) else {
             return;
         };
-        if !canvas_interaction.try_acquire(CanvasInteractionOwner::PartPlacement) {
+        if !canvas_interaction.begin(CanvasMode::PlacingPart) {
             return;
         }
         preparing.set(Some(owner.clone()));

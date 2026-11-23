@@ -20,7 +20,7 @@ fn host() -> Element {
     let probe = use_context::<Probe>();
     let selected = use_signal(|| None);
     let workspace = use_signal(|| Workspace::Layout);
-    let state = use_layout_workspace_state(selected, workspace);
+    let state = use_layout_workspace_state(selected, workspace, use_signal(|| None));
     probe.set(Some((state, selected, workspace)));
     // Subscribe the probe to the state exposed by the former browser readouts.
     let _ = (

@@ -2,239 +2,101 @@ use super::super::*;
 use super::EditorContext;
 use boardstudio_web_ui_model::Workspace;
 
-pub(super) struct KeyboardInput {
-    pub runtime: Rc<Runtime>,
-    pub drag: Rc<RefCell<Option<Drag>>>,
-    pub svg: Rc<RefCell<Option<SvgElement>>>,
-    pub render_scope: Scope,
-    pub space_down: Rc<Cell<bool>>,
-    pub mirrored_pair: objects::MirroredPairMount,
-    pub placement: part_placement::PartPlacementMount,
-    pub matrix_placement: objects::MatrixPlacementMount,
-    pub canvas_interaction: CanvasInteractionArbiter,
-    pub snap_settings: Signal<objects::LayoutSnapSettings>,
-    pub pending_splay_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
-    pub pending_anchor_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
-    pub transform_inspector: objects::MatrixTransformInspectorMount,
-    pub interaction_version: Signal<u64>,
-}
-
-pub(super) fn keyboard_handler(
-    input: KeyboardInput,
+fn keyboard_handler(
+    mirrored_pair: objects::MirroredPairMount,
+    placement: part_placement::PartPlacementMount,
+    matrix_placement: objects::MatrixPlacementMount,
+    mut transform_tool: Signal<Option<objects::LayoutTransformTool>>,
+    snap_settings: Signal<objects::LayoutSnapSettings>,
 ) -> impl FnMut(KeyboardEvent) + Clone + 'static {
-    let KeyboardInput {
-        runtime,
-        drag,
-        svg,
-        render_scope,
-        space_down,
-        mirrored_pair,
-        placement,
-        matrix_placement,
-        canvas_interaction,
-        snap_settings,
-        mut pending_splay_pick,
-        mut pending_anchor_pick,
-        transform_inspector,
-        interaction_version,
-    } = input;
+    let interaction = use_context::<LayoutInteraction>();
     move |event: KeyboardEvent| {
-        let key = event.data().key().to_string();
-        let code = event.data().code().to_string();
-        let modifiers = event.data().modifiers();
-        if canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement) {
-            let Some(active) = matrix_placement.placement.as_ref() else {
-                if key == "Escape"
-                    && let Some(owner) = matrix_placement.cancel_owner.clone()
-                {
-                    event.prevent_default();
-                    matrix_placement.on_cancel.call(owner);
+        let key = event.key();
+        let delta = match key {
+            Key::ArrowLeft => Vec2 { x: -1.0, y: 0.0 },
+            Key::ArrowRight => Vec2 { x: 1.0, y: 0.0 },
+            Key::ArrowDown => Vec2 { x: 0.0, y: -1.0 },
+            Key::ArrowUp => Vec2 { x: 0.0, y: 1.0 },
+            Key::Enter | Key::Escape => Vec2::default(),
+            _ => return,
+        };
+        let enter = key == Key::Enter;
+        let step = |pitch: f64, default: f64| {
+            let fraction = snap_settings.peek().snap_fraction;
+            if fraction < 0.0 {
+                -fraction
+            } else if fraction > 0.0 {
+                pitch * fraction
+            } else {
+                default
+            }
+        };
+        let position = |center: Vec2, pitch: Vec2, default: Vec2| Vec2 {
+            x: center.x + delta.x * step(pitch.x, default.x),
+            y: center.y + delta.y * step(pitch.y, default.y),
+        };
+        let center = |at: Vec2, pitch: Vec2| {
+            if enter {
+                return at;
+            }
+            position(
+                at,
+                pitch,
+                Vec2 {
+                    x: pitch.x * 0.25,
+                    y: pitch.y * 0.25,
+                },
+            )
+        };
+        match (interaction.current(), key) {
+            (None, Key::Escape) if transform_tool.peek().is_some() => transform_tool.set(None),
+            (_, Key::Escape) | (None, _) => return,
+            (Some(CanvasMode::PlacingMatrix), _) => {
+                let Some(active) = matrix_placement.placement.as_ref() else {
+                    return;
+                };
+                let request = objects::MatrixPlacementMove {
+                    owner: active.owner.clone(),
+                    center: center(active.matrix.origin, active.matrix.pitch),
+                };
+                if enter {
+                    matrix_placement.on_commit
                 } else {
-                    event.prevent_default();
+                    matrix_placement.on_move
                 }
-                return;
-            };
-            let owner = active.owner.clone();
-            if key == "Escape" {
-                event.prevent_default();
-                matrix_placement.on_cancel.call(owner);
-                return;
+                .call(request);
             }
-            if key == "Enter" {
-                event.prevent_default();
-                matrix_placement
-                    .on_commit
-                    .call(objects::MatrixPlacementMove {
-                        owner,
-                        center: active.matrix.origin,
-                    });
-                return;
-            }
-            let (dx, dy) = match key.as_str() {
-                "ArrowLeft" => (-1.0, 0.0),
-                "ArrowRight" => (1.0, 0.0),
-                "ArrowDown" => (0.0, -1.0),
-                "ArrowUp" => (0.0, 1.0),
-                _ => (0.0, 0.0),
-            };
-            if dx != 0.0 || dy != 0.0 {
-                event.prevent_default();
-                let fraction = snap_settings.read().snap_fraction;
-                let step = |pitch: f64| {
-                    if fraction.is_sign_negative() {
-                        -fraction
-                    } else {
-                        pitch * if fraction == 0.0 { 0.25 } else { fraction }
-                    }
+            (Some(CanvasMode::PlacingMirroredPair), _) => {
+                let Some(active) = mirrored_pair.placement.as_ref() else {
+                    return;
                 };
-                matrix_placement.on_move.call(objects::MatrixPlacementMove {
-                    owner,
-                    center: Vec2 {
-                        x: active.matrix.origin.x + dx * step(active.matrix.pitch.x),
-                        y: active.matrix.origin.y + dy * step(active.matrix.pitch.y),
-                    },
-                });
-                return;
-            }
-        }
-        if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
-            && let Some(placement) = mirrored_pair.placement.as_ref()
-        {
-            let owner = placement.owner.clone();
-            if key == "Escape" {
-                event.prevent_default();
-                mirrored_pair.on_cancel.call(owner);
-                return;
-            }
-            if key == "Enter" {
-                event.prevent_default();
-                mirrored_pair.on_commit.call(objects::MirroredPairMove {
-                    owner,
-                    center: placement.pair.center,
-                });
-                return;
-            }
-            let (dx, dy) = match key.as_str() {
-                "ArrowLeft" => (-1.0, 0.0),
-                "ArrowRight" => (1.0, 0.0),
-                "ArrowDown" => (0.0, -1.0),
-                "ArrowUp" => (0.0, 1.0),
-                _ => (0.0, 0.0),
-            };
-            if dx != 0.0 || dy != 0.0 {
-                event.prevent_default();
-                let settings = snap_settings.read();
-                let fraction = settings.snap_fraction;
-                let pitch = placement.pair.matrix.pitch;
-                let step = |axis_pitch: f64| {
-                    if fraction.is_sign_negative() {
-                        -fraction
-                    } else {
-                        axis_pitch * if fraction == 0.0 { 0.25 } else { fraction }
-                    }
+                let request = objects::MirroredPairMove {
+                    owner: active.owner.clone(),
+                    center: center(active.pair.center, active.pair.matrix.pitch),
                 };
-                mirrored_pair.on_move.call(objects::MirroredPairMove {
-                    owner,
-                    center: Vec2 {
-                        x: placement.pair.center.x + dx * step(pitch.x),
-                        y: placement.pair.center.y + dy * step(pitch.y),
-                    },
-                });
-                return;
+                if enter {
+                    mirrored_pair.on_commit
+                } else {
+                    mirrored_pair.on_move
+                }
+                .call(request);
             }
-        }
-        if key == "Escape"
-            && canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
-            && let Some(form) = mirrored_pair.form.as_ref()
-            && mirrored_pair.placement.is_none()
-        {
-            event.prevent_default();
-            mirrored_pair.on_cancel.call(form.owner.clone());
-            return;
-        }
-        if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair) {
-            return;
-        }
-        if canvas_interaction.is_owner(CanvasInteractionOwner::PartPlacement) {
-            if let Some(active) = placement.projection.as_ref() {
-                if key == "Escape" {
-                    event.prevent_default();
-                    placement.on_cancel.call(());
-                } else if key == "Enter" {
-                    event.prevent_default();
-                    placement.on_commit.call(active.pending.at);
-                } else if matches!(
-                    key.as_str(),
-                    "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight"
-                ) {
-                    event.prevent_default();
-                    let mut at = active.pending.at;
-                    let fraction = snap_settings.read().snap_fraction;
-                    let step = if fraction < 0.0 {
-                        -fraction
-                    } else if fraction > 0.0 {
-                        19.05 * fraction
+            (Some(CanvasMode::PlacingPart), _) => {
+                if let Some(active) = placement.projection.as_ref() {
+                    if enter {
+                        placement.on_commit.call(active.pending.at);
                     } else {
-                        0.1
-                    };
-                    match key.as_str() {
-                        "ArrowUp" => at.y += step,
-                        "ArrowDown" => at.y -= step,
-                        "ArrowLeft" => at.x -= step,
-                        "ArrowRight" => at.x += step,
-                        _ => {}
+                        placement.on_move.call(position(
+                            active.pending.at,
+                            Vec2 { x: 19.05, y: 19.05 },
+                            Vec2 { x: 0.1, y: 0.1 },
+                        ));
                     }
-                    placement.on_move.call(at);
                 }
-            } else if key == "Escape" {
-                event.prevent_default();
-                placement.on_cancel.call(());
-            } else {
-                event.prevent_default();
             }
-            return;
+            _ => return,
         }
-        if key == "Escape" && pending_splay_pick.peek().is_some() {
-            pending_splay_pick.set(None);
-            event.prevent_default();
-            return;
-        }
-        if key == "Escape" && pending_anchor_pick.peek().is_some() {
-            pending_anchor_pick.set(None);
-            transform_inspector.clear_aggregate_pick();
-            event.prevent_default();
-            return;
-        }
-        if key == " " || code == "Space" {
-            space_down.set(true);
-            event.prevent_default();
-        } else if key == "Escape" {
-            space_down.set(false);
-            selection::cancel_scoped_drag(&runtime, &drag, &svg, Some(&render_scope));
-            let mut interaction_version = interaction_version;
-            interaction_version += 1;
-        } else if (modifiers.ctrl() || modifiers.meta()) && key.eq_ignore_ascii_case("z") {
-            event.prevent_default();
-            runtime.submit(if modifiers.shift() {
-                Event::Redo {
-                    operation_id: runtime.operation(),
-                }
-            } else {
-                Event::Undo {
-                    operation_id: runtime.operation(),
-                }
-            });
-        }
-    }
-}
-
-pub(super) fn key_up_handler(
-    navigation: CanvasNavigationState,
-) -> impl FnMut(KeyboardEvent) + Clone + 'static {
-    move |event: KeyboardEvent| {
-        let key = event.data().key().to_string();
-        let code = event.data().code().to_string();
-        navigation.release_space_key(&key, &code);
+        event.prevent_default();
     }
 }
 
@@ -246,7 +108,6 @@ pub(super) struct StartPanInput {
     pub svg: Rc<RefCell<Option<SvgElement>>>,
     pub adapter: SelectionAdapter,
     pub mirrored_pair: objects::MirroredPairMount,
-    pub canvas_interaction: CanvasInteractionArbiter,
     pub pending_splay_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
     pub transform_inspector: objects::MatrixTransformInspectorMount,
     pub layout_owner_for_pick: LayoutOwnerIdentity,
@@ -260,6 +121,7 @@ pub(super) struct StartPanInput {
 pub(super) fn start_pan_handler(
     input: StartPanInput,
 ) -> impl FnMut(PointerEvent) + Clone + 'static {
+    let canvas_interaction = use_context::<LayoutInteraction>();
     let StartPanInput {
         navigation,
         render_scope,
@@ -268,7 +130,6 @@ pub(super) fn start_pan_handler(
         svg,
         adapter,
         mirrored_pair,
-        canvas_interaction,
         mut pending_splay_pick,
         transform_inspector,
         layout_owner_for_pick,
@@ -278,64 +139,47 @@ pub(super) fn start_pan_handler(
         width,
         height,
     } = input;
-    navigation.space_pan_handler(
-        render_scope.clone(),
-        render_generation,
-        runtime.clone(),
-        svg.clone(),
-        Rc::new({
-            let adapter = adapter.clone();
-            move || (adapter.generation)() == render_generation
-        }),
+    move |event: PointerEvent| {
+        let Some(pointer) = event.data().try_as_web_event() else {
+            return;
+        };
+        if pointer.default_prevented() || pointer.button() != 0 || workspace() != Workspace::Layout
         {
-            let runtime = runtime.clone();
-            let svg = svg.clone();
-            let adapter = adapter.clone();
-            let mirrored_pair = mirrored_pair.clone();
-            let canvas_interaction = canvas_interaction.clone();
-            move |event: PointerEvent| {
-                let Some(pointer) = event.data().try_as_web_event() else {
-                    return;
-                };
-                if canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement) {
-                    pointer.prevent_default();
-                    pointer.stop_propagation();
-                    return;
-                }
-                if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
-                    && let Some(placement) = mirrored_pair.placement.as_ref()
-                    && pointer.button() == 0
-                {
+            return;
+        }
+        let id = pointer.pointer_id();
+        if canvas_interaction
+            .pointer()
+            .is_some_and(|owner| owner != id)
+        {
+            return;
+        }
+        match canvas_interaction.current() {
+            Some(mode @ CanvasMode::PlacingMirroredPair) => {
+                canvas_interaction.handle(CanvasEvent::PointerDown {
+                    mode,
+                    id,
+                    client: client_point(&pointer),
+                    control: pointer.ctrl_key(),
+                });
+                if let Some(placement) = mirrored_pair.placement.as_ref() {
                     let owner = placement.owner.clone();
-                    if workspace() != Workspace::Layout
-                        || runtime.scope().as_ref() != Some(&owner.scope)
+                    if runtime.scope().as_ref() != Some(&owner.scope)
                         || (adapter.generation)() != owner.scope_generation
                     {
                         mirrored_pair.on_cancel.call(owner);
-                        return;
-                    }
-                    if let Some(center) = coordinates(&svg, &pointer, view_x, view_y, width, height)
+                    } else if let Some(center) =
+                        coordinates(&svg, &pointer, view_x, view_y, width, height)
                     {
-                        pointer.prevent_default();
-                        pointer.stop_propagation();
                         mirrored_pair
                             .on_commit
                             .call(objects::MirroredPairMove { owner, center });
                     }
-                    return;
                 }
-                if canvas_interaction.current().is_some() {
-                    pointer.prevent_default();
-                    pointer.stop_propagation();
-                    return;
-                }
-                if pointer.button() == 0
-                    && workspace() == Workspace::Layout
-                    && pending_splay_pick.peek().is_some()
-                    && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
-                {
-                    pointer.prevent_default();
-                    pointer.stop_propagation();
+            }
+            Some(CanvasMode::PickingSplayOrigin) => {
+                if let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
+                    canvas_interaction.end(CanvasMode::PickingSplayOrigin);
                     apply_pending_splay_origin_pick(
                         &runtime,
                         workspace,
@@ -350,8 +194,55 @@ pub(super) fn start_pan_handler(
                     );
                 }
             }
-        },
-    )
+            Some(mode) => {
+                canvas_interaction.handle(CanvasEvent::PointerDown {
+                    mode,
+                    id: pointer.pointer_id(),
+                    client: client_point(&pointer),
+                    control: pointer.ctrl_key(),
+                });
+            }
+            None => {
+                if !layout_owner_is_current(&runtime, workspace, &adapter, &layout_owner_for_pick)
+                    || runtime.with_model(|model| model.gesture.is_some())
+                    || navigation.drag_interaction().borrow().is_some()
+                {
+                    return;
+                }
+                if !canvas_interaction.space_down() {
+                    if pointer.shift_key()
+                        && pointer
+                            .target()
+                            .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+                            .is_some_and(|target| {
+                                target.has_attribute("data-layout-marquee-background")
+                            })
+                        && super::canvas_adapter::capture_layout_drag(
+                            canvas_interaction,
+                            CanvasMode::Marquee,
+                            &pointer,
+                            &runtime,
+                            &navigation.drag_interaction(),
+                            &svg,
+                        )
+                    {
+                        pointer.prevent_default();
+                    }
+                    return;
+                }
+                super::canvas_adapter::start_pan(
+                    &runtime,
+                    &navigation,
+                    &svg,
+                    &render_scope,
+                    render_generation,
+                    &pointer,
+                    canvas_interaction,
+                );
+            }
+        }
+        pointer.prevent_default();
+    }
 }
 
 pub(super) struct WheelInput {
@@ -496,18 +387,13 @@ pub(super) fn build_keyboard_bundle(
 ) {
     let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
     let runtime = &editor.runtime();
-    let drag = &cam.placement.drag;
     let svg = &cam.svg_surface.svg;
-    let space_down = &cam.placement.space_down;
     let mirrored_pair = &state.matrix_pair.mirrored_pair;
     let part_placement = &cam.placement.part_placement;
     let matrix_placement = &state.matrix_pair.matrix_placement;
-    let canvas_interaction = &state.canvas_interaction;
     let layout_snap_settings = state.layout_state.snap_settings();
     let pending_splay_origin_pick = state.layout_state.pending_splay_origin_pick();
-    let pending_anchor_pick = state.layout_state.pending_anchor_pick();
     let matrix_transform_inspector = &state.matrix_transform_inspector;
-    let interaction_version = cam.placement.interaction_version;
     let canvas_navigation = &state.canvas_navigation;
     let adapter = &state.adapter;
     let layout_owner = &state.view.layout_owner;
@@ -517,23 +403,15 @@ pub(super) fn build_keyboard_bundle(
     let width = cam.scene_bounds.width;
     let height = cam.scene_bounds.height;
     let render_generation = state.render_generation;
-    let keyboard = keyboard_handler(KeyboardInput {
-        runtime: runtime.clone(),
-        drag: drag.clone(),
-        svg: svg.clone(),
-        render_scope: render_scope.clone(),
-        space_down: space_down.clone(),
-        mirrored_pair: mirrored_pair.clone(),
-        placement: part_placement.clone(),
-        matrix_placement: matrix_placement.clone(),
-        canvas_interaction: canvas_interaction.clone(),
-        snap_settings: layout_snap_settings,
-        pending_splay_pick: pending_splay_origin_pick,
-        pending_anchor_pick,
-        transform_inspector: matrix_transform_inspector.clone(),
-        interaction_version,
-    });
-    let key_up = key_up_handler(canvas_navigation.clone());
+    let keyboard = keyboard_handler(
+        mirrored_pair.clone(),
+        part_placement.clone(),
+        matrix_placement.clone(),
+        state.layout_state.transform_tool(),
+        layout_snap_settings,
+    );
+    let input = use_context::<layout_input::LayoutInput>();
+    let key_up = move |event| input.keyup(event);
     let start_pan = start_pan_handler(StartPanInput {
         navigation: canvas_navigation.clone(),
         render_scope: render_scope.clone(),
@@ -542,7 +420,6 @@ pub(super) fn build_keyboard_bundle(
         svg: svg.clone(),
         adapter: adapter.clone(),
         mirrored_pair: mirrored_pair.clone(),
-        canvas_interaction: canvas_interaction.clone(),
         pending_splay_pick: pending_splay_origin_pick,
         transform_inspector: matrix_transform_inspector.clone(),
         layout_owner_for_pick: layout_owner.clone(),

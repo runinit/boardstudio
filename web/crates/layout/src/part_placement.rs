@@ -12,10 +12,7 @@ mod hook;
 mod owner;
 
 #[cfg(target_arch = "wasm32")]
-pub use hook::{
-    DefinitionLoader, LayoutPlacementCancellation, PartPlacementHost, PartPlacementMount,
-    layout_view_mode_handler, use_controller_placement,
-};
+pub use hook::{DefinitionLoader, PartPlacementHost, PartPlacementMount, use_controller_placement};
 #[cfg(any(target_arch = "wasm32", test))]
 pub use owner::{
     ActivePartPlacement, ComponentPlacementAction, PlacementOwner, PlacementWorkflow,

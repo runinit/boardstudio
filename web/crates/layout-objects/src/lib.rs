@@ -22,7 +22,7 @@ pub(crate) use boardstudio_web_runtime::operation_outcomes;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use boardstudio_web_runtime::runtime;
 #[cfg(target_arch = "wasm32")]
-pub(crate) use boardstudio_web_ui_model::canvas_interaction;
+pub mod canvas_interaction;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use boardstudio_web_ui_model::selection::{self, SelectionAdapter};
 #[cfg(target_arch = "wasm32")]

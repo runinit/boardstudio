@@ -2,7 +2,7 @@ use super::*;
 use boardstudio_web_ui_model::editor::EditorContext;
 pub(in crate::presentation) mod action_handlers;
 pub(in crate::presentation) mod camera;
-mod canvas_adapter;
+pub(in crate::presentation) mod canvas_adapter;
 pub(in crate::presentation) mod commands;
 pub(in crate::presentation) mod findings_navigation;
 pub(in crate::presentation) mod keyboard;
@@ -42,7 +42,6 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
     use_context_provider(|| shared_wiring);
     use_context_provider(|| workspace_composition::WorkspaceInteraction {
         navigation: state.canvas_navigation.clone(),
-        arbiter: state.canvas_interaction.clone(),
         tree_cell_anchor: state.tree_cell_anchor.clone(),
         inspector_settings: state.inspector_panel_settings,
     });
@@ -109,10 +108,48 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
         workspace_composition::current_tree_context(&state.adapter, model, &render_scope);
     let show_position_inspector =
         camera::session_show_position_inspector(model, session_selected_tree_context.as_ref());
-    let (move_pointer, end_pointer, cancel_pointer) =
+    let (move_pointer, end_pointer, cancel_pointer, lost_capture) =
         pointer_bundles::use_pointer_bundle(&state, &cam, &render_scope);
     let (keyboard, key_up, start_pan) =
         keyboard::build_keyboard_bundle(&state, &cam, &render_scope);
+    let mut layout_input = use_context::<layout_input::LayoutInput>();
+    let layout_keyboard = use_callback(keyboard.clone());
+    let matrix_placement = &state.matrix_pair.matrix_placement;
+    let pair = &state.matrix_pair.mirrored_pair;
+    let part_cancel = cam.placement.part_placement.on_cancel;
+    let matrix_cancel = matrix_placement.on_cancel;
+    let matrix_owner = matrix_placement.cancel_owner.clone();
+    let pair_cancel = pair.on_cancel;
+    let pair_owner = pair
+        .placement
+        .as_ref()
+        .map(|active| active.owner.clone())
+        .or_else(|| pair.form.as_ref().map(|form| form.owner.clone()));
+    let cancel_placement = use_callback(move |mode| match mode {
+        CanvasMode::PlacingPart => part_cancel.call(()),
+        CanvasMode::PlacingMatrix => {
+            if let Some(owner) = matrix_owner.clone() {
+                matrix_cancel.call(owner);
+            }
+        }
+        CanvasMode::PlacingMirroredPair => {
+            if let Some(owner) = pair_owner.clone() {
+                pair_cancel.call(owner);
+            }
+        }
+        _ => {}
+    });
+    use_hook(move || {
+        layout_input.keyboard.set(Some(layout_keyboard));
+        layout_input.cancel_placement.set(Some(cancel_placement));
+    });
+    use_drop(move || {
+        if *layout_input.keyboard.peek() == Some(layout_keyboard) {
+            layout_input.dispatch(CanvasEvent::ScopeChanged);
+            layout_input.keyboard.set(None);
+            layout_input.cancel_placement.set(None);
+        }
+    });
     let wheel = keyboard::build_wheel(
         editor,
         &state.adapter,
@@ -186,7 +223,6 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
                 on_return_from_layout_finding: nav.callbacks.on_return_from_layout_finding,
                 on_close_layout_findings: nav.callbacks.on_close_layout_findings,
                 on_layout_finding: nav.callbacks.on_layout_finding,
-                interaction_version: cam.placement.interaction_version,
                 visible_ids: views.visible_ids.clone(),
                 objects_panel_settings: state.objects_panel_settings,
             },
@@ -220,6 +256,7 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
                 move_pointer: EventHandler::new(move_pointer.clone()),
                 end_pointer: EventHandler::new(end_pointer.clone()),
                 cancel_pointer: EventHandler::new(cancel_pointer.clone()),
+                lost_capture: EventHandler::new(lost_capture.clone()),
                 keyboard: EventHandler::new(keyboard.clone()),
                 key_up: EventHandler::new(key_up.clone()),
                 wheel: EventHandler::new(wheel.clone()),
@@ -301,7 +338,20 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
                     },
                     guide.on_stage_change,
                     guide.on_open_workspace,
-                    guide.on_dismiss_guide,
+                    EventHandler::new({
+                        let dismiss = guide.on_dismiss_guide;
+                        move |_| {
+                            if let Some(main) = web_sys::window().and_then(|window| window.document())
+                                .and_then(|document| document.get_element_by_id("m1-workbench"))
+                                .and_then(|element| element.dyn_into::<HtmlElement>().ok())
+                            {
+                                let options = web_sys::FocusOptions::new();
+                                options.set_prevent_scroll(true);
+                                let _ = main.focus_with_options(&options);
+                            }
+                            dismiss.call(());
+                        }
+                    }),
                     guide.on_finish_guide,
                 )}
                 {view::canvas_section(

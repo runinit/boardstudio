@@ -78,8 +78,6 @@ pub(super) struct InspectorInput {
     pub(super) key_size: objects::KeySizeMount,
     pub(super) matrix_transform_inspector: objects::MatrixTransformInspectorMount,
     pub(super) on_pick_splay_origin: EventHandler<()>,
-    pub(super) splay_origin_pick_pending: bool,
-    pub(super) on_cancel_splay_origin_pick: EventHandler<()>,
     pub(super) on_pick_anchor: EventHandler<()>,
     pub(super) anchor_pick_pending: bool,
     pub(super) on_cancel_anchor_pick: EventHandler<()>,
@@ -359,10 +357,6 @@ pub(super) fn LayoutInspector(input: ReadSignal<InspectorInput>) -> Element {
     });
     if let Some(page) = input.findings_page.filter(|page| page.open) {
         return rsx! {
-            PendingSplayOriginPickEscape {
-                pending: input.splay_origin_pick_pending,
-                on_cancel: input.on_cancel_splay_origin_pick,
-            }
             super::layout_findings::LayoutFindingsInspector {
                 open: page.open,
                 document: page.document,
@@ -445,10 +439,6 @@ pub(super) fn LayoutInspector(input: ReadSignal<InspectorInput>) -> Element {
         }
     };
     rsx! {
-            PendingSplayOriginPickEscape {
-                pending: input.splay_origin_pick_pending,
-                on_cancel: input.on_cancel_splay_origin_pick,
-            }
             super::layout_key_selection_actions::SelectedKeysActions {}
             MatrixRelationshipEscape {
                 target: matrix_relationship_escape_target(),
@@ -527,11 +517,36 @@ fn MatrixRelationshipEscape(
     component_owner: Option<super::inspector::LayoutComponentInspectorOwner>,
     on_escape: EventHandler<objects::TreeSelectRequest>,
 ) -> Element {
+    let mut input = use_context::<super::layout_input::LayoutInput>();
     let request = target
         .as_ref()
-        .zip(component_owner.as_ref())
-        .and_then(|(t, o)| matrix_relationship_escape_return_request(t, o, "Escape", false));
-    use_document_escape(request, on_escape);
+        .filter(|target| {
+            component_owner
+                .as_ref()
+                .is_some_and(|owner| matrix_relationship_escape_target_is_current(target, owner))
+        })
+        .map(|target| objects::TreeSelectRequest {
+            scope: target.scope.clone(),
+            context: objects::TreeContext::Board {
+                board_id: target.scope.board_id.clone(),
+            },
+            mode: target.mode,
+            outline_action: None,
+        });
+    let active = request.is_some();
+    let escape = use_callback(move |()| {
+        if let Some(request) = request.clone() {
+            on_escape.call(request);
+        }
+    });
+    use_effect(use_reactive((&active,), move |(active,)| {
+        input.relation_escape.set(active.then_some(escape));
+    }));
+    use_drop(move || {
+        if *input.relation_escape.peek() == Some(escape) {
+            input.relation_escape.set(None);
+        }
+    });
     rsx! {}
 }
 
@@ -549,114 +564,6 @@ fn matrix_relationship_escape_target_is_current(
         )
 }
 
-fn matrix_relationship_escape_return_request(
-    target: &objects::TreeSelectRequest,
-    component_owner: &super::inspector::LayoutComponentInspectorOwner,
-    key: &str,
-    default_prevented: bool,
-) -> Option<objects::TreeSelectRequest> {
-    if key != "Escape"
-        || default_prevented
-        || !matrix_relationship_escape_target_is_current(target, component_owner)
-    {
-        return None;
-    }
-    Some(objects::TreeSelectRequest {
-        scope: target.scope.clone(),
-        context: objects::TreeContext::Board {
-            board_id: target.scope.board_id.clone(),
-        },
-        mode: target.mode,
-        outline_action: None,
-    })
-}
-
-#[component]
-fn PendingSplayOriginPickEscape(pending: bool, on_cancel: EventHandler<()>) -> Element {
-    use_document_escape(pending.then_some(()), on_cancel);
-    rsx! {}
-}
-
-/// Document-level Escape listener, registered only while `payload` is
-/// `Some`. Editable targets keep their native Escape behavior, and a
-/// default-prevented event is left to its existing owner.
-fn use_document_escape<T: Clone + PartialEq + 'static>(
-    payload: Option<T>,
-    on_escape: EventHandler<T>,
-) {
-    #[cfg(target_arch = "wasm32")]
-    {
-        use std::{cell::RefCell, rc::Rc};
-        use wasm_bindgen::{JsCast, closure::Closure};
-
-        type Listener = Rc<
-            RefCell<
-                Option<(
-                    web_sys::Document,
-                    Closure<dyn FnMut(web_sys::KeyboardEvent)>,
-                )>,
-            >,
-        >;
-
-        let listener = use_hook(Listener::default);
-        use_effect(use_reactive((&payload,), {
-            let listener = listener.clone();
-            move |(payload,)| {
-                if let Some((document, callback)) = listener.borrow_mut().take() {
-                    let _ = document.remove_event_listener_with_callback(
-                        "keydown",
-                        callback.as_ref().unchecked_ref(),
-                    );
-                }
-                let Some(payload) = payload else {
-                    return;
-                };
-                let Some(document) = web_sys::window().and_then(|window| window.document()) else {
-                    return;
-                };
-                let on_escape = on_escape;
-                let callback = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
-                    if event.key() != "Escape" || event.default_prevented() {
-                        return;
-                    }
-                    if event
-                        .target()
-                        .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
-                        .is_some_and(|target| {
-                            target
-                                .closest("input, textarea, select, [contenteditable='true']")
-                                .ok()
-                                .flatten()
-                                .is_some()
-                        })
-                    {
-                        return;
-                    }
-                    event.prevent_default();
-                    event.stop_propagation();
-                    on_escape.call(payload.clone());
-                }) as Box<dyn FnMut(_)>);
-                let _ = document
-                    .add_event_listener_with_callback("keydown", callback.as_ref().unchecked_ref());
-                *listener.borrow_mut() = Some((document, callback));
-            }
-        }));
-        use_drop({
-            let listener = listener.clone();
-            move || {
-                if let Some((document, callback)) = listener.borrow_mut().take() {
-                    let _ = document.remove_event_listener_with_callback(
-                        "keydown",
-                        callback.as_ref().unchecked_ref(),
-                    );
-                }
-            }
-        });
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    let _ = (payload, on_escape);
-}
-
 #[cfg(all(test, target_arch = "wasm32"))]
 mod origin_pick_escape_regression_tests {
     use super::*;
@@ -669,27 +576,30 @@ mod origin_pick_escape_regression_tests {
 
     #[component]
     fn pending_pick_host() -> Element {
+        let input = super::super::layout_input::use_layout_input();
+        let interaction = use_context::<super::super::LayoutInteraction>();
         let mut pending = use_signal(|| false);
         rsx! {
-            PendingSplayOriginPickEscape {
-                pending: pending(),
-                on_cancel: EventHandler::new(move |()| pending.set(false)),
+            main { id: "m1-workbench", tabindex: "-1",
+                onkeydown: move |event| input.keydown(&event, true),
+                Button {
+                    variant: ButtonVariant::Secondary,
+                    id: "arm-origin-pick",
+                    onclick: move |_| {
+                        if interaction.begin(super::super::CanvasMode::PickingSplayOrigin) {
+                            pending.set(true);
+                            interaction.on_cancel(move || { let mut pending = pending; pending.set(false); });
+                        }
+                    },
+                    "Pick origin"
+                }
+                output { id: "pending-origin-pick", "{pending()}" }
             }
-            Button {
-                variant: ButtonVariant::Secondary,
-                id: "arm-origin-pick",
-                onclick: move |_| pending.set(true),
-
-                "Pick origin"
-
-            }
-            output { id: "pending-origin-pick", "{pending()}" }
         }
     }
 
     #[wasm_bindgen_test]
     async fn escape_from_inspector_cancels_pending_origin_pick() {
-        let document = web_sys::window().unwrap().document().unwrap();
         let root = test_mount_helpers::mount(VirtualDom::new(pending_pick_host), None);
         wait_until("the origin-pick control renders", || {
             root.query_selector("#arm-origin-pick")
@@ -712,7 +622,11 @@ mod origin_pick_escape_regression_tests {
         .await;
         let options = web_sys::KeyboardEventInit::new();
         options.set_key("Escape");
-        document
+        options.set_bubbles(true);
+        options.set_cancelable(true);
+        root.query_selector("#arm-origin-pick")
+            .unwrap()
+            .unwrap()
             .dispatch_event(
                 &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &options)
                     .unwrap(),
@@ -787,8 +701,9 @@ mod relation_escape_regression_tests {
     #[component]
     fn relation_escape_host() -> Element {
         let (target, owner) = route();
+        let input = super::super::layout_input::use_layout_input();
         let mut context = use_signal(|| "component");
-        rsx! {
+        rsx! { main { id: "m1-workbench", tabindex: "-1", onkeydown: move |event| input.keydown(&event, true),
             MatrixRelationshipEscape {
                 target: Some(target),
                 component_owner: Some(owner),
@@ -805,11 +720,11 @@ mod relation_escape_regression_tests {
             }
             output { id: "selection-context", "{context()}" }
         }
+        }
     }
 
     #[wasm_bindgen_test]
     async fn escape_from_matrix_relationship_component_returns_to_board_context() {
-        let document = web_sys::window().unwrap().document().unwrap();
         let root = test_mount_helpers::mount(VirtualDom::new(relation_escape_host), None);
         wait_until("the matrix relationship renders", || {
             root.query_selector("#selection-context")
@@ -822,7 +737,10 @@ mod relation_escape_regression_tests {
         let options = web_sys::KeyboardEventInit::new();
         options.set_key("Escape");
         options.set_bubbles(true);
-        document
+        options.set_cancelable(true);
+        root.query_selector("#selection-context")
+            .unwrap()
+            .unwrap()
             .dispatch_event(
                 &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &options)
                     .unwrap(),
@@ -1033,7 +951,6 @@ pub(in crate::presentation) struct LayoutViewState {
     pub matrix_setup: objects::MatrixSetupMount,
     pub parts_state: super::parts_workspace::PartsWorkspaceState,
     pub parts_assembly_orientation: Signal<super::parts::SwitchOrientation>,
-    pub canvas_interaction: super::CanvasInteractionArbiter,
 }
 
 pub(in crate::presentation) fn use_layout_view_state(
@@ -1064,7 +981,6 @@ pub(in crate::presentation) fn use_layout_view_state(
     let parts_state = super::parts_workspace::use_parts_workspace_state();
     use_context_provider(|| parts_state);
     let parts_assembly_orientation = parts_state.assembly_orientation();
-    let canvas_interaction = use_hook(super::CanvasInteractionArbiter::default);
     LayoutViewState {
         tree_cell_anchor,
         matrix_inspector,
@@ -1072,7 +988,6 @@ pub(in crate::presentation) fn use_layout_view_state(
         matrix_setup,
         parts_state,
         parts_assembly_orientation,
-        canvas_interaction,
     }
 }
 

@@ -14,12 +14,12 @@ pub(crate) use boardstudio_web_case::{case_display, shared_viewer};
 #[cfg(target_arch = "wasm32")]
 pub(crate) use boardstudio_web_keycaps::{keycaps_finding_marker, keycaps_fit};
 #[cfg(target_arch = "wasm32")]
+pub use boardstudio_web_layout_objects::canvas_interaction;
+#[cfg(target_arch = "wasm32")]
 pub(crate) use boardstudio_web_parts::parts;
 pub(crate) use boardstudio_web_runtime::layout_viewer_source;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use boardstudio_web_runtime::runtime;
-#[cfg(target_arch = "wasm32")]
-pub(crate) use boardstudio_web_ui_model::canvas_interaction;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use boardstudio_web_ui_model::selection::{self, SelectionAdapter};
 pub(crate) use boardstudio_web_ui_model::state::*;
