@@ -15,7 +15,6 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 import browser_tools
 import cargo_json
 from tailwind_tools import DX_TOOLS, IN_OVERLAP_ENV, check_jobs, tailwind_cli
@@ -121,13 +120,9 @@ def stage_module_catalogue(source: Path, assets: Path) -> None:
     if host is None:
         raise ValueError("module catalogue has no horizontal VIK host connector")
     modules = assets / "modules"
-    stale = [path for path in (assets / "imported-modules.json", modules) if path.exists()]
-    if stale:
-        trash = Path.home() / ".cache/tmp/boardstudio-trash/p0-1"
-        trash.mkdir(parents=True, exist_ok=True)
-        backup = Path(tempfile.mkdtemp(dir=trash))
-        for path in stale:
-            shutil.move(path, backup / path.name)
+    (assets / "imported-modules.json").unlink(missing_ok=True)
+    if modules.exists():
+        shutil.rmtree(modules)
     modules.mkdir(parents=True)
     host_asset = "assets/modules/vik-host-connector.json"
     compact = json.JSONEncoder(separators=(",", ":")).encode
@@ -155,10 +150,10 @@ def stage_module_catalogue(source: Path, assets: Path) -> None:
 def _stage_provider_entries(assets: Path, provider_root: Path, *, include_site_assets: bool = False) -> None:
     """Copy the generated providers into `assets` and write the worker entry modules."""
     if include_site_assets:
-        shutil.copytree(provider_root / "web/assets", assets, dirs_exist_ok=True,
-                        ignore=shutil.ignore_patterns("layout-generators.js", "layout-generators",
-                                                     "preview-generator", "bundled-step", "modules",
-                                                     "modules-index.json", "imported-modules.json"))
+        site_assets = provider_root / "web/assets"
+        shutil.copytree(site_assets, assets, dirs_exist_ok=True, ignore=lambda d, _: {
+            "layout-generators.js", "layout-generators", "preview-generator", "bundled-step",
+            "modules", "modules-index.json", "imported-modules.json"} if Path(d) == site_assets else ())
     stage_module_catalogue(provider_root / MODULE_CATALOGUE, assets)
     shutil.copytree(provider_root / "cad/wasm/pkg", assets / "cad", dirs_exist_ok=True)
     shutil.copytree(provider_root / "web/target/providers/cad-worker", assets / "cad-worker",

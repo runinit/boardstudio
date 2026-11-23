@@ -349,11 +349,11 @@ fn chain_outline_edges(
             let mut matches = edges.iter().enumerate().filter(|(_, edge)| {
                 same_point(edge.start, current) || same_point(edge.end, current)
             });
-            let (index, first) = matches
+            let (index, hit) = matches
                 .next()
                 .ok_or_else(|| validation("PCB Edge.Cuts curves contain an open contour"))?;
             if let Some(second) = matches.next() {
-                let ids = [first, second.1]
+                let ids = [hit, second.1]
                     .into_iter()
                     .chain(matches.map(|(_, edge)| edge))
                     .map(|edge| edge.primitive.source_id.as_str())

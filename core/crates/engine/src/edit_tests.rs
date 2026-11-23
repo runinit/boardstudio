@@ -52,6 +52,7 @@ fn assembly_save_and_placement_each_make_one_undo_entry() {
             operation,
         })
     };
+    let saved_definition = definition.clone();
     let saved = commit(
         &mut core,
         0,
@@ -64,6 +65,7 @@ fn assembly_save_and_placement_each_make_one_undo_entry() {
     .unwrap();
     assert_eq!(saved.scene.changed_ids, ["recipe"]);
     assert_eq!(saved.document.assemblies, [assembly.clone()]);
+    assert_eq!(saved.document.definitions, [saved_definition.clone()]);
 
     definition.id = "placed/definition/member".into();
     let part: Part = from_value(json!({
@@ -92,7 +94,7 @@ fn assembly_save_and_placement_each_make_one_undo_entry() {
 
     asset.sha256.push('x');
     assert!(
-        commit(&mut core, 2, save(assembly, vec![], vec![asset]))
+        commit(&mut core, 2, save(assembly.clone(), vec![], vec![asset]))
             .unwrap_err()
             .contains("conflicts")
     );
@@ -107,10 +109,19 @@ fn assembly_save_and_placement_each_make_one_undo_entry() {
     );
     assert_eq!(without_revision(core.undo().unwrap().document), initial);
     core.redo().unwrap();
+    let redone = core.redo().unwrap();
+    let base_revision = redone.document.revision;
     assert_eq!(
-        without_revision(core.redo().unwrap().document),
+        without_revision(redone.document),
         without_revision(placed.document)
     );
+    let resaved = commit(
+        &mut core,
+        base_revision,
+        save(assembly, vec![saved_definition], vec![]),
+    )
+    .unwrap();
+    assert_eq!(resaved.document.definitions.len(), 2);
 }
 
 #[cfg(test)]

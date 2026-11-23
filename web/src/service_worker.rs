@@ -1,5 +1,5 @@
 use boardstudio_web_worker_host::offline::{OfflineManifest, scope_cache_prefix};
-use js_sys::Array;
+use js_sys::{Array, Function, Promise};
 use wasm_bindgen::{JsCast, JsValue, closure::Closure, prelude::wasm_bindgen};
 use wasm_bindgen_futures::{JsFuture, future_to_promise};
 use web_sys::{
@@ -9,6 +9,16 @@ use web_sys::{
 
 thread_local! {
     static STARTED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+struct FinishWait(Option<Function>);
+
+impl Drop for FinishWait {
+    fn drop(&mut self) {
+        if let Some(resolve) = self.0.take() {
+            let _ = resolve.call0(&JsValue::UNDEFINED);
+        }
+    }
 }
 
 fn global() -> ServiceWorkerGlobalScope {
@@ -47,6 +57,7 @@ async fn cached_fetch(
     scope_url: &str,
     cache_name: &str,
     runtime_cacheable: bool,
+    finish: FinishWait,
 ) -> Result<JsValue, JsValue> {
     let cache = open_cache(cache_name).await?;
     let cached = JsFuture::from(cache.match_with_request(&request)).await?;
@@ -68,7 +79,11 @@ async fn cached_fetch(
         && response.ok()
         && let Ok(cloned) = response.clone()
     {
-        let _ = JsFuture::from(cache.put_with_request(&request, &cloned)).await;
+        let _ = future_to_promise(async move {
+            let _finish = finish;
+            let _ = JsFuture::from(cache.put_with_request(&request, &cloned)).await;
+            Ok(JsValue::UNDEFINED)
+        });
     }
     Ok(response)
 }
@@ -128,10 +143,24 @@ pub fn start_offline_worker(
     let fetch = Closure::<dyn FnMut(FetchEvent)>::new(move |event: FetchEvent| {
         let request = event.request();
         if let Some(relative_path) = request.url().strip_prefix(&scope_url) {
-            let runtime_cacheable = manifest.is_runtime_cacheable(relative_path);
+            let asset_path = relative_path
+                .split(['?', '#'])
+                .next()
+                .unwrap_or(relative_path);
+            let runtime_cacheable = manifest.is_runtime_cacheable(asset_path);
+            let mut resolve_cache = None;
+            let cache_done = Promise::new(&mut |resolve, _| resolve_cache = Some(resolve));
+            let _ = event.wait_until(&cache_done);
             let (scope_url, name) = (scope_url.clone(), cache_name.clone());
             let promise = future_to_promise(async move {
-                cached_fetch(request, &scope_url, &name, runtime_cacheable).await
+                cached_fetch(
+                    request,
+                    &scope_url,
+                    &name,
+                    runtime_cacheable,
+                    FinishWait(resolve_cache),
+                )
+                .await
             });
             let _ = event.respond_with(&promise);
         }

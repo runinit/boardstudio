@@ -55,6 +55,7 @@ pub fn is_back_layer(node: &Node) -> bool {
     field(node, "layer").is_some_and(|layer| layer.starts_with("B."))
 }
 
+#[derive(Debug)]
 pub enum NumberError {
     Invalid,
     NonFinite,

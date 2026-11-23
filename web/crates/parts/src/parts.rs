@@ -530,10 +530,6 @@ pub fn PartsInspectorPanel(
                 on_place: on_place_assembly,
                 on_board_placed,
             }
-            Collapsible { class: "mb-3", keep_mounted: false,
-                CollapsibleTrigger { class: "w-full justify-start {TOUCH_CLS}", "Modules" }
-                CollapsibleContent { modules_catalogue::ModuleBrowser { scope: scope.clone(), selected } }
-            }
             if selected_module_id.is_some() {
                 if let Some(module) = module_catalogue.selected {
                     modules_catalogue::ModuleInspector { snapshot: snapshot.clone(), module, variants: module_catalogue.variants, scope: scope.clone(), selected, placement_id: selected_module_placement.clone(), on_open_placement: on_open_module_placement, on_attached: on_module_attached }

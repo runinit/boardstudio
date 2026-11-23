@@ -161,36 +161,6 @@ pub async fn load_horizontal_host_connector_definition() -> Result<PartDefinitio
     Ok(HOST_CONNECTOR.with(|cache| cache.get_or_init(|| definition).clone()))
 }
 
-#[component]
-pub fn ModuleBrowser(scope: Option<Scope>, mut selected: super::PartsSelection) -> Element {
-    let index = use_resource(load_index);
-    let mut generation = use_context::<super::PartsSelectionGeneration>().0;
-    let mut activation = use_context::<super::PartsPreviewActivation>().0;
-    let mut assembly = use_context::<super::PartsAssemblySelection>().0;
-    let selection = selected_id(selected(), &scope).unwrap_or_default();
-    match &*index.read() {
-        Some(Ok(index)) => rsx! {
-            super::SelectField::<String> {
-                label: "Module", placeholder: "Choose a module", aria_label: "Browse modules", value: selection,
-                options: index.modules.iter().map(|entry| (entry.id.clone(), format!("{} · {}", entry.name, entry.variant))).collect(),
-                on_commit: move |id: String| {
-                    assembly.set(None);
-                    selected.set(Some((scope.clone(), format!("module:{id}"))));
-                    generation.with_mut(|value| *value = value.wrapping_add(1));
-                    activation.with_mut(|value| *value = value.wrapping_add(1));
-                },
-            }
-        },
-        result => super::catalogue_status(
-            result
-                .as_ref()
-                .and_then(|result| result.as_ref().err().cloned()),
-            "Module catalogue",
-            "Loading module catalogue…",
-        ),
-    }
-}
-
 fn svg_points(points: &[boardstudio_model::model::Vec2], separator: &str) -> String {
     points
         .iter()

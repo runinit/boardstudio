@@ -92,12 +92,11 @@ crates never depend on higher ones:
 Only `boardstudio-web` (the page and the worker entry points) has a normal dependency on
 the document engine (`boardstudio_core`). The crates below it use `boardstudio-model`,
 `boardstudio-core-kernel` and `boardstudio-core-mechanical` directly, so the engine and
-mirrored-half compile in parallel with them. The page passes `Runtime::new` a
-`runtime::core_services::CoreServices` value. It holds Core's Open admission check and a
-factory for throwaway engines, used by read-only probes such as a reviewed pair link, an
-anchor pick and the demo projects. Asynchronous Core work goes through
-`host::CoreExecutor`, the Core worker. Tests that need a real engine use
-`boardstudio_core` as a dev-dependency or through runtime's `test-support` feature.
+mirrored-half compile in parallel with them. Synchronous Core work calls typed
+`boardstudio_core::CoreEngine` methods directly (in `boardstudio-web` and test builds),
+while asynchronous Core work goes through `host::CoreExecutor`, the Core worker. Tests
+that need a real engine use `boardstudio_core` as a dev-dependency or through runtime's
+`test-support` feature.
 
 An edit inside a workspace crate recompiles that crate, the crates above it and the bin.
 Every presentation crate's `lib.rs` aliases itself as `presentation` and re-exports the

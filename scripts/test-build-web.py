@@ -261,22 +261,20 @@ class BuildWebTests(unittest.TestCase):
 
     def test_site_and_dev_assets_stage_the_same_providers_and_worker_entries(self):
         root = self.root
-        for path in ("web/assets/workbench-base.css", "cad/wasm/pkg/cad.js", "renderer/pkg/renderer.js",
+        for path in ("web/assets/workbench-base.css", "web/assets/nested/modules/keep.txt",
+                     "cad/wasm/pkg/cad.js", "renderer/pkg/renderer.js",
                      "web/target/providers/cad-worker/m1_cad_worker.js"):
             self.write(path, path.encode())
-        catalogue = root / BUILD.MODULE_CATALOGUE
-        catalogue.parent.mkdir(parents=True)
+        (catalogue := root / BUILD.MODULE_CATALOGUE).parent.mkdir(parents=True)
         catalogue.symlink_to(BUILD.ROOT / BUILD.MODULE_CATALOGUE)
         site, dev = root / "site", root / "web/assets"
-        stale_paths = ("imported-modules.json", "modules/stale.json")
-        for stale in stale_paths:
+        for stale in ("imported-modules.json", "modules/stale.json"):
             self.write("web/assets/" + stale, b"stale")
         BUILD._stage_provider_entries(site / "assets", root, include_site_assets=True)
-        with patch.object(BUILD.Path, "home", return_value=root):
-            BUILD._stage_provider_entries(dev, root)
+        BUILD._stage_provider_entries(dev, root)
         for assets in (dev, site / "assets"):
-            self.assertFalse(any((assets / stale).exists() for stale in stale_paths))
-        self.assertTrue((site / "assets/workbench-base.css").is_file())
+            self.assertFalse(any((assets / stale).exists() for stale in ("imported-modules.json", "modules/stale.json")))
+        self.assertTrue(all((site / "assets" / p).is_file() for p in ("nested/modules/keep.txt", "workbench-base.css")))
         index = (dev / "modules-index.json").read_bytes()
         self.assertEqual(index, (site / "assets/modules-index.json").read_bytes())
         self.assertLess(len(index), 200 * 1024)
@@ -296,6 +294,13 @@ class BuildWebTests(unittest.TestCase):
         self.assertEqual((dev / "cad-worker/entry.js").read_text(),
                          'import init, { start_cad_worker } from "./m1_cad_worker.js";\nawait init();\n'
                          'start_cad_worker(new URL("../cad/boardstudio_cad_wasm.js", import.meta.url).href);\n')
+        defn = {"id": "m0", "name": "n", "family": "f", "variant": "v", "board": {"contours": []}, "electrical": {"protocol": "i2c"}}
+        host = {"definitions": [{"name": "Horizontal", "hardwareProfile": {"vikRole": "host"}}]}
+        for mods, exc in (([{"row": "r", "definition": defn}], ValueError),
+                          ([{"row": "r", "definition": {**defn, "circuit": host}}] * 2, FileExistsError),
+                          ([{"row": "r", "definition": {**defn, "id": f"m{i}", "name": "x" * 600, "circuit": host}} for i in range(400)], ValueError)):
+            (src := root / "bad.json").write_text(json.dumps({"formatVersion": 1, "modules": mods}))
+            self.assertRaises(exc, BUILD.stage_module_catalogue, src, root / "bad-out")
 
     def test_baked_step_staging_uses_only_current_manifest_files(self):
         root = self.root

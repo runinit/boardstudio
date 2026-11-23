@@ -33,7 +33,6 @@ pub(crate) struct ModuleIndex {
 pub(crate) struct ModuleIndexEntry {
     pub id: String,
     pub row: String,
-    pub name: String,
     pub asset: String,
     pub variant: String,
 }
@@ -220,21 +219,18 @@ mod tests {
             ModuleIndexEntry {
                 id: "module/test".into(),
                 row: "test".into(),
-                name: "bundled".into(),
                 asset: "assets/modules/test.json".into(),
                 variant: "bundled variant".into(),
             },
             ModuleIndexEntry {
                 id: "module/sibling".into(),
                 row: "test".into(),
-                name: "sibling".into(),
                 asset: "assets/modules/sibling.json".into(),
                 variant: "sibling variant".into(),
             },
             ModuleIndexEntry {
                 id: "module/other".into(),
                 row: "other".into(),
-                name: "other".into(),
                 asset: "assets/modules/other.json".into(),
                 variant: "other variant".into(),
             },
