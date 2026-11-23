@@ -8,6 +8,7 @@ pub use super::layout_toolbar_logic::{
     gesture_snap_inputs, layout_canvas_grid_style, snap_label,
 };
 pub use boardstudio_web_ui_model::state::{LayoutSnapSettings, TreeCellAnchor};
+use boardstudio_web_ui_shared::inspector_fields::ToggleField;
 use boardstudio_web_ui_shared::ui::{
     button::{Button, ButtonVariant},
     callout::Callout,
@@ -471,13 +472,7 @@ pub fn LayoutSnapDock(
             CollapsibleTrigger {
                 id: "m1-layout-snap-trigger", aria_label: "Snap",
                 class: "flex w-full min-h-control-touch items-center justify-start gap-2 rounded-none border-0 bg-transparent px-3 py-2.5 text-left text-foreground hover:bg-accent",
-                attributes: vec![dioxus::events::onkeydown(move |event: KeyboardEvent| {
-                    // Space must activate the button, not the Layout window's pan shortcut.
-                    if event.key().to_string() == " " {
-                        event.stop_propagation();
-                        if let Some(raw) = event.data().try_as_web_event() { raw.stop_propagation(); }
-                    }
-                })],
+                attributes: vec![dioxus::events::onkeydown(super::stop_space_pan)],
                 svg { class: "size-[18px] fill-none stroke-current stroke-[1.5]", view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M5 3v8a5 5 0 0 0 10 0V3h-4v7a1 1 0 0 1-2 0V3ZM5 6h4M11 6h4" } }
                 span { "Snap" } small { class: "ml-auto text-muted-foreground", "{snap_label(settings.snap_fraction)}" }
             }
@@ -584,15 +579,16 @@ fn LayoutSnapOptions(
                     SelectOption::<String> { index, value: value.to_owned(), text_value: label, "{label}" }
                 }
             }
-            Label { html_for: geometry_id.clone(),
-                Checkbox { id: geometry_id, aria_label: "Geometry snap", checked: Some(if settings.geometry_snap { CheckboxState::Checked } else { CheckboxState::Unchecked }),
-                    on_checked_change: move |value: CheckboxState| on_snap_intent.call(LayoutSnapIntent::GeometrySnap(value.into())) }
-                "Geometry snap"
+            ToggleField {
+                id: geometry_id, aria_label: "Geometry snap", label: "Geometry snap",
+                checked: settings.geometry_snap,
+                on_commit: move |next: bool| on_snap_intent.call(LayoutSnapIntent::GeometrySnap(next)),
             }
-            Label { html_for: envelope_id.clone(),
-                Checkbox { id: envelope_id, aria_label: "Envelope gap", checked: Some(if settings.gap_snap { CheckboxState::Checked } else { CheckboxState::Unchecked }), disabled: !settings.geometry_snap,
-                    on_checked_change: move |value: CheckboxState| on_snap_intent.call(LayoutSnapIntent::GapSnap(value.into())) }
-                "Envelope gap"
+            ToggleField {
+                id: envelope_id, aria_label: "Envelope gap", label: "Envelope gap",
+                checked: settings.gap_snap,
+                disabled_reason: (!settings.geometry_snap).then(|| "Enable geometry snap first".to_owned()),
+                on_commit: move |next: bool| on_snap_intent.call(LayoutSnapIntent::GapSnap(next)),
             }
             Label { html_for: "layout-snap-gap", "Gap (mm)" }
             InputGroup {
