@@ -38,18 +38,6 @@ impl From<crate::part_rail::PartRailTool> for LayoutTransformTool {
 }
 
 impl LayoutTransformTool {
-    pub(super) const MENU: [(Self, &'static str); 9] = [
-        (Self::Stagger, "Stagger"),
-        (Self::Spread, "Spread"),
-        (Self::Offset, "Offset"),
-        (Self::Shift, "Shift"),
-        (Self::Bend, "Bend"),
-        (Self::Splay, "Splay"),
-        (Self::Origin, "Origin"),
-        (Self::Move, "Move"),
-        (Self::Rotate, "Rotate"),
-    ];
-
     pub fn label(self) -> &'static str {
         match self {
             Self::Stagger => "Stagger",
@@ -274,8 +262,18 @@ mod tests {
     }
 
     #[test]
-    fn the_menu_lists_every_drag_tool_by_its_label() {
-        for (tool, label) in Tool::MENU {
+    fn every_drag_tool_has_its_menu_label() {
+        for (tool, label) in [
+            (Tool::Stagger, "Stagger"),
+            (Tool::Spread, "Spread"),
+            (Tool::Offset, "Offset"),
+            (Tool::Shift, "Shift"),
+            (Tool::Bend, "Bend"),
+            (Tool::Splay, "Splay"),
+            (Tool::Origin, "Origin"),
+            (Tool::Move, "Move"),
+            (Tool::Rotate, "Rotate"),
+        ] {
             assert_eq!(tool.label(), label);
         }
         assert_eq!(Tool::Anchor.label(), "Anchor");

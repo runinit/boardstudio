@@ -11,13 +11,13 @@ pub(super) fn vec2_fields(
     rsx! {
         div { class: "grid gap-2.5",
             OutlineCoordinate {
-                label: "{label} X mm",
+                label: "{label} X",
                 value: value.x,
                 editable,
                 on_commit: move |x| on_commit.call(Vec2 { x, y: value.y }),
             }
             OutlineCoordinate {
-                label: "{label} Y mm",
+                label: "{label} Y",
                 value: value.y,
                 editable,
                 on_commit: move |y| on_commit.call(Vec2 { x: value.x, y }),

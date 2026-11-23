@@ -17,11 +17,7 @@ use boardstudio_web_ui_shared::ui::label::Label;
 use boardstudio_web_ui_shared::ui::toggle_group::{ToggleGroup, ToggleItem};
 
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
-use boardstudio_web_ui_shared::ui::{
-    combobox::{Combobox, ComboboxOption},
-    field::{Field, FieldError, FieldLabel},
-    select::{Select, SelectOption},
-};
+use boardstudio_web_ui_shared::ui::field::FieldError;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use wasm_bindgen::JsCast;

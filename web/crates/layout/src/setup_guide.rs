@@ -1,5 +1,5 @@
 use boardstudio_core_mechanical::electrical::ElectricalPlan;
-use boardstudio_model::model::{PartKind, ProjectDoc, SceneDelta, Severity};
+use boardstudio_model::model::{Board, PartKind, ProjectDoc, SceneDelta, Severity};
 use boardstudio_web_ui_model::Workspace;
 pub use boardstudio_web_ui_model::state::{PendingNewKeyboard, SetupGuideRequest};
 use boardstudio_web_ui_shared::inspector_fields::TextField;
@@ -83,13 +83,37 @@ fn sync_stage_trigger(root: web_sys::Element, stage: SetupGuideStage) {
     });
 }
 
+fn guide_board<'a>(document: &'a ProjectDoc, board_id: &str) -> Option<&'a Board> {
+    document.boards.iter().find(|board| board.id == board_id)
+}
+
+fn hardware_board_configured(document: &ProjectDoc, board_id: &str) -> bool {
+    document.hardware.as_ref().is_some_and(|hardware| {
+        hardware
+            .boards
+            .iter()
+            .any(|entry| entry.board_id == board_id)
+            || hardware
+                .instances
+                .iter()
+                .any(|instance| instance.board_id == board_id)
+    })
+}
+
+fn case_board_configured(document: &ProjectDoc, board_id: &str) -> bool {
+    document
+        .case_bodies
+        .iter()
+        .any(|body| body.board_id == board_id)
+}
+
 pub fn stage_statuses(
     document: &ProjectDoc,
     board_id: &str,
     scene: &SceneDelta,
     wiring_plan: Option<&ElectricalPlan>,
 ) -> [SetupGuideStageStatus; 5] {
-    let board = document.boards.iter().find(|board| board.id == board_id);
+    let board = guide_board(document, board_id);
     let board_parts = board.map(|board| &board.part_ids[..]).unwrap_or_default();
     let matrices: Vec<_> = document
         .matrices
@@ -149,17 +173,7 @@ pub fn stage_statuses(
                         .any(|target| guide_targets.contains(target)))
         })
         .count();
-    let project_ready = board.is_some()
-        && document.hardware.as_ref().is_some_and(|hardware| {
-            hardware
-                .boards
-                .iter()
-                .any(|entry| entry.board_id == board_id)
-                || hardware
-                    .instances
-                    .iter()
-                    .any(|instance| instance.board_id == board_id)
-        });
+    let project_ready = board.is_some() && hardware_board_configured(document, board_id);
     let layout_ready = board.is_some()
         && key_count > 0
         && (standalone_keys > 0
@@ -205,10 +219,7 @@ pub fn stage_statuses(
                 .all(|net| current_nets.contains(&net) && board.net_ids.contains(&net.id))
     });
     let wiring_stage_ready = wiring_current && wiring_ready && wiring_applied;
-    let case_configured = document
-        .case_bodies
-        .iter()
-        .any(|body| body.board_id == board_id);
+    let case_configured = case_board_configured(document, board_id);
     let case_ready = scene
         .board_readiness
         .iter()
@@ -311,15 +322,13 @@ pub fn ProjectSetupGuide(
         SetupGuideStage::Project => Some(SetupGuideStage::Layout),
         SetupGuideStage::Layout => Some(SetupGuideStage::Wiring),
         SetupGuideStage::Wiring => Some(SetupGuideStage::Case),
-        SetupGuideStage::Case => None,
-        SetupGuideStage::Review => None,
+        SetupGuideStage::Case | SetupGuideStage::Review => None,
     };
     let previous_stage = match stage {
         SetupGuideStage::Project => None,
         SetupGuideStage::Layout => Some(SetupGuideStage::Project),
         SetupGuideStage::Wiring => Some(SetupGuideStage::Layout),
-        SetupGuideStage::Case => Some(SetupGuideStage::Wiring),
-        SetupGuideStage::Review => Some(SetupGuideStage::Case),
+        SetupGuideStage::Case | SetupGuideStage::Review => Some(SetupGuideStage::Wiring),
     };
     let mut expanded_for_trigger = expanded;
     rsx! {
@@ -519,20 +528,10 @@ pub fn ProjectSetupGuide(
 }
 
 pub fn stage_detail(stage: SetupGuideStage, document: &ProjectDoc, board_id: &str) -> String {
-    let board = document.boards.iter().find(|board| board.id == board_id);
+    let board = guide_board(document, board_id);
     match stage {
         SetupGuideStage::Project => {
-            let configured = document.hardware.as_ref().is_some_and(|hardware| {
-                hardware
-                    .boards
-                    .iter()
-                    .any(|board| board.board_id == board_id)
-                    || hardware
-                        .instances
-                        .iter()
-                        .any(|instance| instance.board_id == board_id)
-            });
-            if configured {
+            if hardware_board_configured(document, board_id) {
                 let topology = document.hardware.as_ref().is_some_and(|hardware| {
                     matches!(
                         hardware.topology,
@@ -551,11 +550,7 @@ pub fn stage_detail(stage: SetupGuideStage, document: &ProjectDoc, board_id: &st
         SetupGuideStage::Layout => "Create a layout and place its assemblies.".into(),
         SetupGuideStage::Wiring => "Resolve the controller and board wiring.".into(),
         SetupGuideStage::Case => {
-            let configured = document
-                .case_bodies
-                .iter()
-                .any(|body| body.board_id == board_id);
-            if configured {
+            if case_board_configured(document, board_id) {
                 "Configure construction and clearances, then generate geometry when you are ready."
                     .into()
             } else {

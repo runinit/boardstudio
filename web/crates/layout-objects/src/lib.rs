@@ -112,6 +112,9 @@ mod objects {
     #[path = "keycap_resize.rs"]
     mod keycap_resize;
 
+    #[path = "mirror_links.rs"]
+    mod mirror_links;
+
     #[cfg(test)]
     mod layout_align_logic;
 

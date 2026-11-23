@@ -6,7 +6,7 @@
 //! version mutation, linked resolution and the no-op/retirement decision. Drafts,
 //! selection, focus and lifecycle admission stay in the hook, and no adapter prepares a
 //! replacement document.
-use super::planner::{OutlineAction, OutlinePointTarget};
+use super::planner::{OutlineAction, OutlineActionKind, OutlinePointTarget};
 use crate::outline_settings::{OutlineEdit as OutlineSettingEdit, generated_feature};
 use boardstudio_application::{
     AcceptedSnapshot, Durability, Lifecycle, ReadModel, Resolution, Scope,
@@ -253,8 +253,8 @@ pub fn outline_edit(
         .iter()
         .find(|state| state.board_id == board_id);
     let active_version = state.and_then(|state| state.active_version_id.clone());
-    let (target, change, reviewed) = match action {
-        OutlineAction::Activate { version_id, .. } => {
+    let (target, change, reviewed) = match &action.kind {
+        OutlineActionKind::Activate { version_id, .. } => {
             let target = match version_id {
                 Some(version_id) => OutlineEditTarget::Version {
                     board_id: board_id.clone(),
@@ -266,7 +266,7 @@ pub fn outline_edit(
             };
             (target, OutlineChange::Activate, None)
         }
-        OutlineAction::Copy { .. } => (
+        OutlineActionKind::Copy => (
             OutlineEditTarget::Board {
                 board_id: board_id.clone(),
             },
@@ -279,7 +279,7 @@ pub fn outline_edit(
             },
             None,
         ),
-        OutlineAction::Delete { version_id, .. } => (
+        OutlineActionKind::Delete { version_id, .. } => (
             OutlineEditTarget::Version {
                 board_id: board_id.clone(),
                 version_id: version_id.clone(),
@@ -287,7 +287,7 @@ pub fn outline_edit(
             OutlineChange::Delete,
             None,
         ),
-        OutlineAction::Update { edit, .. } => update(
+        OutlineActionKind::Update { edit, .. } => update(
             document,
             snapshot,
             &board_id,
@@ -297,7 +297,7 @@ pub fn outline_edit(
         // Accepting the Generated outline as an alternative creates a linked refinement:
         // Core seeds it from the board's current generated projections, so it follows the
         // components and its settings stay editable while linked.
-        OutlineAction::Refine { .. } => (
+        OutlineActionKind::Refine => (
             OutlineEditTarget::Board {
                 board_id: board_id.clone(),
             },
@@ -310,7 +310,7 @@ pub fn outline_edit(
             },
             None,
         ),
-        OutlineAction::Freeze { version_id, .. } => (
+        OutlineActionKind::Freeze { version_id, .. } => (
             OutlineEditTarget::Version {
                 board_id: board_id.clone(),
                 version_id: version_id.clone(),
@@ -320,7 +320,7 @@ pub fn outline_edit(
             },
             None,
         ),
-        OutlineAction::EditPerimeter { target, points, .. } => {
+        OutlineActionKind::EditPerimeter { target, points, .. } => {
             let reviewed = Some(reviewed_source(snapshot, &board_id)?);
             match target {
                 OutlinePointTarget::Generated { contour } => (
@@ -350,7 +350,7 @@ pub fn outline_edit(
                 ),
             }
         }
-        OutlineAction::AddFeature {
+        OutlineActionKind::AddFeature {
             context, feature, ..
         } => {
             let target = match context {
@@ -373,7 +373,7 @@ pub fn outline_edit(
                 None,
             )
         }
-        OutlineAction::AddConnection { points, .. } => {
+        OutlineActionKind::AddConnection { points, .. } => {
             // A connection belongs to the Generated outline. The adapter supplies the
             // board's bridge width explicitly: Core refuses a non-positive or
             // non-finite width instead of silently defaulting it.
@@ -429,7 +429,7 @@ pub fn outline_edit(
                 None,
             )
         }
-        OutlineAction::SetFeature {
+        OutlineActionKind::SetFeature {
             version_id,
             before,
             after,
@@ -455,7 +455,7 @@ pub fn outline_edit(
                 None,
             )
         }
-        OutlineAction::RemoveFeature {
+        OutlineActionKind::RemoveFeature {
             version_id,
             feature_id,
             ..
@@ -470,7 +470,7 @@ pub fn outline_edit(
             None,
         ),
         // Focusing a gap is presentation only and never creates document history.
-        OutlineAction::FocusGap { .. } => return None,
+        OutlineActionKind::FocusGap { .. } => return None,
     };
     Some(OutlineEdit {
         target,
@@ -484,14 +484,14 @@ pub fn outline_edit(
 pub(crate) fn target_ids(action: &OutlineAction) -> Vec<String> {
     let board_id = action.envelope().4.clone();
     let mut ids = vec![board_id];
-    match action {
-        OutlineAction::Activate {
+    match &action.kind {
+        OutlineActionKind::Activate {
             version_id: Some(version_id),
             ..
         }
-        | OutlineAction::Delete { version_id, .. } => ids.push(version_id.clone()),
-        OutlineAction::Freeze { version_id, .. } => ids.push(version_id.clone()),
-        OutlineAction::EditPerimeter {
+        | OutlineActionKind::Delete { version_id, .. } => ids.push(version_id.clone()),
+        OutlineActionKind::Freeze { version_id, .. } => ids.push(version_id.clone()),
+        OutlineActionKind::EditPerimeter {
             target:
                 OutlinePointTarget::Fixed {
                     version_id,
@@ -503,7 +503,7 @@ pub(crate) fn target_ids(action: &OutlineAction) -> Vec<String> {
             ids.push(version_id.clone());
             ids.push(feature_id.clone());
         }
-        OutlineAction::SetFeature {
+        OutlineActionKind::SetFeature {
             version_id, after, ..
         } => {
             if let Some(version_id) = version_id {
@@ -511,7 +511,7 @@ pub(crate) fn target_ids(action: &OutlineAction) -> Vec<String> {
             }
             ids.push(after.id().to_owned());
         }
-        OutlineAction::RemoveFeature {
+        OutlineActionKind::RemoveFeature {
             version_id,
             feature_id,
             ..
@@ -527,29 +527,29 @@ pub(crate) fn target_ids(action: &OutlineAction) -> Vec<String> {
 /// Why a retired outline edit is reported. Core decides retirement; the adapter owns the
 /// wording of the explanation the user sees.
 pub fn retire_reason(action: &OutlineAction) -> &'static str {
-    match action {
-        OutlineAction::Activate {
+    match &action.kind {
+        OutlineActionKind::Activate {
             version_id: Some(_),
             ..
         }
-        | OutlineAction::Delete { .. } => "That outline version no longer exists.",
-        OutlineAction::SetFeature { .. } | OutlineAction::RemoveFeature { .. } => {
+        | OutlineActionKind::Delete { .. } => "That outline version no longer exists.",
+        OutlineActionKind::SetFeature { .. } | OutlineActionKind::RemoveFeature { .. } => {
             "That outline feature no longer exists."
         }
-        OutlineAction::EditPerimeter { .. } => "That outline perimeter no longer exists.",
-        OutlineAction::Update { edit, .. } => match edit {
+        OutlineActionKind::EditPerimeter { .. } => "That outline perimeter no longer exists.",
+        OutlineActionKind::Update { edit, .. } => match edit {
             OutlineSettingEdit::RenameVersion { .. } => "That outline version no longer exists.",
             OutlineSettingEdit::SetProtectedGap { .. }
             | OutlineSettingEdit::RemoveProtectedGap { .. } => "That outline gap no longer exists.",
             OutlineSettingEdit::CreateAutomatic => "The generated outline already exists.",
             _ => "The outline changed before this edit was applied.",
         },
-        OutlineAction::Copy { .. } => "The outline changed before this copy was applied.",
-        OutlineAction::Refine { .. } => {
+        OutlineActionKind::Copy => "The outline changed before this copy was applied.",
+        OutlineActionKind::Refine => {
             "Resolve the generated outline before making a linked refinement."
         }
-        OutlineAction::Freeze { .. } => "That outline version no longer exists.",
-        OutlineAction::AddFeature { .. } | OutlineAction::AddConnection { .. } => {
+        OutlineActionKind::Freeze { .. } => "That outline version no longer exists.",
+        OutlineActionKind::AddFeature { .. } | OutlineActionKind::AddConnection { .. } => {
             "The outline changed before this addition was applied."
         }
         _ => "The outline changed before this edit was applied.",
@@ -610,8 +610,8 @@ pub(super) fn outline_action_matches_saved_owner(
 ) -> bool {
     let (scope, token, revision, captured_generation, board_id) = action.envelope();
     let perimeter_edit = matches!(
-        action,
-        OutlineAction::EditPerimeter {
+        &action.kind,
+        OutlineActionKind::EditPerimeter {
             phase: EditPhase::Preview | EditPhase::Commit,
             ..
         }
@@ -661,12 +661,15 @@ mod tests {
         let snapshot = model.accepted.as_ref().unwrap();
         let revision = snapshot.document.revision;
         let token = snapshot.token;
-        let action = OutlineAction::Copy {
-            scope: scope.clone(),
-            token,
-            revision,
-            generation: 2,
-            board_id: scope.board_id.clone(),
+        let action = OutlineAction {
+            envelope: super::planner::OutlineActionEnvelope {
+                scope: scope.clone(),
+                token,
+                revision,
+                generation: 2,
+                board_id: scope.board_id.clone(),
+            },
+            kind: OutlineActionKind::Copy,
         };
         let admitted = |model: &ReadModel, scope: Option<&Scope>, generation| {
             outline_action_matches_saved_owner(&action, model, scope, generation)

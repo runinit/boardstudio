@@ -64,6 +64,46 @@ pub struct LayoutCanonicalViewerProps {
     pub on_mounted_module_pick: Option<EventHandler<String>>,
 }
 
+#[derive(Props, Clone, PartialEq)]
+struct KeycapStatusProps {
+    blocker: Option<String>,
+    pending: bool,
+    error: Option<String>,
+    on_retry: EventHandler,
+}
+
+#[component]
+fn KeycapStatus(props: KeycapStatusProps) -> Element {
+    rsx! {
+        if let Some(blocker) = props.blocker {
+            div { role: "status", class: "m-0 px-3 py-2 first:pt-28", Callout { variant: CalloutVariant::Warning, "{blocker}" } }
+        } else if props.pending {
+            div { role: "status", class: "m-0 px-3 py-2 first:pt-28",
+                Callout { variant: CalloutVariant::Info, Spinner {} "Generating keycap CAD…" }
+            }
+        }
+        if let Some(error) = props.error {
+            Alert { class: "m-0 px-3 py-2 first:pt-28", variant: AlertVariant::Destructive,
+                AlertDescription { "Keycap preview failed: {error}" }
+            }
+            Button {
+                variant: ButtonVariant::Secondary,
+                button_type: "button",
+                onkeydown: move |event: KeyboardEvent| {
+                    if event.key().to_string() == " " {
+                        event.stop_propagation();
+                        if let Some(raw) = event.data().try_as_web_event() {
+                            raw.stop_propagation();
+                        }
+                    }
+                },
+                onclick: move |_| props.on_retry.call(()),
+                "Retry keycaps"
+            }
+        }
+    }
+}
+
 #[component]
 pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
@@ -337,37 +377,14 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
                         }
                     }
                 }
-                if let Some(blocker) = props
-                    .keycaps_fit
-                    .as_ref()
-                    .and_then(|fit| fit.preview_blocker_message())
-                {
-                    div { role: "status", class: "m-0 px-3 py-2 first:pt-28", Callout { variant: CalloutVariant::Warning, "{blocker}" } }
-                } else if keycaps_preview_pending() {
-                    div { role: "status", class: "m-0 px-3 py-2 first:pt-28",
-                        Callout { variant: CalloutVariant::Info, Spinner {} "Generating keycap CAD…" }
-                    }
-                }
-                if let Some(error) = keycaps_preview_error() {
-                    Alert { class: "m-0 px-3 py-2 first:pt-28", variant: AlertVariant::Destructive,
-                        AlertDescription { "Keycap preview failed: {error}" }
-                    }
-                    Button {
-                        variant: ButtonVariant::Secondary,
-                        button_type: "button",
-                        onkeydown: move |event: KeyboardEvent| {
-                            if event.key().to_string() == " " {
-                                event.stop_propagation();
-                                if let Some(raw) = event.data().try_as_web_event() {
-                                    raw.stop_propagation();
-                                }
-                            }
-                        },
-                        onclick: move |_| keycaps_retry_generation.set(keycaps_retry_generation().saturating_add(1)),
-
-                        "Retry keycaps"
-
-                    }
+                KeycapStatus {
+                    blocker: props
+                        .keycaps_fit
+                        .as_ref()
+                        .and_then(|fit| fit.preview_blocker_message()),
+                    pending: keycaps_preview_pending(),
+                    error: keycaps_preview_error(),
+                    on_retry: move |_| keycaps_retry_generation.set(keycaps_retry_generation().saturating_add(1)),
                 }
             }
         };
@@ -406,37 +423,14 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
 
     rsx! {
         div { class: "flex min-h-0 flex-1 flex-col",
-            if let Some(blocker) = props
-                .keycaps_fit
-                .as_ref()
-                .and_then(|fit| fit.preview_blocker_message())
-            {
-                div { role: "status", class: "m-0 px-3 py-2 first:pt-28", Callout { variant: CalloutVariant::Warning, "{blocker}" } }
-            } else if keycaps_preview_pending() {
-                div { role: "status", class: "m-0 px-3 py-2 first:pt-28",
-                    Callout { variant: CalloutVariant::Info, Spinner {} "Generating keycap CAD…" }
-                }
-            }
-            if let Some(error) = keycaps_preview_error() {
-                Alert { class: "m-0 px-3 py-2 first:pt-28", variant: AlertVariant::Destructive,
-                    AlertDescription { "Keycap preview failed: {error}" }
-                    Button {
-                        variant: ButtonVariant::Secondary,
-                        button_type: "button",
-                        onkeydown: move |event: KeyboardEvent| {
-                            if event.key().to_string() == " " {
-                                event.stop_propagation();
-                                if let Some(raw) = event.data().try_as_web_event() {
-                                    raw.stop_propagation();
-                                }
-                            }
-                        },
-                        onclick: move |_| keycaps_retry_generation.set(keycaps_retry_generation().saturating_add(1)),
-
-                        "Retry keycaps"
-
-                    }
-                }
+            KeycapStatus {
+                blocker: props
+                    .keycaps_fit
+                    .as_ref()
+                    .and_then(|fit| fit.preview_blocker_message()),
+                pending: keycaps_preview_pending(),
+                error: keycaps_preview_error(),
+                on_retry: move |_| keycaps_retry_generation.set(keycaps_retry_generation().saturating_add(1)),
             }
             div { class: "flex min-h-0 flex-1 [&>div]:relative [&>div]:flex [&>div]:min-h-0 [&>div]:min-w-0 [&>div]:flex-1 [&>div]:flex-col [&>div>div:has(>canvas)]:relative [&>div>div:has(>canvas)]:flex [&>div>div:has(>canvas)]:min-h-[160px] [&>div>div:has(>canvas)]:min-w-0 [&>div>div:has(>canvas)]:flex-1 [&_canvas]:min-h-0 [&_canvas]:min-w-0 [&_canvas]:flex-1 [&_canvas]:border-0",
             Viewport3D {

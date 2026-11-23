@@ -147,12 +147,7 @@ pub fn plan_resize(input: KeycapResizeInput<'_>) -> Option<KeycapResizePlan> {
             .iter()
             .find(|layout| layout.matrix_ids.contains(&placement.matrix_id));
         let canonical_layout = owner
-            .and_then(|owner| {
-                owner
-                    .mirror_link
-                    .as_ref()
-                    .and_then(|link| layouts.iter().find(|layout| layout.id == link.source_id))
-            })
+            .and_then(|owner| super::mirror_links::link_source(layouts, owner))
             .or(owner);
         let matrix_id = owner
             .and_then(|owner| owner.mirror_link.as_ref())
@@ -224,12 +219,8 @@ pub fn plan_resize(input: KeycapResizeInput<'_>) -> Option<KeycapResizePlan> {
         updated_sizes.insert(source.id.clone(), next_size);
 
         if let Some(canonical_layout) = canonical_layout
-            && let Some(paired) = layouts.iter().find(|layout| {
-                layout
-                    .mirror_link
-                    .as_ref()
-                    .is_some_and(|link| link.source_id == canonical_layout.id)
-            })
+            && let Some(paired) =
+                super::mirror_links::partner_layout(layouts, canonical_layout)
             && let Some(paired_matrix_id) = paired
                 .mirror_link
                 .as_ref()

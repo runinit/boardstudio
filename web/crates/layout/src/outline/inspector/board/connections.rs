@@ -1,4 +1,5 @@
 use super::*;
+use boardstudio_web_ui_shared::inspector_fields::SelectField;
 
 pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
     let projection = &view.projection;
@@ -119,73 +120,55 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                                             on_action.call(action_context.set_feature(version_id.clone(), before.clone(), next));
                                         })
                                     }
-                                    {
-                                        let control_label = "Point attachment".to_owned();
-                                        let control_aria_label = format!("Point {} attachment", index + 1);
-                                        let control_id = format!(
-                                            "layout-choice-{}-{}",
-                                            dioxus::core::current_scope_id().0,
-                                            control_aria_label.replace(' ', "-"),
-                                        );
-
-                                        let mut control_choices: Vec<(String, String, bool)> = Vec::new();
-                                        control_choices.push(("".to_owned(), "Fixed on board".to_owned(), false));
-                                        if let Some(id) = point
-                                            .part_id
-                                            .as_ref()
-                                            .filter(|id| !projection.outline_parts.iter().any(|part| &part.id == *id))
-                                        {
-                                            control_choices
-                                                .push((id.to_string(), "Missing component".to_owned(), false));
-                                        }
-                                        for part in projection.outline_parts.iter() {
-                                            control_choices
-                                                .push((part.id.to_string(), part.reference.to_string(), false));
-                                        }
-                                        let on_value_change = EventHandler::new({
-                    let action_context = action_context.clone();
-                    let before = before.clone();
-                    let version_id = active_version.clone();
-                    let connection_id = connection.id.clone();
-                    let parts = projection.outline_parts.clone();
-                    move |choice: Option<String>| {
-                        let Some(choice) = choice else {
-    return;
-                        };
-                        let value = choice;
-                        let next = attach_connection_point(
-    &before,
-    &connection_id,
-    index,
-    (!value.is_empty()).then_some(value.as_str()),
-    &parts,
-                        );
-                        on_action.call(action_context.set_feature(version_id.clone(), before.clone(), next));
-                    }
-                });
-                rsx! {
-
-                                            Field { class: "grid gap-[5px] text-xs text-muted-foreground",
-                                                FieldLabel { html_for: control_id.clone(), "{control_label}" }
-                                                Combobox::<String> {
-                                                    id: control_id,
-                                                    aria_label: control_aria_label.clone(),
-                                                    list_aria_label: control_aria_label.clone(),
-                                                    value: Some(point_attachment.into()),
-                                                    disabled: !enabled,
-                                                    on_value_change,
-                                                    for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
-                                                        ComboboxOption::<String> {
-                                                            index,
-                                                            value: value.clone(),
-                                                            text_value: label.clone(),
-                                                            disabled: *disabled,
-                                                            "{label}"
-                                                        }
-                                                    }
-                                                }
+                                    SelectField {
+                                        label: "Point attachment".to_owned(),
+                                        value: point_attachment().unwrap_or_default(),
+                                        options: {
+                                            let mut attachment = vec![(
+                                                "".to_owned(),
+                                                "Fixed on board".to_owned(),
+                                            )];
+                                            if let Some(id) = point.part_id.as_ref().filter(|id| {
+                                                !projection
+                                                    .outline_parts
+                                                    .iter()
+                                                    .any(|part| &part.id == *id)
+                                            }) {
+                                                attachment.push((
+                                                    id.to_string(),
+                                                    "Missing component".to_owned(),
+                                                ));
                                             }
-                                        }
+                                            attachment.extend(
+                                                projection.outline_parts.iter().map(|part| {
+                                                    (part.id.clone(), part.reference.clone())
+                                                }),
+                                            );
+                                            attachment
+                                        },
+                                        aria_label: format!("Point {} attachment", index + 1),
+                                        disabled: !enabled,
+                                            on_commit: {
+                                                let action_context = action_context.clone();
+                                                let before = before.clone();
+                                                let version_id = active_version.clone();
+                                                let connection_id = connection.id.clone();
+                                                let parts = projection.outline_parts.clone();
+                                                move |value: String| {
+                                                    let next = attach_connection_point(
+                                                        &before,
+                                                        &connection_id,
+                                                        index,
+                                                        (!value.is_empty()).then_some(value.as_str()),
+                                                        &parts,
+                                                    );
+                                                    on_action.call(action_context.set_feature(
+                                                        version_id.clone(),
+                                                        before.clone(),
+                                                        next,
+                                                    ));
+                                                }
+                                            },
                                     }
                                     div { class: "my-3 flex flex-wrap gap-2",
                                         Button { variant: ButtonVariant::Secondary,

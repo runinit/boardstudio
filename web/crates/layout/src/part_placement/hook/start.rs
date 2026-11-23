@@ -324,18 +324,6 @@ pub(super) fn start_placement(
                 ));
                 return;
             };
-            if !PlacementAdmission::capture(
-                &runtime,
-                generation_for_preparation(),
-                workspace_for_preparation(),
-                owner.source_workspace,
-                guide_for_preparation(),
-            )
-            .admits(&owner, &runtime, &model)
-            {
-                preparing.set(None);
-                return;
-            }
             active.set(Some(ActivePartPlacement {
                 owner,
                 snap_document: Rc::new(document_with_pending_definition(

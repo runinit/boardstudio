@@ -12,11 +12,8 @@ use boardstudio_web_ui_shared::ui::{
     tooltip::{Tooltip, TooltipContent, TooltipTrigger},
 };
 
+use boardstudio_web_ui_shared::inspector_fields::SelectField;
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
-use boardstudio_web_ui_shared::ui::{
-    field::{Field, FieldLabel},
-    select::{Select, SelectOption},
-};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use existing_half::use_existing_half;
@@ -54,6 +51,7 @@ mod matrix_setup_controller;
 mod matrix_setup_fields;
 mod matrix_setup_logic;
 mod matrix_transform;
+mod mirror_links;
 mod mirrored_pair;
 mod mirrored_pair_controller;
 mod tree_projection_logic;
@@ -270,7 +268,7 @@ pub fn Objects(
     });
     let source = AcceptedSource(snapshot.clone());
     let grouping_choice =
-        use_memo(move || Some(if by_part() { "part" } else { "layout" }.to_owned()));
+        use_memo(move || if by_part() { "part" } else { "layout" }.to_owned());
     let group_by_part = by_part();
     let items = use_memo(use_reactive(
         (&source, &board_id, &current_expanded, &group_by_part),
@@ -423,54 +421,24 @@ pub fn Objects(
         variant: AlertVariant::Destructive,AlertDescription {  "{error}"  } }
                     }
                     if !add_menu_open() && !existing_half_active {
-                        {
-                            let control_label = "Group".to_owned();
-                            let control_aria_label = "Group objects by".to_owned();
-                            let control_id = format!(
-                                "layout-choice-{}-{}",
-                                dioxus::core::current_scope_id().0,
-                                control_aria_label.replace(' ', "-"),
-                            );
-
-                            let control_choices = [
-                                ("layout".to_owned(), "By layout".to_owned(), false),
-                                ("part".to_owned(), "By part".to_owned(), false),
-                            ];
-            let on_value_change = EventHandler::new(move |choice: Option<String>| {
-            let Some(choice) = choice else {
-                return;
-            };
-            let next = choice == "part";
-            by_part.set(next);
-            if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
-                let _ = storage.set_item(
-                    "boardstudio:v2:object-view",
-                    if next { "part" } else { "layout" },
-                );
-            }
-        });
-        rsx! {
-
-                                Field { class: "flex items-center gap-2 px-3 py-2.5 text-xs text-muted-foreground",
-                                    FieldLabel { html_for: control_id.clone(), "{control_label}" }
-                                    Select::<String> {
-                                        id: control_id,
-                                        aria_label: control_aria_label,
-                                        value: Some(grouping_choice.into()),
-                                        disabled: false,
-                                        on_value_change,
-                                        for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
-                                            SelectOption::<String> {
-                                                index,
-                                                value: value.clone(),
-                                                text_value: label.clone(),
-                                                disabled: *disabled,
-                                                "{label}"
-                                            }
-                                        }
-                                    }
+                        SelectField {
+                            label: "Group".to_owned(),
+                            value: grouping_choice(),
+                            options: vec![
+                                ("layout".to_owned(), "By layout".to_owned()),
+                                ("part".to_owned(), "By part".to_owned()),
+                            ],
+                            aria_label: "Group objects by",
+                            on_commit: move |choice: String| {
+                                let next = choice == "part";
+                                by_part.set(next);
+                                if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
+                                    let _ = storage.set_item(
+                                        "boardstudio:v2:object-view",
+                                        if next { "part" } else { "layout" },
+                                    );
                                 }
-                            }
+                            },
                         }
                         div { class: "grid gap-[7px] border-b border-border px-2.5 py-[9px] empty:hidden",
                             if !pcb_workspace && !instances.is_empty() && case_workspace {
@@ -799,37 +767,25 @@ fn AddObjectEntry(
                                     inert: (!layouts_open()).then_some(""),
 
                                     if existing_half.visible {
-                                        Item { class: "p-0",
-                                            Button { variant: ButtonVariant::Secondary,
-    button_type: "button",
-    disabled: !existing_half_open.0,
-    onclick: move |_| {
-                                            menu_open.set(false);
-                                            existing_half_open.1.call(());
-                                        },
-    class: "w-full justify-start whitespace-normal h-auto min-h-control",
-
-                                                "Mirror existing half…"
-                                                small { "Create a linked half from an existing layout" }
-
-                                             }
+                                        AddMenuEntry {
+                                            label: "Mirror existing half…",
+                                            hint: "Create a linked half from an existing layout",
+                                            enabled: existing_half_open.0,
+                                            on_press: move |_| {
+                                                menu_open.set(false);
+                                                existing_half_open.1.call(());
+                                            },
                                         }
                                     }
                                     if let Some((can_open, on_open)) = matrix_open {
-                                        Item { class: "p-0",
-                                            Button { variant: ButtonVariant::Secondary,
-    button_type: "button",
-    disabled: !can_open,
-    onclick: move |_| {
-                                            menu_open.set(false);
-                                            on_open.call(());
-                                        },
-    class: "w-full justify-start whitespace-normal h-auto min-h-control",
-
-                                                "Matrix…"
-                                                small { "Single or mirrored-pair rows, columns & key assemblies" }
-
-                                             }
+                                        AddMenuEntry {
+                                            label: "Matrix…",
+                                            hint: "Single or mirrored-pair rows, columns & key assemblies",
+                                            enabled: can_open,
+                                            on_press: move |_| {
+                                                menu_open.set(false);
+                                                on_open.call(());
+                                            },
                                         }
                                     }
                                 }
@@ -853,47 +809,35 @@ fn AddObjectEntry(
                                                 hidden: !matrix_actions_open(),
                                                 inert: (!matrix_actions_open()).then_some(""),
 
-                                                Item { class: "p-0",
-                                                    Button { variant: ButtonVariant::Secondary,
-    button_type: "button",
-    onclick: move |_| {
-                                                    menu_open.set(false);
-                                                    if let Some((scope, matrix_id)) = add_row_selection.clone() {
-                                                        select_matrix_for_row.call(TreeSelectRequest {
-                                                            scope,
-                                                            context: TreeContext::Matrix { matrix_id },
-                                                            mode: SelectionMode::Replace,
-                                                            outline_action: None,
-                                                        });
-                                                    }
-                                                    report_grow(&row_mount, row_mount.grow(&row_id, true));
-                                                },
-    class: "w-full justify-start whitespace-normal h-auto min-h-control",
-
-                                                        "Add row"
-
-                                                     }
+                                                AddMenuEntry {
+                                                    label: "Add row",
+                                                    on_press: move |_| {
+                                                        menu_open.set(false);
+                                                        if let Some((scope, matrix_id)) = add_row_selection.clone() {
+                                                            select_matrix_for_row.call(TreeSelectRequest {
+                                                                scope,
+                                                                context: TreeContext::Matrix { matrix_id },
+                                                                mode: SelectionMode::Replace,
+                                                                outline_action: None,
+                                                            });
+                                                        }
+                                                        report_grow(&row_mount, row_mount.grow(&row_id, true));
+                                                    },
                                                 }
-                                                Item { class: "p-0",
-                                                    Button { variant: ButtonVariant::Secondary,
-    button_type: "button",
-    onclick: move |_| {
-                                                    menu_open.set(false);
-                                                    if let Some((scope, matrix_id)) = add_column_selection.clone() {
-                                                        select_matrix_for_column.call(TreeSelectRequest {
-                                                            scope,
-                                                            context: TreeContext::Matrix { matrix_id },
-                                                            mode: SelectionMode::Replace,
-                                                            outline_action: None,
-                                                        });
-                                                    }
-                                                    report_grow(&column_mount, column_mount.grow(&column_id, false));
-                                                },
-    class: "w-full justify-start whitespace-normal h-auto min-h-control",
-
-                                                        "Add column"
-
-                                                     }
+                                                AddMenuEntry {
+                                                    label: "Add column",
+                                                    on_press: move |_| {
+                                                        menu_open.set(false);
+                                                        if let Some((scope, matrix_id)) = add_column_selection.clone() {
+                                                            select_matrix_for_column.call(TreeSelectRequest {
+                                                                scope,
+                                                                context: TreeContext::Matrix { matrix_id },
+                                                                mode: SelectionMode::Replace,
+                                                                outline_action: None,
+                                                            });
+                                                        }
+                                                        report_grow(&column_mount, column_mount.grow(&column_id, false));
+                                                    },
                                                 }
                                             }
                                         }
@@ -923,28 +867,22 @@ fn AddObjectEntry(
                                         hidden: !geometry_open(),
                                         inert: (!geometry_open()).then_some(""),
 
-                                        Item { class: "p-0",
-                                            Button { variant: ButtonVariant::Secondary,
-    button_type: "button",
-    onclick: {
-                                            let scope = scope.clone();
-                                            move |_| {
-                                                menu_open.set(false);
-                                                on_select.call(TreeSelectRequest {
-                                                    scope: scope.clone(),
-                                                    context: TreeContext::Outline {
-                                                        board_id: scope.board_id.clone(),
-                                                    },
-                                                    mode: SelectionMode::Replace,
-                                                    outline_action: None,
-                                                });
-                                            }
-                                        },
-    class: "w-full justify-start whitespace-normal h-auto min-h-control",
-
-                                                "Board outline…"
-
-                                             }
+                                        AddMenuEntry {
+                                            label: "Board outline…",
+                                            on_press: {
+                                                let scope = scope.clone();
+                                                move |_| {
+                                                    menu_open.set(false);
+                                                    on_select.call(TreeSelectRequest {
+                                                        scope: scope.clone(),
+                                                        context: TreeContext::Outline {
+                                                            board_id: scope.board_id.clone(),
+                                                        },
+                                                        mode: SelectionMode::Replace,
+                                                        outline_action: None,
+                                                    });
+                                                }
+                                            },
                                         }
                                     }
                                 }
@@ -961,6 +899,31 @@ fn AddObjectEntry(
                 }
             }
         }
+}
+
+/// One Add-menu entry: identical Secondary button chrome; only the label, hint,
+/// availability and press action vary.
+#[component]
+fn AddMenuEntry(
+    label: String,
+    #[props(into, optional)] hint: Option<String>,
+    #[props(default = true)] enabled: bool,
+    on_press: EventHandler<()>,
+) -> Element {
+    rsx! {
+        Item { class: "p-0",
+            Button { variant: ButtonVariant::Secondary,
+                button_type: "button",
+                disabled: !enabled,
+                onclick: move |_| on_press.call(()),
+                class: "w-full justify-start whitespace-normal h-auto min-h-control",
+                "{label}"
+                if let Some(hint) = hint {
+                    small { "{hint}" }
+                }
+            }
+        }
+    }
 }
 
 fn focus_add_object() {

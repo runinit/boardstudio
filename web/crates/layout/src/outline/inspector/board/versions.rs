@@ -1,6 +1,6 @@
 use super::*;
 use crate::outline::hook::OutlineVersionChoice;
-use boardstudio_web_ui_shared::inspector_fields::TextField;
+use boardstudio_web_ui_shared::inspector_fields::{SelectField, TextField};
 
 pub(super) fn version_controls(
     view: &BoardInspectorView,
@@ -28,73 +28,27 @@ pub(super) fn version_controls(
         .cloned()
         .collect::<Vec<_>>();
     rsx! {
-            {
-                let control_label = "Active outline".to_owned();
-                let control_aria_label = "Active outline".to_owned();
-                let control_id = format!(
-                    "layout-choice-{}-{}",
-                    dioxus::core::current_scope_id().0,
-                    control_aria_label.replace(' ', "-"),
-                );
-
-                let mut control_choices: Vec<(String, String, bool)> = Vec::new();
-                control_choices.push(("".to_owned(), "Generated".to_owned(), false));
-                for item in projection.versions.iter() {
-                    control_choices
-                        .push((item.id.to_string(), item.label().to_string(), false));
-                }
-                let on_value_change = EventHandler::new({
+            SelectField {
+                label: "Active outline".to_owned(),
+                value: active_selection().unwrap_or_default(),
+                options: std::iter::once(("".to_owned(), "Generated".to_owned()))
+                    .chain(
+                        projection
+                            .versions
+                            .iter()
+                            .map(|item| (item.id.clone(), item.label())),
+                    )
+                    .collect(),
+                aria_label: "Active outline",
+                disabled: !enabled,
+                on_commit: {
                     let action_context = action_context.clone();
-                    move |choice: Option<String>| {
-                        let Some(choice) = choice else {
-    return;
-                        };
-                        let value = choice;
-                        on_action.call(action_context.activate_action((!value.is_empty()).then_some(value)));
+                    move |value: String| {
+                        on_action.call(
+                            action_context.activate_action((!value.is_empty()).then_some(value)),
+                        );
                     }
-                });
-                rsx! {
-
-                    Field { class: "grid gap-[5px] text-xs text-muted-foreground",
-                        FieldLabel { html_for: control_id.clone(), "{control_label}" }
-                        if control_choices.len() > 12 {
-                            Combobox::<String> {
-                                id: control_id.clone(),
-                                aria_label: control_aria_label.clone(),
-                                list_aria_label: control_aria_label.clone(),
-                                value: Some(active_selection.into()),
-                                disabled: !enabled,
-                                on_value_change,
-                                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
-                                    ComboboxOption::<String> {
-                                        index,
-                                        value: value.clone(),
-                                        text_value: label.clone(),
-                                        disabled: *disabled,
-                                        "{label}"
-                                    }
-                                }
-                            }
-                        } else {
-                            Select::<String> {
-                                id: control_id.clone(),
-                                aria_label: control_aria_label.clone(),
-                                value: Some(active_selection.into()),
-                                disabled: !enabled,
-                                on_value_change,
-                                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
-                                    SelectOption::<String> {
-                                        index,
-                                        value: value.clone(),
-                                        text_value: label.clone(),
-                                        disabled: *disabled,
-                                        "{label}"
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                },
             }
             if let Some(version_id) = active_version.as_ref() {
                 {

@@ -784,40 +784,51 @@ fn validate_correspondences(
     Ok(())
 }
 
+fn contains_id<T>(items: &[T], id_of: impl Fn(&T) -> &str, feature_id: &str) -> bool {
+    items.iter().any(|item| id_of(item) == feature_id)
+}
+
+fn correspondences_for<T>(
+    kind: MechanicalFeatureKind,
+    first: &[T],
+    second: &[T],
+    id_of: impl Fn(&T) -> &str,
+) -> Vec<MechanicalFeatureCorrespondence> {
+    first
+        .iter()
+        .filter(|&item| contains_id(second, &id_of, id_of(item)))
+        .map(|item| correspondence(kind, id_of(item)))
+        .collect()
+}
+
 fn find_feature(
     configuration: &MechanicalConfiguration,
     kind: MechanicalFeatureKind,
     feature_id: &str,
 ) -> Option<()> {
     match kind {
-        MechanicalFeatureKind::Mount => configuration
-            .mounts
-            .iter()
-            .any(|mount| mount.id == feature_id)
-            .then_some(()),
-        MechanicalFeatureKind::ClosureMount => configuration
-            .closure_mounts
-            .as_deref()
-            .unwrap_or_default()
-            .iter()
-            .any(|mount| mount.id == feature_id)
-            .then_some(()),
-        MechanicalFeatureKind::Opening => configuration
-            .openings
-            .as_deref()
-            .unwrap_or_default()
-            .iter()
-            .any(|opening| opening.id == feature_id)
-            .then_some(()),
-        MechanicalFeatureKind::GasketSupport => configuration
-            .gasket_layout
-            .as_ref()
-            .map(|layout| layout.supports.as_slice())
-            .unwrap_or_default()
-            .iter()
-            .any(|support| support.id == feature_id)
-            .then_some(()),
+        MechanicalFeatureKind::Mount => contains_id(&configuration.mounts, |mount| mount.id.as_str(), feature_id),
+        MechanicalFeatureKind::ClosureMount => contains_id(
+            configuration.closure_mounts.as_deref().unwrap_or_default(),
+            |mount| mount.id.as_str(),
+            feature_id,
+        ),
+        MechanicalFeatureKind::Opening => contains_id(
+            configuration.openings.as_deref().unwrap_or_default(),
+            |opening| opening.id.as_str(),
+            feature_id,
+        ),
+        MechanicalFeatureKind::GasketSupport => contains_id(
+            configuration
+                .gasket_layout
+                .as_ref()
+                .map(|layout| layout.supports.as_slice())
+                .unwrap_or_default(),
+            |support| support.id.as_str(),
+            feature_id,
+        ),
     }
+    .then_some(())
 }
 
 /// The matches between two halves' effective mechanical features.
@@ -829,57 +840,38 @@ fn correspondences_between(
     first: &MechanicalConfiguration,
     second: &MechanicalConfiguration,
 ) -> Vec<MechanicalFeatureCorrespondence> {
-    let mut correspondences = Vec::new();
-    for mount in &first.mounts {
-        if second.mounts.iter().any(|other| other.id == mount.id) {
-            correspondences.push(correspondence(MechanicalFeatureKind::Mount, &mount.id));
-        }
-    }
-    for mount in first.closure_mounts.as_deref().unwrap_or_default() {
-        if second
-            .closure_mounts
-            .as_deref()
-            .unwrap_or_default()
-            .iter()
-            .any(|other| other.id == mount.id)
-        {
-            correspondences.push(correspondence(
-                MechanicalFeatureKind::ClosureMount,
-                &mount.id,
-            ));
-        }
-    }
-    for opening in first.openings.as_deref().unwrap_or_default() {
-        if second
-            .openings
-            .as_deref()
-            .unwrap_or_default()
-            .iter()
-            .any(|other| other.id == opening.id)
-        {
-            correspondences.push(correspondence(MechanicalFeatureKind::Opening, &opening.id));
-        }
-    }
-    for anchor in first
-        .gasket_layout
-        .as_ref()
-        .map(|layout| layout.supports.as_slice())
-        .unwrap_or_default()
-    {
-        if second
+    let mut correspondences = correspondences_for(
+        MechanicalFeatureKind::Mount,
+        &first.mounts,
+        &second.mounts,
+        |mount| mount.id.as_str(),
+    );
+    correspondences.extend(correspondences_for(
+        MechanicalFeatureKind::ClosureMount,
+        first.closure_mounts.as_deref().unwrap_or_default(),
+        second.closure_mounts.as_deref().unwrap_or_default(),
+        |mount| mount.id.as_str(),
+    ));
+    correspondences.extend(correspondences_for(
+        MechanicalFeatureKind::Opening,
+        first.openings.as_deref().unwrap_or_default(),
+        second.openings.as_deref().unwrap_or_default(),
+        |opening| opening.id.as_str(),
+    ));
+    correspondences.extend(correspondences_for(
+        MechanicalFeatureKind::GasketSupport,
+        first
             .gasket_layout
             .as_ref()
             .map(|layout| layout.supports.as_slice())
-            .unwrap_or_default()
-            .iter()
-            .any(|other| other.id == anchor.id)
-        {
-            correspondences.push(correspondence(
-                MechanicalFeatureKind::GasketSupport,
-                &anchor.id,
-            ));
-        }
-    }
+            .unwrap_or_default(),
+        second
+            .gasket_layout
+            .as_ref()
+            .map(|layout| layout.supports.as_slice())
+            .unwrap_or_default(),
+        |support| support.id.as_str(),
+    ));
     correspondences
 }
 

@@ -1,6 +1,6 @@
 //! Resolver builders and logical keys for the Layout Component Inspector.
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     CompanionPlacementTarget, Constraint, ConstraintEndpoint, ConstraintRelation, EditOperation,
     Follow, MirroredCompanionMode, MirroredCompanionTweak, OffsetAxes, Part, PartAnchorValueChange,
     PartOutline, Position, ProjectDoc, Vec2,
@@ -25,7 +25,7 @@ fn part_of<'a>(document: &'a ProjectDoc, part_id: &str) -> Option<&'a Part> {
 fn board_of<'a>(
     document: &'a ProjectDoc,
     board_id: &str,
-) -> Option<&'a boardstudio_core::model::Board> {
+) -> Option<&'a boardstudio_model::model::Board> {
     document.boards.iter().find(|board| board.id == board_id)
 }
 
@@ -89,7 +89,7 @@ pub fn position_resolver(
             // edits from its evaluated pose while a detached part edits from
             // its stored half-frame pose.
             let base = if part.anchor.is_some() {
-                boardstudio_core::evaluated_part_pose(document, part).at
+                boardstudio_core_kernel::matrix::layout::evaluated_part_pose(document, part).at
             } else {
                 part.pose.at
             };
@@ -109,7 +109,7 @@ pub fn position_resolver(
                 .iter()
                 .map(|selected_id| {
                     let selected = part_of(document, selected_id).expect("checked above");
-                    let board_at = boardstudio_core::evaluated_part_pose(document, selected).at;
+                    let board_at = boardstudio_core_kernel::matrix::layout::evaluated_part_pose(document, selected).at;
                     Position {
                         id: selected.id.clone(),
                         at: Vec2 {
@@ -281,7 +281,7 @@ pub fn constraint_resolver(
                     }
                 }
                 LayoutConstraintValues::Mirror { axis, coordinate } => match axis {
-                    boardstudio_core::model::MirrorAxis::Vertical => {
+                    boardstudio_model::model::MirrorAxis::Vertical => {
                         ConstraintRelation::MirrorLine {
                             at: Vec2 {
                                 x: *coordinate,
@@ -290,7 +290,7 @@ pub fn constraint_resolver(
                             angle: 90.0,
                         }
                     }
-                    boardstudio_core::model::MirrorAxis::Horizontal => {
+                    boardstudio_model::model::MirrorAxis::Horizontal => {
                         ConstraintRelation::MirrorLine {
                             at: Vec2 {
                                 x: 0.0,
@@ -411,16 +411,8 @@ pub fn offset_axes_resolver(
             } = constraint
             {
                 let (offset, rotation) = match relation {
-                    ConstraintRelation::Offset { offset, rotation } if to == OffsetAxes::Board => {
-                        (*offset, *rotation)
-                    }
-                    ConstraintRelation::Offset { offset, rotation } => (*offset, *rotation),
-                    ConstraintRelation::PartOffset { offset, rotation }
-                        if to == OffsetAxes::Part =>
-                    {
-                        (*offset, *rotation)
-                    }
-                    ConstraintRelation::PartOffset { offset, rotation } => (*offset, *rotation),
+                    ConstraintRelation::Offset { offset, rotation }
+                    | ConstraintRelation::PartOffset { offset, rotation } => (*offset, *rotation),
                     ConstraintRelation::MirrorLine { .. } => {
                         return Resolution::Retire("A mirror line has no offset axes.".into());
                     }
@@ -598,7 +590,7 @@ pub fn part_anchor_pick_resolver(
             commit(
                 EditOperation::SetPartAnchor {
                     part_id: part_id.clone(),
-                    anchor: boardstudio_core::model::PartAnchor {
+                    anchor: boardstudio_model::model::PartAnchor {
                         matrix_id: matrix_id.clone(),
                         row,
                         column,

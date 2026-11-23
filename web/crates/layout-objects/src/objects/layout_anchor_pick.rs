@@ -204,7 +204,7 @@ pub fn LayoutAnchorPickOverlay(
         .flatten()
         .map(|source| source.scene.matrix_scenes.clone())
         .unwrap_or_default();
-    let Some(projected) = anchor_pick_candidates(&document, &[], &context) else {
+    let Some(projected) = anchor_pick_candidates(&document, &context) else {
         return rsx! {};
     };
     let px = world_per_screen(&surface, width, height);

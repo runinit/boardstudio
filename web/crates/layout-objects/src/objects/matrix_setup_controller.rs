@@ -361,9 +361,7 @@ pub fn use_matrix_setup(
                     Ok(Some(prepared)) => (prepared.matrix, prepared.definitions),
                     Ok(None) => return,
                     Err(message) => {
-                        preparing.set(None);
-                        error.set(Some(message));
-                        status.set(None);
+                        fail_preparation(&mut preparing, &mut error, &mut status, message);
                         return;
                     }
                 };
@@ -378,9 +376,12 @@ pub fn use_matrix_setup(
                                 .any(|existing| existing.id == definition.id)
                     })
                 {
-                    preparing.set(None);
-                    error.set(Some("The prepared matrix definition set is incomplete or conflicts with the accepted document.".into()));
-                    status.set(None);
+                    fail_preparation(
+                        &mut preparing,
+                        &mut error,
+                        &mut status,
+                        "The prepared matrix definition set is incomplete or conflicts with the accepted document.".into(),
+                    );
                     return;
                 }
                 let matrix_id = matrix.id.clone();
@@ -428,6 +429,17 @@ pub fn use_matrix_setup(
         on_cancel,
         on_create,
     }
+}
+
+fn fail_preparation(
+    preparing: &mut Signal<Option<MatrixSetupOwner>>,
+    error: &mut Signal<Option<String>>,
+    status: &mut Signal<Option<String>>,
+    message: String,
+) {
+    preparing.set(None);
+    error.set(Some(message));
+    status.set(None);
 }
 
 fn setup_owner_live(

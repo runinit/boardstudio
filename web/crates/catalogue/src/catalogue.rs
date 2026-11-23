@@ -29,17 +29,6 @@ pub struct CatalogGroup<'a> {
     pub entries: Vec<&'a CatalogEntry>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum CatalogKind {
-    Switch,
-    Controller,
-    Connector,
-    Encoder,
-    Passive,
-    Utility,
-    Custom,
-}
-
 impl CatalogEntry {
     pub fn matches_library_search(&self, query: &str) -> bool {
         query.is_empty() || self.library_search_text().to_lowercase().contains(query)
@@ -133,31 +122,46 @@ pub async fn load_bundled(reversible: bool) -> Result<Rc<Vec<CatalogEntry>>, Str
     Ok(entries)
 }
 
+fn upsert_entries(
+    entries: &mut Vec<CatalogEntry>,
+    positions: &mut HashMap<String, usize>,
+    definitions: &[PartDefinition],
+    source: CatalogueSource,
+) {
+    for definition in definitions {
+        if let Some(index) = positions.get(&definition.id).copied() {
+            entries[index] = CatalogEntry {
+                definition: Rc::new(definition.clone()),
+                source,
+            };
+        } else {
+            positions.insert(definition.id.clone(), entries.len());
+            entries.push(CatalogEntry {
+                definition: Rc::new(definition.clone()),
+                source,
+            });
+        }
+    }
+}
+
 fn merge_bundled_sources(
     generated: &[PartDefinition],
     imported: &[PartDefinition],
 ) -> Vec<CatalogEntry> {
     let mut entries = Vec::with_capacity(generated.len() + imported.len());
     let mut positions = HashMap::<String, usize>::with_capacity(entries.capacity());
-    for (definitions, source) in [
-        (generated, CatalogueSource::Generator),
-        (imported, CatalogueSource::Imported),
-    ] {
-        for definition in definitions {
-            if let Some(index) = positions.get(&definition.id).copied() {
-                entries[index] = CatalogEntry {
-                    definition: Rc::new(definition.clone()),
-                    source,
-                };
-            } else {
-                positions.insert(definition.id.clone(), entries.len());
-                entries.push(CatalogEntry {
-                    definition: Rc::new(definition.clone()),
-                    source,
-                });
-            }
-        }
-    }
+    upsert_entries(
+        &mut entries,
+        &mut positions,
+        generated,
+        CatalogueSource::Generator,
+    );
+    upsert_entries(
+        &mut entries,
+        &mut positions,
+        imported,
+        CatalogueSource::Imported,
+    );
     entries
 }
 
@@ -170,20 +174,12 @@ pub fn merge_project_overrides(
     for (index, entry) in entries.iter().enumerate() {
         positions.insert(entry.definition.id.clone(), index);
     }
-    for definition in project {
-        if let Some(index) = positions.get(&definition.id).copied() {
-            entries[index] = CatalogEntry {
-                definition: Rc::new(definition.clone()),
-                source: CatalogueSource::Project,
-            };
-        } else {
-            positions.insert(definition.id.clone(), entries.len());
-            entries.push(CatalogEntry {
-                definition: Rc::new(definition.clone()),
-                source: CatalogueSource::Project,
-            });
-        }
-    }
+    upsert_entries(
+        &mut entries,
+        &mut positions,
+        project,
+        CatalogueSource::Project,
+    );
     entries
 }
 
@@ -196,20 +192,20 @@ pub fn catalogue_choices(entries: &[CatalogEntry]) -> Vec<&CatalogEntry> {
 
 pub fn group_choices(entries: &[CatalogEntry]) -> Vec<CatalogGroup<'_>> {
     let groups = [
-        ("Switches", CatalogKind::Switch),
-        ("Controllers", CatalogKind::Controller),
-        ("Connectors & sockets", CatalogKind::Connector),
-        ("Encoders", CatalogKind::Encoder),
-        ("Passives & LEDs", CatalogKind::Passive),
-        ("Utilities", CatalogKind::Utility),
-        ("Custom", CatalogKind::Custom),
+        ("Switches", PartKind::Switch),
+        ("Controllers", PartKind::Controller),
+        ("Connectors & sockets", PartKind::Connector),
+        ("Encoders", PartKind::Encoder),
+        ("Passives & LEDs", PartKind::Passive),
+        ("Utilities", PartKind::Utility),
+        ("Custom", PartKind::Custom),
     ];
     groups
         .into_iter()
         .filter_map(|(label, kind)| {
             let entries = catalogue_choices(entries)
                 .into_iter()
-                .filter(|entry| catalog_kind(&entry.definition.kind) == kind)
+                .filter(|entry| entry.definition.kind == kind)
                 .collect::<Vec<_>>();
             (!entries.is_empty()).then_some(CatalogGroup { label, entries })
         })
@@ -504,18 +500,6 @@ mod generator_tests {
             std::task::Poll::Ready(value) => value,
             std::task::Poll::Pending => panic!("generator wrapper suspended"),
         }
-    }
-}
-
-fn catalog_kind(kind: &PartKind) -> CatalogKind {
-    match kind {
-        PartKind::Switch => CatalogKind::Switch,
-        PartKind::Controller => CatalogKind::Controller,
-        PartKind::Connector => CatalogKind::Connector,
-        PartKind::Encoder => CatalogKind::Encoder,
-        PartKind::Passive => CatalogKind::Passive,
-        PartKind::Utility => CatalogKind::Utility,
-        PartKind::Custom => CatalogKind::Custom,
     }
 }
 

@@ -11,9 +11,8 @@ pub use boardstudio_web_ui_model::state::{LayoutSnapSettings, TreeCellAnchor};
 use boardstudio_web_ui_shared::ui::{
     button::{Button, ButtonVariant},
     callout::Callout,
-    checkbox::Checkbox,
+    checkbox::{Checkbox, CheckboxState},
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
-    dropdown_menu::{DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger},
     input::InputType,
     input_group::{InputGroup, InputGroupInput},
     label::Label,
@@ -162,7 +161,6 @@ pub fn LayoutCommandPill(
     on_show_relationships: EventHandler<()>,
     #[props(default)] snap_in_dock: bool,
 ) -> Element {
-    let pointer_tools_visible = true;
     let geometry_snap_enabled = snap_settings.geometry_snap;
     let workspace = try_use_context::<boardstudio_web_ui_model::state::WorkspaceState>();
     let mut commands = Vec::new();
@@ -297,14 +295,9 @@ pub fn LayoutCommandPill(
                 }
             },
             div { class: "layout-scope-strip",
-                if pointer_tools_visible {
-                    LayoutSelectionToolbar { open_menu, selection_kind, on_selection_kind, transform: Some(transform.clone()) }
-                } else {
-                    LayoutSelectMenu { open_menu, selection_kind, on_selection_kind }
-                }
+                LayoutSelectionToolbar { open_menu, selection_kind, on_selection_kind, transform: Some(transform.clone()) }
             }
             div { class: "layout-context-strip",
-                if pointer_tools_visible {
                 div { class: "layout-action-slot",
                 if has_selection_context {
                     super::layout_rail_menu::LayoutContextActionToolbar {
@@ -312,19 +305,16 @@ pub fn LayoutCommandPill(
                     }
                 }
                 }
-                }
                 div { class: "layout-menu-actions", role: "group", aria_label: "Selection actions",
                     super::layout_align::LayoutAlignToolbar {
                         mount: align, open_menu, show_relationships, has_selection_context, on_show_relationships,
                     }
                     super::layout_rail_menu::LayoutTransformToolbar {
-                        open_menu, mount: transform.clone(),
-                        selection_kind: pointer_tools_visible.then_some(selection_kind),
+                        open_menu, mount: transform.clone(), selection_kind,
                     }
                     if !snap_in_dock {
-                        LayoutSnapMenu { open_menu, settings: snap_settings, on_snap_intent, show_layout_state: pointer_tools_visible }
-                        if pointer_tools_visible {
-                            Tooltip {
+                        LayoutSnapMenu { open_menu, settings: snap_settings, on_snap_intent }
+                        Tooltip {
                                 TooltipTrigger { r#as: move |attributes: Vec<Attribute>| rsx! {
                                     Button { attributes, variant: ButtonVariant::Ghost,
                                         class: "layout-geometry-control",
@@ -337,7 +327,6 @@ pub fn LayoutCommandPill(
                                 } }
                                 TooltipContent { "Geometry snap" }
                             }
-                        }
                     }
                 }
             }
@@ -490,38 +479,10 @@ pub fn LayoutSnapDock(
                 div { class: "flex items-center gap-2 px-3 py-2 text-sm",
                     Checkbox {
                         aria_label: "Canvas handles",
-                        checked: Some(if handles_visible { dioxus_primitives::checkbox::CheckboxState::Checked } else { dioxus_primitives::checkbox::CheckboxState::Unchecked }),
-                        on_checked_change: move |value: dioxus_primitives::checkbox::CheckboxState| on_toggle_handles.call(value.into()),
+                        checked: Some(if handles_visible { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                        on_checked_change: move |value: CheckboxState| on_toggle_handles.call(value.into()),
                     }
                     span { "Canvas handles" }
-                }
-            }
-        }
-    }
-}
-
-#[component]
-fn LayoutSelectMenu(
-    mut open_menu: Signal<Option<LayoutCommandMenu>>,
-    selection_kind: LayoutSelectionKind,
-    on_selection_kind: EventHandler<LayoutSelectionKind>,
-) -> Element {
-    rsx! {
-        DropdownMenu {
-            open: Some(open_menu() == Some(LayoutCommandMenu::Select)),
-            on_open_change: move |next| {
-                if next { open_menu.set(Some(LayoutCommandMenu::Select)); }
-                else if open_menu() == Some(LayoutCommandMenu::Select) { open_menu.set(None); }
-            },
-            DropdownMenuTrigger { id: "m1-layout-select-trigger", aria_label: format!("Select: {}", selection_kind.label()),
-                LayoutSelectionIcon { kind: selection_kind } span { "{selection_kind.label()}" }
-            }
-            DropdownMenuContent { id: "m1-layout-select-menu",
-                for (index, kind) in LayoutSelectionKind::ALL.into_iter().enumerate() {
-                    DropdownMenuItem { index, value: kind, role: "menuitemradio", aria_checked: kind == selection_kind,
-                        on_select: move |_: LayoutSelectionKind| { on_selection_kind.call(kind); close_layout_command_menu(open_menu, LayoutCommandMenu::Select); },
-                        "{kind.label()}"
-                    }
                 }
             }
         }
@@ -533,12 +494,11 @@ fn LayoutSnapMenu(
     open_menu: Signal<Option<LayoutCommandMenu>>,
     settings: LayoutSnapSettings,
     on_snap_intent: EventHandler<LayoutSnapIntent>,
-    show_layout_state: bool,
 ) -> Element {
     rsx! {
         LayoutCommandPopup {
             open_menu, menu: LayoutCommandMenu::Snap, label: "Snap settings",
-            trigger: rsx! { span { "Snap" } if show_layout_state { small { "{snap_label(settings.snap_fraction)}" } } },
+            trigger: rsx! { span { "Snap" } small { "{snap_label(settings.snap_fraction)}" } },
             LayoutSnapOptions { settings, on_snap_intent }
         }
     }
@@ -618,13 +578,13 @@ fn LayoutSnapOptions(
                 }
             }
             Label { html_for: geometry_id.clone(),
-                Checkbox { id: geometry_id, aria_label: "Geometry snap", checked: Some(if settings.geometry_snap { dioxus_primitives::checkbox::CheckboxState::Checked } else { dioxus_primitives::checkbox::CheckboxState::Unchecked }),
-                    on_checked_change: move |value: dioxus_primitives::checkbox::CheckboxState| on_snap_intent.call(LayoutSnapIntent::GeometrySnap(value.into())) }
+                Checkbox { id: geometry_id, aria_label: "Geometry snap", checked: Some(if settings.geometry_snap { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                    on_checked_change: move |value: CheckboxState| on_snap_intent.call(LayoutSnapIntent::GeometrySnap(value.into())) }
                 "Geometry snap"
             }
             Label { html_for: envelope_id.clone(),
-                Checkbox { id: envelope_id, aria_label: "Envelope gap", checked: Some(if settings.gap_snap { dioxus_primitives::checkbox::CheckboxState::Checked } else { dioxus_primitives::checkbox::CheckboxState::Unchecked }), disabled: !settings.geometry_snap,
-                    on_checked_change: move |value: dioxus_primitives::checkbox::CheckboxState| on_snap_intent.call(LayoutSnapIntent::GapSnap(value.into())) }
+                Checkbox { id: envelope_id, aria_label: "Envelope gap", checked: Some(if settings.gap_snap { CheckboxState::Checked } else { CheckboxState::Unchecked }), disabled: !settings.geometry_snap,
+                    on_checked_change: move |value: CheckboxState| on_snap_intent.call(LayoutSnapIntent::GapSnap(value.into())) }
                 "Envelope gap"
             }
             Label { html_for: "layout-snap-gap", "Gap (mm)" }

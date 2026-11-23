@@ -506,21 +506,8 @@ fn selected_cells(
 }
 
 fn linked_layout(document: &ProjectDoc, board_id: &str, matrix_id: &str) -> bool {
-    document
-        .layouts
-        .iter()
-        .find(|layout| {
-            layout.board_id == board_id && layout.matrix_ids.iter().any(|id| id == matrix_id)
-        })
-        .is_some_and(|layout| {
-            layout.mirror_link.is_some()
-                || document.layouts.iter().any(|other| {
-                    other
-                        .mirror_link
-                        .as_ref()
-                        .is_some_and(|link| link.source_id == layout.id)
-                })
-        })
+    super::mirror_links::layout_for_matrix(&document.layouts, board_id, matrix_id)
+        .is_some_and(|layout| super::mirror_links::layout_is_linked(&document.layouts, layout))
 }
 
 /// The field projection of the selected matrix, row, column or key.
