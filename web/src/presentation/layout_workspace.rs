@@ -581,7 +581,7 @@ mod origin_pick_escape_regression_tests {
         let mut pending = use_signal(|| false);
         rsx! {
             main { id: "m1-workbench", tabindex: "-1",
-                onkeydown: move |event| input.keydown(&event, true),
+                onkeydown: move |event| input.keydown(&event, true, true),
                 Button {
                     variant: ButtonVariant::Secondary,
                     id: "arm-origin-pick",
@@ -703,7 +703,7 @@ mod relation_escape_regression_tests {
         let (target, owner) = route();
         let input = super::super::layout_input::use_layout_input();
         let mut context = use_signal(|| "component");
-        rsx! { main { id: "m1-workbench", tabindex: "-1", onkeydown: move |event| input.keydown(&event, true),
+        rsx! { main { id: "m1-workbench", tabindex: "-1", onkeydown: move |event| input.keydown(&event, true, true),
             MatrixRelationshipEscape {
                 target: Some(target),
                 component_owner: Some(owner),

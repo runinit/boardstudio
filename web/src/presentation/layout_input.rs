@@ -41,7 +41,7 @@ impl LayoutInput {
         effects
     }
 
-    pub fn keydown(self, event: &KeyboardEvent, layout: bool) {
+    pub fn keydown(self, event: &KeyboardEvent, layout: bool, canvas: bool) {
         let Some(key) = event.data().try_as_web_event() else {
             return;
         };
@@ -60,6 +60,7 @@ impl LayoutInput {
             .dispatch(CanvasEvent::KeyDown {
                 key: code,
                 layout,
+                canvas,
                 typing,
                 prevented,
             })
@@ -102,14 +103,50 @@ impl LayoutInput {
     }
 
     pub fn pointerdown(mut self, event: PointerEvent) {
+        let Some(pointer) = event.data().try_as_web_event() else {
+            return;
+        };
+        self.interaction.sync_control(pointer.ctrl_key());
+        let target = event_target(&pointer);
         if self.menu.peek().is_some()
-            && let Some(pointer) = event.data().try_as_web_event()
-            && !event_target(&pointer).is_some_and(|target| target
-                .closest("#m1-layout-command-pill, [data-slot='collapsible']:has(#m1-layout-snap-trigger)")
-                .ok().flatten().is_some())
+            && !target.as_ref().is_some_and(|target| {
+                target
+                    .closest(
+                        "#m1-layout-command-pill, [data-slot='collapsible']:has(#m1-layout-snap-trigger)",
+                    )
+                    .ok()
+                    .flatten()
+                    .is_some()
+            })
         {
             self.menu.set(None);
         }
+        if !target.as_ref().is_some_and(|target| {
+            target
+                .closest("button, a, input, textarea, select, [tabindex], [contenteditable]")
+                .ok()
+                .flatten()
+                .is_some()
+        }) {
+            focus_workbench_if_body();
+        }
+    }
+}
+
+pub(super) fn focus_workbench_if_body() {
+    let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+        return;
+    };
+    if document
+        .active_element()
+        .is_some_and(|element| element.tag_name() == "BODY")
+        && let Some(main) = document
+            .get_element_by_id("m1-workbench")
+            .and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok())
+    {
+        let options = web_sys::FocusOptions::new();
+        options.set_prevent_scroll(true);
+        let _ = main.focus_with_options(&options);
     }
 }
 
@@ -128,10 +165,11 @@ mod tests {
         let input = use_layout_input();
         rsx! {
             main { id: "m1-workbench", tabindex: "-1",
-                onkeydown: move |event| input.keydown(&event, true),
+                onkeydown: move |event| input.keydown(&event, true, true),
                 onkeyup: move |event| input.keyup(event),
                 input { id: "typing-control" }
                 button { id: "layout-control", "Layout" }
+                button { id: "canvas-control", onkeydown: move |event| { event.stop_propagation(); input.keydown(&event, false, true); }, "Canvas" }
             }
         }
     }
@@ -153,7 +191,11 @@ mod tests {
         init.set_cancelable(true);
         let space =
             || web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap();
-        for (target, prevents_scroll) in [("#typing-control", false), ("#layout-control", true)] {
+        for (target, prevents_scroll) in [
+            ("#typing-control", false),
+            ("#layout-control", true),
+            ("#canvas-control", true),
+        ] {
             let key = space();
             root.query_selector(target)
                 .unwrap()

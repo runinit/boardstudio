@@ -137,6 +137,7 @@ pub(in crate::presentation) fn matrix_pointer_down_handler(
         let Some(pointer) = request.event.data().try_as_web_event() else {
             return;
         };
+        canvas_interaction.sync_control(pointer.ctrl_key());
         if pointer.button() != 0
             || (canvas_interaction.space_down() && canvas_interaction.current().is_none())
             || !matches!(
@@ -331,6 +332,7 @@ pub(in crate::presentation) fn part_pointer_down_handler(
         let Some(pointer) = request.event.data().try_as_web_event() else {
             return;
         };
+        canvas_interaction.sync_control(pointer.ctrl_key());
         if pointer.button() != 0 {
             return;
         }
@@ -506,10 +508,12 @@ pub(in crate::presentation) fn part_pointer_down_handler(
         if positions.is_empty() {
             return;
         }
-        if !workbench::editor_session::canvas_adapter::capture_layout_drag(
+        if !workbench::editor_session::canvas_adapter::capture_canvas_drag(
             canvas_interaction,
             CanvasMode::DraggingParts,
-            &pointer,
+            pointer.pointer_id(),
+            client_point(&pointer),
+            pointer.ctrl_key(),
             &runtime,
             &drag,
             &svg,

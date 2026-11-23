@@ -143,8 +143,33 @@ pub(super) fn start_pan_handler(
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
         };
-        if pointer.default_prevented() || pointer.button() != 0 || workspace() != Workspace::Layout
-        {
+        if pointer.default_prevented() || pointer.button() != 0 {
+            return;
+        }
+        canvas_interaction.sync_control(pointer.ctrl_key());
+        let active_workspace = workspace();
+        if active_workspace != Workspace::Layout {
+            if matches!(
+                active_workspace,
+                Workspace::Pcb | Workspace::Keymap | Workspace::Keycaps
+            ) && canvas_interaction.space_down()
+                && canvas_interaction.current().is_none()
+                && runtime.scope().as_ref() == Some(&render_scope)
+                && (adapter.generation)() == render_generation
+                && runtime.with_model(|model| model.gesture.is_none())
+                && navigation.drag_interaction().borrow().is_none()
+            {
+                super::canvas_adapter::start_pan(
+                    &runtime,
+                    &navigation,
+                    &svg,
+                    &render_scope,
+                    render_generation,
+                    &pointer,
+                    canvas_interaction,
+                );
+                pointer.prevent_default();
+            }
             return;
         }
         let id = pointer.pointer_id();
@@ -210,24 +235,6 @@ pub(super) fn start_pan_handler(
                     return;
                 }
                 if !canvas_interaction.space_down() {
-                    if pointer.shift_key()
-                        && pointer
-                            .target()
-                            .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
-                            .is_some_and(|target| {
-                                target.has_attribute("data-layout-marquee-background")
-                            })
-                        && super::canvas_adapter::capture_layout_drag(
-                            canvas_interaction,
-                            CanvasMode::Marquee,
-                            &pointer,
-                            &runtime,
-                            &navigation.drag_interaction(),
-                            &svg,
-                        )
-                    {
-                        pointer.prevent_default();
-                    }
                     return;
                 }
                 super::canvas_adapter::start_pan(

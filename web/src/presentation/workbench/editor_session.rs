@@ -143,6 +143,13 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
         layout_input.keyboard.set(Some(layout_keyboard));
         layout_input.cancel_placement.set(Some(cancel_placement));
     });
+    let interaction_version = consume_context::<LayoutInteraction>().version();
+    use_effect(use_reactive(
+        (&interaction_version, &snapshot.token),
+        |_| {
+            layout_input::focus_workbench_if_body();
+        },
+    ));
     use_drop(move || {
         if *layout_input.keyboard.peek() == Some(layout_keyboard) {
             layout_input.dispatch(CanvasEvent::ScopeChanged);

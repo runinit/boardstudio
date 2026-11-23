@@ -103,7 +103,8 @@ pub(super) fn part_pointer_down(
     let scope = frame.scope.clone();
     let generation = frame.owner.generation;
     let svg = frame.svg.clone();
-    let drag = interaction.navigation.drag_interaction();
+    let navigation = interaction.navigation.clone();
+    let drag = navigation.drag_interaction();
     let owner = frame.owner.clone();
     let accepted_token = frame.snapshot.token;
     let accepted_revision = frame.snapshot.document.revision;
@@ -139,6 +140,30 @@ pub(super) fn part_pointer_down(
         ) else {
             return;
         };
+        let client = (f64::from(request.client_x), f64::from(request.client_y));
+        if canvas_interaction.space_down() {
+            if super::workbench::editor_session::canvas_adapter::capture_canvas_drag(
+                canvas_interaction,
+                CanvasMode::Panning,
+                request.pointer_id as i32,
+                client,
+                false,
+                &runtime,
+                &drag,
+                &svg,
+            ) {
+                navigation.start_space_pan(
+                    boardstudio_web_ui_shared::canvas_navigation::PanStart {
+                        pointer_id: request.pointer_id,
+                        scope: scope.clone(),
+                        generation,
+                        client,
+                        camera: runtime.with_model(|model| model.camera.center),
+                    },
+                );
+            }
+            return;
+        }
         let model = runtime.model();
         let Some(board) = model.accepted.as_ref().and_then(|snapshot| {
             snapshot
@@ -247,11 +272,17 @@ pub(super) fn part_pointer_down(
         {
             return;
         }
-        if let Some(surface) = svg.borrow().as_ref() {
-            let _ = surface.set_pointer_capture(request.pointer_id as i32);
-            let options = web_sys::FocusOptions::new();
-            options.set_prevent_scroll(true);
-            let _ = surface.focus_with_options(&options);
+        if !super::workbench::editor_session::canvas_adapter::capture_canvas_drag(
+            canvas_interaction,
+            CanvasMode::DraggingParts,
+            request.pointer_id as i32,
+            (f64::from(request.client_x), f64::from(request.client_y)),
+            false,
+            &runtime,
+            &drag,
+            &svg,
+        ) {
+            return;
         }
         *drag.borrow_mut() = Some(Drag {
             pointer: request.pointer_id,
@@ -291,6 +322,7 @@ pub(super) fn empty_hit(
         if pointer.button() != 0
             || drag.borrow().is_some()
             || canvas_interaction.current().is_some()
+            || canvas_interaction.space_down()
             || workspace() != Workspace::Pcb
             || runtime.scope().as_ref() != Some(&scope)
             || (adapter.generation)() != generation

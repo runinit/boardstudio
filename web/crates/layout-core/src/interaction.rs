@@ -30,6 +30,13 @@ impl CanvasMode {
                 | Self::DraggingOutlineHandle
         )
     }
+
+    pub fn is_pick(self) -> bool {
+        matches!(
+            self,
+            Self::PickingSplayOrigin | Self::PickingMatrixAnchor | Self::PickingRailAnchor
+        )
+    }
 }
 
 #[derive(Debug, Default)]
@@ -81,6 +88,7 @@ pub enum CanvasEvent {
     KeyDown {
         key: CanvasKey,
         layout: bool,
+        canvas: bool,
         typing: bool,
         prevented: bool,
     },
@@ -159,6 +167,14 @@ impl CanvasInteraction {
                 ..
             }
         )
+    }
+
+    pub fn sync_control(&mut self, down: bool) -> bool {
+        if self.control_down == down {
+            return false;
+        }
+        self.control_down = down;
+        true
     }
 
     pub fn handle(&mut self, event: CanvasEvent) -> Vec<InteractionEffect> {
@@ -293,15 +309,16 @@ impl CanvasInteraction {
             }
             CanvasEvent::KeyDown {
                 key,
-                layout: true,
+                layout,
+                canvas,
                 typing,
                 prevented,
             } => match key {
-                CanvasKey::Control if !self.control_down => {
+                CanvasKey::Control if layout && !self.control_down => {
                     self.control_down = true;
                     vec![ModifiersChanged]
                 }
-                CanvasKey::Space if !typing && !prevented => {
+                CanvasKey::Space if canvas && !typing && !prevented => {
                     let changed = !std::mem::replace(&mut self.space_down, true);
                     let mut effects = vec![PreventDefault];
                     if changed {
@@ -309,7 +326,7 @@ impl CanvasInteraction {
                     }
                     effects
                 }
-                CanvasKey::Escape if !typing && !prevented && self.mode().is_some() => {
+                CanvasKey::Escape if canvas && !typing && !prevented && self.mode().is_some() => {
                     let mut effects = self.cancel();
                     effects.push(PreventDefault);
                     effects
@@ -385,6 +402,7 @@ mod tests {
         CanvasEvent::KeyDown {
             key,
             layout: true,
+            canvas: true,
             typing: false,
             prevented: false,
         }
@@ -499,7 +517,7 @@ mod tests {
     #[test]
     fn space_admission_and_control_latching() {
         let mut canvas = CanvasInteraction::default();
-        for (layout, typing, prevented) in [
+        for (active_canvas, typing, prevented) in [
             (false, false, false),
             (true, true, false),
             (true, false, true),
@@ -508,7 +526,8 @@ mod tests {
                 canvas
                     .handle(CanvasEvent::KeyDown {
                         key: CanvasKey::Space,
-                        layout,
+                        layout: active_canvas,
+                        canvas: active_canvas,
                         typing,
                         prevented
                     })
@@ -518,13 +537,38 @@ mod tests {
         }
         assert!(
             canvas
-                .handle(key(CanvasKey::Space))
+                .handle(CanvasEvent::KeyDown {
+                    key: CanvasKey::Space,
+                    layout: false,
+                    canvas: true,
+                    typing: false,
+                    prevented: false,
+                })
                 .contains(&PreventDefault)
         );
+        assert!(canvas.space_down);
         assert!(
             canvas
-                .handle(key(CanvasKey::Space))
-                .contains(&PreventDefault)
+                .handle(CanvasEvent::KeyDown {
+                    key: CanvasKey::Control,
+                    layout: false,
+                    canvas: true,
+                    typing: false,
+                    prevented: false,
+                })
+                .is_empty()
+        );
+        start(&mut canvas, Panning, 9);
+        assert!(
+            canvas
+                .handle(CanvasEvent::KeyDown {
+                    key: CanvasKey::Escape,
+                    layout: false,
+                    canvas: true,
+                    typing: false,
+                    prevented: false,
+                })
+                .contains(&Cancel(Panning))
         );
         assert_eq!(
             canvas.handle(CanvasEvent::KeyUp(CanvasKey::Space)),
@@ -544,7 +588,14 @@ mod tests {
                 });
             }
             assert!(canvas.quick_offset());
-            canvas.handle(CanvasEvent::KeyUp(CanvasKey::Control));
+            if from_keydown {
+                assert_eq!(
+                    canvas.handle(CanvasEvent::KeyUp(CanvasKey::Control)),
+                    [ModifiersChanged]
+                );
+                assert!(canvas.sync_control(true));
+            }
+            assert_eq!(canvas.sync_control(false), from_keydown);
             assert!(!canvas.control_down);
             assert!(canvas.quick_offset());
             canvas.handle(CanvasEvent::Blur);

@@ -114,8 +114,8 @@ mod zmk_firmware_export;
 
 use crate::case_generation_lifecycle::AutomaticCaseGeneration;
 use boardstudio_web_layout::canvas_interaction::{
-    CanvasEvent, CanvasKey, CanvasMode, InteractionEffect, LayoutInteraction, MarqueeBounds,
-    client_point, focus_svg,
+    CanvasEvent, CanvasKey, CanvasMode, InteractionEffect, LayoutInteraction, client_point,
+    focus_svg,
 };
 pub(crate) use boardstudio_web_ui_shared::footprint_graphics;
 use canvas_layers::CanvasLayers;
@@ -276,7 +276,7 @@ fn WorkbenchApp() -> Element {
         link { rel: "stylesheet", href: "assets/shell.css" }
         link { rel: "stylesheet", href: "assets/firmware-keymap-panel.css" }
         link { rel: "stylesheet", href: "assets/tailwind.css" }
-        main { id: "m1-workbench", tabindex: "-1", class: "flex h-dvh min-h-0 w-full flex-col overflow-hidden",
+        main { id: "m1-workbench", tabindex: "-1", class: "flex h-dvh min-h-0 w-full flex-col overflow-hidden focus:outline-none",
             onkeyup: move |event| layout_input.keyup(event),
             onfocusout: move |event| layout_input.focusout(event),
             onpointerdown: move |event| layout_input.pointerdown(event),
@@ -291,7 +291,15 @@ fn WorkbenchApp() -> Element {
             onkeydown: {
                 let runtime = runtime.clone();
                 move |event: KeyboardEvent| {
-                    layout_input.keydown(&event, workspace() == Workspace::Layout && !project_browser());
+                    let in_workbench = !project_browser();
+                    let current_workspace = workspace();
+                    let layout = in_workbench && current_workspace == Workspace::Layout;
+                    let canvas = in_workbench
+                        && matches!(
+                            current_workspace,
+                            Workspace::Layout | Workspace::Pcb | Workspace::Keymap | Workspace::Keycaps
+                        );
+                    layout_input.keydown(&event, layout, canvas);
                     if !workbench_shortcuts::handle_palette_shortcut(palette, &event) {
                         workbench_shortcuts::handle_history_shortcut(runtime.clone(), event);
                     }

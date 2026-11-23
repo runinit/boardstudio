@@ -71,11 +71,9 @@ pub(in crate::presentation) fn use_layout_canvas(
         end_pointer,
         cancel_pointer,
         lost_capture,
-        key_up,
         wheel,
         ..
     } = frame.handlers;
-    let input = use_context::<layout_input::LayoutInput>();
     let camera = &frame.camera;
     let view_box = &camera.view_box;
     let (view_x, view_y, width, height) =
@@ -88,13 +86,13 @@ pub(in crate::presentation) fn use_layout_canvas(
     let snapshot = &frame.snapshot;
     rsx! {
         svg { class: "mt-[76px] block h-[calc(100%-120px)] min-h-0 w-full touch-none bg-canvas max-[760px]:mt-0 max-[760px]:h-full", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "{canvas_aria_label}", onmounted: mount,
-        onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer, onlostpointercapture: lost_capture, onkeydown: move |event| input.keydown(&event, true), onkeyup: key_up, onfocusout: move |event| input.focusout(event), onwheel: wheel,
+        onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer, onlostpointercapture: lost_capture, onwheel: wheel,
         defs {
             pattern { id: "m1-layout-grid-small", width: "{canvas_grid.spacing_mm}", height: "{canvas_grid.spacing_mm}", pattern_units: "userSpaceOnUse",
                 circle { cx: "0", cy: "0", r: "{canvas_grid.radius_mm}", fill: "var(--grid-large)", stroke: "none" }
             }
         }
-        rect { x: "{view_x}", y: "{view_y}", width: "{width}", height: "{height}", fill: "url(#m1-layout-grid-small)", "data-layout-marquee-background": "true" }
+        rect { x: "{view_x}", y: "{view_y}", width: "{width}", height: "{height}", fill: "url(#m1-layout-grid-small)" }
         g { transform: "scale(1,-1)",
             {scene_boards(&contexts, frame, overlay, selected_bridge)}
             {scene_placement_previews(layer_visibility, &services.matrix_placement, &services.mirrored_pair)}
@@ -125,23 +123,8 @@ pub(in crate::presentation) fn use_layout_canvas(
             {part_rail(&contexts, frame, &canvas.selection)}
             {placement_preview(part_placement, width, zoom_surface_size)}
             {finding_marker_draft(&contexts, frame, overlay)}
-            MarqueeOverlay { svg: frame.svg.clone(), view: (view_x, view_y, width, height) }
         }
         }
-    }
-}
-
-#[component]
-fn MarqueeOverlay(svg: Rc<RefCell<Option<SvgElement>>>, view: (f64, f64, f64, f64)) -> Element {
-    let interaction = use_context::<LayoutInteraction>();
-    let Some((min, max)) = interaction.marquee().and_then(|bounds| {
-        workbench::editor_session::canvas_adapter::marquee_world_bounds(&svg, bounds, view)
-    }) else {
-        return rsx! {};
-    };
-    rsx! {
-        rect { x: min.x, y: min.y, width: max.x - min.x, height: max.y - min.y,
-            class: "pointer-events-none fill-primary/15 stroke-primary", vector_effect: "non-scaling-stroke", "aria-hidden": "true" }
     }
 }
 
@@ -302,8 +285,8 @@ fn selection_anchor(
                             let Some(snapshot) = current.accepted else { return; };
                             let positions: Vec<_> = snapshot.document.parts.iter().filter(|p| current.selected_part_ids.contains(&p.id)).map(|p| Position { id: p.id.clone(), at: p.pose.at }).collect();
                             if positions.is_empty() { return; }
-                            if !workbench::editor_session::canvas_adapter::capture_layout_drag(
-                                arbiter, CanvasMode::DraggingParts, &pointer, &runtime, &drag, &svg,
+                            if !workbench::editor_session::canvas_adapter::capture_canvas_drag(
+                                arbiter, CanvasMode::DraggingParts, pointer.pointer_id(), client_point(&pointer), pointer.ctrl_key(), &runtime, &drag, &svg,
                             ) { return; }
                             *drag.borrow_mut() = Some(Drag { pointer: i64::from(pointer.pointer_id()), scope: scope.clone(), generation: owner.generation, gesture_generation: None, origin, client_x: f64::from(pointer.client_x()), client_y: f64::from(pointer.client_y()), positions, last_sample: None, active: false, pan: false, camera: Vec2::default() });
                         },

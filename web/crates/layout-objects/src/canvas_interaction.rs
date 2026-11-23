@@ -2,7 +2,7 @@
 
 use boardstudio_web_layout_core::interaction::CanvasInteraction;
 pub use boardstudio_web_layout_core::interaction::{
-    CanvasEvent, CanvasKey, CanvasMode, InteractionEffect, MarqueeBounds,
+    CanvasEvent, CanvasKey, CanvasMode, InteractionEffect,
 };
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -17,7 +17,6 @@ pub struct LayoutInteraction {
     gesture: Signal<Option<PointerGesture>>,
     control: Signal<bool>,
     version: Signal<u64>,
-    marquee: Signal<Option<MarqueeBounds>>,
 }
 
 pub fn use_layout_interaction() -> LayoutInteraction {
@@ -27,15 +26,10 @@ pub fn use_layout_interaction() -> LayoutInteraction {
         gesture: use_signal(|| None),
         control: use_signal(|| false),
         version: use_signal(|| 0),
-        marquee: use_signal(|| None),
     }
 }
 
 impl LayoutInteraction {
-    pub fn marquee(self) -> Option<MarqueeBounds> {
-        (self.marquee)()
-    }
-
     pub fn version(self) -> u64 {
         (self.version)()
     }
@@ -66,6 +60,22 @@ impl LayoutInteraction {
         }
         self.handle(CanvasEvent::Begin(mode));
         self.current() == Some(mode)
+    }
+
+    pub fn switch_pick(self, mode: CanvasMode) -> bool {
+        if let Some(current) = self.current()
+            && current.is_pick()
+            && current != mode
+        {
+            self.handle(CanvasEvent::ScopeChanged);
+        }
+        self.begin(mode)
+    }
+
+    pub fn sync_control(mut self, down: bool) {
+        if *self.control.peek() != down && self.state.write().sync_control(down) {
+            self.control.set(down);
+        }
     }
 
     pub fn end(self, mode: CanvasMode) {
@@ -102,15 +112,7 @@ impl LayoutInteraction {
         if *self.control.peek() != control {
             self.control.set(control);
         }
-        for effect in &effects {
-            if let InteractionEffect::PreviewMarquee(bounds) = effect {
-                self.marquee.set(Some(*bounds));
-            }
-        }
         if previous.is_some() && self.current().is_none() {
-            if previous == Some(CanvasMode::Marquee) {
-                self.marquee.set(None);
-            }
             self.version += 1;
             self.gesture.write().take();
             let cancel = self.cancel.write().take();

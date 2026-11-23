@@ -48,6 +48,7 @@ pub(super) fn move_pointer_handler(
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
         };
+        canvas_interaction.sync_control(pointer.ctrl_key());
         if canvas_interaction.route_pointer(&pointer, false) {
             return;
         }
@@ -58,10 +59,6 @@ pub(super) fn move_pointer_handler(
             return;
         }
         let mode = canvas_interaction.current();
-        if mode == Some(CanvasMode::Marquee) {
-            canvas_interaction.handle(marquee_sample(&pointer));
-            return;
-        }
         if mode == Some(CanvasMode::PlacingMatrix) {
             let Some(active) = matrix_placement.placement.as_ref() else {
                 return;
@@ -140,19 +137,14 @@ pub(super) fn move_pointer_handler(
             return;
         };
         if !current.active {
-            let client = client_point(&pointer);
-            let moved = if workspace() == Workspace::Layout {
-                canvas_interaction
-                    .handle(CanvasEvent::PointerMove {
-                        id: pointer.pointer_id(),
-                        client,
-                        operation: None,
-                    })
-                    .contains(&InteractionEffect::StartPartDrag)
-            } else {
-                client != (current.client_x, current.client_y)
-            };
-            if !moved {
+            if !canvas_interaction
+                .handle(CanvasEvent::PointerMove {
+                    id: pointer.pointer_id(),
+                    client: client_point(&pointer),
+                    operation: None,
+                })
+                .contains(&InteractionEffect::StartPartDrag)
+            {
                 return;
             }
             let current_model = runtime.model();
@@ -323,6 +315,7 @@ pub(super) fn end_pointer_handler(
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
         };
+        canvas_interaction.sync_control(pointer.ctrl_key());
         if canvas_interaction.route_pointer(&pointer, true) {
             return;
         }
@@ -333,32 +326,6 @@ pub(super) fn end_pointer_handler(
             return;
         }
         let mode = canvas_interaction.current();
-        if mode == Some(CanvasMode::Marquee) {
-            canvas_interaction.handle(marquee_sample(&pointer));
-            for effect in canvas_interaction.handle(CanvasEvent::PointerUp {
-                id: pointer.pointer_id(),
-                operation: None,
-            }) {
-                match effect {
-                    InteractionEffect::ReleasePointer(id) => {
-                        if let Some(surface) = svg.borrow().as_ref() {
-                            let _ = surface.release_pointer_capture(id);
-                        }
-                    }
-                    InteractionEffect::SelectMarquee(bounds)
-                        if layout_owner_is_current(&runtime, workspace, &adapter, &owner) =>
-                    {
-                        if let Some((min, max)) =
-                            marquee_world_bounds(&svg, bounds, (view_x, view_y, width, height))
-                        {
-                            select_marquee(&runtime, &adapter, min, max);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            return;
-        }
         if matches!(
             mode,
             Some(
@@ -503,20 +470,21 @@ pub(super) fn cancel_pointer_handler(
     }
 }
 
-pub(in crate::presentation) fn capture_layout_drag(
+pub(in crate::presentation) fn capture_canvas_drag(
     interaction: LayoutInteraction,
     mode: CanvasMode,
-    pointer: &web_sys::PointerEvent,
+    id: i32,
+    client: (f64, f64),
+    control: bool,
     runtime: &Rc<Runtime>,
     drag: &Rc<RefCell<Option<Drag>>>,
     svg: &Rc<RefCell<Option<SvgElement>>>,
 ) -> bool {
-    let id = pointer.pointer_id();
     if interaction.handle(CanvasEvent::PointerDown {
         mode,
         id,
-        client: client_point(pointer),
-        control: pointer.ctrl_key(),
+        client,
+        control,
     }) != [InteractionEffect::CapturePointer(id)]
     {
         return false;
@@ -530,15 +498,7 @@ pub(in crate::presentation) fn capture_layout_drag(
         return false;
     }
     let (runtime, drag, svg) = (runtime.clone(), drag.clone(), svg.clone());
-    interaction.on_cancel(move || {
-        if mode == CanvasMode::Marquee {
-            if let Some(surface) = svg.borrow().as_ref() {
-                let _ = surface.release_pointer_capture(id);
-            }
-        } else {
-            selection::cancel_scoped_drag(&runtime, &drag, &svg, None);
-        }
-    });
+    interaction.on_cancel(move || selection::cancel_scoped_drag(&runtime, &drag, &svg, None));
     true
 }
 
@@ -551,10 +511,13 @@ pub(in crate::presentation) fn start_pan(
     pointer: &web_sys::PointerEvent,
     interaction: LayoutInteraction,
 ) {
-    if capture_layout_drag(
+    let client = client_point(pointer);
+    if capture_canvas_drag(
         interaction,
         CanvasMode::Panning,
-        pointer,
+        pointer.pointer_id(),
+        client,
+        pointer.ctrl_key(),
         runtime,
         &navigation.drag_interaction(),
         svg,
@@ -563,68 +526,8 @@ pub(in crate::presentation) fn start_pan(
             pointer_id: i64::from(pointer.pointer_id()),
             scope: scope.clone(),
             generation,
-            client: client_point(pointer),
+            client,
             camera: runtime.with_model(|model| model.camera.center),
-        });
-    }
-}
-
-fn marquee_sample(pointer: &web_sys::PointerEvent) -> CanvasEvent {
-    CanvasEvent::PointerMove {
-        id: pointer.pointer_id(),
-        client: client_point(pointer),
-        operation: None,
-    }
-}
-
-pub(in crate::presentation) fn marquee_world_bounds(
-    svg: &Rc<RefCell<Option<SvgElement>>>,
-    bounds: MarqueeBounds,
-    (x, y, width, height): (f64, f64, f64, f64),
-) -> Option<(Vec2, Vec2)> {
-    let at = |(cx, cy): (f64, f64)| coordinates_at(svg, cx as i32, cy as i32, x, y, width, height);
-    let (a, b) = (at(bounds.start)?, at(bounds.end)?);
-    Some((
-        Vec2 {
-            x: a.x.min(b.x),
-            y: a.y.min(b.y),
-        },
-        Vec2 {
-            x: a.x.max(b.x),
-            y: a.y.max(b.y),
-        },
-    ))
-}
-
-fn select_marquee(runtime: &Rc<Runtime>, adapter: &SelectionAdapter, min: Vec2, max: Vec2) {
-    let ids = runtime.with_model(|model| {
-        let Some(accepted) = model.accepted.as_ref() else {
-            return Vec::new();
-        };
-        let eligible = selection::eligible_live_ids(model);
-        let eligible: HashSet<_> = eligible.iter().map(String::as_str).collect();
-        accepted
-            .scene
-            .transforms
-            .iter()
-            .filter(|transform| {
-                let at = transform.pose.at;
-                eligible.contains(transform.id.as_str())
-                    && (min.x..=max.x).contains(&at.x)
-                    && (min.y..=max.y).contains(&at.y)
-            })
-            .map(|transform| transform.id.clone())
-            .collect()
-    });
-    if !ids.is_empty() {
-        let (mut selected, mut anchor) = (adapter.selected_context, adapter.anchor_scope);
-        selected.set(None);
-        anchor.set(None);
-        runtime.submit(Event::SelectParts {
-            operation_id: runtime.operation(),
-            part_ids: ids,
-            range_part_ids: Vec::new(),
-            mode: SelectionMode::Add,
         });
     }
 }

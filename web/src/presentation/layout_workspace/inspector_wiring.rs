@@ -155,7 +155,7 @@ pub(in crate::presentation) fn layout_inspector_input(
                     &projection.owner.context,
                     objects::TreeContext::Column { .. }
                 ) && mount.editable()
-                    && interaction.begin(CanvasMode::PickingSplayOrigin)
+                    && interaction.switch_pick(CanvasMode::PickingSplayOrigin)
                 {
                     pending.set(Some(projection.owner.clone()));
                     interaction.on_cancel(move || {
@@ -177,7 +177,7 @@ pub(in crate::presentation) fn layout_inspector_input(
                     &projection.owner.context,
                     objects::TreeContext::Matrix { .. }
                 ) && mount.editable()
-                    && interaction.begin(CanvasMode::PickingMatrixAnchor)
+                    && interaction.switch_pick(CanvasMode::PickingMatrixAnchor)
                 {
                     mount.clear_aggregate_pick();
                     pending.set(Some(projection.owner.clone()));
