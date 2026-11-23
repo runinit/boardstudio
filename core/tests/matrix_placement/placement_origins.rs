@@ -12,7 +12,7 @@ fn swing_origin_changes_only_the_origin_and_swing_reset_restores_poses() {
             ..Default::default()
         },
     ];
-    let (_, before) = edit(&mut engine, &doc, fixture::set_matrix(matrix));
+    let (_, before) = commit_edit(&mut engine, &doc, fixture::set_matrix(matrix));
     let request = |revision, world: serde_json::Value| {
         serde_json::json!({
         "kind":"edit","id":"swing","command":{"baseRevision":revision,"transactionId":format!("swing-{revision}"),"phase":"commit","targetIds":[],
@@ -28,7 +28,7 @@ fn swing_origin_changes_only_the_origin_and_swing_reset_restores_poses() {
     expected.column_layout[1].splay_origin = Vec2 { x: 3.0, y: 2.0 };
     assert_eq!(after.matrices[0], expected);
     assert!(close(
-        piece(&swing_scene, "main").columns[1].splay_origin,
+        fixture::matrix_scene(&swing_scene, "main").columns[1].splay_origin,
         Vec2 { x: 22.0, y: 2.0 }
     ));
     for row in 0..3 {
@@ -61,7 +61,7 @@ fn relative_origin_field_holds_keys_by_writing_only_the_nearest_steps() {
             ..Default::default()
         },
     ];
-    let (_, before) = edit(&mut engine, &doc, fixture::set_matrix(matrix));
+    let (_, before) = commit_edit(&mut engine, &doc, fixture::set_matrix(matrix));
     let reply=engine.request(&serde_json::json!({"kind":"edit","id":"relative","command":{
         "baseRevision":before.revision,"transactionId":"relative","phase":"commit","targetIds":[],
         "operation":{"kind":"set-matrix-splay","matrixId":"main","column":1,"change":{"kind":"origin-relative","value":{"x":2.0,"y":3.0}}}
@@ -107,8 +107,8 @@ fn rigid_column_align_and_origin_hold_use_steps_under_bend_splay_and_mirrors() {
                     ..Default::default()
                 })
                 .collect();
-            let (_, before) = edit(&mut engine, &doc, fixture::set_matrix(matrix));
-            let (_, after) = edit(
+            let (_, before) = commit_edit(&mut engine, &doc, fixture::set_matrix(matrix));
+            let (_, after) = commit_edit(
                 &mut engine,
                 &before,
                 EditOperation::SetMatrixPlacement {
@@ -143,7 +143,7 @@ fn rigid_column_align_and_origin_hold_use_steps_under_bend_splay_and_mirrors() {
                     before.matrices[0].column_layout[c].offset
                 );
             }
-            let (held_scene, held) = edit(
+            let (held_scene, held) = commit_edit(
                 &mut engine,
                 &after,
                 EditOperation::SetMatrixSplay {
@@ -155,7 +155,7 @@ fn rigid_column_align_and_origin_hold_use_steps_under_bend_splay_and_mirrors() {
                 },
             );
             assert!(close(
-                piece(&held_scene, "main").columns[column as usize].splay_origin,
+                fixture::matrix_scene(&held_scene, "main").columns[column as usize].splay_origin,
                 Vec2 { x: 43.0, y: -27.0 }
             ));
             assert_same_poses(&after, &held, "mirrored curved hold");
@@ -167,7 +167,7 @@ fn rigid_column_align_and_origin_hold_use_steps_under_bend_splay_and_mirrors() {
                     );
                 }
             }
-            let (_, reset) = edit(
+            let (_, reset) = commit_edit(
                 &mut engine,
                 &held,
                 EditOperation::SetMatrixSplay {
@@ -294,7 +294,7 @@ fn named_placement_boundary_refuses_nonfinite_and_out_of_bounds_values_atomicall
 #[test]
 fn carried_bend_carries_authored_companions_and_keeps_constraint_precedence() {
     let (mut engine, before) = companion_fixture();
-    let (_, after) = edit(
+    let (_, after) = commit_edit(
         &mut engine,
         &before,
         EditOperation::SetMatrixPlacement {
@@ -335,7 +335,7 @@ fn exact_column_align_refuses_external_constraint_without_retuning_it() {
         offset: Vec2 { x: 19.0, y: 19.0 },
         rotation: 0.0,
     });
-    let (mut engine, _, before) = open(document);
+    let (mut engine, _, before) = open_engine(document);
     for phase in [EditPhase::Preview, EditPhase::Commit] {
         let reply = engine.handle(fixture::edit(
             "align",
@@ -372,8 +372,8 @@ fn swing_origin_at_column_zero_uses_mirrored_incoming_axes() {
             rotation: 90.0,
             ..Default::default()
         }];
-        let (_, before) = edit(&mut engine, &doc, fixture::set_matrix(matrix));
-        let (_, after) = edit(
+        let (_, before) = commit_edit(&mut engine, &doc, fixture::set_matrix(matrix));
+        let (_, after) = commit_edit(
             &mut engine,
             &before,
             EditOperation::SetMatrixSplay {

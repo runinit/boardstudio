@@ -733,8 +733,8 @@ fn cell_edit_preserves_order_and_untouched_cell_fields() {
 
 /// A rotated, mirrored, splayed (custom origin) matrix, opened in a real `CoreEngine`.
 fn transformed_scene() -> MatrixScene {
-    use boardstudio_core::CoreEngine;
-    use boardstudio_model::model::{CoreReply, CoreRequest, EditCommand, EditPhase, ProjectDoc};
+    use super::super::engine_test_support::{edit_engine, open_engine};
+    use boardstudio_model::model::ProjectDoc;
     let mut document = serde_json::to_value(ProjectDoc::empty("p", "P")).unwrap();
     document["definitions"] = json!([{
         "id": "switch", "name": "switch", "kind": "switch",
@@ -745,13 +745,7 @@ fn transformed_scene() -> MatrixScene {
     }]);
     document["boards"] = json!([{ "id": "board", "name": "Board",
         "outlineIds": [], "partIds": [], "netIds": [], "thickness": 1.6 }]);
-    let mut engine = CoreEngine::new();
-    let CoreReply::Scene { scene: opened, .. } = engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: serde_json::from_value(document).unwrap(),
-    }) else {
-        panic!("the fixture opens");
-    };
+    let (mut engine, _, opened) = open_engine(serde_json::from_value(document).unwrap());
     let matrix: Matrix = serde_json::from_value(json!({
         "id": "m", "rows": 3, "columns": 4,
         "pitch": { "x": 19.0, "y": 19.0 }, "origin": { "x": 10.0, "y": 5.0 },
@@ -762,22 +756,14 @@ fn transformed_scene() -> MatrixScene {
             {"stagger": -2.0, "splay": 0.0}, {"stagger": 1.0, "splay": -6.0}]
     }))
     .unwrap();
-    let command = EditCommand {
-        base_revision: opened.revision,
-        transaction_id: "edit".into(),
-        phase: EditPhase::Commit,
-        target_ids: vec![],
-        operation: EditOperation::SetMatrix {
+    let (scene, _) = edit_engine(
+        &mut engine,
+        &opened,
+        EditOperation::SetMatrix {
             matrix,
             definitions: None,
         },
-    };
-    let CoreReply::Scene { scene, .. } = engine.handle(CoreRequest::Edit {
-        id: "edit".into(),
-        command,
-    }) else {
-        panic!("the matrix lands");
-    };
+    );
     scene.matrix_scenes.into_iter().next().unwrap()
 }
 

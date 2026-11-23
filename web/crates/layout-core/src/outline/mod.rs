@@ -2,4 +2,4 @@
 
 pub mod planner;
 
-pub use planner::{OutlineAction, OutlinePointTarget};
+pub use planner::{OutlineAction, OutlineActionEnvelope, OutlineActionKind, OutlinePointTarget};

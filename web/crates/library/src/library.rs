@@ -298,7 +298,7 @@ fn DemoActionCard(mut open: Signal<bool>) -> Element {
                                     div { class: "min-w-0", h3 { class: "text-xs font-semibold", "{demo.name}" } p { class: "text-[11px] text-muted-foreground", "{demo.summary}" } }
                                     Button { variant: ButtonVariant::Default, onclick: move |_| {
                                         match rt.open_demo_copy(doc.clone()) {
-                                            Ok(()) => { super::close_project_menu(); if let Some(mut b) = browser { b.0.set(false); } }
+                                            Ok(()) => { super::close_project_menu(); dismiss_browser(browser); }
                                             Err(err) => rt.report(err),
                                         }
                                     }, "Open demo copy" }
@@ -313,6 +313,12 @@ fn DemoActionCard(mut open: Signal<bool>) -> Element {
     }
 }
 
+fn dismiss_browser(browser: Option<ProjectBrowserState>) {
+    if let Some(mut open) = browser {
+        open.0.set(false);
+    }
+}
+
 fn start_new_keyboard(
     runtime: Rc<Runtime>,
     browser: Option<ProjectBrowserState>,
@@ -320,9 +326,7 @@ fn start_new_keyboard(
     mut new_error: Signal<String>,
 ) {
     super::close_project_menu();
-    if let Some(mut b) = browser {
-        b.0.set(false);
-    }
+    dismiss_browser(browser);
     if pending_new().is_some() {
         return;
     }
@@ -501,7 +505,7 @@ pub fn Library(
                                     && let Some(f) = i.files().and_then(|fs| fs.get(0))
                                 {
                                     import_rt.import_file(f);
-                                    if let Some(mut b) = browser { b.0.set(false); }
+                                    dismiss_browser(browser);
                                     i.set_value("");
                                 }
                             } }
@@ -557,7 +561,7 @@ pub fn Library(
                         Button { variant: ButtonVariant::Secondary, button_type: "button", onclick: move |_| {
                             guide_counter += 1;
                             guide_request.set(Some(SetupGuideRequest { project_id: pid.clone(), request_id: format!("{pid}-guide-{}", guide_counter()), start_at_project: false }));
-                            if let Some(mut b) = browser { b.0.set(false); }
+                            dismiss_browser(browser);
                         }, "Setup guide" }
                     }
                 }
@@ -592,7 +596,7 @@ pub fn Library(
                     div { class: "grid grid-cols-2 gap-2 [&>#m1-browser-open-keyboard]:col-span-full [&>#m1-browser-open-keyboard]:w-full",
                         Button { id: "m1-browser-open-keyboard", variant: ButtonVariant::Default, onclick: {
                             let (rt, id) = (runtime.clone(), doc.id.clone());
-                            move |_| { rt.open_saved(id.clone()); if let Some(mut b) = browser { b.0.set(false); } }
+                            move |_| { rt.open_saved(id.clone()); dismiss_browser(browser); }
                         }, "Open keyboard" }
                         if current_id.as_deref() == Some(doc.id.as_str()) {
                             Button { variant: ButtonVariant::Secondary, onclick: { let rt = runtime.clone(); move |_| rt.export_project_copy() }, "Save project copy" }

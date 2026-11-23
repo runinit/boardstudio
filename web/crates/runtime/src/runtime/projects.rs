@@ -238,7 +238,7 @@ impl Runtime {
             let loaded = this.load_saved(id).await;
             #[cfg(any(test, feature = "test-support"))]
             {
-                let adapters = this.in_process_adapters.borrow().clone();
+                let adapters = this.test.in_process_adapters.borrow().clone();
                 if let Some(adapters) = adapters {
                     adapters.store_read_completed().await;
                 }
@@ -264,6 +264,7 @@ impl Runtime {
     ) {
         #[cfg(any(test, feature = "test-support"))]
         let observer = self
+            .test
             .in_process_adapters
             .borrow()
             .as_ref()
@@ -402,17 +403,10 @@ impl Runtime {
         }
         let mut local_asset_bytes = BTreeMap::new();
         for asset in &document.assets {
-            let pending_bytes = self.assets.borrow().get(&asset.sha256).cloned();
-            let bytes = match pending_bytes {
-                Some(bytes) => bytes,
-                None => self
-                    .store
-                    .load_asset(asset.sha256.clone())
-                    .await
-                    .map_err(|error| error.to_string())?
-                    .ok_or_else(|| format!("Missing asset: {}", asset.name))?
-                    .to_vec(),
-            };
+            let bytes = self
+                .load_document_asset(&asset.sha256)
+                .await?
+                .ok_or_else(|| format!("Missing asset: {}", asset.name))?;
             guard()?;
             local_asset_bytes.insert(asset.sha256.clone(), bytes);
         }

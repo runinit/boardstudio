@@ -1,16 +1,11 @@
 //! Layout Inspector controls for accepted keycap size.
 use super::keycap_resize::ResizeAxis;
 use super::keycap_size_controller::{KeySizeMount, KeySizeOwner, KeySizeRequest};
+use boardstudio_web_ui_shared::inspector_fields::{SelectField, ToggleField};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
-use boardstudio_web_ui_shared::ui::checkbox::{Checkbox, CheckboxState};
-use boardstudio_web_ui_shared::ui::label::Label;
-use boardstudio_web_ui_shared::ui::{
-    combobox::{Combobox, ComboboxOption},
-    field::{Field, FieldError, FieldLabel},
-};
+use boardstudio_web_ui_shared::ui::field::FieldError;
 
 use dioxus::prelude::*;
-use dioxus_web::WebEventExt;
 use std::cell::{Cell, RefCell};
 
 #[derive(Clone)]
@@ -151,25 +146,18 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
     };
     let selected_size = use_memo(use_reactive((&mixed,), move |(mixed,)| {
         let units = draft();
-        Some(if mixed || units.x.min(units.y) != 1.0 {
+        if mixed || units.x.min(units.y) != 1.0 {
             "custom".to_owned()
         } else {
             units.x.max(units.y).to_string()
-        })
+        }
     }));
     let event_owner = projection.owner.clone();
     let timer_generation = keyboard_generation.clone();
 
     rsx! {
         section { class: "grid min-w-0 gap-2.5 border-b border-border p-0 text-foreground", aria_label: "Key size",
-        onkeydown: move |event: KeyboardEvent| {
-            if event.key().to_string() == " " {
-                event.stop_propagation();
-                if let Some(raw) = event.data().try_as_web_event() {
-                    raw.stop_propagation();
-                }
-            }
-        },
+        onkeydown: super::stop_space_pan,
             {
                 let units = draft();
                 let scale = 80.0 / units.y.max(units.x / 2.0).max(1.0);
@@ -205,133 +193,77 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
                     }
                 }
             }
-            {
-                let control_label = "Size".to_owned();
-                let control_aria_label = "Key size".to_owned();
-                let control_id = format!(
-                    "layout-choice-{}-{}",
-                    dioxus::core::current_scope_id().0,
-                    control_aria_label.replace(' ', "-"),
-                );
-                let mut control_choices: Vec<(String, String, bool)> = Vec::new();
-                if mixed || draft().x.min(draft().y) != 1.0 {
-                    control_choices
-                        .push(("custom".to_owned(), value_label.to_string(), false));
-                }
-                for step in 4..=28 {
-                    control_choices
-                        .push((
-                            (f64::from(step) / 4.0).to_string(),
-                            format!("{}u", f64::from(step) / 4.0),
-                            false,
-                        ));
-                }
-                let on_value_change = EventHandler::new({
-        let owner = event_owner.clone();
-        let generation = timer_generation.clone();
-        move |choice: Option<String>| {
-            let Some(choice) = choice else {
-                return;
-            };
-            let Ok(size) = choice.parse::<f64>() else {
-                return;
-            };
-            generation.set(generation.get().wrapping_add(1));
-            let rotated = draft().y > draft().x;
-            let next = if rotated {
-                boardstudio_model::model::Vec2 { x: 1.0, y: size }
-            } else {
-                boardstudio_model::model::Vec2 { x: size, y: 1.0 }
-            };
-            draft_dirty.set(true);
-            draft.set(next);
-            submit.call(ResizeIntent {
-                owner: owner.clone(),
-                snapshot_token,
-                revision,
-                units: next,
-                axis: None,
-            });
-        }
-    });
-    rsx! {
-
-                    Field {
-                        FieldLabel { html_for: control_id.clone(), "{control_label}" }
-                        Combobox::<String> {
-                            id: control_id,
-                            aria_label: control_aria_label.clone(),
-                            list_aria_label: control_aria_label.clone(),
-                            value: Some(selected_size.into()),
-                            disabled: !props.mount.editable,
-                            on_value_change,
-                            for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
-                                ComboboxOption::<String> {
-                                    index,
-                                    value: value.clone(),
-                                    text_value: label.clone(),
-                                    disabled: *disabled,
-                                    "{label}"
-                                }
-                            }
-                        }
+            SelectField {
+                label: "Size".to_owned(),
+                value: selected_size(),
+                options: {
+                    let mut options = Vec::new();
+                    if mixed || draft().x.min(draft().y) != 1.0 {
+                        options.push(("custom".to_owned(), value_label.to_string()));
                     }
-                }
+                    for step in 4..=28 {
+                        let size = f64::from(step) / 4.0;
+                        options.push((size.to_string(), format!("{size}u")));
+                    }
+                    options
+                },
+                aria_label: "Key size",
+                disabled: !props.mount.editable,
+                on_commit: {
+                    let owner = event_owner.clone();
+                    let generation = timer_generation.clone();
+                    move |choice: String| {
+                        let Ok(size) = choice.parse::<f64>() else {
+                            return;
+                        };
+                        generation.set(generation.get().wrapping_add(1));
+                        let rotated = draft().y > draft().x;
+                        let next = if rotated {
+                            boardstudio_model::model::Vec2 { x: 1.0, y: size }
+                        } else {
+                            boardstudio_model::model::Vec2 { x: size, y: 1.0 }
+                        };
+                        draft_dirty.set(true);
+                        draft.set(next);
+                        submit.call(ResizeIntent {
+                            owner: owner.clone(),
+                            snapshot_token,
+                            revision,
+                            units: next,
+                            axis: None,
+                        });
+                    }
+                },
             }
-            {
-                let check_id = format!(
-                    "layout-check-{}-{}",
-                    dioxus::core::current_scope_id().0,
-                    ("Rotate keycap").replace(' ', "-"),
-                );
-                rsx! {
-                    Label { html_for: check_id.clone(), class: "flex items-center gap-2 pt-2",
-                        Checkbox {
-                            id: check_id.clone(),
-                            aria_label: "Rotate keycap",
-                            disabled: !props.mount.editable,
-                            checked: Some(
-                                if !mixed && draft().y > draft().x {
-                                    CheckboxState::Checked
-                                } else {
-                                    CheckboxState::Unchecked
-                                },
-                            ),
-                            on_checked_change: {
-                                let owner = event_owner.clone();
-                                let generation = timer_generation.clone();
-                                move |checked: CheckboxState| {
-                                    generation.set(generation.get().wrapping_add(1));
-                                    let current = draft();
-                                    let long = current.x.max(current.y);
-                                    let short = current.x.min(current.y);
-                                    let next = if bool::from(checked) {
-                                        boardstudio_model::model::Vec2 {
-                                            x: short,
-                                            y: long,
-                                        }
-                                    } else {
-                                        boardstudio_model::model::Vec2 {
-                                            x: long,
-                                            y: short,
-                                        }
-                                    };
-                                    draft_dirty.set(true);
-                                    draft.set(next);
-                                    submit
-                                        .call(ResizeIntent {
-                                            owner: owner.clone(),
-                                            snapshot_token,
-                                            revision,
-                                            units: next,
-                                            axis: None,
-                                        });
-                                }
-                            },
-                        }
-                        "Rotate 90°"
+            ToggleField {
+                label: "Rotate 90°".to_owned(),
+                checked: !mixed && draft().y > draft().x,
+                aria_label: "Rotate keycap",
+                disabled_reason: (!props.mount.editable).then(|| "Placement is unavailable".to_owned()),
+                on_commit: {
+                    let owner = event_owner.clone();
+                    let generation = timer_generation.clone();
+                    move |checked: bool| {
+                        generation.set(generation.get().wrapping_add(1));
+                        let current = draft();
+                        let long = current.x.max(current.y);
+                        let short = current.x.min(current.y);
+                        let next = if checked {
+                            boardstudio_model::model::Vec2 { x: short, y: long }
+                        } else {
+                            boardstudio_model::model::Vec2 { x: long, y: short }
+                        };
+                        draft_dirty.set(true);
+                        draft.set(next);
+                        submit.call(ResizeIntent {
+                            owner: owner.clone(),
+                            snapshot_token,
+                            revision,
+                            units: next,
+                            axis: None,
+                        });
                     }
-                }
+                },
             }
             if let Some(error) = error {
                 FieldError { "{error}"  }

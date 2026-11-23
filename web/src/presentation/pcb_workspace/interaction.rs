@@ -259,10 +259,7 @@ pub(super) fn part_pointer_down(
         if positions.is_empty()
             || positions.len() != current.selected_part_ids.len()
             || current.lifecycle != Lifecycle::Ready
-            || current.durability
-                != (Durability::Saved {
-                    revision: current_snapshot.document.revision,
-                })
+            || !matches!(current.durability, Durability::Saved { revision } | Durability::Saving { revision } if revision == current_snapshot.document.revision)
             || current.display_preview.is_some()
             || current.gesture.is_some()
         {

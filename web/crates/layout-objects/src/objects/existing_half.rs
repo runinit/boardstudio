@@ -8,17 +8,11 @@ use boardstudio_application::{
 use boardstudio_model::model::{EditOperation, PartKind, ProjectDoc, Vec2};
 use boardstudio_web_runtime::operation_outcomes::Settlement;
 use boardstudio_web_ui_model::Workspace;
-use boardstudio_web_ui_shared::inspector_fields::TextField;
+use boardstudio_web_ui_shared::inspector_fields::{NumericField, SelectField};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
 use boardstudio_web_ui_shared::ui::card::Card;
-use boardstudio_web_ui_shared::ui::{
-    combobox::{Combobox, ComboboxOption},
-    field::{Field, FieldLabel},
-    input::InputType,
-    select::{Select, SelectOption},
-};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -338,37 +332,10 @@ pub fn use_existing_half(
 }
 
 fn eligible_options(document: &ProjectDoc, board_id: &str) -> Vec<ExistingHalfOption> {
-    let mut options = Vec::new();
-    for matrix in document
-        .matrices
-        .iter()
-        .filter(|matrix| super::matrix_visible_on_board(document, board_id, &matrix.id))
-    {
-        let layout = document.layouts.iter().find(|layout| {
-            layout.matrix_ids.iter().any(|id| id == &matrix.id) && layout.board_id == board_id
-        });
-        let linked = layout.is_some_and(|layout| {
-            layout.mirror_link.is_some()
-                || document.layouts.iter().any(|candidate| {
-                    candidate
-                        .mirror_link
-                        .as_ref()
-                        .is_some_and(|link| link.source_id == layout.id)
-                })
-        });
-        if !linked {
-            options.push(ExistingHalfOption {
-                matrix_id: matrix.id.clone(),
-                label: matrix
-                    .name
-                    .as_deref()
-                    .filter(|name| !name.is_empty())
-                    .map(str::to_owned)
-                    .unwrap_or_else(|| format!("Matrix {}", options.len() + 1)),
-            });
-        }
-    }
-    options
+    super::mirror_links::unlinked_board_matrices(document, board_id)
+        .into_iter()
+        .map(|(matrix_id, label)| ExistingHalfOption { matrix_id, label })
+        .collect()
 }
 
 fn default_axis_x(snapshot: &AcceptedSnapshot, board_id: &str) -> f64 {
@@ -557,16 +524,13 @@ pub struct ExistingHalfProps {
 pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
     let owner = props.projection.owner.clone();
     let mut default_choice = use_signal(|| "all".to_owned());
-    let source_choice = use_memo(move || Some(default_choice()));
     let choice = default_choice();
     let mut axis = use_signal(|| owner.default_axis_x.to_string());
-    let axis_value = axis();
-    let parsed_axis = axis_value
+    let parsed_axis = axis()
         .trim()
         .parse::<f64>()
         .ok()
         .filter(|value| value.is_finite());
-    let axis_invalid = parsed_axis.is_none() && !axis_value.trim().is_empty();
     let has_sources = !owner.options.is_empty();
     let can_create = props.projection.editable && has_sources && parsed_axis.is_some();
     let on_create = props.on_create;
@@ -620,96 +584,37 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                         "Keep the original in place and mirror its components too. Replace a component on one side when the halves need different hardware."
                     }
                     form { class: "grid gap-4", onsubmit: submit,
-                        {
-                            let control_label = "Source layouts".to_owned();
-                            let control_aria_label = "Source layouts".to_owned();
-                            let control_id = format!(
-                                "layout-choice-{}-{}",
+                        SelectField {
+                            label: "Source layouts".to_owned(),
+                            value: choice.clone(),
+                            options: std::iter::once((
+                                "all".to_owned(),
+                                "All unpaired layouts on this board".to_owned(),
+                            ))
+                            .chain(owner.options.iter().map(|option| {
+                                (option.matrix_id.clone(), option.label.clone())
+                            }))
+                            .collect(),
+                            id: format!(
+                                "layout-choice-{}-Source-layouts",
                                 dioxus::core::current_scope_id().0,
-                                control_aria_label.replace(' ', "-"),
-                            );
-                            let mut control_choices: Vec<(String, String, bool)> = Vec::new();
-                            control_choices
-                                .push((
-                                    "all".to_owned(),
-                                    "All unpaired layouts on this board".to_owned(),
-                                    false,
-                                ));
-                            for option in owner.options.iter() {
-                                control_choices
-                                    .push((
-                                        option.matrix_id.to_string(),
-                                        option.label.to_string(),
-                                        false,
-                                    ));
-                            }
-                            let on_value_change = EventHandler::new(move |choice: Option<String>| {
-        let Some(choice) = choice else {
-            return;
-        };
-        default_choice.set(choice)
-    });
-    rsx! {
-
-                                Field { class: "min-w-0",
-                                    FieldLabel { html_for: control_id.clone(), "{control_label}" }
-                                    if control_choices.len() > 12 {
-                                        Combobox::<String> { class: "max-[760px]:[&_[data-slot=combobox-input]]:min-h-control-touch",
-                                            id: control_id.clone(),
-                                            aria_label: control_aria_label.clone(),
-                                            list_aria_label: control_aria_label.clone(),
-                                            value: Some(source_choice.into()),
-                                            disabled: !props.projection.editable,
-                                            on_value_change,
-                                            for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
-                                                ComboboxOption::<String> {
-                                                    index,
-                                                    value: value.clone(),
-                                                    text_value: label.clone(),
-                                                    disabled: *disabled,
-                                                    "{label}"
-                                                }
-                                            }
-                                        }
-                                    } else {
-                                        Select::<String> { class: "min-w-0 w-full [&_[data-placeholder]]:min-w-0 [&_[data-placeholder]]:truncate max-[760px]:[&_[data-slot=select-trigger]]:min-h-control-touch",
-                                            id: control_id.clone(),
-                                            aria_label: control_aria_label.clone(),
-                                            value: Some(source_choice.into()),
-                                            disabled: !props.projection.editable,
-                                            on_value_change,
-                                            for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
-                                                SelectOption::<String> {
-                                                    index,
-                                                    value: value.clone(),
-                                                    text_value: label.clone(),
-                                                    disabled: *disabled,
-                                                    "{label}"
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            ),
+                            aria_label: "Source layouts",
+                            disabled: !props.projection.editable,
+                            on_commit: move |next: String| default_choice.set(next),
                         }
-                        {
-                            let control_input_id = format!(
+                        NumericField {
+                            label: "Mirror axis X".to_owned(),
+                            unit: "mm",
+                            value: parsed_axis.unwrap_or(owner.default_axis_x),
+                            step: 0.1,
+                            id: format!(
                                 "layout-input-{}-1",
                                 dioxus::core::current_scope_id().0,
-                            );
-                            rsx! {
-                                TextField {
-                                    id: control_input_id,
-                                    label: "Mirror axis X (mm)".to_owned(),
-                                    aria_label: "Mirror axis X",
-                                    r#type: InputType::Number,
-                                    value: axis_value,
-                                    disabled: !props.projection.editable,
-                                    description: (!props.projection.editable).then(|| "Placement is unavailable".to_owned()),
-                                    error: axis_invalid.then(|| "Enter a finite mirror axis in millimetres.".to_owned()),
-                                    oninput: move |event: FormEvent| axis.set(event.value()),
-                                }
-                            }
+                            ),
+                            aria_label: "Mirror axis X",
+                            disabled_reason: (!props.projection.editable).then(|| "Placement is unavailable".to_owned()),
+                            on_commit: move |next: f64| axis.set(next.to_string()),
                         }
                         if let Some(message) = error {
                             Alert {

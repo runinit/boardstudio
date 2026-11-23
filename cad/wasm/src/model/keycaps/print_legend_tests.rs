@@ -3,7 +3,7 @@
 use super::{
     mesh_template::build_keycap_mesh_template,
     printing,
-    test_support::{contains, cross, dot},
+    test_support::{closed_edges, contains, cross, dot, triangles},
     MeshData,
 };
 use boardstudio_contracts::KeycapSpec;
@@ -36,15 +36,6 @@ fn print_body(spec: &Value) -> Result<MeshData, String> {
     Ok(bodies.remove(0).mesh)
 }
 
-fn triangles(mesh: &MeshData) -> Vec<[[f64; 3]; 3]> {
-    mesh.positions
-        .as_chunks::<9>()
-        .0
-        .iter()
-        .map(|t| [0, 1, 2].map(|i| [0, 1, 2].map(|a| f64::from(t[3 * i + a]))))
-        .collect()
-}
-
 /// Closed, consistently oriented, one connected surface of positive volume; returns the volume.
 fn closed_positive_volume(mesh: &MeshData) -> Result<f64, String> {
     macro_rules! ensure {
@@ -56,11 +47,8 @@ fn closed_positive_volume(mesh: &MeshData) -> Result<f64, String> {
             }
         };
     }
-    let key = |p: [f64; 3]| p.map(|v| (v as f32).to_bits());
-    let mut directed = BTreeSet::new();
-    let mut links: BTreeMap<[u32; 3], Vec<[u32; 3]>> = BTreeMap::new();
     let mut volume = 0.0;
-    for (index, [a, b, c]) in triangles(mesh).into_iter().enumerate() {
+    for (index, [a, b, c]) in triangles(mesh).enumerate() {
         let normal = [0, 1, 2].map(|k| f64::from(mesh.normals[9 * index + k]));
         let face = cross(
             [0, 1, 2].map(|k| b[k] - a[k]),
@@ -75,16 +63,10 @@ fn closed_positive_volume(mesh: &MeshData) -> Result<f64, String> {
             "normal disagrees with winding"
         );
         volume += dot(a, cross(b, c)) / 6.0;
-        let keys = [a, b, c].map(key);
-        for edge in 0..3 {
-            let (from, to) = (keys[edge], keys[(edge + 1) % 3]);
-            ensure!(directed.insert((from, to)), "duplicate directed edge");
-            links.entry(from).or_default().push(to);
-            links.entry(to).or_default().push(from);
-        }
     }
-    for &(from, to) in &directed {
-        ensure!(directed.contains(&(to, from)), "open or inverted edge");
+    let mut links = BTreeMap::<_, Vec<_>>::new();
+    for (from, to) in closed_edges(mesh, |point| point.map(|v| (v as f32).to_bits()))? {
+        links.entry(from).or_default().push(to);
     }
     let mut seen = BTreeSet::new();
     let mut pending = vec![*links.keys().next().unwrap()];

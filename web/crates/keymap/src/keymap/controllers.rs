@@ -90,13 +90,15 @@ pub fn use_encoder_inputs(
             let res_guard = resolution.read();
             let (plan, settled) = match &*res_guard {
                 PcbWiringResolution::Current { identity, plan }
-                    if identity.token == snap.token
+                    if identity.scope == scope
+                        && identity.token == snap.token
                         && identity.revision == snap.document.revision =>
                 {
                     (Some(plan.as_ref()), true)
                 }
                 PcbWiringResolution::Failed { identity, .. }
-                    if identity.token == snap.token
+                    if identity.scope == scope
+                        && identity.token == snap.token
                         && identity.revision == snap.document.revision =>
                 {
                     (None, true)

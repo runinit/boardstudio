@@ -92,6 +92,10 @@ pub struct LayoutWorkspaceState {
     component_inspector_margin_failure: Signal<Option<String>>,
     companion_placement_error: Signal<Option<String>>,
     add_object_menu_open: Signal<bool>,
+    /// The Align toolbar's reference part. Owned here at session lifetime so
+    /// `use_canvas_align` can run inside `LayoutWorkspace` (which unmounts on
+    /// workspace switches) without losing the choice.
+    selected_reference: Signal<Option<String>>,
 }
 
 pub fn use_layout_workspace_state(
@@ -121,6 +125,7 @@ pub fn use_layout_workspace_state(
         component_inspector_margin_failure: use_signal(|| None),
         companion_placement_error: use_signal(|| None),
         add_object_menu_open: use_signal(|| false),
+        selected_reference: use_signal(|| None),
     };
     // Reset the tab only when the selection changes, not on unrelated revisions.
     let observed_context = selected_context();
@@ -150,6 +155,9 @@ pub fn use_layout_workspace_state(
 impl LayoutWorkspaceState {
     pub fn add_object_menu_open(self) -> Signal<bool> {
         self.add_object_menu_open
+    }
+    pub fn selected_reference(self) -> Signal<Option<String>> {
+        self.selected_reference
     }
     pub fn selection_kind(self) -> Signal<LayoutSelectionKind> {
         self.selection_kind

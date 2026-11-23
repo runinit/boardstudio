@@ -1,4 +1,7 @@
 //! CAD job protocol and identity guards.
+use crate::cad_qualification::{
+    self, AnalysisMesh, AnalysisRef, SourceQualification, ValidatedQueryQualification,
+};
 use boardstudio_core_kernel::hash::sha256_hex;
 use boardstudio_model::model::*;
 pub use boardstudio_model::model::{
@@ -354,7 +357,66 @@ pub enum CadReplyOutcome {
 
 pub fn validate_reply(
     request: &CadRequest,
-    mut reply: CadReply,
+    reply: CadReply,
+    current: &CadSnapshotIdentity,
+) -> Result<CadResult, CadJobError> {
+    if request.operation == CadOperation::CollisionQuery {
+        return validate_collision_reply(request, reply, current, None).map(|(result, _)| result);
+    }
+    let result = completed_reply(request, reply, current)?;
+    validate_result_payload(request, &result)?;
+    Ok(result)
+}
+
+pub fn validate_collision_reply(
+    request: &CadRequest,
+    reply: CadReply,
+    current: &CadSnapshotIdentity,
+    sources: Option<[&SourceQualification; 2]>,
+) -> Result<(CadResult, ValidatedQueryQualification), CadJobError> {
+    let result = completed_reply(request, reply, current)?;
+    let bad = invalid_result;
+    if request.operation != CadOperation::CollisionQuery {
+        return Err(bad("expected collision query"));
+    }
+    let query = request
+        .collision_query
+        .as_ref()
+        .ok_or_else(|| bad("collision query omitted metadata"))?;
+    validate_collision_query(query).map_err(|reason| bad(&reason))?;
+    let meshes = request
+        .collision_meshes
+        .as_ref()
+        .ok_or_else(|| bad("missing query buffers"))?;
+    let collision = result
+        .collision
+        .as_ref()
+        .ok_or_else(|| bad("collision query omitted observation"))?;
+    validate_collision_observation(Some(meshes), collision).map_err(|reason| bad(&reason))?;
+    let report = result
+        .query_qualification
+        .clone()
+        .ok_or_else(|| bad("missing query qualification"))?;
+    let expected = cad_qualification::expected_binding(
+        query,
+        &request.identity,
+        &report.binding.worker_generation,
+    )
+    .map_err(|reason| bad(&reason))?;
+    let validated = cad_qualification::validate_query_qualification(
+        report,
+        &expected,
+        &query.qualification_limits,
+        meshes,
+        sources,
+    )
+    .map_err(|reason| bad(&reason))?;
+    Ok((result, validated))
+}
+
+fn completed_reply(
+    request: &CadRequest,
+    reply: CadReply,
     current: &CadSnapshotIdentity,
 ) -> Result<CadResult, CadJobError> {
     if reply.request_id != request.request_id
@@ -370,39 +432,39 @@ pub fn validate_reply(
     match reply.outcome {
         CadReplyOutcome::Cancelled => Err(CadJobError::Cancelled),
         CadReplyOutcome::Failed => Err(CadJobError::Failed(
-            reply
-                .error
-                .clone()
-                .unwrap_or_else(|| "CAD job failed".into()),
+            reply.error.unwrap_or_else(|| "CAD job failed".into()),
         )),
         CadReplyOutcome::Completed => {
             let result = reply
                 .result
-                .take()
                 .ok_or_else(|| CadJobError::Failed("CAD worker returned no result".into()))?;
             if result.revision != request.identity.revision {
                 return Err(CadJobError::Stale(
                     "CAD result has another document revision".into(),
                 ));
             }
-            validate_result_payload(request, &result)?;
             Ok(result)
         }
     }
 }
 
+fn invalid_result(reason: &str) -> CadJobError {
+    CadJobError::Failed(format!("invalid CAD result: {reason}"))
+}
+
+pub(crate) fn valid_mesh_parts(positions: &[f32], normals: &[f32], stride: usize) -> bool {
+    !positions.is_empty()
+        && positions.len().is_multiple_of(stride)
+        && positions.len() == normals.len()
+        && positions
+            .iter()
+            .chain(normals)
+            .all(|value| value.is_finite())
+}
+
 fn validate_result_payload(request: &CadRequest, result: &CadResult) -> Result<(), CadJobError> {
-    let bad = |reason: &str| CadJobError::Failed(format!("invalid CAD result: {reason}"));
-    let valid_mesh_parts = |positions: &[f32], normals: &[f32]| {
-        !positions.is_empty()
-            && positions.len().is_multiple_of(3)
-            && positions.len() == normals.len()
-            && positions
-                .iter()
-                .chain(normals)
-                .all(|value| value.is_finite())
-    };
-    let valid_mesh = |mesh: &CadMesh| valid_mesh_parts(&mesh.positions, &mesh.normals);
+    let bad = invalid_result;
+    let valid_mesh = |mesh: &CadMesh| valid_mesh_parts(&mesh.positions, &mesh.normals, 3);
     let valid_bounds = |bounds: &CadBounds| {
         bounds
             .min
@@ -447,7 +509,7 @@ fn validate_result_payload(request: &CadRequest, result: &CadResult) -> Result<(
                 .ok_or_else(|| bad("preview has no prepared bodies"))?;
             if result.bodies.len() != expected.len()
                 || result.bodies.iter().zip(expected).any(|(body, id)| {
-                    body.id != id || !valid_mesh_parts(&body.positions, &body.normals)
+                    body.id != id || !valid_mesh_parts(&body.positions, &body.normals, 3)
                 })
             {
                 return Err(bad(
@@ -462,7 +524,7 @@ fn validate_result_payload(request: &CadRequest, result: &CadResult) -> Result<(
             if !result.mesh.as_ref().is_some_and(valid_mesh)
                 || result.bodies.is_empty()
                 || result.bodies.iter().any(|body| {
-                    body.id.is_empty() || !valid_mesh_parts(&body.positions, &body.normals)
+                    body.id.is_empty() || !valid_mesh_parts(&body.positions, &body.normals, 3)
                 })
                 || result
                     .bounds
@@ -505,39 +567,7 @@ fn validate_result_payload(request: &CadRequest, result: &CadResult) -> Result<(
                 .map_err(|reason| bad(&reason))?;
         }
         CadOperation::CollisionQuery => {
-            let Some(query) = request.collision_query.as_ref() else {
-                return Err(bad("collision query omitted metadata"));
-            };
-            validate_collision_query(query).map_err(|reason| bad(&reason))?;
-            if let Some(meshes) = request.collision_meshes.as_ref() {
-                validate_collision_mesh_pair(meshes).map_err(|reason| bad(&reason))?;
-            }
-            let Some(collision) = result.collision.as_ref() else {
-                return Err(bad("collision query omitted observation"));
-            };
-            validate_collision_observation(request.collision_meshes.as_ref(), collision)
-                .map_err(|reason| bad(&reason))?;
-            let report = result
-                .query_qualification
-                .clone()
-                .ok_or_else(|| bad("missing query qualification"))?;
-            let expected = crate::cad_qualification::expected_binding(
-                query,
-                &request.identity,
-                &report.binding.worker_generation,
-            )
-            .map_err(|reason| bad(&reason))?;
-            crate::cad_qualification::validate_query_qualification(
-                report,
-                &expected,
-                &query.qualification_limits,
-                request
-                    .collision_meshes
-                    .as_ref()
-                    .ok_or_else(|| bad("missing query buffers"))?,
-                None,
-            )
-            .map_err(|reason| bad(&reason))?;
+            return Err(bad("collision query requires validate_collision_reply"));
         }
     }
     Ok(())
@@ -579,6 +609,21 @@ pub fn validate_generated_analysis_request<'a>(
     Ok(bodies[0])
 }
 
+fn validate_surface_qualification(
+    reference: &AnalysisRef,
+    mesh: &AnalysisMesh,
+    source: &SourceQualification,
+    error_bound_mm: Option<f64>,
+    tags: &[u32],
+) -> Result<(), String> {
+    cad_qualification::validate_analysis(reference, mesh, source, error_bound_mm)?;
+    cad_qualification::validate_source_triangle_cap(mesh, source, tags.len())
+}
+
+fn valid_triangle_face_indices(positions: &[f64], tags: &[u32], occurrences: usize) -> bool {
+    tags.len() == positions.len() / 9 && tags.iter().all(|&index| (index as usize) < occurrences)
+}
+
 pub fn validate_generated_analysis(
     metadata: &CadGeneratedAnalysisRequest,
     revision: u64,
@@ -590,16 +635,12 @@ pub fn validate_generated_analysis(
         &analysis.source_qualification,
     ) {
         (Some(reference), Some(mesh), Some(source)) => {
-            crate::cad_qualification::validate_analysis(
+            validate_surface_qualification(
                 reference,
                 mesh,
                 source,
                 analysis.analysis_error_bound_mm,
-            )?;
-            crate::cad_qualification::validate_source_triangle_cap(
-                mesh,
-                source,
-                analysis.triangle_face_occurrence_indices.len(),
+                &analysis.triangle_face_occurrence_indices,
             )?;
             if reference.source
                 != (crate::cad_qualification::Source::GeneratedBody {
@@ -647,11 +688,11 @@ pub fn validate_generated_analysis(
                 .saturating_mul(4),
         ) > MAX_COLLISION_QUERY_BYTES
         || positions.iter().any(|value| !value.is_finite())
-        || analysis.triangle_face_occurrence_indices.len() != positions.len() / 9
-        || analysis
-            .triangle_face_occurrence_indices
-            .iter()
-            .any(|&index| index as usize >= analysis.face_occurrences.len())
+        || !valid_triangle_face_indices(
+            positions,
+            &analysis.triangle_face_occurrence_indices,
+            analysis.face_occurrences.len(),
+        )
         || analysis
             .face_occurrences
             .iter()
@@ -683,16 +724,12 @@ pub fn validate_vendor_step(
         &vendor_step.source_qualification,
     ) {
         (Some(reference), Some(descriptor), Some(source)) => {
-            crate::cad_qualification::validate_analysis(
+            validate_surface_qualification(
                 reference,
                 descriptor,
                 source,
                 vendor_step.accuracy.analysis_error_bound_mm,
-            )?;
-            crate::cad_qualification::validate_source_triangle_cap(
-                descriptor,
-                source,
-                vendor_step.triangle_face_occurrence_indices.len(),
+                &vendor_step.triangle_face_occurrence_indices,
             )?;
             if let crate::cad_qualification::SourceQualification::Bounded {
                 source_precision_mm,
@@ -742,14 +779,7 @@ pub fn validate_vendor_step(
     if !vendor_step.import_options.same_identity(expected_options) {
         return Err("STEP import returned mismatched import options".into());
     }
-    if mesh.positions.is_empty()
-        || !mesh.positions.len().is_multiple_of(9)
-        || mesh.normals.len() != mesh.positions.len()
-        || mesh
-            .positions
-            .iter()
-            .chain(&mesh.normals)
-            .any(|value| !value.is_finite())
+    if !valid_mesh_parts(&mesh.positions, &mesh.normals, 9)
         || vendor_step.surface_positions_mm_f64.len() != mesh.positions.len()
         || vendor_step
             .surface_positions_mm_f64
@@ -787,13 +817,11 @@ pub fn validate_vendor_step(
     {
         return Err("STEP import face occurrence provenance is missing or invalid".into());
     }
-    let triangle_count = mesh.positions.len() / 9;
-    if vendor_step.triangle_face_occurrence_indices.len() != triangle_count
-        || vendor_step
-            .triangle_face_occurrence_indices
-            .iter()
-            .any(|index| (*index as usize) >= vendor_step.face_occurrences.len())
-    {
+    if !valid_triangle_face_indices(
+        &vendor_step.surface_positions_mm_f64,
+        &vendor_step.triangle_face_occurrence_indices,
+        vendor_step.face_occurrences.len(),
+    ) {
         return Err("STEP import triangle face occurrence indices are invalid".into());
     }
     if !vendor_step.line_segments_mm_f64.len().is_multiple_of(6)

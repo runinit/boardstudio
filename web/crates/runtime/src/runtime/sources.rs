@@ -207,17 +207,14 @@ impl Runtime {
             bodies,
         };
         #[cfg(any(test, feature = "test-support"))]
-        let executor = self.keycaps_preview_test_executor.borrow().clone();
+        let executor = self.test.keycaps_preview_test_executor.borrow().clone();
         #[cfg(any(test, feature = "test-support"))]
         if let Some(executor) = executor {
             let bodies = executor(input.clone()).await?;
             current()?;
             return Ok(preview(bodies));
         }
-        let worker = Rc::new(
-            CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
-                .map_err(|error| error.to_string())?,
-        );
+        let worker = new_cad_worker()?;
         *self.keycaps_preview_worker.borrow_mut() = Some((generation, worker.clone()));
         let result = async {
             current()?;

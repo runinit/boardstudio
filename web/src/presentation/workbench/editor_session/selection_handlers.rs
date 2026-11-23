@@ -226,7 +226,6 @@ pub(in crate::presentation) fn on_snap_intent_handler(
 }
 
 pub(super) struct SelHandlers {
-    pub on_layout_selection_kind: EventHandler<objects::LayoutSelectionKind>,
     pub on_layout_snap_intent: EventHandler<objects::LayoutSnapIntent>,
     pub on_mounted_module_select: EventHandler<String>,
     pub nudge_tree: EventHandler<objects::TreeNudgeRequest>,
@@ -256,7 +255,6 @@ pub(super) fn build_selection_handlers(
     let parts_selection = state.view.parts_selection;
     let layout_state = state.layout_state;
     let outline_activation = state.view.outline_activation;
-    let layout_selection_kind = state.layout_state.selection_kind();
     let layout_snap_settings = state.layout_state.snap_settings();
     let objects_panel_settings = state.objects_panel_settings;
     let parts_selection_generation = state.view.parts_selection_generation;
@@ -274,34 +272,14 @@ pub(super) fn build_selection_handlers(
         layout_state,
         outline_activation,
     });
-    let selection_kind_handler = |expected_workspace| {
-        on_selection_kind_handler(
-            SelectionKindInput {
-                runtime: runtime.clone(),
-                adapter: adapter.clone(),
-                owner: layout_owner.clone(),
-                tree_cell_anchor: tree_cell_anchor.clone(),
-                objects_open,
-                inspect_open,
-                selection_kind: layout_selection_kind,
-                workspace,
-                inspector_panel_settings,
-            },
-            expected_workspace,
-        )
-    };
-    let snap_intent_handler = |expected_workspace| {
-        on_snap_intent_handler(
-            runtime.clone(),
-            adapter.clone(),
-            layout_owner.clone(),
-            layout_snap_settings,
-            workspace,
-            expected_workspace,
-        )
-    };
-    let on_layout_selection_kind = selection_kind_handler(Workspace::Layout);
-    let on_layout_snap_intent = snap_intent_handler(Workspace::Layout);
+    let on_layout_snap_intent = on_snap_intent_handler(
+        runtime.clone(),
+        adapter.clone(),
+        layout_owner.clone(),
+        layout_snap_settings,
+        workspace,
+        Workspace::Layout,
+    );
     let on_mounted_module_select = super::action_handlers::on_mounted_module_select_handler(
         super::action_handlers::OnMountedModuleSelectInput {
             runtime: runtime.clone(),
@@ -318,23 +296,24 @@ pub(super) fn build_selection_handlers(
             objects_panel_settings,
         },
     );
-    let on_open_module_placement = super::action_handlers::on_open_module_placement_handler(
-        super::action_handlers::OnOpenModulePlacementInput {
-            runtime: runtime.clone(),
-            adapter: adapter.clone(),
-            scope: render_scope.clone(),
-            generation: render_generation,
-            token: snapshot.token,
-            revision: snapshot.document.revision,
-            workspace,
-            objects_open,
-            inspect_open,
-            instance_selection,
-            parts_selection,
-        },
-    );
-    let on_module_attached = super::action_handlers::on_module_attached_handler(
-        super::action_handlers::OnModuleAttachedInput {
+    let on_open_module_placement =
+        crate::presentation::parts_workspace::on_open_module_placement_handler(
+            crate::presentation::parts_workspace::OnOpenModulePlacementInput {
+                runtime: runtime.clone(),
+                adapter: adapter.clone(),
+                scope: render_scope.clone(),
+                generation: render_generation,
+                token: snapshot.token,
+                revision: snapshot.document.revision,
+                workspace,
+                objects_open,
+                inspect_open,
+                instance_selection,
+                parts_selection,
+            },
+        );
+    let on_module_attached = crate::presentation::parts_workspace::on_module_attached_handler(
+        crate::presentation::parts_workspace::OnModuleAttachedInput {
             runtime: runtime.clone(),
             adapter: adapter.clone(),
             workspace,
@@ -353,7 +332,6 @@ pub(super) fn build_selection_handlers(
     );
     (
         SelHandlers {
-            on_layout_selection_kind,
             on_layout_snap_intent,
             on_mounted_module_select,
             nudge_tree,

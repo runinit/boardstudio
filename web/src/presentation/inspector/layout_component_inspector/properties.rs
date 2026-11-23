@@ -6,11 +6,6 @@ pub(super) fn layout_assignment(
     latest_capture: Signal<LayoutComponentInspectorOwner>,
     on_action: EventHandler<LayoutComponentInspectorAction>,
 ) -> Element {
-    let label = "Component layout";
-    let id = format!(
-        "layout-choice-{}-Component-layout",
-        dioxus::core::current_scope_id().0
-    );
     let choices = std::iter::once((String::new(), "Board / ungrouped".to_owned()))
         .chain(
             projection
@@ -19,51 +14,19 @@ pub(super) fn layout_assignment(
                 .map(|layout| (layout.id.to_string(), layout.name.to_string())),
         )
         .collect::<Vec<_>>();
-    let on_value_change = EventHandler::new(move |choice: Option<String>| {
-        if let Some(choice) = choice {
-            on_action.call(LayoutComponentInspectorAction::AssignLayout {
-                owner: latest_capture(),
-                layout_id: (!choice.is_empty()).then_some(choice),
-            });
-        }
-    });
     rsx! {
-        Field {
-            FieldLabel { html_for: id.clone(), "Layout" }
-            if choices.len() > 12 {
-                Combobox::<String> {
-                    id: id.clone(),
-                    aria_label: label,
-                    list_aria_label: label,
-                    value: Some(layout_choice.into()),
-                    on_value_change,
-                    for (index, (value, label)) in choices.iter().enumerate() {
-                        ComboboxOption::<String> {
-                            index,
-                            value: value.clone(),
-                            text_value: label.clone(),
-                            disabled: false,
-                            "{label}"
-                        }
-                    }
-                }
-            } else {
-                Select::<String> {
-                    id: id.clone(),
-                    aria_label: label,
-                    value: Some(layout_choice.into()),
-                    on_value_change,
-                    for (index, (value, label)) in choices.iter().enumerate() {
-                        SelectOption::<String> {
-                            index,
-                            value: value.clone(),
-                            text_value: label.clone(),
-                            disabled: false,
-                            "{label}"
-                        }
-                    }
-                }
-            }
+        SelectField::<String> {
+            id: format!("layout-choice-{}-Component-layout", dioxus::core::current_scope_id().0),
+            label: "Layout",
+            aria_label: "Component layout",
+            value: layout_choice().unwrap_or_default(),
+            options: choices,
+            on_commit: move |choice: String| {
+                on_action.call(LayoutComponentInspectorAction::AssignLayout {
+                    owner: latest_capture(),
+                    layout_id: (!choice.is_empty()).then_some(choice),
+                })
+            },
         }
     }
 }

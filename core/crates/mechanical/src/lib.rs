@@ -15,3 +15,5 @@ pub mod keymap;
 pub mod mechanical;
 pub mod mechanical_checks;
 pub mod modules;
+#[cfg(test)]
+pub(crate) mod test_support;

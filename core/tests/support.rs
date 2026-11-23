@@ -247,6 +247,17 @@ pub(crate) mod fixture {
         }
     }
 
+    /// Switch plus passive companion definitions shared by matrix scenario tests.
+    pub fn companion_definitions() -> Vec<PartDefinition> {
+        serde_json::from_value(serde_json::json!([
+            {"id":"switch","name":"Switch","kind":"switch","courtyard":[],"pads":[]},
+            {"id":"diode","name":"Diode","kind":"passive","courtyard":[],"pads":[]},
+            {"id":"led","name":"LED","kind":"passive","courtyard":[],"pads":[]},
+            {"id":"sensor","name":"Sensor","kind":"passive","courtyard":[],"pads":[]}
+        ]))
+        .unwrap()
+    }
+
     pub fn matrix_document() -> ProjectDoc {
         let mut doc = ProjectDoc::empty("p", "Project");
         doc.definitions.push(PartDefinition {
@@ -291,16 +302,67 @@ pub(crate) mod fixture {
     }
 
     pub fn part_pose(doc: &ProjectDoc, id: &str) -> Pose2 {
+        part_by_id(doc, id).pose
+    }
+
+    #[track_caller]
+    pub fn part_by_id<'a>(doc: &'a ProjectDoc, id: &str) -> &'a Part {
         doc.parts
             .iter()
             .find(|part| part.id == id)
             .unwrap_or_else(|| panic!("missing part {id}"))
-            .pose
     }
 
     #[track_caller]
     pub fn part_at(doc: &ProjectDoc, id: &str) -> Vec2 {
         part_pose(doc, id).at
+    }
+
+    /// A rectangular outline feature shared by the outline scenario tests.
+    pub fn rect(
+        id: &str,
+        x: f64,
+        y: f64,
+        width: f64,
+        height: f64,
+        operation: Operation,
+    ) -> OutlineFeature {
+        OutlineFeature::Rect {
+            rotation: None,
+            anchor_part_id: None,
+            id: id.into(),
+            center: Vec2 { x, y },
+            size: Vec2 {
+                x: width,
+                y: height,
+            },
+            radius: 0.0,
+            operation,
+        }
+    }
+
+    #[track_caller]
+    pub fn matrix_scene<'a>(scene: &'a SceneDelta, id: &str) -> &'a MatrixScene {
+        scene
+            .matrix_scenes
+            .iter()
+            .find(|item| item.matrix_id == id)
+            .unwrap_or_else(|| panic!("missing matrix scene {id}"))
+    }
+
+    /// A companion's pose in its key's frame: where the key's own turn leaves it.
+    pub fn relative_pose(doc: &ProjectDoc, key: &str, companion: &str) -> (Vec2, f64) {
+        let key = part_by_id(doc, key).pose;
+        let companion = part_by_id(doc, companion).pose;
+        let (sin, cos) = (-key.rotation).to_radians().sin_cos();
+        let (dx, dy) = (companion.at.x - key.at.x, companion.at.y - key.at.y);
+        (
+            Vec2 {
+                x: dx * cos - dy * sin,
+                y: dx * sin + dy * cos,
+            },
+            companion.rotation - key.rotation,
+        )
     }
 
     #[track_caller]

@@ -9,6 +9,7 @@ pub trait InstalledAdapters: std::any::Any {
 
 pub fn installed(runtime: &Runtime) -> Rc<dyn InstalledAdapters> {
     runtime
+        .test
         .in_process_adapters
         .borrow()
         .clone()
@@ -34,7 +35,7 @@ pub fn install(
 ) {
     *runtime.session.borrow_mut() = session;
     *runtime.persistence.borrow_mut() = persistence;
-    *runtime.in_process_adapters.borrow_mut() = Some(adapters);
+    *runtime.test.in_process_adapters.borrow_mut() = Some(adapters);
     runtime.changed();
 }
 
@@ -131,7 +132,7 @@ pub async fn navigate(runtime: &Rc<Runtime>, board_id: &str) {
 /// installed, so a runtime without it is a test mistake, not an empty answer.
 pub fn take_held_effects(runtime: &Runtime) -> Vec<Effect> {
     installed(runtime);
-    std::mem::take(&mut *runtime.held_effects.borrow_mut())
+    std::mem::take(&mut *runtime.test.held_effects.borrow_mut())
 }
 
 /// Deliver a completion to Session as the executor that ran the effect would have. Tests
@@ -140,7 +141,7 @@ pub fn take_held_effects(runtime: &Runtime) -> Vec<Effect> {
 pub fn deliver_completion(runtime: &Rc<Runtime>, completion: Completion) {
     installed(runtime);
     let effects = runtime.complete(completion);
-    runtime.held_effects.borrow_mut().extend(effects);
+    runtime.test.held_effects.borrow_mut().extend(effects);
 }
 
 pub fn replace_session(runtime: &Runtime, session: Session) {
@@ -168,12 +169,12 @@ pub async fn run_effect(runtime: &Rc<Runtime>, effect: Effect) -> Vec<Effect> {
 
 pub async fn run_pending(runtime: &Rc<Runtime>) {
     loop {
-        let pending = std::mem::take(&mut *runtime.held_effects.borrow_mut());
+        let pending = std::mem::take(&mut *runtime.test.held_effects.borrow_mut());
         if !pending.is_empty() {
             // Keep Runtime effects off the mounted test's WASM poll stack too.
-            runtime.drive(pending);
+            runtime.drive_effects(pending);
         }
-        let drives = std::mem::take(&mut *runtime.in_process_drives.borrow_mut());
+        let drives = std::mem::take(&mut *runtime.test.in_process_drives.borrow_mut());
         if drives.is_empty() {
             break;
         }
@@ -186,6 +187,6 @@ pub async fn run_pending(runtime: &Rc<Runtime>) {
 }
 
 pub fn drive_pending(runtime: &Rc<Runtime>) {
-    let effects = std::mem::take(&mut *runtime.held_effects.borrow_mut());
-    runtime.drive(effects);
+    let effects = std::mem::take(&mut *runtime.test.held_effects.borrow_mut());
+    runtime.drive_effects(effects);
 }

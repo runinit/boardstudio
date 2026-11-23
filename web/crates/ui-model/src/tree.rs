@@ -791,13 +791,6 @@ fn append_matrix(
         (matrix.part_ids.contains(&candidate) && layout.live_parts.contains_key(candidate.as_str()))
             .then_some(candidate)
     };
-    let index = layout
-        .document
-        .matrices
-        .iter()
-        .position(|candidate| candidate.id == matrix.id)
-        .unwrap_or(0)
-        + 1;
     let item_id = format!("matrix:{}", matrix.id);
     let is_open = !include_header || layout.expanded.contains(&item_id);
     if include_header {
@@ -809,13 +802,7 @@ fn append_matrix(
             .count();
         tree.push(TreeItem {
             id: item_id,
-            label: matrix
-                .name
-                .as_deref()
-                .map(str::trim)
-                .filter(|name| !name.is_empty())
-                .map(str::to_owned)
-                .unwrap_or_else(|| format!("Matrix {index}")),
+            label: matrix_display_name(layout.document, matrix),
             detail: Some(if let Some(anchor) = &matrix.anchor {
                 let target = layout
                     .document
@@ -1058,24 +1045,35 @@ fn matrix_for_board<'a>(
         .matrices
         .iter()
         .find(|matrix| matrix.id == matrix_id)?;
-    if let Some(owner) = item.board_id.as_deref() {
-        if owner != board.id {
-            return None;
-        }
-    } else {
-        let board_parts: HashSet<_> = board.part_ids.iter().map(String::as_str).collect();
-        if !visible_matrices(document, &board.id, &board_parts)
-            .iter()
-            .any(|matrix| matrix.id == matrix_id)
-        {
-            return None;
-        }
+    // `visible_matrices` compares owners directly and reuses the board-part rule otherwise.
+    let board_parts: HashSet<_> = board.part_ids.iter().map(String::as_str).collect();
+    if !visible_matrices(document, &board.id, &board_parts)
+        .iter()
+        .any(|matrix| matrix.id == matrix_id)
+    {
+        return None;
     }
     let projected = scene
         .matrix_scenes
         .iter()
         .find(|scene| scene.matrix_id == matrix_id)?;
     Some((item, projected))
+}
+
+/// Tree-row and selection-label display name: trimmed stored name or `Matrix N`.
+fn matrix_display_name(document: &ProjectDoc, matrix: &Matrix) -> String {
+    let name = matrix.name.as_deref().map(str::trim).unwrap_or("");
+    if !name.is_empty() {
+        return name.to_owned();
+    }
+    match document
+        .matrices
+        .iter()
+        .position(|item| item.id == matrix.id)
+    {
+        Some(position) => format!("Matrix {}", position + 1),
+        None => "Matrix 1".into(),
+    }
 }
 
 mod selection;

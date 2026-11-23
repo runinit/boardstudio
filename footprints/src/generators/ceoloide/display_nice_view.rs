@@ -4,6 +4,7 @@
 //! Copyright (c) 2023 Marco Massarelli
 //! SPDX-License-Identifier: CC-BY-NC-SA-4.0
 //! Author: @infused-kim + @ceoloide improvements
+use super::display_shared;
 use crate::Result;
 use crate::context::NetRef;
 use crate::context::RenderContext;
@@ -69,7 +70,7 @@ pub static SPEC: GeneratorSpec = GeneratorSpec {
 
 fn body(p: &RenderContext<'_>) -> Result<String> {
     let (reversible, side) = (p.flag("reversible"), p.side());
-    let mut dst_nets: Vec<NetRef> = ["MOSI", "SCK", "VCC", "GND", "CS"]
+    let dst_nets: Vec<NetRef> = ["MOSI", "SCK", "VCC", "GND", "CS"]
         .iter()
         .map(|name| p.net(name).clone())
         .collect();
@@ -80,39 +81,19 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         p.local_net("4")?,
         p.local_net("5")?,
     ];
-    if reversible || side == "B" {
-        dst_nets.reverse();
-    }
-    let socket_nets = if reversible {
-        local_nets.clone()
-    } else {
-        dst_nets.clone()
-    };
-
-    let mut jumpers_offset = 0.0;
-    let mut labels_offset = 3.75;
+    let display_shared::DisplayJumperNets {
+        dst_nets,
+        socket_nets,
+        jumpers_offset,
+        labels_offset,
+        jumpers_front_top,
+        jumpers_front_bottom,
+        jumpers_back_top,
+        jumpers_back_bottom,
+    } = display_shared::display_jumper_nets(p, dst_nets, local_nets);
     let mut label_vcc_offset = 3.75;
-    let mut jumpers_front_top = dst_nets.clone();
-    let mut jumpers_front_bottom = local_nets.clone();
-    let mut jumpers_back_top = dst_nets.clone();
-    let mut jumpers_back_bottom: Vec<NetRef> = local_nets.iter().rev().cloned().collect();
     if p.flag("invert_labels_position") {
-        if reversible && !p.flag("invert_jumpers_position") {
-            label_vcc_offset = 0.0;
-            labels_offset = -1.62;
-        } else {
-            label_vcc_offset = 0.0;
-            labels_offset = label_vcc_offset;
-        }
-    } else if reversible && p.flag("invert_jumpers_position") {
-        labels_offset = 1.62 + label_vcc_offset;
-    }
-    if p.flag("invert_jumpers_position") {
-        jumpers_offset = 4.4;
-        jumpers_front_top = local_nets.clone();
-        jumpers_front_bottom = dst_nets.clone();
-        jumpers_back_top = local_nets.iter().rev().cloned().collect();
-        jumpers_back_bottom = dst_nets.clone();
+        label_vcc_offset = 0.0;
     }
 
     // Place the independently authored models on their shared five-pin row.
@@ -351,64 +332,37 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         }
     );
 
-    let niceview_3dmodel = format!(
-        r####"
-    (model {e0}
-      (offset (xyz {e1} {e2} {e3}))
-      (scale (xyz {e4} {e5} {e6}))
-      (rotate (xyz {e7} {e8} {e9}))
-    )
-    "####,
-        e0 = json_string(p.text("niceview_3dmodel_filename")),
-        e1 = n(display_offset[0]),
-        e2 = n(display_offset[1]),
-        e3 = n(display_offset[2]),
-        e4 = n(p.component("niceview_3dmodel_xyz_scale", 0)),
-        e5 = n(p.component("niceview_3dmodel_xyz_scale", 1)),
-        e6 = n(p.component("niceview_3dmodel_xyz_scale", 2)),
-        e7 = n(display_rotation[0]),
-        e8 = n(display_rotation[1]),
-        e9 = n(display_rotation[2])
+    let niceview_3dmodel = display_shared::ceoloide_model(
+        p.text("niceview_3dmodel_filename"),
+        display_offset,
+        [
+            p.component("niceview_3dmodel_xyz_scale", 0),
+            p.component("niceview_3dmodel_xyz_scale", 1),
+            p.component("niceview_3dmodel_xyz_scale", 2),
+        ],
+        display_rotation,
     );
 
-    let pin_socket_3dmodel = format!(
-        r####"
-    (model {e0}
-      (offset (xyz {e1} {e2} {e3}))
-      (scale (xyz {e4} {e5} {e6}))
-      (rotate (xyz {e7} {e8} {e9}))
-    )
-    "####,
-        e0 = json_string(p.text("pin_socket_3dmodel_filename")),
-        e1 = n(socket_offset[0]),
-        e2 = n(socket_offset[1]),
-        e3 = n(socket_offset[2]),
-        e4 = n(p.component("pin_socket_3dmodel_xyz_scale", 0)),
-        e5 = n(p.component("pin_socket_3dmodel_xyz_scale", 1)),
-        e6 = n(p.component("pin_socket_3dmodel_xyz_scale", 2)),
-        e7 = n(socket_rotation[0]),
-        e8 = n(socket_rotation[1]),
-        e9 = n(socket_rotation[2])
+    let pin_socket_3dmodel = display_shared::ceoloide_model(
+        p.text("pin_socket_3dmodel_filename"),
+        socket_offset,
+        [
+            p.component("pin_socket_3dmodel_xyz_scale", 0),
+            p.component("pin_socket_3dmodel_xyz_scale", 1),
+            p.component("pin_socket_3dmodel_xyz_scale", 2),
+        ],
+        socket_rotation,
     );
 
-    let pin_header_3dmodel = format!(
-        r####"
-    (model {e0}
-      (offset (xyz {e1} {e2} {e3}))
-      (scale (xyz {e4} {e5} {e6}))
-      (rotate (xyz {e7} {e8} {e9}))
-    )
-    "####,
-        e0 = json_string(p.text("pin_header_3dmodel_filename")),
-        e1 = n(header_offset[0]),
-        e2 = n(header_offset[1]),
-        e3 = n(header_offset[2]),
-        e4 = n(p.component("pin_header_3dmodel_xyz_scale", 0)),
-        e5 = n(p.component("pin_header_3dmodel_xyz_scale", 1)),
-        e6 = n(p.component("pin_header_3dmodel_xyz_scale", 2)),
-        e7 = n(header_rotation[0]),
-        e8 = n(header_rotation[1]),
-        e9 = n(header_rotation[2])
+    let pin_header_3dmodel = display_shared::ceoloide_model(
+        p.text("pin_header_3dmodel_filename"),
+        header_offset,
+        [
+            p.component("pin_header_3dmodel_xyz_scale", 0),
+            p.component("pin_header_3dmodel_xyz_scale", 1),
+            p.component("pin_header_3dmodel_xyz_scale", 2),
+        ],
+        header_rotation,
     );
 
     let bottom = format!(

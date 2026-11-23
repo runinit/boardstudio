@@ -1,20 +1,17 @@
 //! Scoped controls and file-backed editing for routed-board references.
-use crate::pcb_controls::PcbFile;
 use boardstudio_core_kernel::hash::sha256_hex;
 use boardstudio_model::model::{Asset, BoardReference};
 use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::inspector_fields::{
-    InspectorSection, NumericField, SelectField, ToggleField,
+    FilePickerButton, InspectorSection, NumericField, SelectField, TOUCH_CLS, ToggleField,
 };
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use dioxus::prelude::*;
-use dioxus_web::WebEventExt;
 use js_sys::Uint8Array;
 use std::{collections::BTreeSet, rc::Rc};
-use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{File, HtmlInputElement};
+use web_sys::File;
 
 use boardstudio_web_host::host::AssetBytes;
 
@@ -110,6 +107,24 @@ struct BoardReferenceContext {
 }
 
 impl BoardReferenceContext {
+    fn new(
+        runtime: Rc<Runtime>,
+        workspace: Signal<Workspace>,
+        adapter: super::SelectionAdapter,
+        owner: super::LayoutOwnerIdentity,
+        generation: Signal<u64>,
+        request_generation: u64,
+    ) -> Self {
+        Self {
+            runtime,
+            workspace,
+            adapter,
+            owner,
+            generation,
+            request_generation,
+        }
+    }
+
     fn is_current(&self) -> bool {
         super::board_reference_owner_is_current(
             &self.runtime,
@@ -121,6 +136,25 @@ impl BoardReferenceContext {
 
     fn is_live(&self) -> bool {
         self.generation.cloned() == self.request_generation && self.is_current()
+    }
+
+    fn current_or(&self, message: &str) -> Result<(), String> {
+        self.is_current()
+            .then_some(())
+            .ok_or_else(|| message.to_owned())
+    }
+
+    fn live_or(&self, message: &str) -> Result<(), String> {
+        self.is_live()
+            .then_some(())
+            .ok_or_else(|| message.to_owned())
+    }
+
+    fn accepted(&self) -> Result<boardstudio_application::AcceptedSnapshot, String> {
+        self.runtime
+            .model()
+            .accepted
+            .ok_or_else(|| "No accepted project is open.".to_owned())
     }
 
     fn lineage_is_current(&self) -> bool {
@@ -137,14 +171,8 @@ async fn discover_stored_paths(
     ctx: &BoardReferenceContext,
     reference: &BoardReference,
 ) -> Result<Vec<String>, String> {
-    if !ctx.is_current() {
-        return Err("The active board changed before routed-board model paths were read.".into());
-    }
-    let model = ctx.runtime.model();
-    let accepted = model
-        .accepted
-        .as_ref()
-        .ok_or("No accepted project is open.")?;
+    ctx.current_or("The active board changed before routed-board model paths were read.")?;
+    let accepted = ctx.accepted()?;
     let asset = accepted
         .document
         .assets
@@ -163,9 +191,7 @@ async fn discover_stored_paths(
         .map_err(|error| format!("Could not load routed-board file: {error}"))?
         .ok_or_else(|| "Saved routed-board file is missing from browser storage.".to_owned())?
         .to_vec();
-    if !ctx.is_live() {
-        return Err("The routed-board source changed while its asset was loading.".into());
-    }
+    ctx.live_or("The routed-board source changed while its asset was loading.")?;
     if bytes.is_empty()
         || bytes.len() as f64 > MAX_REFERENCE_BYTES
         || sha256_hex(&bytes) != asset.sha256
@@ -185,9 +211,7 @@ async fn discover_stored_paths(
                 .ok_or("Accepted board revision is unavailable.")?,
         )
         .await?;
-    if !ctx.is_live() {
-        return Err("The routed-board source changed while Core discovered model paths.".into());
-    }
+    ctx.live_or("The routed-board source changed while Core discovered model paths.")?;
     if Some(preview.revision) != ctx.owner.revision {
         return Err("Core returned model paths for a different routed-board revision.".into());
     }
@@ -199,13 +223,9 @@ async fn import_routed_board(
     reference: Option<&BoardReference>,
     file: File,
 ) -> Result<(String, Vec<String>), String> {
-    if !ctx.is_current() {
-        return Err("The active project or board changed. Retry with the current board.".into());
-    }
+    ctx.current_or("The active project or board changed. Retry with the current board.")?;
     let (bytes, source) = read_kicad_file(&file).await?;
-    if !ctx.is_live() {
-        return Err("The project or board changed while the routed-board file was read.".into());
-    }
+    ctx.live_or("The project or board changed while the routed-board file was read.")?;
     let revision = ctx
         .owner
         .revision
@@ -219,9 +239,7 @@ async fn import_routed_board(
             revision,
         )
         .await?;
-    if !ctx.is_live() {
-        return Err("The project or board changed while Core previewed the routed board.".into());
-    }
+    ctx.live_or("The project or board changed while Core previewed the routed board.")?;
     if preview.revision != revision {
         return Err("Core returned a routed-board preview for a different revision.".into());
     }
@@ -241,14 +259,8 @@ async fn import_routed_board(
         .save_asset(AssetBytes { sha256, bytes })
         .await
         .map_err(|error| format!("Could not store routed-board file: {error}"))?;
-    if !ctx.is_live() {
-        return Err("The project or board changed while the routed-board asset was stored.".into());
-    }
-    let model = ctx.runtime.model();
-    let accepted = model
-        .accepted
-        .as_ref()
-        .ok_or("No accepted project is open.")?;
+    ctx.live_or("The project or board changed while the routed-board asset was stored.")?;
+    let accepted = ctx.accepted()?;
     let scope = ctx
         .owner
         .scope
@@ -304,9 +316,7 @@ async fn attach_model_files(
 ) -> Result<(), String> {
     use super::model_asset_import::read_model_file;
 
-    if !ctx.is_current() {
-        return Err("The active project or board changed. Retry with the current board.".into());
-    }
+    ctx.current_or("The active project or board changed. Retry with the current board.")?;
     let mut uploads = match attachment {
         ModelAttachment::Individual { path, file } => {
             if !paths.iter().any(|known| known == &path) {
@@ -330,11 +340,7 @@ async fn attach_model_files(
             matched
         }
     };
-    let model = ctx.runtime.model();
-    let accepted = model
-        .accepted
-        .as_ref()
-        .ok_or("No accepted project is open.")?;
+    let accepted = ctx.accepted()?;
     let scope = ctx
         .owner
         .scope
@@ -356,22 +362,14 @@ async fn attach_model_files(
     let mut proposed = accepted.document.as_ref().clone();
     let mut imported_assets: Vec<(String, Asset)> = Vec::with_capacity(uploads.len());
     for (path, file) in uploads.drain(..) {
-        if !ctx.is_live() {
-            return Err(
-                "The project or board changed while model files were being attached.".into(),
-            );
-        }
+        ctx.live_or("The project or board changed while model files were being attached.")?;
         let imported = read_model_file(file).await?;
-        if !ctx.is_live() {
-            return Err("The project or board changed while a model file was read.".into());
-        }
+        ctx.live_or("The project or board changed while a model file was read.")?;
         imported
             .store(&ctx.runtime.store)
             .await
             .map_err(|error| format!("Could not store model asset: {error}"))?;
-        if !ctx.is_live() {
-            return Err("The project or board changed while a model asset was stored.".into());
-        }
+        ctx.live_or("The project or board changed while a model asset was stored.")?;
         let id = crate::runtime::new_project_id()?;
         if proposed.assets.iter().any(|asset| asset.id == id)
             || imported_assets.iter().any(|(_, asset)| asset.id == id)
@@ -427,12 +425,36 @@ fn begin_request(
     Some(next)
 }
 
+fn settle_request<T>(
+    ctx: &BoardReferenceContext,
+    epoch: u64,
+    mut busy: Signal<bool>,
+    mut error: Signal<Option<String>>,
+    result: Result<T, String>,
+    on_ok: impl FnOnce(T),
+) {
+    if (ctx.generation)() != epoch {
+        return;
+    }
+    busy.set(false);
+    match result {
+        Ok(value) => on_ok(value),
+        Err(message) if !message.is_empty() => {
+            error.set(Some(super::board_reference_effect::retryable_error(
+                message,
+                ctx.lineage_is_current(),
+            )));
+        }
+        Err(_) => {}
+    }
+}
+
 fn begin_board_import(
     mut ctx: BoardReferenceContext,
     reference: Option<BoardReference>,
     file: File,
-    mut busy: Signal<bool>,
-    mut error: Signal<Option<String>>,
+    busy: Signal<bool>,
+    error: Signal<Option<String>>,
     mut paths: Signal<Vec<String>>,
     mut paths_asset_id: Signal<Option<String>>,
 ) {
@@ -440,25 +462,19 @@ fn begin_board_import(
         return;
     };
     ctx.request_generation = epoch;
-    let current_epoch = ctx.generation;
     spawn(async move {
         let result = import_routed_board(&ctx, reference.as_ref(), file).await;
-        if current_epoch() == epoch {
-            busy.set(false);
-            match result {
-                Ok((asset_id, discovered)) => {
-                    paths.set(discovered);
-                    paths_asset_id.set(Some(asset_id));
-                }
-                Err(message) if !message.is_empty() => {
-                    error.set(Some(super::board_reference_effect::retryable_error(
-                        message,
-                        ctx.lineage_is_current(),
-                    )))
-                }
-                Err(_) => {}
-            }
-        }
+        settle_request(
+            &ctx,
+            epoch,
+            busy,
+            error,
+            result,
+            |(asset_id, discovered)| {
+                paths.set(discovered);
+                paths_asset_id.set(Some(asset_id));
+            },
+        );
     });
 }
 
@@ -467,8 +483,8 @@ fn begin_model_attachment(
     reference: Option<BoardReference>,
     paths: Vec<String>,
     attachment: ModelAttachment,
-    mut busy: Signal<bool>,
-    mut error: Signal<Option<String>>,
+    busy: Signal<bool>,
+    error: Signal<Option<String>>,
 ) {
     let Some(reference) = reference else {
         return;
@@ -477,20 +493,9 @@ fn begin_model_attachment(
         return;
     };
     ctx.request_generation = epoch;
-    let current_epoch = ctx.generation;
     spawn(async move {
         let result = attach_model_files(&ctx, &reference, &paths, attachment).await;
-        if current_epoch() == epoch {
-            busy.set(false);
-            if let Err(message) = result
-                && !message.is_empty()
-            {
-                error.set(Some(super::board_reference_effect::retryable_error(
-                    message,
-                    ctx.lineage_is_current(),
-                )));
-            }
-        }
+        settle_request(&ctx, epoch, busy, error, result, |()| {});
     });
 }
 
@@ -563,14 +568,14 @@ pub fn Editor(
                 request_generation.set(epoch);
                 busy_signal.set(true);
                 error.set(None);
-                let ctx = BoardReferenceContext {
-                    runtime: runtime.clone(),
+                let ctx = BoardReferenceContext::new(
+                    runtime.clone(),
                     workspace,
-                    adapter: adapter.clone(),
-                    owner: owner.clone(),
-                    generation: request_generation,
-                    request_generation: epoch,
-                };
+                    adapter.clone(),
+                    owner.clone(),
+                    request_generation,
+                    epoch,
+                );
                 let source_asset_id = reference.asset_id.clone();
                 let mut busy_signal = busy_signal;
                 let mut error = error;
@@ -632,14 +637,14 @@ pub fn Editor(
                 return;
             }
             begin_board_import(
-                BoardReferenceContext {
-                    runtime: runtime.clone(),
+                BoardReferenceContext::new(
+                    runtime.clone(),
                     workspace,
-                    adapter: adapter.clone(),
-                    owner: owner.clone(),
-                    generation: request_generation,
-                    request_generation: 0,
-                },
+                    adapter.clone(),
+                    owner.clone(),
+                    request_generation,
+                    0,
+                ),
                 reference.clone(),
                 file,
                 busy,
@@ -659,14 +664,14 @@ pub fn Editor(
                 return;
             }
             begin_model_attachment(
-                BoardReferenceContext {
-                    runtime: runtime.clone(),
+                BoardReferenceContext::new(
+                    runtime.clone(),
                     workspace,
-                    adapter: adapter.clone(),
-                    owner: owner.clone(),
-                    generation: request_generation,
-                    request_generation: 0,
-                },
+                    adapter.clone(),
+                    owner.clone(),
+                    request_generation,
+                    0,
+                ),
                 reference.clone(),
                 model_paths(),
                 ModelAttachment::Individual { path, file },
@@ -685,14 +690,14 @@ pub fn Editor(
                 return;
             }
             begin_model_attachment(
-                BoardReferenceContext {
-                    runtime: runtime.clone(),
+                BoardReferenceContext::new(
+                    runtime.clone(),
                     workspace,
-                    adapter: adapter.clone(),
-                    owner: owner.clone(),
-                    generation: request_generation,
-                    request_generation: 0,
-                },
+                    adapter.clone(),
+                    owner.clone(),
+                    request_generation,
+                    0,
+                ),
                 reference.clone(),
                 model_paths(),
                 ModelAttachment::Directory { files },
@@ -715,19 +720,11 @@ pub fn Editor(
     rsx! {
         InspectorSection { title: "Routed PCB reference", default_open: false,
             p { "Preview a routed KiCad board with the case. Replace this reference after editing routing in KiCad." }
-            PcbFile {
+            FilePickerButton {
                     label: if reference.is_some() { "Replace KiCad board" } else { "Import KiCad board" },
-                    accept: Some(".kicad_pcb".into()),
+                    accept: ".kicad_pcb",
                     disabled: disabled || busy,
-                    onchange: move |event: FormEvent| {
-                        let Some(input) = event.data().try_as_web_event()
-                            .and_then(|event| event.target())
-                            .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
-                        else { return; };
-                        let Some(file) = input.files().and_then(|files| files.get(0)) else { return; };
-                        input.set_value("");
-                        on_import.call(file);
-                    }
+                    on_files: move |files: Vec<File>| if let Some(file) = files.into_iter().next() { on_import.call(file); },
             }
             if let Some(reference) = reference.as_ref() {
                 ToggleField { label: "Use routed PCB in assembly", checked: reference.enabled,
@@ -748,19 +745,9 @@ pub fn Editor(
                     }
                 }
                 if !current_paths.is_empty() {
-                    PcbFile { label: "Attach model directory", directory: true,
+                    FilePickerButton { label: "Attach model directory", directory: true,
                             disabled: disabled || busy,
-                            onchange: move |event: FormEvent| {
-                                let Some(input) = event.data().try_as_web_event()
-                                    .and_then(|event| event.target())
-                                    .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
-                                else { return; };
-                                let files = input.files().map(|files| {
-                                    (0..files.length()).filter_map(|index| files.get(index)).collect::<Vec<_>>()
-                                }).unwrap_or_default();
-                                input.set_value("");
-                                on_attach_directory.call(files);
-                            }
+                            on_files: move |files: Vec<File>| on_attach_directory.call(files),
                     }
                 }
                 for path in current_paths.iter().cloned() {
@@ -789,23 +776,17 @@ pub fn Editor(
                                         .chain(saved_asset_unavailable.then(|| (selected_asset_id.clone(), "Saved model asset is unavailable".into())))
                                         .chain(options.iter().map(|asset| (asset.id.clone(), asset.name.clone()))).collect(),
                                 }
-                                PcbFile { label: format!("Attach model for {path}"), accept: Some(".step,.stp,.stl,.wrl".into()),
+                                FilePickerButton { label: format!("Attach model for {path}"), accept: ".step,.stp,.stl,.wrl",
                                     disabled: disabled || busy,
-                                    onchange: move |event: FormEvent| {
-                                        let Some(input) = event.data().try_as_web_event()
-                                            .and_then(|event| event.target())
-                                            .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
-                                        else { return; };
-                                        let Some(file) = input.files().and_then(|files| files.get(0)) else { return; };
-                                        input.set_value("");
+                                    on_files: move |files: Vec<File>| if let Some(file) = files.into_iter().next() {
                                         on_attach_file.call((path_for_file.clone(), file));
-                                    }
+                                    },
                                 }
                             }
                         }
                     }
                 }
-                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS,
                     disabled: disabled || busy,
                     onclick: move |_| on_action.call(Action::Remove),
                     "Remove PCB reference"
@@ -814,7 +795,7 @@ pub fn Editor(
 
             if let Some(message) = error() { Alert { variant: AlertVariant::Destructive, "{message}" } }
             if reference.is_some() && error().is_some() && current_paths.is_empty() {
-                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS,
                     disabled: disabled || busy,
                     onclick: move |_| {
                         attempted_discovery_signal.set(None);

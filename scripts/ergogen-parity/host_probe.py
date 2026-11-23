@@ -144,7 +144,7 @@ def serve(prepared, mode, reference=None):
             self.send_response(200)
             self.send_header('Content-Type', content_type)
             self.send_header('Content-Length', str(len(data)))
-            self.send_header('Cache-Control', 'no-store')
+            browser_tools.send_isolation_headers(self)
             self.end_headers()
             self.wfile.write(data)
 
@@ -167,18 +167,12 @@ def run(checkout, npm_cache, mode='normal', reference=None, *, prepared=None):
                nullcontext() if mode == 'source' else verified_runtime.verified_runtime(checkout, npm_cache))
     with context as prepared:
         server = serve(prepared, mode, reference) if reference is not None else serve(prepared, mode)
-        thread = threading.Thread(target=server.serve_forever)
-        thread.start()
-        try:
-            result = browser_tools.run_provider_page(f'http://127.0.0.1:{server.server_port}/', SUITE, timeout=360)
+        with browser_tools.serve(server=server) as url:
+            result = browser_tools.run_provider_page(url + '/', SUITE, timeout=360)
             output = json.dumps(result, allow_nan=False)
             if mode in ('generate', 'source'):
                 return validate_payload(output, mode)
             return validate_output(output, reference)
-        finally:
-            server.shutdown()
-            server.server_close()
-            thread.join()
 
 
 if __name__ == '__main__':

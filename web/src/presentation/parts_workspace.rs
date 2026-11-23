@@ -2,6 +2,7 @@
 use super::parts::{
     PartsInspectorPanel, PartsLibraryPanel, PartsPreviewWorkspace, PartsQuery, PartsSelection,
 };
+use super::*;
 use boardstudio_application::Scope;
 use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
@@ -67,11 +68,15 @@ pub(super) struct PartsFrame {
 
 #[component]
 pub(super) fn PartsWorkspace() -> Element {
-    use super::workspace_composition::{WorkspaceSurfaces, publish_surfaces, use_frame};
+    use super::workspace_composition::{
+        WorkspacePayload, WorkspaceSurfaces, use_frame, use_publish_surfaces,
+    };
     use boardstudio_web_ui_model::editor::EditorContext;
 
     let frame = use_frame();
-    let parts = frame.parts.as_ref().expect("Parts workspace frame");
+    let WorkspacePayload::Parts(parts) = &frame.payload else {
+        return rsx! {};
+    };
     let editor = use_context::<EditorContext>();
     let state = use_context::<PartsWorkspaceState>();
     let layout = frame.status.layout;
@@ -118,8 +123,7 @@ pub(super) fn PartsWorkspace() -> Element {
         }
         PartsPreviewWorkspace { snapshot: snapshot.clone(), scope, query: state.query(), selected: state.selected() }
     };
-    publish_surfaces(
-        use_context(),
+    use_publish_surfaces(
         Workspace::Parts,
         WorkspaceSurfaces {
             objects,
@@ -131,4 +135,165 @@ pub(super) fn PartsWorkspace() -> Element {
         },
     );
     rsx! {}
+}
+
+pub(in crate::presentation) struct OnOpenModulePlacementInput {
+    pub runtime: Rc<Runtime>,
+    pub adapter: SelectionAdapter,
+    pub scope: Scope,
+    pub generation: u64,
+    pub token: boardstudio_application::SnapshotToken,
+    pub revision: u64,
+    pub workspace: Signal<Workspace>,
+    pub objects_open: Signal<bool>,
+    pub inspect_open: Signal<bool>,
+    pub instance_selection: InstanceSelection,
+    pub parts_selection: parts::PartsSelection,
+}
+
+pub(in crate::presentation) fn on_open_module_placement_handler(
+    input: OnOpenModulePlacementInput,
+) -> EventHandler<String> {
+    let OnOpenModulePlacementInput {
+        runtime,
+        adapter,
+        scope,
+        generation,
+        token,
+        revision,
+        mut workspace,
+        mut objects_open,
+        mut inspect_open,
+        instance_selection,
+        parts_selection,
+    } = input;
+    EventHandler::new(move |module_id: String| {
+        if workspace() != Workspace::Parts
+            || runtime.scope().as_ref() != Some(&scope)
+            || (adapter.generation)() != generation
+        {
+            return;
+        }
+        let model = runtime.model();
+        if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model) {
+            return;
+        }
+        let current_context = adapter.selected_context.read().clone();
+        let Some(current_context) = current_context.filter(|selected| {
+            selected.scope == scope
+                && matches!(
+                    &selected.context,
+                    objects::TreeContext::MountedModule { board_id, module_id: selected_id }
+                        if board_id == &scope.board_id && selected_id == &module_id
+                )
+        }) else {
+            return;
+        };
+        if !selection::context_is_current(&model, &scope, &current_context.context) {
+            return;
+        }
+        let Some(accepted) = model
+            .accepted
+            .as_ref()
+            .filter(|snapshot| snapshot.token == token && snapshot.document.revision == revision)
+        else {
+            return;
+        };
+        let selected_definition = parts_selection().and_then(|(selected_scope, id)| {
+            (selected_scope == Some(scope.clone()))
+                .then(|| id.strip_prefix("module:").map(str::to_owned))
+                .flatten()
+        });
+        if !accepted.document.modules.iter().any(|module| {
+            module.id == module_id
+                && module.host_board_id == scope.board_id
+                && Some(module.definition_id.clone()) == selected_definition
+        }) {
+            return;
+        }
+        workspace.set(Workspace::Pcb);
+        objects_open.set(false);
+        inspect_open.set(true);
+    })
+}
+
+pub(in crate::presentation) struct OnModuleAttachedInput {
+    pub runtime: Rc<Runtime>,
+    pub adapter: SelectionAdapter,
+    pub workspace: Signal<Workspace>,
+    pub objects_open: Signal<bool>,
+    pub inspect_open: Signal<bool>,
+    pub parts_selection_generation: Signal<u64>,
+    pub parts_selection: parts::PartsSelection,
+    pub instance_selection: InstanceSelection,
+}
+
+pub(in crate::presentation) fn on_module_attached_handler(
+    input: OnModuleAttachedInput,
+) -> EventHandler<parts::AttachedModuleNavigation> {
+    let OnModuleAttachedInput {
+        runtime,
+        mut adapter,
+        mut workspace,
+        mut objects_open,
+        mut inspect_open,
+        parts_selection_generation,
+        parts_selection,
+        instance_selection,
+    } = input;
+    EventHandler::new(move |request: parts::AttachedModuleNavigation| {
+        if workspace() != Workspace::Parts
+            || runtime.scope().as_ref() != Some(&request.scope)
+            || parts_selection_generation() != request.selection_generation
+            || parts_selection()
+                != Some((
+                    Some(request.scope.clone()),
+                    format!("module:{}", request.definition_id),
+                ))
+        {
+            return;
+        }
+        let model = runtime.model();
+        if !active_board_scope_matches(&model, &request.scope)
+            || !instance_selection.is_current(&model)
+        {
+            return;
+        }
+        let Some(accepted) = model.accepted.as_ref().filter(|snapshot| {
+            snapshot.token == request.snapshot_token
+                && snapshot.document.revision == request.revision
+        }) else {
+            return;
+        };
+        if !accepted.document.modules.iter().any(|module| {
+            module.id == request.module_id
+                && module.definition_id == request.definition_id
+                && module.host_board_id == request.scope.board_id
+        }) {
+            return;
+        }
+        let context = objects::TreeContext::MountedModule {
+            board_id: request.scope.board_id.clone(),
+            module_id: request.module_id,
+        };
+        if !selection::context_is_current(&model, &request.scope, &context) {
+            return;
+        }
+        adapter
+            .selected_context
+            .set(Some(objects::ScopedTreeContext {
+                scope: request.scope,
+                context,
+            }));
+        adapter.anchor_scope.set(None);
+        runtime.submit(boardstudio_application::Event::SelectParts {
+            operation_id: runtime.operation(),
+            part_ids: Vec::new(),
+            range_part_ids: Vec::new(),
+            mode: SelectionMode::Replace,
+        });
+        workspace.set(Workspace::Pcb);
+        objects_open.set(false);
+        inspect_open.set(true);
+    })
 }

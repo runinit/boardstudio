@@ -389,7 +389,7 @@ fn focus_empty_transform_menu(content: &web_sys::Element) {
 pub fn LayoutTransformToolbar(
     mount: LayoutTransformMenuMount,
     open_menu: Signal<Option<LayoutCommandMenu>>,
-    #[props(default)] selection_kind: Option<LayoutSelectionKind>,
+    selection_kind: LayoutSelectionKind,
 ) -> Element {
     use_effect(move || {
         if open_menu() == Some(LayoutCommandMenu::Transform)
@@ -420,9 +420,8 @@ pub fn LayoutTransformToolbar(
             },
             DropdownMenuTrigger { id: "m1-layout-transform-trigger", aria_label: "Transform", "Transform" }
             DropdownMenuContent { id: "m1-layout-transform-menu", tabindex: "-1",
-                if let Some(selection_kind) = selection_kind {
-                    LayoutContextActionToolbar { mount: mount.clone(), open_menu, selection_kind, menu_items: true }
-                    DropdownMenuItem {
+                LayoutContextActionToolbar { mount: mount.clone(), open_menu, selection_kind, menu_items: true }
+                DropdownMenuItem {
                         index: 10usize, value: LayoutTransformTool::Origin,
                         attributes: vec![onmounted(on_menu_item_mounted)],
                         role: "menuitemradio", aria_checked: mount.active_tool == Some(LayoutTransformTool::Origin),
@@ -433,48 +432,6 @@ pub fn LayoutTransformToolbar(
                         },
                         "Origin"
                     }
-                } else {
-                    for (index, (tool, label)) in LayoutTransformTool::MENU.into_iter().enumerate() {
-                        if mount.pointer_tools_visible {
-                            DropdownMenuItem {
-                                index, value: tool, role: "menuitemradio", aria_checked: mount.active_tool == Some(tool),
-                                disabled: !mount.pointer_tools_available,
-                                on_select: move |_: LayoutTransformTool| {
-                                    mount.on_transform_tool.call(tool);
-                                    close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
-                                },
-                                "{label}"
-                            }
-                        }
-                    }
-                    DropdownMenuItem::<()> {
-                        index: 10usize, value: (), disabled: !mount.properties_available,
-                        on_select: move |_| {
-                            mount.on_show_properties.call(());
-                            close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
-                        },
-                        "Position & rotation"
-                    }
-                    DropdownMenuItem::<()> {
-                        index: 11usize, value: (), disabled: !mount.column_available,
-                        on_select: move |_| {
-                            mount.on_show_properties.call(());
-                            mount.on_selection_kind.call(LayoutSelectionKind::Column);
-                            close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
-                        },
-                        "Splay & origin"
-                    }
-                    DropdownMenuItem::<()> {
-                        index: 12usize, value: (), disabled: !mount.row_available,
-                        attributes: vec![onmounted(on_menu_item_mounted)],
-                        on_select: move |_| {
-                            mount.on_show_properties.call(());
-                            mount.on_selection_kind.call(LayoutSelectionKind::Row);
-                            close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
-                        },
-                        "Row offsets"
-                    }
-                }
                 if !mount.properties_available {
                     Callout { "Select a matrix, row, column, key or part to open its current transform properties." }
                 }

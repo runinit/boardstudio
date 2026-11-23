@@ -5,9 +5,8 @@ use boardstudio_application::{
 };
 use boardstudio_model::model::EditOperation;
 use boardstudio_web_ui_model::Workspace;
+use boardstudio_web_ui_shared::inspector_fields::TextCommitField;
 use boardstudio_web_ui_shared::ui::field::FieldError;
-use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
-use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -61,27 +60,7 @@ pub struct BoardInspectorMount {
     pub projection: Option<BoardInspectorProjection>,
     pub on_rename: EventHandler<BoardRenameAction>,
     mounted: Signal<bool>,
-    draft: Signal<String>,
     failure: Signal<Option<String>>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct BoardNameDraftIdentity {
-    scope: Scope,
-    context: ContextIdentity,
-    generation: u64,
-    board_id: String,
-}
-
-impl From<&BoardInspectorOwner> for BoardNameDraftIdentity {
-    fn from(owner: &BoardInspectorOwner) -> Self {
-        Self {
-            scope: owner.scope.clone(),
-            context: owner.context.clone(),
-            generation: owner.generation,
-            board_id: owner.board_id.clone(),
-        }
-    }
 }
 
 /// Owns only the transient Inspector context generation. Board data always comes from the
@@ -94,20 +73,6 @@ pub fn use_board_inspector(
 ) -> BoardInspectorMount {
     let context_generation = use_hook(|| Rc::new(RefCell::new(ContextGeneration::default())));
     let mounted = use_signal(|| false);
-    let initial_name = runtime
-        .model()
-        .accepted
-        .as_ref()
-        .and_then(|snapshot| {
-            snapshot
-                .document
-                .boards
-                .iter()
-                .find(|board| board.id == runtime.model().active_board_id)
-                .map(|board| board.name.clone())
-        })
-        .unwrap_or_default();
-    let mut draft = use_signal(|| initial_name);
     let mut failure = use_signal(|| None::<String>);
     let selected = selected_context.read().clone();
     let current_workspace = workspace();
@@ -131,20 +96,6 @@ pub fn use_board_inspector(
     };
     let projection = project_current(&runtime, selected.as_ref(), context.clone(), generation);
     let _ = use_context::<Signal<u64>>()();
-    let owner = projection
-        .as_ref()
-        .map(|projection| projection.owner.clone());
-    let owner_identity = owner.as_ref().map(BoardNameDraftIdentity::from);
-    let mut field_owner = use_signal(|| owner_identity.clone());
-    if field_owner.peek().as_ref() != owner_identity.as_ref()
-        && let Some(accepted) = projection
-            .as_ref()
-            .map(|projection| projection.board_name.clone())
-    {
-        field_owner.set(owner_identity.clone());
-        draft.set(accepted);
-        failure.set(None);
-    }
     let on_rename = use_callback({
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
@@ -209,15 +160,6 @@ pub fn use_board_inspector(
                 )
             });
             let result = runtime.commit("board-name", resolver);
-            if let Some(accepted) = runtime.model().accepted
-                && let Some(board) = accepted
-                    .document
-                    .boards
-                    .iter()
-                    .find(|board| board.id == owner.board_id)
-            {
-                draft.set(board.name.clone());
-            }
             failure.set(result.err());
         }
     });
@@ -226,7 +168,6 @@ pub fn use_board_inspector(
         projection,
         on_rename,
         mounted,
-        draft,
         failure,
     }
 }
@@ -327,7 +268,6 @@ fn board_context_is_current(
 
 #[component]
 pub fn BoardInspector(mount: BoardInspectorMount) -> Element {
-    let mut draft = mount.draft;
     let failure = mount.failure;
     let mut mounted = mount.mounted;
     let Some(projection) = mount.projection else {
@@ -345,82 +285,38 @@ pub fn BoardInspector(mount: BoardInspectorMount) -> Element {
     use_drop(move || mounted.set(false));
     let owner = projection.owner.clone();
     let accepted_name = projection.owner.accepted_name.clone();
-    let name = draft();
-    let blur_owner = owner.clone();
-    let key_owner = owner.clone();
-    let blur_handler = on_rename;
-    let key_handler = on_rename;
-    let submit_blur = move |_| {
-        commit_draft(&mut draft, &blur_owner, blur_handler);
-    };
-    let submit_key = move |event: KeyboardEvent| match event.key().to_string().as_str() {
-        "Enter" => {
-            event.prevent_default();
-            commit_draft(&mut draft, &key_owner, key_handler);
-        }
-        "Escape" => {
-            event.prevent_default();
-            event.stop_propagation();
-            draft.set(accepted_name.clone());
-        }
-        _ => {}
-    };
     rsx! {
-            section { class: "grid content-start gap-2.5 min-w-0 px-4 pt-3 pb-5 text-foreground", aria_label: "Board Inspector",
-                p { class: "m-0 mb-[5px] text-muted-foreground text-[11px] leading-[1.6]",
-                    "Select a key, component, or matrix to edit it."
-                }
-                {
-                    let control_input_id = format!(
-                        "layout-input-{}-1",
-                        dioxus::core::current_scope_id().0,
-                    );
-                    rsx! {
-                        Field { class: "grid gap-1.5 m-0 text-muted-foreground text-[11px]",
-                            FieldLabel { html_for: control_input_id.clone(), "Board name" }
-                            InputGroup { class: "max-[760px]:h-control-touch",
-                                InputGroupInput { class: "max-[760px]:h-control-touch", aria_label: "Board name",
-    value: "{name}",
-    disabled: !projection.editable,
-    oninput: move |event: FormEvent| draft.set(event.value()),
-    id: control_input_id.clone(),
-    attributes: vec![dioxus::events::onblur(submit_blur),dioxus::events::onkeydown(submit_key)], }
-                            }
-                        }
-                    }
-                }
-                if let Some(message) = failure() {
-                    FieldError { "{message}" }
-                }
-                div { class: "flex justify-between py-2 border-b border-border text-muted-foreground text-[10px]",
-                    span { "Outline" }
-                    strong { class: "text-foreground font-mono text-[10px] font-normal", "{projection.outline_status}" }
-                }
-                div { class: "flex justify-between py-2 border-b border-border text-muted-foreground text-[10px]",
-                    span { "Placed parts" }
-                    strong { class: "text-foreground font-mono text-[10px] font-normal", "{projection.placed_parts}" }
-                }
+        section { class: "grid content-start gap-2.5 min-w-0 px-4 pt-3 pb-5 text-foreground", aria_label: "Board Inspector",
+            p { class: "m-0 mb-[5px] text-muted-foreground text-[11px] leading-[1.6]",
+                "Select a key, component, or matrix to edit it."
+            }
+            TextCommitField {
+                label: "Board name".to_owned(),
+                value: accepted_name.clone(),
+                id: format!(
+                    "layout-input-{}-1",
+                    dioxus::core::current_scope_id().0,
+                ),
+                aria_label: "Board name",
+                disabled_reason: (!projection.editable).then(|| "Editing is unavailable".to_owned()),
+                on_commit: move |name: String| {
+                    on_rename.call(BoardRenameAction {
+                        owner: owner.clone(),
+                        name,
+                    });
+                },
+            }
+            if let Some(message) = failure() {
+                FieldError { "{message}" }
+            }
+            div { class: "flex justify-between py-2 border-b border-border text-muted-foreground text-[10px]",
+                span { "Outline" }
+                strong { class: "text-foreground font-mono text-[10px] font-normal", "{projection.outline_status}" }
+            }
+            div { class: "flex justify-between py-2 border-b border-border text-muted-foreground text-[10px]",
+                span { "Placed parts" }
+                strong { class: "text-foreground font-mono text-[10px] font-normal", "{projection.placed_parts}" }
             }
         }
-}
-
-fn commit_draft(
-    draft: &mut Signal<String>,
-    owner: &BoardInspectorOwner,
-    on_rename: EventHandler<BoardRenameAction>,
-) {
-    let submitted_name = draft.peek().clone();
-    let resolver_name = submitted_name.trim();
-    if resolver_name.is_empty() {
-        draft.set(owner.accepted_name.clone());
-        return;
     }
-    if resolver_name == owner.accepted_name {
-        draft.set(owner.accepted_name.clone());
-        return;
-    }
-    on_rename.call(BoardRenameAction {
-        owner: owner.clone(),
-        name: submitted_name,
-    });
 }

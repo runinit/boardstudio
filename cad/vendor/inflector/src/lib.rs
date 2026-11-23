@@ -1,361 +1,356 @@
-#![deny(warnings, unused_variables, missing_docs, unsafe_code, unused_extern_crates)]
-#![cfg_attr(feature = "unstable", feature(test))]
+//! Minimal subset trimmed from upstream `Inflector` `0.11.4` for the CAD trees.
+//!
+//! Copyright (c) Josh Teeter <joshteeter@gmail.com>
+//! Licensed under the BSD-2-Clause License:
+//!
+//! Redistribution and use in source and binary forms, with or without
+//! modification, are permitted provided that the following conditions are met:
+//! 1. Redistributions of source code must retain the above copyright notice,
+//!    this list of conditions and the following disclaimer.
+//! 2. Redistributions in binary form must reproduce the above copyright notice,
+//!    this list of conditions and the following disclaimer in the documentation
+//!    and/or other materials provided with the distribution.
+//! THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+//! AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+//! IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+//! DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+//! FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+//! DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+//! SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+//! CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+//! OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+//! OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//!
+//! `step-p21` and `step-p21-derive` call only [`to_pascal_case`] and
+//! [`to_screaming_snake_case`] (cold-build ticket 07), so this trimmed crate
+//! retains only those two conversions with the upstream `0.11.4` word-splitting
+//! behavior and no `regex`/`lazy_static` dependency.
+//!
+//! [`to_pascal_case`]: cases::pascalcase::to_pascal_case
+//! [`to_screaming_snake_case`]: cases::screamingsnakecase::to_screaming_snake_case
 
-//! Adds String based inflections for Rust. Snake, kebab, train, camel,
-//! sentence, class, and title cases as well as ordinalize,
-//! deordinalize, demodulize, deconstantize, and foreign key are supported as
-//! both traits and pure functions acting on String types.
-//! ```rust
-//! use inflector::Inflector;
-//! let camel_case_string: String = "some_string".to_camel_case();
-//! let is_camel_cased: bool= camel_case_string.is_camel_case();
-//! assert!(is_camel_cased == true);
-//! ```
+/// STEP/Rust identifier case conversions.
+pub mod cases {
+    /// Converts identifiers to `PascalCase` (`foo_bar` -> `FooBar`).
+    pub mod pascalcase {
+        /// Converts `value` to `PascalCase`.
+        pub fn to_pascal_case(value: &str) -> String {
+            super::to_case_camel_like(
+                value,
+                super::CamelOptions {
+                    new_word: true,
+                    last_char: ' ',
+                    first_word: false,
+                    injectable_char: ' ',
+                    has_seperator: false,
+                    inverted: false,
+                },
+            )
+        }
 
-#[cfg(feature = "heavyweight")]
-extern crate regex;
-
-#[cfg(feature = "heavyweight")]
-#[macro_use] extern crate lazy_static;
-
-/// Provides case inflections
-/// - Camel case
-/// - Class case
-/// - Kebab case
-/// - Train case
-/// - Screaming snake case
-/// - Table case
-/// - Sentence case
-/// - Snake case
-/// - Pascal case
-pub mod cases;
-/// Provides number inflections
-/// - Ordinalize
-/// - Deordinalize
-pub mod numbers;
-/// Provides suffix inflections
-/// - Foreign key
-pub mod suffix;
-/// Provides string inflections
-/// - Deconstantize
-/// - Demodulize
-/// - Pluralize
-/// - Singularize
-#[cfg(feature = "heavyweight")]
-pub mod string;
-
-
-#[cfg(feature = "heavyweight")]
-use cases::classcase::to_class_case;
-#[cfg(feature = "heavyweight")]
-use cases::classcase::is_class_case;
-
-use cases::camelcase::to_camel_case;
-use cases::camelcase::is_camel_case;
-
-use cases::pascalcase::to_pascal_case;
-use cases::pascalcase::is_pascal_case;
-
-use cases::snakecase::to_snake_case;
-use cases::snakecase::is_snake_case;
-
-use cases::screamingsnakecase::to_screaming_snake_case;
-use cases::screamingsnakecase::is_screaming_snake_case;
-
-use cases::kebabcase::to_kebab_case;
-use cases::kebabcase::is_kebab_case;
-
-use cases::traincase::to_train_case;
-use cases::traincase::is_train_case;
-
-use cases::sentencecase::to_sentence_case;
-use cases::sentencecase::is_sentence_case;
-
-use cases::titlecase::to_title_case;
-use cases::titlecase::is_title_case;
-
-#[cfg(feature = "heavyweight")]
-use cases::tablecase::to_table_case;
-#[cfg(feature = "heavyweight")]
-use cases::tablecase::is_table_case;
-
-use numbers::ordinalize::ordinalize;
-use numbers::deordinalize::deordinalize;
-
-use suffix::foreignkey::to_foreign_key;
-use suffix::foreignkey::is_foreign_key;
-
-#[cfg(feature = "heavyweight")]
-use string::demodulize::demodulize;
-#[cfg(feature = "heavyweight")]
-use string::deconstantize::deconstantize;
-
-#[cfg(feature = "heavyweight")]
-use string::pluralize::to_plural;
-#[cfg(feature = "heavyweight")]
-use string::singularize::to_singular;
-
-/// String case conversions and inflections.
-pub trait Inflector {
-
-    /// Convert the string to camel case.
-    fn to_camel_case(&self) -> String;
-    /// Test whether the string is in camel case.
-    fn is_camel_case(&self) -> bool;
-
-    /// Convert the string to pascal case.
-    fn to_pascal_case(&self) -> String;
-    /// Test whether the string is in pascal case.
-    fn is_pascal_case(&self) -> bool;
-
-    /// Convert the string to snake case.
-    fn to_snake_case(&self) -> String;
-    /// Test whether the string is in snake case.
-    fn is_snake_case(&self) -> bool;
-
-    /// Convert the string to screaming snake case.
-    fn to_screaming_snake_case(&self) -> String;
-    /// Test whether the string is in screaming snake case.
-    fn is_screaming_snake_case(&self) -> bool;
-
-    /// Convert the string to kebab case.
-    fn to_kebab_case(&self) -> String;
-    /// Test whether the string is in kebab case.
-    fn is_kebab_case(&self) -> bool;
-
-    /// Convert the string to train case.
-    fn to_train_case(&self) -> String;
-    /// Test whether the string is in train case.
-    fn is_train_case(&self) -> bool;
-
-    /// Convert the string to sentence case.
-    fn to_sentence_case(&self) -> String;
-    /// Test whether the string is in sentence case.
-    fn is_sentence_case(&self) -> bool;
-
-    /// Convert the string to title case.
-    fn to_title_case(&self) -> String;
-    /// Test whether the string is in title case.
-    fn is_title_case(&self) -> bool;
-
-    /// Convert a number to its ordinal form.
-    fn ordinalize(&self) -> String;
-    /// Remove the ordinal suffix from a number.
-    fn deordinalize(&self) -> String;
-
-    /// Convert the string to a foreign key name.
-    fn to_foreign_key(&self) -> String;
-    /// Test whether the string is a foreign key name.
-    fn is_foreign_key(&self) -> bool;
-
-    #[cfg(feature = "heavyweight")]
-    /// Return the last component of a qualified name.
-    fn demodulize(&self) -> String;
-    #[cfg(feature = "heavyweight")]
-    /// Return the parent portion of a qualified name.
-    fn deconstantize(&self) -> String;
-
-    #[cfg(feature = "heavyweight")]
-    /// Convert the string to class case.
-    fn to_class_case(&self) -> String;
-    #[cfg(feature = "heavyweight")]
-    /// Test whether the string is in class case.
-    fn is_class_case(&self) -> bool;
-
-    #[cfg(feature = "heavyweight")]
-    /// Convert the string to table case.
-    fn to_table_case(&self) -> String;
-    #[cfg(feature = "heavyweight")]
-    /// Test whether the string is in table case.
-    fn is_table_case(&self) -> bool;
-    #[cfg(feature = "heavyweight")]
-    /// Convert a word to its plural form.
-    fn to_plural(&self) -> String;
-    #[cfg(feature = "heavyweight")]
-    /// Convert a word to its singular form.
-    fn to_singular(&self) -> String;
-}
-
-
-/// Ordinal forms of numbers.
-pub trait InflectorNumbers {
-    /// Convert a number to its ordinal form.
-    fn ordinalize(&self) -> String;
-}
-
-
-macro_rules! define_implementations {
-    ( $slf:ident; $($imp_trait:ident => $typ:ident), *) => {
-        $(
-            #[inline]
-            fn $imp_trait(&$slf) -> $typ {
-                $imp_trait($slf)
-            }
-        )*
-    }
-}
-
-macro_rules! define_number_implementations {
-    ( $slf:ident; $($imp_trait:ident => $typ:ident), *) => {
-        $(
-            #[inline]
-            fn $imp_trait(&$slf) -> $typ {
-                $imp_trait(&$slf.to_string())
-            }
-        )*
-    }
-}
-
-macro_rules! define_gated_implementations {
-    ( $slf:ident; $($imp_trait:ident => $typ:ident), *) => {
-        $(
-            #[inline]
-            #[cfg(feature = "heavyweight")]
-            fn $imp_trait(&$slf) -> $typ {
-                $imp_trait($slf)
-            }
-        )*
-    }
-}
-
-macro_rules! implement_string_for {
-    ( $trt:ident; $($typ:ident), *) => {
-        $(
-            impl $trt for $typ {
-                define_implementations![self;
-                    to_camel_case => String,
-                    is_camel_case => bool,
-                    to_pascal_case => String,
-                    is_pascal_case => bool,
-                    to_screaming_snake_case => String,
-                    is_screaming_snake_case => bool,
-                    to_snake_case => String,
-                    is_snake_case => bool,
-                    to_kebab_case => String,
-                    is_kebab_case => bool,
-                    to_train_case => String,
-                    is_train_case => bool,
-                    to_sentence_case => String,
-                    is_sentence_case => bool,
-                    to_title_case => String,
-                    is_title_case => bool,
-                    to_foreign_key => String,
-                    is_foreign_key => bool,
-                    ordinalize => String,
-                    deordinalize => String
-                ];
-                define_gated_implementations![self;
-                    to_class_case => String,
-                    is_class_case => bool,
-                    to_table_case => String,
-                    is_table_case => bool,
-                    to_plural => String,
-                    to_singular => String,
-                    demodulize => String,
-                    deconstantize => String
-                ];
-            }
-        )*
-    }
-}
-
-macro_rules! implement_number_for {
-    ( $trt:ident; $($typ:ident), *) => {
-        $(
-            impl $trt for $typ {
-                define_number_implementations![self;
-                    ordinalize => String
-                ];
-            }
-        )*
-    }
-}
-
-implement_string_for![
-    Inflector;
-    String, str
-];
-
-implement_number_for![
-    InflectorNumbers;
-    i8, i16, i32, i64, u8, u16, u32, u64, isize, usize, f32, f64
-];
-
-#[cfg(all(feature = "unstable", test))]
-mod benchmarks {
-    extern crate test;
-    use self::test::Bencher;
-    use ::Inflector;
-
-    macro_rules! benchmarks {
-        ( $($test_name:ident => $imp_trait:ident => $to_cast:expr), *) => {
-            $(
-                #[bench]
-                fn $test_name(b: &mut Bencher) {
-                    b.iter(|| {
-                        $to_cast.$imp_trait()
-                    });
-                }
-            )*
+        /// Tests whether `value` is already `PascalCase`.
+        pub fn is_pascal_case(value: &str) -> bool {
+            to_pascal_case(value) == value
         }
     }
 
-    benchmarks![
-        benchmark_str_to_camel => to_camel_case => "foo_bar",
-        benchmark_str_is_camel => is_camel_case => "fooBar",
-        benchmark_str_to_screaming_snake => to_screaming_snake_case => "fooBar",
-        benchmark_str_is_screaming_snake => is_screaming_snake_case => "FOO_BAR",
-        benchmark_str_to_snake => to_snake_case => "fooBar",
-        benchmark_str_is_snake => is_snake_case => "foo_bar",
-        benchmark_str_to_kebab => to_kebab_case => "fooBar",
-        benchmark_str_is_kebab => is_kebab_case => "foo-bar",
-        benchmark_str_to_train => to_train_case => "fooBar",
-        benchmark_str_is_train => is_train_case => "Foo-Bar",
-        benchmark_str_to_sentence => to_sentence_case => "fooBar",
-        benchmark_str_is_sentence => is_sentence_case => "Foo bar",
-        benchmark_str_to_title => to_title_case => "fooBar",
-        benchmark_str_is_title => is_title_case => "Foo Bar",
-        benchmark_str_ordinalize  => ordinalize => "1",
-        benchmark_str_deordinalize  => deordinalize => "1st",
-        benchmark_str_to_foreign_key => to_foreign_key => "Foo::Bar",
-        benchmark_str_is_foreign_key => is_foreign_key => "bar_id",
-        benchmark_string_to_camel => to_camel_case => "foo_bar".to_string(),
-        benchmark_string_is_camel => is_camel_case => "fooBar".to_string(),
-        benchmark_string_to_screaming_snake => to_screaming_snake_case => "fooBar".to_string(),
-        benchmark_string_is_screaming_snake => is_screaming_snake_case => "FOO_BAR".to_string(),
-        benchmark_string_to_snake => to_snake_case => "fooBar".to_string(),
-        benchmark_string_is_snake => is_snake_case => "foo_bar".to_string(),
-        benchmark_string_to_kebab => to_kebab_case => "fooBar".to_string(),
-        benchmark_string_is_kebab => is_kebab_case => "foo-bar".to_string(),
-        benchmark_string_to_train => to_train_case => "fooBar".to_string(),
-        benchmark_string_is_train => is_train_case => "Foo-Bar".to_string(),
-        benchmark_string_to_sentence => to_sentence_case => "fooBar".to_string(),
-        benchmark_string_is_sentence => is_sentence_case => "Foo bar".to_string(),
-        benchmark_string_to_title => to_title_case => "fooBar".to_string(),
-        benchmark_string_is_title => is_title_case => "Foo Bar".to_string(),
-        benchmark_string_ordinalize  => ordinalize => "1".to_string(),
-        benchmark_string_deordinalize  => deordinalize => "1st".to_string(),
-        benchmark_string_to_foreign_key => to_foreign_key => "Foo::Bar".to_string(),
-        benchmark_string_is_foreign_key => is_foreign_key => "bar_id".to_string()
+    /// Converts identifiers to `SCREAMING_SNAKE_CASE` (`fooBar` -> `FOO_BAR`).
+    pub mod screamingsnakecase {
+        /// Converts `value` to `SCREAMING_SNAKE_CASE`.
+        pub fn to_screaming_snake_case(value: &str) -> String {
+            super::to_case_snake_like(value, "_", "upper")
+        }
+
+        /// Tests whether `value` is already `SCREAMING_SNAKE_CASE`.
+        pub fn is_screaming_snake_case(value: &str) -> bool {
+            value == to_screaming_snake_case(value)
+        }
+    }
+
+    pub(crate) struct CamelOptions {
+        pub(crate) new_word: bool,
+        pub(crate) last_char: char,
+        pub(crate) first_word: bool,
+        pub(crate) injectable_char: char,
+        pub(crate) has_seperator: bool,
+        pub(crate) inverted: bool,
+    }
+
+    pub(crate) fn to_case_snake_like(
+        convertable_string: &str,
+        replace_with: &str,
+        case: &str,
+    ) -> String {
+        let mut first_character: bool = true;
+        let mut result: String = String::with_capacity(convertable_string.len() * 2);
+        for char_with_index in trim_right(convertable_string).char_indices() {
+            if char_is_seperator(&char_with_index.1) {
+                if !first_character {
+                    first_character = true;
+                    result.push(replace_with.chars().nth(0).unwrap_or('_'));
+                }
+            } else if requires_seperator(char_with_index, first_character, convertable_string) {
+                first_character = false;
+                result = snake_like_with_seperator(result, replace_with, &char_with_index.1, case)
+            } else {
+                first_character = false;
+                result = snake_like_no_seperator(result, &char_with_index.1, case)
+            }
+        }
+        result
+    }
+
+    pub(crate) fn to_case_camel_like(
+        convertable_string: &str,
+        camel_options: CamelOptions,
+    ) -> String {
+        let mut new_word: bool = camel_options.new_word;
+        let mut first_word: bool = camel_options.first_word;
+        let mut last_char: char = camel_options.last_char;
+        let mut found_real_char: bool = false;
+        let mut result: String = String::with_capacity(convertable_string.len() * 2);
+        for character in trim_right(convertable_string).chars() {
+            if char_is_seperator(&character) && found_real_char {
+                new_word = true;
+            } else if !found_real_char && is_not_alphanumeric(character) {
+                continue;
+            } else if character.is_numeric() {
+                found_real_char = true;
+                new_word = true;
+                result.push(character);
+            } else if last_char_lower_current_is_upper_or_new_word(new_word, last_char, character) {
+                found_real_char = true;
+                new_word = false;
+                result = append_on_new_word(result, first_word, character, &camel_options);
+                first_word = false;
+            } else {
+                found_real_char = true;
+                last_char = character;
+                result.push(character.to_ascii_lowercase());
+            }
+        }
+        result
+    }
+
+    fn append_on_new_word(
+        mut result: String,
+        first_word: bool,
+        character: char,
+        camel_options: &CamelOptions,
+    ) -> String {
+        if not_first_word_and_has_seperator(first_word, camel_options.has_seperator) {
+            result.push(camel_options.injectable_char);
+        }
+        if first_word_or_not_inverted(first_word, camel_options.inverted) {
+            result.push(character.to_ascii_uppercase());
+        } else {
+            result.push(character.to_ascii_lowercase());
+        }
+        result
+    }
+
+    fn not_first_word_and_has_seperator(first_word: bool, has_seperator: bool) -> bool {
+        has_seperator && !first_word
+    }
+
+    fn first_word_or_not_inverted(first_word: bool, inverted: bool) -> bool {
+        !inverted || first_word
+    }
+
+    fn last_char_lower_current_is_upper_or_new_word(
+        new_word: bool,
+        last_char: char,
+        character: char,
+    ) -> bool {
+        new_word || ((last_char.is_lowercase() && character.is_uppercase()) && (last_char != ' '))
+    }
+
+    fn char_is_seperator(character: &char) -> bool {
+        is_not_alphanumeric(*character)
+    }
+
+    fn trim_right(convertable_string: &str) -> &str {
+        convertable_string.trim_end_matches(is_not_alphanumeric)
+    }
+
+    fn is_not_alphanumeric(character: char) -> bool {
+        !character.is_alphanumeric()
+    }
+
+    fn requires_seperator(
+        char_with_index: (usize, char),
+        first_character: bool,
+        convertable_string: &str,
+    ) -> bool {
+        !first_character
+            && char_is_uppercase(char_with_index.1)
+            && next_or_previous_char_is_lowercase(convertable_string, char_with_index.0)
+    }
+
+    fn snake_like_no_seperator(mut accumulator: String, current_char: &char, case: &str) -> String {
+        if case == "lower" {
+            accumulator.push(current_char.to_ascii_lowercase());
+        } else {
+            accumulator.push(current_char.to_ascii_uppercase());
+        }
+        accumulator
+    }
+
+    fn snake_like_with_seperator(
+        mut accumulator: String,
+        replace_with: &str,
+        current_char: &char,
+        case: &str,
+    ) -> String {
+        if case == "lower" {
+            accumulator.push(replace_with.chars().nth(0).unwrap_or('_'));
+            accumulator.push(current_char.to_ascii_lowercase());
+        } else {
+            accumulator.push(replace_with.chars().nth(0).unwrap_or('_'));
+            accumulator.push(current_char.to_ascii_uppercase());
+        }
+        accumulator
+    }
+
+    fn next_or_previous_char_is_lowercase(
+        convertable_string: &str,
+        char_with_index: usize,
+    ) -> bool {
+        convertable_string.chars().nth(char_with_index + 1).unwrap_or('A').is_lowercase()
+            || convertable_string.chars().nth(char_with_index - 1).unwrap_or('A').is_lowercase()
+    }
+
+    fn char_is_uppercase(test_char: char) -> bool {
+        test_char == test_char.to_ascii_uppercase()
+    }
+}
+
+/// Case conversions for STEP and Rust identifiers.
+pub trait Inflector {
+    /// Converts the string to `PascalCase`.
+    fn to_pascal_case(&self) -> String;
+    /// Tests whether the string is in `PascalCase`.
+    fn is_pascal_case(&self) -> bool;
+    /// Converts the string to `SCREAMING_SNAKE_CASE`.
+    fn to_screaming_snake_case(&self) -> String;
+    /// Tests whether the string is in `SCREAMING_SNAKE_CASE`.
+    fn is_screaming_snake_case(&self) -> bool;
+}
+
+impl Inflector for str {
+    fn to_pascal_case(&self) -> String {
+        cases::pascalcase::to_pascal_case(self)
+    }
+
+    fn is_pascal_case(&self) -> bool {
+        cases::pascalcase::is_pascal_case(self)
+    }
+
+    fn to_screaming_snake_case(&self) -> String {
+        cases::screamingsnakecase::to_screaming_snake_case(self)
+    }
+
+    fn is_screaming_snake_case(&self) -> bool {
+        cases::screamingsnakecase::is_screaming_snake_case(self)
+    }
+}
+
+impl Inflector for String {
+    fn to_pascal_case(&self) -> String {
+        cases::pascalcase::to_pascal_case(self)
+    }
+
+    fn is_pascal_case(&self) -> bool {
+        cases::pascalcase::is_pascal_case(self)
+    }
+
+    fn to_screaming_snake_case(&self) -> String {
+        cases::screamingsnakecase::to_screaming_snake_case(self)
+    }
+
+    fn is_screaming_snake_case(&self) -> bool {
+        cases::screamingsnakecase::is_screaming_snake_case(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::cases::{pascalcase, screamingsnakecase};
+    use super::Inflector;
+
+    /// (input, PascalCase, SCREAMING_SNAKE_CASE) parity table covering STEP/Rust
+    /// identifiers, acronyms, digits, separators, and mixed-case inputs.
+    const PARITY: &[(&str, &str, &str)] = &[
+        ("", "", ""),
+        ("a", "A", "A"),
+        ("foo", "Foo", "FOO"),
+        ("fooBar", "FooBar", "FOO_BAR"),
+        ("FooBar", "FooBar", "FOO_BAR"),
+        ("FOO_BAR", "FooBar", "FOO_BAR"),
+        ("foo_bar", "FooBar", "FOO_BAR"),
+        ("foo-bar", "FooBar", "FOO_BAR"),
+        ("Foo-Bar", "FooBar", "FOO_BAR"),
+        ("Foo Bar", "FooBar", "FOO_BAR"),
+        ("Foo bar", "FooBar", "FOO_BAR"),
+        ("fooBar3", "FooBar3", "FOO_BAR_3"),
+        ("FooBar3", "FooBar3", "FOO_BAR_3"),
+        ("HTTPServer", "Httpserver", "HTTP_SERVER"),
+        ("HttpFooBar", "HttpFooBar", "HTTP_FOO_BAR"),
+        ("CartesianPoint", "CartesianPoint", "CARTESIAN_POINT"),
+        ("cartesian_point", "CartesianPoint", "CARTESIAN_POINT"),
+        ("AdvancedBrep", "AdvancedBrep", "ADVANCED_BREP"),
+        ("advanced_brep_shape", "AdvancedBrepShape", "ADVANCED_BREP_SHAPE"),
+        ("my_entity", "MyEntity", "MY_ENTITY"),
+        ("edge_curve", "EdgeCurve", "EDGE_CURVE"),
+        ("a_b_c", "ABC", "A_B_C"),
+        ("foo  bar", "FooBar", "FOO_BAR"),
+        (" foo_bar ", "FooBar", "FOO_BAR"),
+        ("foo_bar_", "FooBar", "FOO_BAR"),
+        ("_foo_bar", "FooBar", "FOO_BAR"),
+        ("-foo-bar-", "FooBar", "FOO_BAR"),
+        ("Robert C. Martin", "RobertCMartin", "ROBERT_C_MARTIN"),
+        ("has a + sign", "HasASign", "HAS_A_SIGN"),
+        ("foo123Bar", "Foo123Bar", "FOO_123_BAR"),
+        ("FOO123_BAR", "Foo123Bar", "FOO123_BAR"),
+        ("a1B2c3", "A1B2C3", "A_1B_2C_3"),
+        ("personID", "PersonID", "PERSON_ID"),
+        ("PERSON_ID", "PersonId", "PERSON_ID"),
+        ("MeasureValue", "MeasureValue", "MEASURE_VALUE"),
+        (".T.", "T", "T"),
+        ("TRUE", "True", "TRUE"),
+        ("T", "T", "T"),
     ];
 
-    #[cfg(feature = "heavyweight")]
-    benchmarks![
-        benchmark_str_to_class => to_class_case => "foo",
-        benchmark_str_is_class => is_class_case => "Foo",
-        benchmark_str_to_table => to_table_case => "fooBar",
-        benchmark_str_is_table => is_table_case => "foo_bars",
-        benchmark_str_pluralize => to_plural => "crate",
-        benchmark_str_singular => to_singular => "crates",
-        benchmark_string_to_class => to_class_case => "foo".to_string(),
-        benchmark_string_is_class => is_class_case => "Foo".to_string(),
-        benchmark_string_to_table => to_table_case => "fooBar".to_string(),
-        benchmark_string_is_table => is_table_case => "foo_bars".to_string(),
-        benchmark_string_pluralize => to_plural => "crate".to_string(),
-        benchmark_string_singular => to_singular => "crates".to_string(),
-        benchmark_string_demodulize => demodulize => "Foo::Bar".to_string(),
-        benchmark_string_deconstantize => deconstantize => "Foo::Bar".to_string(),
-        benchmark_str_demodulize => demodulize => "Foo::Bar",
-        benchmark_str_deconstantize => deconstantize => "Foo::Bar"
-    ];
+    #[test]
+    fn case_conversions_match_upstream() {
+        for (input, pascal, screaming) in PARITY {
+            assert_eq!(pascalcase::to_pascal_case(input), *pascal, "{input:?}");
+            assert_eq!(
+                screamingsnakecase::to_screaming_snake_case(input),
+                *screaming,
+                "{input:?}"
+            );
+            assert_eq!(input.to_pascal_case(), *pascal, "trait {input:?}");
+            assert_eq!(
+                input.to_screaming_snake_case(),
+                *screaming,
+                "trait {input:?}"
+            );
+            assert_eq!(
+                (*input).to_string().to_pascal_case(),
+                *pascal,
+                "String {input:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn predicates_match_conversions() {
+        assert!("FooBar".is_pascal_case());
+        assert!(!"fooBar".is_pascal_case());
+        assert!(!"FOO_BAR".is_pascal_case());
+        assert!("FOO_BAR".is_screaming_snake_case());
+        assert!(!"FooBar".is_screaming_snake_case());
+        assert!(!"foo_bar".is_screaming_snake_case());
+    }
 }

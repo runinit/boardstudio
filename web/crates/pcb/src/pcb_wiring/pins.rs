@@ -4,12 +4,12 @@ use super::PcbWiringResolution;
 use super::PcbWiringSource;
 use super::mode::BoardWiringModeIdentity;
 #[cfg(target_arch = "wasm32")]
-use super::mode::{BoardWiringFailure, current_wiring_edit, mode_identity, wiring_editable};
-use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
+use super::mode::use_board_wiring_edit;
+use boardstudio_application::EditResolver;
 use boardstudio_core_mechanical::electrical::{ElectricalMode, ElectricalPlan};
-use boardstudio_model::model::{EditOperation, ProjectDoc};
+use boardstudio_model::model::ProjectDoc;
 #[cfg(target_arch = "wasm32")]
-use boardstudio_web_ui_model::editor::{EditGuard, use_guarded_edit};
+use boardstudio_web_ui_model::editor::EditGuard;
 use dioxus::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -66,43 +66,23 @@ pub fn use_pcb_wiring_pin_edits(
     source: Option<PcbWiringSource>,
     resolution: Signal<PcbWiringResolution>,
 ) -> PcbWiringPinActions {
-    let failure = use_signal(|| None::<BoardWiringFailure>);
-    let mut feedback = failure;
-    let on_change = use_guarded_edit(guard, move |runtime, request: PcbWiringPinEditRequest| {
-        let resolution = resolution.read();
-        let Some((snapshot, plan)) = current_wiring_edit(
-            runtime,
-            &request.identity,
-            (guard.editor.scope_generation)(),
-            &resolution,
-        ) else {
-            return;
-        };
-        if !pin_edit_is_available(
-            &snapshot.document,
-            plan,
-            &request.identity.plan.scope.board_id,
-            &request.assignment_id,
-            request.pin.as_deref(),
-        ) {
-            return;
-        }
-        let target = request.identity.feedback_target();
-        let result = runtime.commit("pcb-wiring-pins", pins_resolver(request));
-        feedback.set(
-            result
-                .err()
-                .map(|message| BoardWiringFailure { target, message }),
-        );
-    });
-    let identity = source.as_ref().map(mode_identity);
-    let editable = wiring_editable(guard, identity.as_ref(), resolution);
-    let target = identity
-        .as_ref()
-        .map(BoardWiringModeIdentity::feedback_target);
-    let failure = failure()
-        .filter(|failure| target.as_ref() == Some(&failure.target))
-        .map(|failure| failure.message);
+    let (identity, editable, failure, on_change) = use_board_wiring_edit(
+        guard,
+        &source,
+        resolution,
+        "pcb-wiring-pins",
+        |snapshot, plan, request: PcbWiringPinEditRequest| {
+            pin_edit_is_available(
+                &snapshot.document,
+                plan,
+                &request.identity.plan.scope.board_id,
+                &request.assignment_id,
+                request.pin.as_deref(),
+            )
+            .then(|| pins_resolver(request))
+        },
+        |request: &PcbWiringPinEditRequest| request.identity.clone(),
+    );
     PcbWiringPinActions {
         identity,
         editable,
@@ -112,15 +92,10 @@ pub fn use_pcb_wiring_pin_edits(
 }
 
 fn pins_resolver(request: PcbWiringPinEditRequest) -> EditResolver {
-    EditResolver::new("pcb-wiring-pins", move |accepted: &AcceptedSnapshot| {
+    super::mode::replace_document_resolver("pcb-wiring-pins", move |accepted, replacement| {
         let board_id = &request.identity.plan.scope.board_id;
-        if !accepted
-            .document
-            .boards
-            .iter()
-            .any(|board| &board.id == board_id)
-        {
-            return Resolution::Retire("The board was deleted.".into());
+        if !replacement.boards.iter().any(|board| &board.id == board_id) {
+            return Err("The board was deleted.".into());
         }
         let boardstudio_model::model::CoreRequest::ResolveElectrical {
             request: electrical_request,
@@ -141,37 +116,30 @@ fn pins_resolver(request: PcbWiringPinEditRequest) -> EditResolver {
             &request.assignment_id,
             request.pin.as_deref(),
         ) {
-            if request.pin.is_none()
+            // Clearing a lock that no longer exists is already the desired state:
+            // leave the document untouched and the resolver resolves Unchanged.
+            let lock_gone = request.pin.is_none()
                 && !accepted.document.hardware.as_ref().is_some_and(|hardware| {
                     hardware.boards.iter().any(|board| {
                         &board.board_id == board_id
                             && board.locks.contains_key(&request.assignment_id)
                     })
-                })
-            {
-                return Resolution::Unchanged;
-            }
-            return Resolution::Retire(
-                "The assignment or selected pin is no longer available on this board.".into(),
-            );
+                });
+            return if lock_gone {
+                Ok(Vec::new())
+            } else {
+                Err("The assignment or selected pin is no longer available on this board.".into())
+            };
         }
-        let Some(proposal) = propose_pin_lock(
+        if let Some(proposal) = propose_pin_lock(
             &accepted.document,
             board_id,
             &request.assignment_id,
             request.pin.as_deref(),
-        ) else {
-            return Resolution::Unchanged;
-        };
-        if proposal == *accepted.document {
-            return Resolution::Unchanged;
+        ) {
+            *replacement = proposal;
         }
-        Resolution::submit(
-            vec![board_id.clone()],
-            EditOperation::ReplaceDocument {
-                document: Box::new(proposal),
-            },
-        )
+        Ok(vec![board_id.clone()])
     })
 }
 

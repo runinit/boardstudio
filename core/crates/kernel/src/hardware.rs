@@ -36,7 +36,6 @@ pub fn nominal_fit(
             // Ticket 12: hardware volumes follow the evaluated board pose of
             // half-frame parts.
             let pose = crate::matrix::layout::evaluated_part_pose(document, part);
-            let (sin, cos) = pose.rotation.to_radians().sin_cos();
             for volume in profile.clearance_volumes.iter().flatten() {
                 if volume.points.len() < 3
                     || !volume.z.is_finite()
@@ -54,15 +53,7 @@ pub fn nominal_fit(
                         .points
                         .iter()
                         .map(|point| {
-                            let x = if part.side == Side::Back {
-                                -point.x
-                            } else {
-                                point.x
-                            };
-                            Vec2 {
-                                x: pose.at.x + x * cos - point.y * sin,
-                                y: pose.at.y + x * sin + point.y * cos,
-                            }
+                            crate::geometry::part_to_world(*point, &pose, part.side.clone())
                         })
                         .collect(),
                     z: if surface && part.side == Side::Back {

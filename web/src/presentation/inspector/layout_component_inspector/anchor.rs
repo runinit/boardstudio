@@ -19,7 +19,6 @@ pub(super) fn use_anchor_controls(
             })
             .unwrap_or_default()
     });
-    let pick_matrix_choice = use_memo(move || Some(pick_matrix()));
     let mut pick_row = use_signal(|| {
         projection
             .anchor
@@ -96,6 +95,24 @@ pub(super) fn use_anchor_controls(
         })
     };
     let anchor_follow = projection.anchor.as_ref().map(|anchor| anchor.follow);
+    // Ticket 13: one shared applier for the Follow X/Y/Rotation toggles.
+    let apply_follow = {
+        let commit = commit_anchor_follow.clone();
+        move |axis: u8, next: CheckboxState| {
+            let mut follow = anchor_follow.unwrap_or(Follow {
+                x: true,
+                y: true,
+                rotation: true,
+            });
+            let checked = next == CheckboxState::Checked;
+            match axis {
+                0 => follow.x = checked,
+                1 => follow.y = checked,
+                _ => follow.rotation = checked,
+            }
+            commit(follow);
+        }
+    };
     let anchor_follow_text = projection.anchor.as_ref().map(|anchor| {
         let mut parts = Vec::new();
         if anchor.follow.x {
@@ -229,18 +246,8 @@ pub(super) fn use_anchor_controls(
                         disabled: anchor_locked,
                         checked: if anchor_follow.is_some_and(|follow| follow.x) { CheckboxState::Checked } else { CheckboxState::Unchecked },
                         on_checked_change: {
-                            let commit = commit_anchor_follow.clone();
-                            let previous = anchor_follow
-                                .unwrap_or(Follow {
-                                    x: true,
-                                    y: true,
-                                    rotation: true,
-                                });
-                            move |next| commit(Follow {
-                                x: next == CheckboxState::Checked,
-                                y: previous.y,
-                                rotation: previous.rotation,
-                            })
+                            let apply = apply_follow.clone();
+                            move |next| apply(0, next)
                         },
                     }
                     CheckboxField {
@@ -251,18 +258,8 @@ pub(super) fn use_anchor_controls(
                         disabled: anchor_locked,
                         checked: if anchor_follow.is_some_and(|follow| follow.y) { CheckboxState::Checked } else { CheckboxState::Unchecked },
                         on_checked_change: {
-                            let commit = commit_anchor_follow.clone();
-                            let previous = anchor_follow
-                                .unwrap_or(Follow {
-                                    x: true,
-                                    y: true,
-                                    rotation: true,
-                                });
-                            move |next| commit(Follow {
-                                x: previous.x,
-                                y: next == CheckboxState::Checked,
-                                rotation: previous.rotation,
-                            })
+                            let apply = apply_follow.clone();
+                            move |next| apply(1, next)
                         },
                     }
                     CheckboxField {
@@ -273,18 +270,8 @@ pub(super) fn use_anchor_controls(
                         disabled: anchor_locked,
                         checked: if anchor_follow.is_some_and(|follow| follow.rotation) { CheckboxState::Checked } else { CheckboxState::Unchecked },
                         on_checked_change: {
-                            let commit = commit_anchor_follow.clone();
-                            let previous = anchor_follow
-                                .unwrap_or(Follow {
-                                    x: true,
-                                    y: true,
-                                    rotation: true,
-                                });
-                            move |next| commit(Follow {
-                                x: previous.x,
-                                y: previous.y,
-                                rotation: next == CheckboxState::Checked,
-                            })
+                            let apply = apply_follow.clone();
+                            move |next| apply(2, next)
                         },
                     }
                 }
@@ -302,27 +289,18 @@ pub(super) fn use_anchor_controls(
                 p { "Detached · placed from the half origin." }
             }
             div { class: "grid grid-cols-2 gap-2",
-                Field {
-                    FieldLabel { html_for: "anchor-matrix", "Anchor matrix" }
-                    Select::<String> {
-                        id: "anchor-matrix",
-                        aria_label: "Anchor matrix",
-                        value: Some(pick_matrix_choice.into()),
-                        disabled: anchor_locked,
-                        on_value_change: move |choice: Option<String>| {
-                            if let Some(choice) = choice {
-                                pick_matrix.set(choice);
-                            }
-                        },
-                        for (index, choice) in projection.anchor_choices.iter().enumerate() {
-                            SelectOption::<String> {
-                                index,
-                                value: choice.matrix_id.clone(),
-                                text_value: choice.matrix_name.clone(),
-                                "{choice.matrix_name}"
-                            }
-                        }
-                    }
+                SelectField::<String> {
+                    id: "anchor-matrix",
+                    label: "Anchor matrix",
+                    aria_label: "Anchor matrix",
+                    value: pick_matrix(),
+                    disabled: anchor_locked,
+                    options: projection
+                        .anchor_choices
+                        .iter()
+                        .map(|choice| (choice.matrix_id.clone(), choice.matrix_name.clone()))
+                        .collect(),
+                    on_commit: move |choice: String| pick_matrix.set(choice),
                 }
                 NumericField {
                     id: "anchor-row",

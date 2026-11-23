@@ -1,4 +1,5 @@
 //! Read-only, source-backed 2D preview for the selected Parts definition.
+use super::super::shared_viewer::ViewportSource;
 use super::{GeneratorPreviewDraft, GeneratorPreviewStatus};
 use crate::footprint_graphics::Shape;
 use crate::presentation::footprint_graphics::{self, GraphicElement};
@@ -430,19 +431,11 @@ fn PartsSampleViewer(
                 }
             }
             super::super::shared_viewer::Viewport3D {
-                toolbar_leading: Some(view_controls),
-                scene: None,
-                preview: None,
-                layout_preview: None,
-                keycaps_preview: None,
-                parts_preview: Some(preview.clone()),
-                model_rows: None,
-                selected_layer: "pcb".to_owned(),
+                source: ViewportSource::Parts(preview.clone(), Some(view_controls)),
                 display: display(),
                 resolved_theme: theme().to_owned(),
                 on_signal,
                 on_display_change,
-                mechanical_settings: None,
             }
         }
     }

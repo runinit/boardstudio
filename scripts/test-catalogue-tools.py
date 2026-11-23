@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import importlib.util
 from pathlib import Path
 import sys
 import unittest
@@ -12,14 +11,6 @@ HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 
 import catalogue_json  # noqa: E402
-from kicad_forms import child, parse_forms, value  # noqa: E402
-
-
-def load(name: str, file: str):
-    spec = importlib.util.spec_from_file_location(name, HERE / file)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 
@@ -42,19 +33,6 @@ class CatalogueJsonTests(unittest.TestCase):
         self.assertEqual(catalogue_json.dumps({"a": [1, 2.0, {"b": None}], "c": {}, "d": [], "é": True}),
                          '{\n  "a": [\n    1,\n    2,\n    {\n      "b": null\n    }\n  ],\n  "c": {},\n  "d": [],\n  "é": true\n}')
 
-
-class KicadFormsTests(unittest.TestCase):
-    def test_parses_nested_forms_and_distinguishes_quoted_strings(self):
-        forms = parse_forms('(a (b "x\\"y" 1.5) c) (d)')
-        self.assertEqual(len(forms), 2)
-        self.assertEqual(value(child(forms[0], "b")[1]), 'x"y')
-        self.assertEqual(child(forms[0], "b")[2], "1.5")
-        self.assertNotEqual(child(forms[0], "b")[1], 'x"y')
-
-    def test_rejects_unbalanced_and_bare_atoms(self):
-        for source in ("(a", ")", "atom"):
-            with self.assertRaises(ValueError):
-                parse_forms(source)
 
 
 

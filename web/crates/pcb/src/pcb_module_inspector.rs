@@ -1,15 +1,13 @@
 //! Private editor for the placement of one accepted mounted-module instance.
 //! Module source definitions and their footprint/circuit ownership remain untouched.
 use crate::runtime::Runtime;
-use boardstudio_application::{
-    AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
-};
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope};
 use boardstudio_model::model::{
     EditOperation, ModuleAttachment, ModuleConnection, ModuleSupport, MountedModule,
     PartDefinition, Side, VikRole, VikSignal,
 };
 use boardstudio_web_ui_shared::inspector_fields::{
-    NumericField, SelectField, TextCommitField, ToggleField,
+    InspectorSection, NumericField, SelectField, TOUCH_CLS, TextCommitField, ToggleField,
 };
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
@@ -38,10 +36,10 @@ pub struct InspectorInput {
 #[derive(Clone, Default)]
 struct SupportDraft {
     mount_id: String,
-    outer_diameter: String,
-    hole_diameter: String,
-    z: String,
-    height: String,
+    outer_diameter: Option<f64>,
+    hole_diameter: Option<f64>,
+    z: Option<f64>,
+    height: Option<f64>,
 }
 
 #[derive(Clone)]
@@ -440,7 +438,7 @@ fn PcbMountedModuleInspector(
                 for (index, support) in draft().mount_supports.iter().enumerate() {
                     div { key: "{support.mount_id}", class: "flex items-center justify-between gap-2 py-1.5 border-b border-border text-foreground text-xs [&_button]:flex-none",
                         span { "{support.mount_id} · OD {support.outer_diameter} / ID {support.hole_diameter} · Z {support.z} · height {support.height} mm" }
-                        Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !editable, aria_label: "Remove support {support.mount_id}", onclick: move |_| {
+                        Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS, disabled: !editable, aria_label: "Remove support {support.mount_id}", onclick: move |_| {
                             edit_module_draft(draft, draft_dirty, |value| { value.mount_supports.remove(index); });
                         }, "Remove" }
                     }
@@ -463,45 +461,40 @@ fn PcbMountedModuleInspector(
                 }
                 div { class: "grid grid-cols-2 gap-2",
                     for (label, aria, value, field) in [
-                        ("Outer diameter (mm)", "Support outer diameter", support_draft().outer_diameter.clone(), 0u8),
-                        ("Hole diameter (mm)", "Support hole diameter", support_draft().hole_diameter.clone(), 1u8),
-                        ("Z from midplane (mm)", "Support Z from midplane", support_draft().z.clone(), 2u8),
-                        ("Ring height (mm)", "Support ring height", support_draft().height.clone(), 3u8),
+                        ("Outer diameter (mm)", "Support outer diameter", support_draft().outer_diameter, 0u8),
+                        ("Hole diameter (mm)", "Support hole diameter", support_draft().hole_diameter, 1u8),
+                        ("Z from midplane (mm)", "Support Z from midplane", support_draft().z, 2u8),
+                        ("Ring height (mm)", "Support ring height", support_draft().height, 3u8),
                     ] {
                         NumericField { key: "{label}", label, aria_label: aria, step: Some(0.1),
-                            value: value.parse::<f64>().unwrap_or_default(), mixed: value.is_empty(),
+                            value: value.unwrap_or_default(), mixed: value.is_none(),
                             placeholder: "Enter a dimension",
                             disabled_reason: (!editable).then(|| "Module is read-only".to_owned()),
                             on_commit: move |number: f64| {
-                                let text = number.to_string();
                                 support_draft.with_mut(|draft| match field {
-                                    0 => draft.outer_diameter = text,
-                                    1 => draft.hole_diameter = text,
-                                    2 => draft.z = text,
-                                    _ => draft.height = text,
+                                    0 => draft.outer_diameter = Some(number),
+                                    1 => draft.hole_diameter = Some(number),
+                                    2 => draft.z = Some(number),
+                                    _ => draft.height = Some(number),
                                 });
                             },
                         }
                     }
                 }
-                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !editable || !has_source_mounts, onclick: move |_| {
+                Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS, disabled: !editable || !has_source_mounts, onclick: move |_| {
                     let fields = support_draft().clone();
                     let source_mount = add_source_mounts.iter().find(|mount| mount.source_id == fields.mount_id);
                     let Some(mount) = source_mount else {
                         feedback.set("Choose a source mounting hole before adding a support.".into());
                         return;
                     };
-                    let parsed = [fields.outer_diameter.as_str(), fields.hole_diameter.as_str(), fields.z.as_str(), fields.height.as_str()]
-                        .map(str::parse::<f64>);
-                    let [Ok(outer_diameter), Ok(hole_diameter), Ok(z), Ok(height)] = parsed else {
+                    let (Some(outer_diameter), Some(hole_diameter), Some(z), Some(height)) =
+                        (fields.outer_diameter, fields.hole_diameter, fields.z, fields.height)
+                    else {
                         feedback.set("Enter finite support dimensions before adding a support.".into());
                         return;
                     };
                     if ![outer_diameter, hole_diameter, z, height].iter().all(|number| number.is_finite())
-                        || fields.outer_diameter.trim().is_empty()
-                        || fields.hole_diameter.trim().is_empty()
-                        || fields.z.trim().is_empty()
-                        || fields.height.trim().is_empty()
                         || outer_diameter <= hole_diameter
                         || hole_diameter < mount.diameter
                         || height <= 0.0
@@ -529,8 +522,7 @@ fn PcbMountedModuleInspector(
                 disabled_reason: (!editable).then(|| "Module is read-only".to_owned()),
                 on_commit: move |checked| edit_module_draft(draft, draft_dirty, |value| value.detached = checked)
             }
-            section { "aria-label": "VIK connection",
-                h3 { "VIK connection" }
+            InspectorSection { title: "VIK connection",
                 ToggleField { label: "Assign host connection",
                     checked: draft().connection.is_some(),
                     disabled_reason: (!editable).then(|| "Module is read-only".to_owned()),
@@ -645,8 +637,7 @@ fn PcbMountedModuleInspector(
                 }
             }
             if definition.circuit.is_some() {
-                section { "aria-label": "Use circuit on PCB",
-                    h3 { "Use circuit on PCB" }
+                InspectorSection { title: "Use circuit on PCB",
                     p { "Creates an independent, editable copy. Choose host nets for explicit joins; other nets remain local to this copy." }
                     for port in circuit_nets.clone() {
                         SelectField::<String> { key: "{port}", label: format!("{} joins", port.to_uppercase()),
@@ -662,13 +653,13 @@ fn PcbMountedModuleInspector(
                                 options: std::iter::once((String::new(), "Separate local net".into())).chain(host_nets.iter().map(|(id, name)| (id.clone(), name.clone()))).collect(),
                         }
                     }
-                    Button { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !editable, onclick: embed, "Copy circuit to PCB" }
+                    Button { class: TOUCH_CLS, disabled: !editable, onclick: embed, "Copy circuit to PCB" }
                     for circuit in &embedded_circuits {
                         div { key: "{circuit.id}",
                             span {
                                 "{circuit.part_ids.len()} components · {circuit.id.rsplit('/').next().unwrap_or(&circuit.id)}"
                             }
-                            Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", aria_label: "Remove copy {circuit.id}",
+                            Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS, aria_label: "Remove copy {circuit.id}",
                                 disabled: !editable,
                                 onclick: {
                                     let circuit_id = circuit.id.clone();
@@ -684,14 +675,13 @@ fn PcbMountedModuleInspector(
                     }
                 }
             }
-            section { "aria-label": "Individual components",
-                h3 { "Individual components" }
+            InspectorSection { title: "Individual components",
                 p { "Place available source footprints independently. Component heights and assembly completeness need separate review." }
                 if definition.circuit.is_some() {
                     for constituent in constituent_actions.clone() {
                         div { key: "{constituent.reference}-{constituent.index}",
                             div { strong { "{constituent.reference} · {constituent.name}" } small { if constituent.purchased { "Purchased assembly · footprint and external contacts only" } else { "{constituent.footprint}" } } }
-                            Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !editable || constituent.source_definition.is_none(), aria_label: "Place {constituent.reference}", onclick: move |_| {
+                            Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS, disabled: !editable || constituent.source_definition.is_none(), aria_label: "Place {constituent.reference}", onclick: move |_| {
                                 if let Some(definition) = constituent.source_definition.clone() {
                                     on_place_component.call(super::part_placement::ComponentPlacementAction::AddSourceObject {
                                         module_definition_id: constituent.module_definition_id.clone(),
@@ -706,8 +696,8 @@ fn PcbMountedModuleInspector(
                 }
             }
             div { class: "flex flex-wrap gap-2 mt-1",
-                Button { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !editable || preparing() || draft().connection.as_ref().is_some_and(|connection| connection.host_connector_part_id.is_empty()), onclick: save, "Save placement" }
-                Button { variant: ButtonVariant::Destructive, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !editable, onclick: remove, "Remove module" }
+                Button { class: TOUCH_CLS, disabled: !editable || preparing() || draft().connection.as_ref().is_some_and(|connection| connection.host_connector_part_id.is_empty()), onclick: save, "Save placement" }
+                Button { variant: ButtonVariant::Destructive, class: TOUCH_CLS, disabled: !editable, onclick: remove, "Remove module" }
             }
             if !feedback().is_empty() {
                 Alert { variant: AlertVariant::Destructive, "{feedback()}" }
@@ -765,18 +755,7 @@ fn mounted_owner_current(
     if !mounted_selection_current(runtime, selected_context, scope, module_id) {
         return None;
     }
-    let model = runtime.model();
-    if model.lifecycle != Lifecycle::Ready
-        || !matches!(
-            model.durability,
-            Durability::Saved { .. } | Durability::Saving { .. }
-        )
-        || model.display_preview.is_some()
-        || model.gesture.is_some()
-    {
-        return None;
-    }
-    let snapshot = model.accepted?;
+    let snapshot = crate::pcb_wiring::ready_snapshot(runtime)?;
     (snapshot.token == token
         && snapshot.document.revision == revision
         && snapshot.document.id == scope.document_id

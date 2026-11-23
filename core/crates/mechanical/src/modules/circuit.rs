@@ -137,7 +137,6 @@ pub fn embed(
         .filter(|part| board.part_ids.contains(&part.id))
         .map(|part| part.reference.clone())
         .collect();
-    let (sin, cos) = pose.rotation.to_radians().sin_cos();
     for def in &circuit.definitions {
         let mut def = def.clone();
         def.id = definitions[&def.id].clone();
@@ -155,16 +154,8 @@ pub fn embed(
             "moduleSourceReference".into(),
             serde_json::Value::String(member.reference.clone()),
         );
-        let x = if side == Side::Back {
-            -member.pose.at.x
-        } else {
-            member.pose.at.x
-        };
         part.pose = Pose2 {
-            at: Vec2 {
-                x: pose.at.x + x * cos - member.pose.at.y * sin,
-                y: pose.at.y + x * sin + member.pose.at.y * cos,
-            },
+            at: crate::geometry::part_to_world(member.pose.at, &pose, side.clone()),
             rotation: pose.rotation
                 + if side == Side::Back {
                     -member.pose.rotation

@@ -5,9 +5,9 @@
 //! request after status notifications.
 use boardstudio_application::AcceptedSnapshot;
 use boardstudio_application::{GenerationStatus, Scope, SnapshotToken};
+use boardstudio_core_kernel::hash::sha256_hex;
 use boardstudio_model::model::{ProjectDoc, SceneDelta};
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 #[cfg(any(test, target_arch = "wasm32"))]
 use std::rc::Rc;
@@ -225,7 +225,11 @@ fn case_fingerprint_for_inputs(
         "moduleDefinitions": document.module_definitions,
     });
     let bytes = serde_json::to_vec(&fingerprint).ok()?;
-    Some(Sha256::digest(bytes).into())
+    let hex = sha256_hex(&bytes);
+    // Keep the binary fingerprint used by CadScene and its callers.
+    Some(std::array::from_fn(|index| {
+        u8::from_str_radix(&hex[index * 2..index * 2 + 2], 16).expect("canonical SHA-256 hex")
+    }))
 }
 
 fn retain_fields(value: &mut Value, fields: &[&str]) {
@@ -556,6 +560,14 @@ mod tests {
             },
         };
         let original = case_fingerprint_for_inputs(&document, &scene(4), &scope).unwrap();
+        assert_eq!(
+            original,
+            [
+                0xeb, 0x47, 0xdd, 0x7a, 0x29, 0x94, 0x4a, 0x07, 0xe9, 0x9e, 0x8b, 0x9f, 0x5e, 0x31,
+                0xb2, 0x8a, 0xa3, 0xe3, 0x35, 0xb2, 0x95, 0x03, 0xfa, 0xd9, 0xf3, 0x4d, 0xd2, 0xad,
+                0x20, 0xf7, 0x8f, 0xbf,
+            ]
+        );
         document.revision = 5;
         document.name = "Renamed without physical change".into();
         let next_revision = case_fingerprint_for_inputs(&document, &scene(5), &scope).unwrap();

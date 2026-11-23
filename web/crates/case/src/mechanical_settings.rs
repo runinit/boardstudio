@@ -32,7 +32,8 @@ use boardstudio_core_mechanical::mechanical::{MechanicalEditDisposition, evaluat
 use boardstudio_model::model::{
     EditOperation, Finding, GasketPlacement, HardwareTransport, MechanicalBottomStyle,
     MechanicalConfiguration, MechanicalConstructionOwnership, MechanicalGasketAnchor,
-    MechanicalMount, Mount, MountKind, PartDefinition, PlateMethod, Severity,
+    MechanicalGasketSupport, MechanicalMount, Mount, MountKind, PartDefinition, PlateMethod,
+    Severity,
 };
 use boardstudio_web_host::cad_jobs::captured_case_document;
 use boardstudio_web_ui_model::Workspace;
@@ -94,31 +95,50 @@ pub struct MechanicalSettingsFeedback {
 /// One gasket support the shared viewer selects and the inspector resizes or unlinks.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MechanicalGasketSupportRow {
-    pub id: String,
-    pub region_id: String,
-    pub outline_key: String,
-    pub anchor: f64,
-    pub pair_id: Option<String>,
-    pub length: f64,
-    pub width: f64,
-    pub unlinked: bool,
-    pub fit_error: Option<String>,
+    support: MechanicalGasketSupport,
     pub is_previous: bool,
+}
+
+impl std::ops::Deref for MechanicalGasketSupportRow {
+    type Target = MechanicalGasketSupport;
+
+    fn deref(&self) -> &Self::Target {
+        &self.support
+    }
 }
 
 impl MechanicalGasketSupportRow {
     pub fn saved_anchor(&self) -> MechanicalGasketAnchor {
-        MechanicalGasketAnchor {
-            id: self.id.clone(),
-            region_id: self.region_id.clone(),
-            outline_key: self.outline_key.clone(),
-            anchor: self.anchor,
-            length: Some(self.length),
-            width: Some(self.width),
-            placement: Some(GasketPlacement::User),
-            unlinked: self.unlinked,
-        }
+        gasket_anchor(self)
     }
+}
+
+pub(crate) fn gasket_anchor(support: &MechanicalGasketSupport) -> MechanicalGasketAnchor {
+    MechanicalGasketAnchor {
+        id: support.id.clone(),
+        region_id: support.region_id.clone(),
+        outline_key: support.outline_key.clone(),
+        anchor: support.anchor,
+        length: Some(support.length),
+        width: Some(support.width),
+        placement: Some(GasketPlacement::User),
+        unlinked: support.unlinked,
+    }
+}
+
+pub(crate) fn gasket_support_id(layer: &str) -> Option<&str> {
+    let (id, side) = layer.strip_prefix("gasket:")?.rsplit_once(':')?;
+    matches!(side, "lower" | "upper").then_some(id)
+}
+
+pub(crate) fn gasket_group<T>(supports: &[T]) -> Option<&'static str> {
+    (!supports.is_empty()).then_some("gaskets")
+}
+
+pub(crate) fn is_gasket_layer<T>(layer: &str, supports: &[T], id: impl Fn(&T) -> &str) -> bool {
+    gasket_group(supports) == Some(layer)
+        || gasket_support_id(layer)
+            .is_some_and(|key| supports.iter().any(|support| id(support) == key))
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -495,24 +515,13 @@ pub fn use_mechanical_settings(
             .map(|config| accepted.document.boards.iter().find(|board| board.id == config.board_id).map_or_else(|| config.board_id.clone(), |board| board.name.clone()));
         let supports = current_assembly.as_deref().or(display_assembly.as_ref()).into_iter().flat_map(|assembly| assembly.gasket_supports.iter());
         let supports_previous = current_assembly.is_none() && previous_geometry;
-        let gasket_supports: Vec<_> = supports
-            .map(|support| MechanicalGasketSupportRow {
-                id: support.id.clone(),
-                region_id: support.region_id.clone(),
-                outline_key: support.outline_key.clone(),
-                anchor: support.anchor,
-                pair_id: support.pair_id.clone(),
-                length: support.length,
-                width: support.width,
-                unlinked: support.unlinked,
-                fit_error: support.fit_error.clone(),
-                is_previous: supports_previous,
-            })
-            .collect();
+        let gasket_supports: Vec<_> = supports.cloned().map(|support| MechanicalGasketSupportRow {
+            support,
+            is_previous: supports_previous,
+        }).collect();
         let mut selected_layer = case_selection.layer_id(&scope);
         let selectable = rows.layers.iter().any(|layer| layer.id == selected_layer)
-            || gasket_supports.iter().any(|support| selected_layer == format!("gasket:{}:lower", support.id) || selected_layer == format!("gasket:{}:upper", support.id))
-            || (selected_layer == "gaskets" && !gasket_supports.is_empty());
+            || is_gasket_layer(&selected_layer, &gasket_supports, |support| &support.id);
         if !selectable {
             selected_layer.clear();
         }
@@ -681,15 +690,9 @@ impl Sender {
         }
     }
 
-    fn submit(mut self, field_id: String, edit: MechanicalSettingsEdit) {
-        let id = self.sequence.peek().saturating_add(1);
-        self.sequence.set(id);
-        self.on_request.call(MechanicalSettingsRequest {
-            identity: self.identity.peek().clone(),
-            request_id: id,
-            field_id,
-            edit,
-        });
+    fn submit(self, field_id: String, edit: MechanicalSettingsEdit) {
+        let identity = self.identity.peek().clone();
+        submit_settings_request(&identity, self.sequence, self.on_request, field_id, edit);
     }
 
     pub(crate) fn instance_id(self) -> String {
@@ -700,6 +703,40 @@ impl Sender {
             .clone()
             .unwrap_or_default()
     }
+}
+
+pub(crate) fn submit_settings_patch(
+    settings: &MechanicalSettingsProps,
+    patch: MechanicalSettingsPatch,
+) -> bool {
+    settings.editable
+        && submit_settings_request(
+            &settings.identity,
+            settings.request_sequence,
+            settings.on_request,
+            patch.field_id(),
+            MechanicalSettingsEdit::Change(patch),
+        )
+}
+
+fn submit_settings_request(
+    identity: &MechanicalSettingsIdentity,
+    mut sequence: Signal<u64>,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+    field_id: String,
+    edit: MechanicalSettingsEdit,
+) -> bool {
+    let Some(request_id) = sequence.peek().checked_add(1) else {
+        return false;
+    };
+    sequence.set(request_id);
+    on_request.call(MechanicalSettingsRequest {
+        identity: identity.clone(),
+        request_id,
+        field_id,
+        edit,
+    });
+    true
 }
 
 /// A numeric dimension field using the range Core accepts for `field`.
@@ -858,10 +895,12 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
     {
         return rsx! { ContextualLayerInspector { configuration: config.clone(), layer: layer.clone(), editable, banner, findings: props.findings.clone(), send, on_select_layer: props.on_select_layer, on_show_finding: props.on_show_finding } };
     }
-    if let Some(support) = props.gasket_supports.iter().find(|support| {
-        props.selected_layer == format!("gasket:{}:lower", support.id)
-            || props.selected_layer == format!("gasket:{}:upper", support.id)
-    }) {
+    if let Some(id) = gasket_support_id(&props.selected_layer)
+        && let Some(support) = props
+            .gasket_supports
+            .iter()
+            .find(|support| support.id == id)
+    {
         return rsx! { GasketSupportInspector { support: support.clone(), supports: props.gasket_supports.clone(), editable, banner, findings: props.findings.clone(), send, on_select_layer: props.on_select_layer, on_show_finding: props.on_show_finding } };
     }
 

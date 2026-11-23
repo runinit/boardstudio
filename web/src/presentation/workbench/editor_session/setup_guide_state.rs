@@ -4,13 +4,7 @@ use boardstudio_web_ui_model::Workspace;
 pub(super) struct GuideStateInput<'a> {
     pub active_workspace: Workspace,
     pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
-    pub render_scope: Scope,
-    pub snapshot: &'a AcceptedSnapshot,
-    pub render_generation: u64,
-    pub adapter: SelectionAdapter,
     pub runtime: Rc<Runtime>,
-    pub workspace: Signal<Workspace>,
-    pub selected_tree_context: Option<objects::ScopedTreeContext>,
     pub model: &'a ReadModel,
     pub visible: Vec<&'a Part>,
     pub scene: std::sync::Arc<boardstudio_core::model::SceneDelta>,
@@ -23,8 +17,7 @@ pub(super) struct GuideStateInput<'a> {
     pub resolution: pcb_wiring::PcbWiringResolution,
 }
 
-pub(super) struct GuideState<'a> {
-    pub selected_bridge: Option<&'a boardstudio_core::model::OutlineBridge>,
+pub(in crate::presentation) struct GuideState {
     pub active_part_position: Option<Vec2>,
     pub guide: Option<setup_guide::SetupGuidePreferences>,
     pub has_matrix: bool,
@@ -32,17 +25,11 @@ pub(super) struct GuideState<'a> {
     pub setup_wiring_error: Signal<Option<String>>,
 }
 
-pub(super) fn use_guide_state(input: GuideStateInput<'_>) -> GuideState<'_> {
+pub(super) fn use_guide_state(input: GuideStateInput<'_>) -> GuideState {
     let GuideStateInput {
         active_workspace,
         document,
-        render_scope,
-        snapshot,
-        render_generation,
-        adapter,
         runtime,
-        workspace,
-        selected_tree_context,
         model,
         visible,
         scene,
@@ -54,43 +41,6 @@ pub(super) fn use_guide_state(input: GuideStateInput<'_>) -> GuideState<'_> {
         mirrored_pair,
         resolution,
     } = input;
-    let _board_reference_editor = if matches!(active_workspace, Workspace::Layout | Workspace::Case)
-    {
-        let reference = document
-            .board_references
-            .iter()
-            .find(|reference| reference.board_id == render_scope.board_id)
-            .cloned();
-        let owner = LayoutOwnerIdentity {
-            scope: Some(render_scope.clone()),
-            token: Some(snapshot.token),
-            revision: Some(snapshot.document.revision),
-            generation: render_generation,
-            workspace: active_workspace,
-        };
-        let assets = document.assets.clone();
-        let editable = boardstudio_web_pcb::board_reference_owner::board_reference_owner_is_current(
-            &runtime, workspace, &adapter, &owner,
-        );
-        Some((reference, assets, editable, owner))
-    } else {
-        None
-    };
-    let selected_bridge = selected_tree_context.as_ref().and_then(|selected| {
-        let objects::TreeContext::Bridge {
-            board_id,
-            bridge_id,
-        } = &selected.context
-        else {
-            return None;
-        };
-        snapshot
-            .scene
-            .board_outline_scenes
-            .iter()
-            .find(|scene| scene.board_id == *board_id)
-            .and_then(|scene| scene.bridges.iter().find(|bridge| bridge.id == *bridge_id))
-    });
     let active_part_position = model.selected_part_ids.first().and_then(|selected_id| {
         visible
             .iter()
@@ -183,7 +133,6 @@ pub(super) fn use_guide_state(input: GuideStateInput<'_>) -> GuideState<'_> {
         }
     }));
     GuideState {
-        selected_bridge,
         active_part_position,
         guide,
         has_matrix,
@@ -209,19 +158,10 @@ pub(super) struct GuideOverlaysInput<'a> {
     pub scene: std::sync::Arc<boardstudio_core::model::SceneDelta>,
     pub model: &'a ReadModel,
     pub mirrored_pair: objects::MirroredPairMount,
-    pub tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
-    pub layout_owner: LayoutOwnerIdentity,
-    pub render_scope: Scope,
-    pub adapter: SelectionAdapter,
-    pub accepted_canvas_source: layout_canvas::SceneSource,
-    pub layout_snap_settings: Signal<objects::LayoutSnapSettings>,
-    pub outline_inspector: Option<outline_lifecycle::OutlineInspectorProjection>,
     pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
     pub has_matrix: bool,
     pub guide_preferences: Signal<Option<setup_guide::SetupGuidePreferences>>,
     pub workspace: Signal<Workspace>,
-    pub width: f64,
-    pub zoom_surface_size: Signal<(f64, f64)>,
 }
 
 pub(super) struct GuideOverlays {
@@ -229,11 +169,6 @@ pub(super) struct GuideOverlays {
     pub inline_case_basics: Option<Element>,
     pub inline_controller_picker: Option<Element>,
     pub show_empty_board: bool,
-    pub outline_pitch: Vec2,
-    pub outline_snap_origins: Rc<Vec<outline_snapping::Origin>>,
-    pub outline_snap_settings: objects::LayoutSnapSettings,
-    pub canvas_grid: objects::LayoutCanvasGridStyle,
-    pub outline_overlay_key: Option<String>,
 }
 
 pub(super) fn use_guide_overlays(input: GuideOverlaysInput<'_>) -> GuideOverlays {
@@ -254,19 +189,10 @@ pub(super) fn use_guide_overlays(input: GuideOverlaysInput<'_>) -> GuideOverlays
         scene,
         model,
         mirrored_pair,
-        tree_cell_anchor,
-        layout_owner,
-        render_scope,
-        adapter,
-        accepted_canvas_source,
-        layout_snap_settings,
-        outline_inspector,
         document,
         has_matrix,
         guide_preferences,
         workspace,
-        width,
-        zoom_surface_size,
     } = input;
     let matrix_count = matrices.len();
     let placing_matrix = matrix_placement.placement.is_some() || matrix_placement.busy;
@@ -356,43 +282,11 @@ pub(super) fn use_guide_overlays(input: GuideOverlaysInput<'_>) -> GuideOverlays
         && !part_placement.busy;
     let show_empty_board =
         show_empty_board && matrix_placement.placement.is_none() && !matrix_placement.busy;
-    let outline_pitch = {
-        let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &layout_owner);
-        matrix_snap_parameters(model, &render_scope, &adapter, retained.as_ref())
-            .0
-            .unwrap_or(Vec2 { x: 19.05, y: 19.05 })
-    };
-    let outline_snap_origins = use_memo(use_reactive((&accepted_canvas_source,), |(source,)| {
-        Rc::new(layout_canvas::snap_origins(
-            &source.document,
-            &source.board_id,
-            &source.scene,
-        ))
-    }))();
-    let outline_snap_settings = layout_snap_settings.read().clone();
-    let outline_grid_active = outline_inspector
-        .as_ref()
-        .is_some_and(|projection| (projection.editing_points)());
-    let canvas_grid = objects::layout_canvas_grid_style(
-        width,
-        zoom_surface_size().0,
-        outline_pitch.x,
-        outline_snap_settings.snap_fraction,
-        outline_grid_active,
-    );
-    let outline_overlay_key = outline_inspector
-        .as_ref()
-        .map(outline_lifecycle::OutlineInspectorProjection::canvas_edit_key);
     GuideOverlays {
         inline_matrix_setup,
         inline_case_basics,
         inline_controller_picker,
         show_empty_board,
-        outline_pitch,
-        outline_snap_origins,
-        outline_snap_settings,
-        canvas_grid,
-        outline_overlay_key,
     }
 }
 
@@ -544,135 +438,13 @@ pub(super) fn on_finish_guide_handler(
     })
 }
 
-pub(super) struct GuideReadinessInput<'a> {
-    pub guide: &'a Option<setup_guide::SetupGuidePreferences>,
-    pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
-    pub model: &'a ReadModel,
-    pub snapshot: &'a AcceptedSnapshot,
-    pub resolution: &'a pcb_wiring::PcbWiringResolution,
-    pub toolbar_input: Option<&'a layout_workspace::ToolbarInput>,
-    pub layout_assembly_3d: Signal<bool>,
-    pub visible: Vec<&'a Part>,
-    pub scene: std::sync::Arc<boardstudio_core::model::SceneDelta>,
-    pub svg: Rc<RefCell<Option<SvgElement>>>,
-    pub zoom_surface_size: Signal<(f64, f64)>,
-    pub width: f64,
-    pub height: f64,
-    pub view_x: f64,
-    pub active_workspace: Workspace,
-}
-
-pub(super) struct GuideReadiness {
-    pub guide_stage_readiness: [bool; 5],
-    pub guide_stage_detail: String,
-    pub canvas_transform_menu: Option<objects::LayoutTransformMenuMount>,
-    pub selection_geometry_anchor: Option<(f64, f64, f64)>,
-}
-
-pub(super) fn use_guide_readiness(input: GuideReadinessInput<'_>) -> GuideReadiness {
-    let GuideReadinessInput {
-        guide,
-        document,
-        model,
-        snapshot,
-        resolution,
-        toolbar_input,
-        layout_assembly_3d,
-        visible,
-        scene,
-        svg,
-        zoom_surface_size,
-        width,
-        height,
-        view_x,
-        active_workspace,
-    } = input;
-    let (guide_stage_readiness, guide_stage_detail) = guide
-        .as_ref()
-        .map(|preferences| {
-            let guide_statuses = setup_guide::stage_statuses(
-                &document,
-                &model.active_board_id,
-                &snapshot.scene,
-                match resolution {
-                    pcb_wiring::PcbWiringResolution::Current { identity, plan }
-                        if identity.scope.document_id == document.id
-                            && identity.scope.board_id == model.active_board_id
-                            && identity.scope.instance_id.is_none()
-                            && identity.token == snapshot.token
-                            && identity.revision == document.revision =>
-                    {
-                        Some(plan.as_ref())
-                    }
-                    _ => None,
-                },
-            );
-            let guide_stage_index = match preferences.current_stage {
-                SetupGuideStage::Project => 0,
-                SetupGuideStage::Layout => 1,
-                SetupGuideStage::Wiring => 2,
-                SetupGuideStage::Case => 3,
-                SetupGuideStage::Review => 4,
-            };
-            let guide_stage_detail = guide_statuses[guide_stage_index].detail.clone();
-            (
-                guide_statuses.map(|status| status.ready),
-                guide_stage_detail,
-            )
-        })
-        .unwrap_or_default();
-    let canvas_transform_menu = toolbar_input.map(|input| input.transform.clone());
-    let selection_geometry_anchor = (!layout_assembly_3d()
-        && active_workspace == Workspace::Layout)
-        .then(|| {
-            let points: Vec<_> = visible
-                .iter()
-                .filter(|part| model.selected_part_ids.contains(&part.id))
-                .map(|part| {
-                    scene
-                        .transforms
-                        .iter()
-                        .find(|t| t.id == part.id)
-                        .map_or(part.pose.at, |t| t.pose.at)
-                })
-                .collect();
-            if points.is_empty() {
-                return None;
-            }
-            let scale = svg.borrow().as_ref().map_or(1.0, |_surface| {
-                let (surface_width, surface_height) = zoom_surface_size();
-                (width / surface_width.max(1.0)).max(height / surface_height.max(1.0))
-            });
-            let x = (points.iter().map(|p| p.x).sum::<f64>() / points.len() as f64).clamp(
-                view_x + 60.0 * scale,
-                (view_x + width - 60.0 * scale).max(view_x + 60.0 * scale),
-            );
-            let y = points.iter().map(|p| p.y).fold(f64::INFINITY, f64::min) - 12.0 - 6.0 * scale;
-            Some((x, y, scale))
-        })
-        .flatten();
-    GuideReadiness {
-        guide_stage_readiness,
-        guide_stage_detail,
-        canvas_transform_menu,
-        selection_geometry_anchor,
-    }
-}
-
-pub(super) struct GuideNamed<'a> {
-    pub state: GuideState<'a>,
+pub(in crate::presentation) struct GuideNamed {
+    pub state: GuideState,
     pub show_empty_board: bool,
-    pub outline_pitch: Vec2,
-    pub outline_snap_origins: Rc<Vec<outline_snapping::Origin>>,
-    pub outline_snap_settings: objects::LayoutSnapSettings,
-    pub canvas_grid: objects::LayoutCanvasGridStyle,
-    pub outline_overlay_key: Option<String>,
     pub on_name_change: Callback<String>,
     pub on_name_commit: Callback<()>,
     pub full_case_settings: Signal<bool>,
     pub guide_stage_readiness: [bool; 5],
-    pub canvas_transform_menu: Option<objects::LayoutTransformMenuMount>,
-    pub selection_geometry_anchor: Option<(f64, f64, f64)>,
     pub name_value: String,
     pub inline_matrix_setup: Option<Element>,
     pub inline_case_basics: Option<Element>,
@@ -685,21 +457,18 @@ pub(super) struct GuideNamed<'a> {
 }
 
 pub(super) fn use_setup_guide<'a>(
+    shared_wiring: pcb_wiring::SharedPcbWiring,
     state: &'a super::session_state::SessionState<'a>,
     mechanical_settings: &mechanical_settings::MechanicalSettingsState,
     cam: &super::camera::CamNamed,
-    selected_tree_context: &Option<objects::ScopedTreeContext>,
-    toolbar_input: Option<&layout_workspace::ToolbarInput>,
     (visible, matrices): (&[&'a Part], &[&'a boardstudio_core::model::Matrix]),
     matrix_setup: &objects::MatrixSetupMount,
-) -> GuideNamed<'a> {
+) -> GuideNamed {
     let views = &state.views;
     let snapshot = state.snapshot;
-    let render_scope = state.render_scope;
     let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
     let active_workspace = state.active_workspace;
     let document = &views.document;
-    let render_generation = state.render_generation;
     let adapter = &state.adapter;
     let runtime = &editor.runtime();
     let workspace = editor.workspace;
@@ -711,19 +480,13 @@ pub(super) fn use_setup_guide<'a>(
     let guide_preferences = state.setup_state.guide_preferences();
     let mirrored_pair = &state.matrix_pair.mirrored_pair;
     let guide_wiring_active = guide_preferences().as_ref().is_some_and(|guide| guide.open);
-    let wiring =
-        pcb_wiring::use_pcb_wiring_preview(editor.runtime(), editor.version, guide_wiring_active);
-    let resolution = &wiring.resolution;
+    // Read the shared solve only while the guide is open; a disabled read
+    // never subscribes this session to wiring resolution changes.
+    let resolution = shared_wiring.current_resolution(&editor.runtime(), guide_wiring_active);
+    let resolution = &resolution;
     let current_scope = &state.view.current_scope;
     let parts_selection = state.view.parts_selection;
     let layout_assembly_3d = state.layout_state.assembly_3d();
-    let tree_cell_anchor = &state.tree_cell_anchor;
-    let layout_owner = &state.view.layout_owner;
-    let accepted_canvas_source = &cam.scene_bounds.accepted_canvas_source;
-    let layout_snap_settings = state.layout_state.snap_settings();
-    let outline_inspector = &state.view.outline_inspector;
-    let width = cam.scene_bounds.width;
-    let zoom_surface_size = cam.svg_surface.zoom_surface_size;
     let guide_name_draft = state.guide_name_edit.draft;
     let guide_name_edit = &state.guide_name_edit;
     let setup_state = state.setup_state;
@@ -732,11 +495,7 @@ pub(super) fn use_setup_guide<'a>(
     let inspect_open = editor.panels.inspector_open;
     let objects_panel_settings = state.objects_panel_settings;
     let inspector_panel_settings = state.inspector_panel_settings;
-    let svg = &cam.svg_surface.svg;
-    let height = cam.scene_bounds.height;
-    let view_x = cam.scene_bounds.view_x;
     let GuideState {
-        selected_bridge,
         active_part_position,
         guide,
         has_matrix,
@@ -745,13 +504,7 @@ pub(super) fn use_setup_guide<'a>(
     } = use_guide_state(GuideStateInput {
         active_workspace,
         document: document.clone(),
-        render_scope: render_scope.clone(),
-        snapshot,
-        render_generation,
-        adapter: adapter.clone(),
         runtime: runtime.clone(),
-        workspace,
-        selected_tree_context: selected_tree_context.clone(),
         model,
         visible: visible.to_vec(),
         scene: scene.clone(),
@@ -768,11 +521,6 @@ pub(super) fn use_setup_guide<'a>(
         inline_case_basics,
         inline_controller_picker,
         show_empty_board,
-        outline_pitch,
-        outline_snap_origins,
-        outline_snap_settings,
-        canvas_grid,
-        outline_overlay_key,
     } = use_guide_overlays(GuideOverlaysInput {
         guide: &guide,
         matrix_setup: matrix_setup.clone(),
@@ -790,19 +538,10 @@ pub(super) fn use_setup_guide<'a>(
         scene: scene.clone(),
         model,
         mirrored_pair: mirrored_pair.clone(),
-        tree_cell_anchor: tree_cell_anchor.clone(),
-        layout_owner: layout_owner.clone(),
-        render_scope: render_scope.clone(),
-        adapter: adapter.clone(),
-        accepted_canvas_source: accepted_canvas_source.clone(),
-        layout_snap_settings,
-        outline_inspector: outline_inspector.clone(),
         document: document.clone(),
         has_matrix,
         guide_preferences,
         workspace,
-        width,
-        zoom_surface_size,
     });
     let (name_value, on_name_change, on_name_commit) = guide_name_fields(
         guide_name_draft,
@@ -834,31 +573,42 @@ pub(super) fn use_setup_guide<'a>(
     });
     let on_dismiss_guide = on_dismiss_guide_handler(setup_state, document.id.clone());
     let on_finish_guide = on_finish_guide_handler(setup_state, document.id.clone(), workspace);
-    let GuideReadiness {
-        guide_stage_readiness,
-        guide_stage_detail,
-        canvas_transform_menu,
-        selection_geometry_anchor,
-    } = use_guide_readiness(GuideReadinessInput {
-        guide: &guide,
-        document: document.clone(),
-        model,
-        snapshot,
-        resolution,
-        toolbar_input,
-        layout_assembly_3d,
-        visible: visible.to_vec(),
-        scene: scene.clone(),
-        svg: svg.clone(),
-        zoom_surface_size,
-        width,
-        height,
-        view_x,
-        active_workspace,
-    });
+    let (guide_stage_readiness, guide_stage_detail) = guide
+        .as_ref()
+        .map(|preferences| {
+            let guide_statuses = setup_guide::stage_statuses(
+                document,
+                &model.active_board_id,
+                &snapshot.scene,
+                match resolution {
+                    pcb_wiring::PcbWiringResolution::Current { identity, plan }
+                        if identity.scope.document_id == document.id
+                            && identity.scope.board_id == model.active_board_id
+                            && identity.scope.instance_id.is_none()
+                            && identity.token == snapshot.token
+                            && identity.revision == document.revision =>
+                    {
+                        Some(plan.as_ref())
+                    }
+                    _ => None,
+                },
+            );
+            let guide_stage_index = match preferences.current_stage {
+                SetupGuideStage::Project => 0,
+                SetupGuideStage::Layout => 1,
+                SetupGuideStage::Wiring => 2,
+                SetupGuideStage::Case => 3,
+                SetupGuideStage::Review => 4,
+            };
+            let guide_stage_detail = guide_statuses[guide_stage_index].detail.clone();
+            (
+                guide_statuses.map(|status| status.ready),
+                guide_stage_detail,
+            )
+        })
+        .unwrap_or_default();
     GuideNamed {
         state: GuideState {
-            selected_bridge,
             active_part_position,
             guide,
             has_matrix,
@@ -866,17 +616,10 @@ pub(super) fn use_setup_guide<'a>(
             setup_wiring_error,
         },
         show_empty_board,
-        outline_pitch,
-        outline_snap_origins,
-        outline_snap_settings,
-        canvas_grid,
-        outline_overlay_key,
         on_name_change,
         on_name_commit,
         full_case_settings,
         guide_stage_readiness,
-        canvas_transform_menu,
-        selection_geometry_anchor,
         name_value,
         inline_matrix_setup,
         inline_case_basics,

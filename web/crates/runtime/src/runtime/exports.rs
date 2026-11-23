@@ -275,7 +275,7 @@ impl Runtime {
         media_type: Option<&str>,
     ) -> Result<(), String> {
         #[cfg(any(test, feature = "test-support"))]
-        if let Some(adapters) = self.in_process_adapters.borrow().as_ref() {
+        if let Some(adapters) = self.test.in_process_adapters.borrow().as_ref() {
             adapters.deliver(bytes, filename, media_type);
             return Ok(());
         }
@@ -352,18 +352,9 @@ impl Runtime {
             false,
         )?;
         guard()?;
-        let worker = crate::case_model_lifecycle::case_model_worker(
-            &self.cad_worker,
-            scope,
-            |worker| !worker.is_closed(),
-            || {
-                let url = resource_url("assets/cad-worker/entry.js")?;
-                CadWorker::new(&url)
-                    .map(Rc::new)
-                    .map_err(|error| error.to_string())
-            },
-        )
-        .map_err(CadJobError::Failed)?;
+        let worker = self
+            .case_cad_worker(scope, false)
+            .map_err(CadJobError::Failed)?;
         worker
             .ready()
             .await
@@ -378,19 +369,13 @@ impl Runtime {
         let physical_fingerprint =
             crate::case_generation_lifecycle::physical_case_fingerprint(snapshot, scope);
         for operation in [CadOperation::Preview, CadOperation::Exact] {
-            let request = CadRequest {
-                request_id: format!("{job}-{operation:?}"),
-                job_id: job.clone(),
-                identity: prepared.identity.clone(),
+            let request = prepared_cad_request(
+                format!("{job}-{operation:?}"),
+                job.clone(),
+                &prepared.identity,
                 operation,
-                prepared: Some(prepared.prepared.clone()),
-                source_sha256: None,
-                step_import_options: None,
-                collision_query: None,
-                generated_analysis_request: None,
-                collision_meshes: None,
-                input_bytes: vec![],
-            };
+                prepared.prepared.clone(),
+            );
             let reply = worker
                 .request(request.clone())
                 .await

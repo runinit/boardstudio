@@ -17,8 +17,8 @@
 
 use boardstudio_core_kernel::matrix::layout::evaluated_part_pose;
 use boardstudio_model::model::{
-    CoreReply, CoreRequest, EditOperation, Follow, MatrixAnchor, MatrixScene, PartAnchor, Pose2,
-    ProjectDoc, Vec2,
+    CoreReply, CoreRequest, EditOperation, Follow, MatrixAnchor, PartAnchor, Pose2, ProjectDoc,
+    Vec2,
 };
 use boardstudio_web_runtime::core_services::OpenScratchCore;
 use boardstudio_web_ui_model::tree::TreeContext;
@@ -78,12 +78,10 @@ pub const MAJOR_HIT_PX: f64 = 36.0;
 
 /// Project the pick candidates for `selection`. Returns `None` when the
 /// selection cannot arm pick mode (unanchored matrices, locked or
-/// member/companion parts, unknown owners). Takes the scenes beside the
-/// document for seam parity with `anchor_badge`; key liveness reads the
+/// member/companion parts, unknown owners). Key liveness reads the
 /// document rows/columns.
 pub fn anchor_pick_candidates(
     document: &ProjectDoc,
-    _scenes: &[&MatrixScene],
     selection: &TreeContext,
 ) -> Option<AnchorPickCandidates> {
     enum Owner {
@@ -299,15 +297,23 @@ pub struct PickCommit {
     pub new_anchor_label: String,
 }
 
+/// A display name with identity fallback: the name when non-blank, else the id.
+pub fn display_name(name: Option<&str>, id: &str) -> String {
+    name.filter(|name| !name.trim().is_empty())
+        .unwrap_or(id)
+        .to_owned()
+}
+
 /// The matrix display name: its name, else its id.
 pub fn matrix_display_name(document: &ProjectDoc, matrix_id: &str) -> String {
-    document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == matrix_id)
-        .and_then(|matrix| matrix.name.clone())
-        .filter(|name| !name.trim().is_empty())
-        .unwrap_or_else(|| matrix_id.to_owned())
+    display_name(
+        document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == matrix_id)
+            .and_then(|matrix| matrix.name.as_deref()),
+        matrix_id,
+    )
 }
 
 /// One anchor key in words: `Main R1C1` (1-based, like the badge).
@@ -322,18 +328,14 @@ pub fn anchor_key_label(document: &ProjectDoc, matrix_id: &str, row: u32, column
 
 /// The part display name: its reference, else its id.
 fn part_display_name(document: &ProjectDoc, part_id: &str) -> String {
-    document
-        .parts
-        .iter()
-        .find(|part| part.id == part_id)
-        .map(|part| {
-            if part.reference.trim().is_empty() {
-                part.id.clone()
-            } else {
-                part.reference.clone()
-            }
-        })
-        .unwrap_or_else(|| part_id.to_owned())
+    display_name(
+        document
+            .parts
+            .iter()
+            .find(|part| part.id == part_id)
+            .map(|part| part.reference.as_str()),
+        part_id,
+    )
 }
 
 fn full_follow() -> Follow {
@@ -352,7 +354,7 @@ pub fn pick_commit(
     selection: &TreeContext,
     target: &PickTarget,
 ) -> Option<PickCommit> {
-    let projected = anchor_pick_candidates(document, &[], selection)?;
+    let projected = anchor_pick_candidates(document, selection)?;
     let candidate = projected.keys.iter().find(|key| {
         key.matrix_id == target.matrix_id && key.row == target.row && key.column == target.column
     })?;
@@ -475,7 +477,7 @@ pub fn preview_anchor_poses(
     target: &PickTarget,
     open_scratch: OpenScratchCore,
 ) -> Vec<(String, Pose2)> {
-    let projected = anchor_pick_candidates(document, &[], selection);
+    let projected = anchor_pick_candidates(document, selection);
     let Some(projected) = projected else {
         return Vec::new();
     };
@@ -618,19 +620,9 @@ mod tests {
         serde_json::from_value(document).unwrap()
     }
 
-    fn no_scenes() -> Vec<MatrixScene> {
-        Vec::new()
-    }
-
-    fn refs(scenes: &[MatrixScene]) -> Vec<&MatrixScene> {
-        scenes.iter().collect()
-    }
-
     fn candidates(selection: &TreeContext) -> AnchorPickCandidates {
         let document = document();
-        let scenes = no_scenes();
-        let refs: Vec<&MatrixScene> = scenes.iter().collect();
-        anchor_pick_candidates(&document, &refs, selection).expect("the selection arms pick mode")
+        anchor_pick_candidates(&document, selection).expect("the selection arms pick mode")
     }
 
     #[test]
@@ -734,11 +726,9 @@ mod tests {
     #[test]
     fn unanchored_matrix_arms_no_pick() {
         let document = document();
-        let scenes = no_scenes();
         assert!(
             anchor_pick_candidates(
                 &document,
-                &refs(&scenes),
                 &TreeContext::Matrix {
                     matrix_id: "main".into()
                 }
@@ -751,11 +741,9 @@ mod tests {
     #[test]
     fn row_selection_arms_no_pick() {
         let document = document();
-        let scenes = no_scenes();
         assert!(
             anchor_pick_candidates(
                 &document,
-                &refs(&scenes),
                 &TreeContext::Row {
                     matrix_id: "main".into(),
                     row: 0
@@ -1090,48 +1078,7 @@ mod tests {
         doc
     }
 
-    fn open_engine(
-        doc: ProjectDoc,
-    ) -> (
-        boardstudio_core::CoreEngine,
-        boardstudio_model::model::SceneDelta,
-        ProjectDoc,
-    ) {
-        use boardstudio_core::CoreEngine;
-        use boardstudio_model::model::{CoreReply, CoreRequest};
-        let mut engine = CoreEngine::new();
-        let (scene, opened) = match engine.handle(CoreRequest::Open {
-            id: "open".into(),
-            document: doc,
-        }) {
-            CoreReply::Scene {
-                scene, document, ..
-            } => (scene, *document),
-            other => panic!("expected scene: {other:?}"),
-        };
-        (engine, scene, opened)
-    }
-
-    fn edit_engine(
-        engine: &mut boardstudio_core::CoreEngine,
-        doc: &ProjectDoc,
-        operation: boardstudio_model::model::EditOperation,
-    ) -> ProjectDoc {
-        use boardstudio_model::model::*;
-        match engine.handle(CoreRequest::Edit {
-            id: "edit".into(),
-            command: EditCommand {
-                base_revision: doc.revision,
-                transaction_id: "edit".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec![],
-                operation,
-            },
-        }) {
-            CoreReply::Scene { document, .. } => *document,
-            other => panic!("expected scene: {other:?}"),
-        }
-    }
+    use crate::engine_test_support::{edit_engine, open_engine};
 
     #[test]
     fn part_preview_matches_the_post_commit_pose() {
@@ -1158,7 +1105,7 @@ mod tests {
         let commit = pick_commit(&doc, &selection, &target).expect("a live key commits");
         let (mut engine, _, opened) = open_engine(doc);
         let revision_before = opened.revision;
-        let edited = edit_engine(&mut engine, &opened, commit.operation);
+        let (_, edited) = edit_engine(&mut engine, &opened, commit.operation);
         assert_eq!(
             edited.revision,
             revision_before + 1,
@@ -1208,7 +1155,7 @@ mod tests {
         );
         let commit = pick_commit(&doc, &selection, &target).expect("a live key commits");
         let (mut engine, _, opened) = open_engine(doc);
-        let edited = edit_engine(&mut engine, &opened, commit.operation);
+        let (_, edited) = edit_engine(&mut engine, &opened, commit.operation);
         let mut expected: Vec<(String, boardstudio_model::model::Pose2)> = edited
             .parts
             .iter()

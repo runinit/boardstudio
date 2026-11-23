@@ -529,10 +529,11 @@ fn dot3(a: [f64; 3], b: [f64; 3]) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::super::test_support::{contains, cross, dot};
+    use super::super::test_support::{
+        assert_finite_mesh, closed_edges, contains, cross, dot, triangles,
+    };
     use super::*;
     use boardstudio_contracts::{KeycapMount, KeycapProfile, Pose2, Side, Vec2};
-    use std::collections::BTreeMap;
 
     fn flat_g20() -> KeycapSpec {
         KeycapSpec {
@@ -891,8 +892,7 @@ mod tests {
         assert!(!mesh.positions.is_empty());
         assert_eq!(mesh.positions.len() % 9, 0);
         assert_eq!(mesh.positions.len(), mesh.normals.len());
-        assert!(mesh.positions.iter().all(|value| value.is_finite()));
-        assert!(mesh.normals.iter().all(|value| value.is_finite()));
+        assert_finite_mesh(mesh);
         for normal in mesh.normals.as_chunks::<3>().0.iter() {
             let length =
                 (normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]).sqrt();
@@ -926,20 +926,8 @@ mod tests {
     }
 
     fn signed_volume(mesh: &MeshData) -> f64 {
-        mesh.positions
-            .as_chunks::<9>()
-            .0
-            .iter()
-            .map(|triangle| {
-                let [a, b, c] = [0, 1, 2].map(|vertex| {
-                    [
-                        f64::from(triangle[vertex * 3]),
-                        f64::from(triangle[vertex * 3 + 1]),
-                        f64::from(triangle[vertex * 3 + 2]),
-                    ]
-                });
-                dot(a, cross(b, c)) / 6.0
-            })
+        triangles(mesh)
+            .map(|[a, b, c]| dot(a, cross(b, c)) / 6.0)
             .sum()
     }
 
@@ -979,32 +967,7 @@ mod tests {
     }
 
     fn assert_oriented_closed_mesh(mesh: &MeshData) {
-        let mut directed_edges = BTreeMap::new();
-        for triangle in mesh.positions.as_chunks::<9>().0.iter() {
-            let points = [0, 1, 2].map(|vertex| {
-                [
-                    (f64::from(triangle[vertex * 3]) * 100_000.0).round() as i64,
-                    (f64::from(triangle[vertex * 3 + 1]) * 100_000.0).round() as i64,
-                    (f64::from(triangle[vertex * 3 + 2]) * 100_000.0).round() as i64,
-                ]
-            });
-            for edge in 0..3 {
-                let a = points[edge];
-                let b = points[(edge + 1) % 3];
-                *directed_edges.entry((a, b)).or_insert(0_usize) += 1;
-            }
-        }
-        for (&(a, b), &count) in &directed_edges {
-            assert_eq!(
-                count, 1,
-                "directed mesh edge {a:?} -> {b:?} occurs {count} times"
-            );
-            assert_eq!(
-                directed_edges.get(&(b, a)),
-                Some(&1),
-                "mesh edge {a:?} -> {b:?} has no oppositely oriented neighbor"
-            );
-        }
+        closed_edges(mesh, |point| point.map(|v| (v * 100_000.0).round() as i64)).unwrap();
         assert!(
             signed_volume(mesh) > 0.0,
             "material shell winding is outward"
@@ -1013,14 +976,7 @@ mod tests {
 
     fn surface_height_at(mesh: &MeshData, x: f64, y: f64) -> Option<f64> {
         let mut height = None;
-        for triangle in mesh.positions.as_chunks::<9>().0.iter() {
-            let [a, b, c] = [0, 1, 2].map(|vertex| {
-                [
-                    f64::from(triangle[vertex * 3]),
-                    f64::from(triangle[vertex * 3 + 1]),
-                    f64::from(triangle[vertex * 3 + 2]),
-                ]
-            });
+        for [a, b, c] in triangles(mesh) {
             let denominator = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]);
             if denominator.abs() < 1e-12 {
                 continue;

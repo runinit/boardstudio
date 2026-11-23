@@ -177,33 +177,23 @@ impl Bounds {
     }
 }
 
-fn transform(point: Vec2, pose: Pose2, flip_x: bool) -> Vec2 {
-    let x = if flip_x { -point.x } else { point.x };
-    let (sin, cos) = pose.rotation.to_radians().sin_cos();
-    Vec2 {
-        x: pose.at.x + x * cos - point.y * sin,
-        y: pose.at.y + x * sin + point.y * cos,
-    }
-}
-
 fn module_world_bounds(instance: &MountedModule, definition: &ModuleDefinition) -> Option<Bounds> {
-    let flip = (instance.host_face == Side::Front) == (instance.facing_face == Side::Front);
+    let side = if (instance.host_face == Side::Front) == (instance.facing_face == Side::Front) {
+        Side::Back
+    } else {
+        Side::Front
+    };
+    let pose = Pose2 {
+        at: instance.at,
+        rotation: instance.rotation,
+    };
     Bounds::from_points(
         definition
             .board
             .contours
             .iter()
             .flat_map(|contour| contour.points.iter().copied())
-            .map(|point| {
-                transform(
-                    point,
-                    Pose2 {
-                        at: instance.at,
-                        rotation: instance.rotation,
-                    },
-                    flip,
-                )
-            }),
+            .map(|point| crate::geometry::part_to_world(point, &pose, side.clone())),
     )
 }
 
@@ -212,7 +202,6 @@ fn part_bounds(doc: &ProjectDoc, part: &Part) -> Option<Bounds> {
         .definitions
         .iter()
         .find(|definition| definition.id == part.definition_id)?;
-    let flip = part.side == Side::Back;
     // Ticket 12: host bounds follow the evaluated board pose of half-frame
     // parts.
     let pose = crate::matrix::layout::evaluated_part_pose(doc, part);
@@ -221,7 +210,7 @@ fn part_bounds(doc: &ProjectDoc, part: &Part) -> Option<Bounds> {
             .courtyard
             .iter()
             .copied()
-            .map(|point| transform(point, pose, flip)),
+            .map(|point| crate::geometry::part_to_world(point, &pose, part.side.clone())),
     )
 }
 
@@ -292,20 +281,12 @@ fn nearby_pose(
         ];
         for at in candidates {
             let pose = Pose2 { at, rotation: 0.0 };
-            let bounds = Bounds::from_points(
-                connector
-                    .courtyard
-                    .iter()
-                    .copied()
-                    .map(|point| transform(point, pose, instance.host_face == Side::Back)),
-            )
-            .expect("validated connector courtyard");
-            let footprint_points: Vec<_> = connector
-                .courtyard
-                .iter()
-                .copied()
-                .map(|point| transform(point, pose, instance.host_face == Side::Back))
-                .collect();
+            let place = |point: Vec2| {
+                crate::geometry::part_to_world(point, &pose, instance.host_face.clone())
+            };
+            let bounds = Bounds::from_points(connector.courtyard.iter().copied().map(place))
+                .expect("validated connector courtyard");
+            let footprint_points: Vec<_> = connector.courtyard.iter().copied().map(place).collect();
             if !bounds.overlaps(module_bounds)
                 && blockers.iter().all(|blocker| !bounds.overlaps(*blocker))
                 && fits_board_outline(&outline_features, &footprint_points)

@@ -35,6 +35,26 @@ pub(super) struct WorkspaceInteraction {
     pub inspector_settings: Signal<PanelSettings>,
 }
 
+/// Session-owned services the Layout workspace consumes. Unlike the deleted
+/// `WorkspacePayload::Layout` prop bag, these are raw shared mounts — Layout
+/// assembles its own Objects/Inspector/toolbar/canvas inputs inside
+/// `LayoutWorkspace` instead of receiving them prebuilt from the session.
+#[derive(Clone)]
+pub(super) struct LayoutSessionServices {
+    pub matrix_inspector: objects::MatrixInspectorMount,
+    pub matrix_transform_inspector: objects::MatrixTransformInspectorMount,
+    pub matrix_placement: objects::MatrixPlacementMount,
+    pub mirrored_pair: objects::MirroredPairMount,
+    pub outline_inspector: Option<outline_lifecycle::OutlineInspectorProjection>,
+    pub layout_findings: boardstudio_web_layout::layout_findings_state::LayoutFindingsState,
+    pub on_return_from_layout_finding: Callback<(), ()>,
+    pub on_close_layout_findings: Callback<(), ()>,
+    pub on_layout_finding: Callback<layout_findings::Request, ()>,
+    pub interaction_version: Signal<u64>,
+    pub visible_ids: Rc<Vec<String>>,
+    pub objects_panel_settings: Signal<PanelSettings>,
+}
+
 pub(super) struct WorkspaceFrame {
     pub scope: Scope,
     pub snapshot: AcceptedSnapshot,
@@ -47,6 +67,7 @@ pub(super) struct WorkspaceFrame {
     pub handlers: CanvasEventHandlers,
     pub svg: Rc<RefCell<Option<SvgElement>>>,
     pub surface_size: Signal<(f64, f64)>,
+    pub layout_services: LayoutSessionServices,
 
     pub matrix_setup: objects::MatrixSetupMount,
     pub part_placement: part_placement::PartPlacementMount,
@@ -58,9 +79,19 @@ pub(super) struct WorkspaceFrame {
     pub show_position_inspector: bool,
     pub camera: camera::SceneBounds,
     pub status: StatusFooter,
-    pub case: Option<case_workspace::CaseFrame>,
-    pub parts: Option<parts_workspace::PartsFrame>,
-    pub layout: Option<layout_workspace::LayoutFrame>,
+    pub payload: WorkspacePayload,
+}
+
+/// The per-workspace inputs that only one workspace surface consumes. Typed
+/// by workspace so a surface can never observe another workspace's frame.
+pub(super) enum WorkspacePayload {
+    Case(case_workspace::CaseFrame),
+    Parts(parts_workspace::PartsFrame),
+    Layout,
+    Pcb,
+    Keymap,
+    Keycaps,
+    Export,
 }
 
 #[derive(Clone)]
@@ -88,7 +119,7 @@ pub(super) fn RoutedWorkspace(workspace: Workspace, frame: ReadSignal<Frame>) ->
         Workspace::Pcb => rsx! { pcb_workspace::PcbWorkspace {} },
         Workspace::Keymap => rsx! { keymap_workspace::KeymapWorkspace {} },
         Workspace::Keycaps => rsx! { keycaps_workspace::KeycapsWorkspace {} },
-        _ => rsx! {},
+        Workspace::Export => rsx! {},
     }
 }
 
@@ -107,16 +138,49 @@ pub(super) struct WorkspaceSurfaces {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct WorkspaceOutputs(pub Signal<Option<(Workspace, WorkspaceSurfaces)>>);
+pub(super) struct WorkspaceOutputs {
+    pub objects: Signal<Option<(Workspace, Element)>>,
+    pub inspector: Signal<Option<(Workspace, Element)>>,
+    pub toolbar: Signal<Option<(Workspace, Element)>>,
+    pub canvas: Signal<Option<(Workspace, Element)>>,
+    pub status: Signal<Option<(Workspace, Element)>>,
+    pub layers: Signal<Option<(Workspace, Element)>>,
+}
 
-pub(super) fn publish_surfaces(
-    mut outputs: WorkspaceOutputs,
-    workspace: Workspace,
-    surfaces: WorkspaceSurfaces,
-) {
-    // Only the outlets read this signal. The active workspace publishes before the
-    // frame renders its outlets, and can update them independently when its hooks change.
-    outputs.0.set(Some((workspace, surfaces)));
+pub(super) fn use_workspace_outputs() -> WorkspaceOutputs {
+    WorkspaceOutputs {
+        objects: use_signal(|| None),
+        inspector: use_signal(|| None),
+        toolbar: use_signal(|| None),
+        canvas: use_signal(|| None),
+        status: use_signal(|| None),
+        layers: use_signal(|| None),
+    }
+}
+
+/// Publish the active workspace's surfaces after render so signal writes never
+/// happen mid-render. Because `Element` (`VNode`) compares by `Rc::ptr_eq`,
+/// any re-render of the workspace replaces all six surface elements together.
+pub(super) fn use_publish_surfaces(workspace: Workspace, surfaces: WorkspaceSurfaces) {
+    let outputs = use_context::<WorkspaceOutputs>();
+    use_effect(use_reactive(
+        (&workspace, &surfaces),
+        move |(workspace, surfaces)| {
+            for (mut signal, element) in [
+                (outputs.objects, surfaces.objects),
+                (outputs.inspector, surfaces.inspector),
+                (outputs.toolbar, surfaces.toolbar),
+                (outputs.canvas, surfaces.canvas),
+                (outputs.status, surfaces.status),
+                (outputs.layers, surfaces.layers),
+            ] {
+                let next = Some((workspace, element));
+                if *signal.peek() != next {
+                    signal.set(next);
+                }
+            }
+        },
+    ));
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -132,18 +196,162 @@ pub(super) enum Surface {
 #[component]
 pub(super) fn WorkspaceOutlet(workspace: Workspace, surface: Surface) -> Element {
     let outputs = use_context::<WorkspaceOutputs>();
-    let surfaces = outputs.0.read();
-    let Some((_, surfaces)) = surfaces.as_ref().filter(|(active, _)| *active == workspace) else {
-        return rsx! {};
+    let signal = match surface {
+        Surface::Objects => outputs.objects,
+        Surface::Inspector => outputs.inspector,
+        Surface::Toolbar => outputs.toolbar,
+        Surface::Canvas => outputs.canvas,
+        Surface::Status => outputs.status,
+        Surface::Layers => outputs.layers,
     };
-    match surface {
-        Surface::Objects => surfaces.objects.clone(),
-        Surface::Inspector => surfaces.inspector.clone(),
-        Surface::Toolbar => surfaces.toolbar.clone(),
-        Surface::Canvas => surfaces.canvas.clone(),
-        Surface::Status => surfaces.status.clone(),
-        Surface::Layers => surfaces.layers.clone(),
+    let published = signal.read();
+    match published
+        .as_ref()
+        .filter(|(active, _)| *active == workspace)
+    {
+        Some((_, element)) => element.clone(),
+        None => rsx! {},
     }
+}
+
+pub(super) fn use_toolbar_selection_availability(
+    tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
+    layout_owner: LayoutOwnerIdentity,
+    accepted_canvas_source: layout_canvas::SceneSource,
+    snapshot: &AcceptedSnapshot,
+    model: &ReadModel,
+    selected_tree_context: Option<objects::ScopedTreeContext>,
+    active_workspace: Option<Workspace>,
+) -> (bool, bool) {
+    let retained_toolbar_cell = tree_cell_anchor_for_owner(&tree_cell_anchor, &layout_owner);
+    use_memo(use_reactive(
+        (
+            &accepted_canvas_source,
+            &snapshot.token,
+            &snapshot.session_epoch,
+            &model.active_instance_id,
+            &selected_tree_context,
+            &retained_toolbar_cell,
+            &active_workspace,
+        ),
+        |(source, token, session_epoch, active_instance_id, selected, retained, workspace)| {
+            if !matches!(workspace, Some(Workspace::Layout | Workspace::Pcb)) {
+                return (false, false);
+            }
+            let model = ReadModel {
+                accepted: Some(AcceptedSnapshot {
+                    token,
+                    session_epoch,
+                    document: source.document,
+                    scene: source.scene,
+                }),
+                active_board_id: source.board_id,
+                active_instance_id,
+                ..ReadModel::default()
+            };
+            let supports = |kind| {
+                selected.as_ref().is_some_and(|selected| {
+                    objects::context_for_selection_kind(
+                        &model,
+                        &selected.context,
+                        kind,
+                        retained.as_ref(),
+                    )
+                    .is_some()
+                })
+            };
+            (
+                supports(objects::LayoutSelectionKind::Column),
+                supports(objects::LayoutSelectionKind::Row),
+            )
+        },
+    ))()
+}
+
+/// Shared design-canvas key selection for the Keymap and Keycaps surfaces:
+/// both admit a click only while their workspace, scope and generation own
+/// the live selection, clear on an empty id, and open the Inspector for a
+/// key that still exists after the selection lands. `is_current` carries
+/// each workspace's extra currency guard and `key_exists` its projection.
+pub(super) fn design_key_select_handler(
+    editor: EditorContext,
+    adapter: SelectionAdapter,
+    frame: &WorkspaceFrame,
+    expected_workspace: Workspace,
+    require_snapshot_before_clear: bool,
+    is_current: impl Fn(&ReadModel, &Scope) -> bool + 'static,
+    key_exists: impl Fn(&ReadModel, &Scope, &str) -> bool + 'static,
+) -> EventHandler<String> {
+    let runtime = editor.runtime();
+    let workspace = editor.workspace;
+    let scope = frame.scope.clone();
+    let generation = frame.owner.generation;
+    let CompactPanelState {
+        mut objects_open,
+        inspector_open: mut inspect_open,
+    } = editor.panels;
+    EventHandler::new(move |key_id: String| {
+        if workspace() != expected_workspace
+            || runtime.scope().as_ref() != Some(&scope)
+            || (adapter.generation)() != generation
+        {
+            return;
+        }
+        let model = runtime.model();
+        if !is_current(&model, &scope) {
+            return;
+        }
+        if key_id.is_empty() {
+            if !require_snapshot_before_clear || model.accepted.is_some() {
+                let mut selected_context = adapter.selected_context;
+                selected_context.set(None);
+                let mut anchor_scope = adapter.anchor_scope;
+                anchor_scope.set(None);
+                runtime.submit(boardstudio_application::Event::SelectParts {
+                    operation_id: runtime.operation(),
+                    part_ids: Vec::new(),
+                    range_part_ids: Vec::new(),
+                    mode: boardstudio_application::SelectionMode::Replace,
+                });
+            }
+            return;
+        }
+        if !key_exists(&model, &scope, &key_id) {
+            return;
+        }
+        let Some(context) = objects::context_for_part(&model, &key_id) else {
+            return;
+        };
+        if !selection::context_is_current(&model, &scope, &context) {
+            return;
+        }
+        let Some(selected_ids) = selection::submit_canvas_selection(
+            &runtime,
+            &adapter,
+            &scope,
+            generation,
+            context.clone(),
+            boardstudio_application::SelectionMode::Replace,
+            Vec::new(),
+        ) else {
+            return;
+        };
+        if selected_ids.is_empty()
+            || runtime.scope().as_ref() != Some(&scope)
+            || (adapter.generation)() != generation
+        {
+            return;
+        }
+        let current = runtime.model();
+        if !is_current(&current, &scope)
+            || !selection::context_is_current(&current, &scope, &context)
+            || !key_exists(&current, &scope, &key_id)
+        {
+            return;
+        }
+        objects_open.set(false);
+        inspect_open.set(true);
+    })
 }
 
 pub(super) fn toggle_footprints(layers: LayerVisibility) -> EventHandler<()> {
@@ -185,6 +393,7 @@ impl WorkspaceFrame {
         let workspace = self.owner.workspace;
         let assembly = self.status.layout.assembly_3d();
         let bounds = camera::use_scene_bounds(camera::SceneBoundsInput {
+            enabled: true,
             model,
             snapshot: &self.snapshot,
             document: self.document.clone(),
@@ -231,7 +440,6 @@ impl WorkspaceFrame {
             self.status.summary(model.camera.zoom)
         } else {
             self.status.controls(
-                false,
                 footer.footer_selection_available,
                 bounds.zoom_percent,
                 model,
@@ -275,7 +483,6 @@ pub(super) struct StatusFooter {
 impl StatusFooter {
     pub(super) fn controls(
         &self,
-        snap_menu_available: bool,
         selection_available: bool,
         zoom_percent: f64,
         model: &ReadModel,
@@ -283,10 +490,7 @@ impl StatusFooter {
     ) -> Element {
         rsx! {
             canvas_status_footer::CanvasStatusFooter {
-                snap_settings: self.layout.snap_settings().read().clone(),
                 active_part_position: self.part_position,
-                snap_menu_available,
-                open_menu: self.layout.command_menu(),
                 board_available: true,
                 selection_available,
                 zoom_percent,

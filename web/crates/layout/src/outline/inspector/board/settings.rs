@@ -26,17 +26,15 @@ pub(super) fn outline_settings(
                         id, label: "Corners", aria_label: "Outline corners",
                         value: corner_selection().unwrap_or_default(), disabled: !enabled,
                         options: vec![("sharp".into(), "Sharp".into()), ("fillet".into(), "Fillet".into()), ("chamfer".into(), "Chamfer".into())],
-                        on_commit: {
-                            let action_context = action_context.clone();
-                            move |choice: String| {
-                                let corner = match choice.as_str() {
-                                    "fillet" => CornerStyle::Fillet,
-                                    "chamfer" => CornerStyle::Chamfer,
-                                    _ => CornerStyle::Sharp,
-                                };
-                                on_action.call(action_context.action(OutlineEdit::SetCorners(corner)));
-                            }
-                        },
+                        on_commit: commit_setting(
+                            action_context.clone(),
+                            on_action,
+                            |choice: String| match choice.as_str() {
+                                "fillet" => OutlineEdit::SetCorners(CornerStyle::Fillet),
+                                "chamfer" => OutlineEdit::SetCorners(CornerStyle::Chamfer),
+                                _ => OutlineEdit::SetCorners(CornerStyle::Sharp),
+                            },
+                        ),
                     }
                 }
             }
@@ -46,10 +44,11 @@ pub(super) fn outline_settings(
                     value: projection.settings.size,
                     minimum: 0.0,
                     editable: enabled,
-                    on_commit: {
-                        let action_context = action_context.clone();
-                        move |value| on_action.call(action_context.action(OutlineEdit::SetSize(value)))
-                    },
+                    on_commit: commit_setting(
+                        action_context.clone(),
+                        on_action,
+                        OutlineEdit::SetSize,
+                    ),
                 }
             }
             if envelope_editable {
@@ -59,10 +58,11 @@ pub(super) fn outline_settings(
                         value: margin,
                         minimum: 0.0,
                         editable: enabled,
-                        on_commit: {
-                            let action_context = action_context.clone();
-                            move |value| on_action.call(action_context.action(OutlineEdit::SetMargin(value)))
-                        },
+                        on_commit: commit_setting(
+                            action_context.clone(),
+                            on_action,
+                            OutlineEdit::SetMargin,
+                        ),
                     }
                 }
                 OutlineDimension {
@@ -70,12 +70,11 @@ pub(super) fn outline_settings(
                     value: projection.settings.bridge_width,
                     minimum: 0.001,
                     editable: enabled,
-                    on_commit: {
-                        let action_context = action_context.clone();
-                        move |value| {
-                            on_action.call(action_context.action(OutlineEdit::SetBridgeWidth(value)))
-                        }
-                    },
+                    on_commit: commit_setting(
+                        action_context.clone(),
+                        on_action,
+                        OutlineEdit::SetBridgeWidth,
+                    ),
                 }
             }
             if projection.active_version_id.is_none() && !projection.gaps.is_empty() {
@@ -122,17 +121,16 @@ pub(super) fn outline_settings(
                                             ),
                                             on_checked_change: {
                                                 let gap_id = gap.id.clone();
-                                                let action_context = action_context.clone();
-                                                move |checked: CheckboxState| {
-                                                    on_action
-                                                        .call(
-                                                            action_context
-                                                                .action(OutlineEdit::SetProtectedGap {
-                                                                    gap_id: gap_id.clone(),
-                                                                    protected: bool::from(checked),
-                                                                }),
-                                                        )
-                                                }
+                                                commit_setting(
+                                                    action_context.clone(),
+                                                    on_action,
+                                                    move |checked: CheckboxState| {
+                                                        OutlineEdit::SetProtectedGap {
+                                                            gap_id: gap_id.clone(),
+                                                            protected: bool::from(checked),
+                                                        }
+                                                    },
+                                                )
                                             },
                                             disabled: !enabled,
                                         }
@@ -165,16 +163,13 @@ pub(super) fn outline_settings(
                                             CheckboxState::Unchecked
                                         },
                                     ),
-                                    on_checked_change: {
-                                        let action_context = action_context.clone();
-                                        move |checked: CheckboxState| {
-                                            on_action
-                                                .call(
-                                                    action_context
-                                                        .action(OutlineEdit::SetRepairEnabled(bool::from(checked))),
-                                                )
-                                        }
-                                    },
+                                    on_checked_change: commit_setting(
+                                        action_context.clone(),
+                                        on_action,
+                                        |checked: CheckboxState| {
+                                            OutlineEdit::SetRepairEnabled(bool::from(checked))
+                                        },
+                                    ),
                                     disabled: !enabled,
                                 }
                                 span { "Automatic cleanup" }
@@ -186,12 +181,11 @@ pub(super) fn outline_settings(
                         value: projection.repair.maximum_gap_span,
                         minimum: 0.0,
                         editable: enabled,
-                        on_commit: {
-                            let action_context = action_context.clone();
-                            move |value| {
-                                on_action.call(action_context.action(OutlineEdit::SetMaximumGapSpan(value)))
-                            }
-                        },
+                        on_commit: commit_setting(
+                            action_context.clone(),
+                            on_action,
+                            OutlineEdit::SetMaximumGapSpan,
+                        ),
                     }
                 }
                 OutlineDimension {
@@ -199,27 +193,22 @@ pub(super) fn outline_settings(
                     value: projection.repair.minimum_connection_width,
                     minimum: 0.0,
                     editable: enabled,
-                    on_commit: {
-                        let action_context = action_context.clone();
-                        move |value| {
-                            on_action
-                                .call(
-                                    action_context.action(OutlineEdit::SetMinimumConnectionWidth(value)),
-                                )
-                        }
-                    },
+                    on_commit: commit_setting(
+                        action_context.clone(),
+                        on_action,
+                        OutlineEdit::SetMinimumConnectionWidth,
+                    ),
                 }
                 OutlineDimension {
                     label: "PCB edge clearance",
                     value: projection.repair.edge_clearance,
                     minimum: 0.0,
                     editable: enabled,
-                    on_commit: {
-                        let action_context = action_context.clone();
-                        move |value| {
-                            on_action.call(action_context.action(OutlineEdit::SetEdgeClearance(value)))
-                        }
-                    },
+                    on_commit: commit_setting(
+                        action_context.clone(),
+                        on_action,
+                        OutlineEdit::SetEdgeClearance,
+                    ),
                 }
                 p {
                     "Support and clearance findings block affected fabrication exports. Editing and project saving stay available."

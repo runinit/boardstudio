@@ -358,7 +358,6 @@ dependencies = [
  "serde_json",
  "slab",
  "syn 2.0.119",
- "tokio",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
@@ -489,6 +488,7 @@ version = "0.1.0"
 dependencies = [
  "boardstudio-application",
  "boardstudio-core-kernel",
+ "boardstudio-core-mirrored-half",
  "boardstudio-model",
  "boardstudio-web-runtime",
  "boardstudio-web-test-runtime",
@@ -512,7 +512,6 @@ dependencies = [
  "boardstudio-web-ui-shared",
  "boardstudio_core",
  "dioxus",
- "dioxus-primitives",
  "dioxus-web",
  "gloo-timers",
  "serde_json",

@@ -131,13 +131,14 @@ impl<'a> Cx<'a> {
     }
 
     fn display_name(&self, matrix_id: &str) -> String {
-        self.document
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == matrix_id)
-            .and_then(|matrix| matrix.name.clone())
-            .filter(|name| !name.trim().is_empty())
-            .unwrap_or_else(|| matrix_id.to_owned())
+        super::anchor_pick::display_name(
+            self.document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == matrix_id)
+                .and_then(|matrix| matrix.name.as_deref()),
+            matrix_id,
+        )
     }
 
     /// The matrix anchor as (point, highlight, label): the anchor key, or the

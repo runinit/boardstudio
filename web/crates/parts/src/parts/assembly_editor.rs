@@ -1,16 +1,21 @@
 //! Parts-owned saved assembly list and the first authoring slice of F4.6.
 use super::catalogue::CatalogEntry;
-use crate::parts_custom_definition::replacement_commit;
+use super::model_transform::{
+    ModelAxis, ModelVector, model_vector, new_model, set_model_axis, valid_transform_value,
+};
+use crate::parts_custom_definition::{replace_document_resolver, replacement_commit};
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
 };
 use boardstudio_model::model::{
     AssemblyDefinition, AssemblyMember, AssemblyModelMode, Asset, EditOperation, Matrix,
     MatrixAssembly, MatrixCell, Part, PartDefinition, PartKind, PartModel, PartOutline, Pose2,
-    ProjectDoc, Side, Vec2, Vec3,
+    ProjectDoc, Side, Vec2,
 };
 use boardstudio_web_ui_model::Workspace;
-use boardstudio_web_ui_shared::inspector_fields::{NumericField, SelectField, TextCommitField};
+use boardstudio_web_ui_shared::inspector_fields::{
+    NumericField, SelectField, TOUCH_CLS, TextCommitField,
+};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::{Button, ButtonVariant},
@@ -18,11 +23,9 @@ use boardstudio_web_ui_shared::ui::{
     item::{Item, ItemGroup, ItemSize},
 };
 use dioxus::prelude::*;
-use dioxus_web::WebEventExt;
 use js_sys::{Date, Function, Reflect};
 use std::rc::Rc;
 use wasm_bindgen::{JsCast, JsValue};
-use web_sys::HtmlInputElement;
 
 #[derive(Clone, Debug, PartialEq)]
 struct AssemblyDraft {
@@ -91,38 +94,27 @@ fn placed_parts_for_submission(document: &ProjectDoc, board_id: &str, seed: &str
 }
 
 fn assembly_save_resolver(draft: AssemblyDraft, definitions: Vec<PartDefinition>) -> EditResolver {
-    EditResolver::new(
-        "parts-assembly-editor",
-        move |accepted: &AcceptedSnapshot| {
-            if accepted.document.id != draft.document_id {
-                return Resolution::Retire("The assembly's project changed.".into());
+    replace_document_resolver("parts-assembly-editor", move |accepted, replacement| {
+        if accepted.document.id != draft.document_id {
+            return Err("The assembly's project changed.".into());
+        }
+        let mut draft = draft.clone();
+        if draft.base.is_none() {
+            let root = draft.value.id.clone();
+            let mut suffix = 0_u64;
+            while accepted
+                .document
+                .assemblies
+                .iter()
+                .any(|assembly| assembly.id == draft.value.id)
+            {
+                suffix += 1;
+                draft.value.id = format!("{root}-{suffix}");
             }
-            let mut draft = draft.clone();
-            if draft.base.is_none() {
-                let root = draft.value.id.clone();
-                let mut suffix = 0_u64;
-                while accepted
-                    .document
-                    .assemblies
-                    .iter()
-                    .any(|assembly| assembly.id == draft.value.id)
-                {
-                    suffix += 1;
-                    draft.value.id = format!("{root}-{suffix}");
-                }
-            }
-            match saved_document(&accepted.document, &draft, &definitions) {
-                Ok(document) if document == *accepted.document => Resolution::Unchanged,
-                Ok(document) => replacement_commit(
-                    EditOperation::ReplaceDocument {
-                        document: Box::new(document),
-                    },
-                    vec![draft.value.id],
-                ),
-                Err(reason) => Resolution::Retire(reason),
-            }
-        },
-    )
+        }
+        *replacement = saved_document(&accepted.document, &draft, &definitions)?;
+        Ok(vec![draft.value.id])
+    })
 }
 
 fn assembly_place_resolver(
@@ -132,79 +124,67 @@ fn assembly_place_resolver(
     seed: String,
     part_ids: Vec<String>,
 ) -> EditResolver {
-    EditResolver::new(
-        "parts-assembly-place",
-        move |accepted: &AcceptedSnapshot| {
-            if accepted.document.id != scope.document_id {
-                return Resolution::Retire("The assembly's project changed.".into());
+    replace_document_resolver("parts-assembly-place", move |accepted, replacement| {
+        if accepted.document.id != scope.document_id {
+            return Err("The assembly's project changed.".into());
+        }
+        let mut placement = seed.clone();
+        let mut suffix = 0_u64;
+        while accepted
+            .document
+            .parts
+            .iter()
+            .any(|part| part.id.starts_with(&format!("{placement}/")))
+            || accepted.document.definitions.iter().any(|definition| {
+                definition
+                    .id
+                    .starts_with(&format!("{placement}/definition/"))
+            })
+        {
+            suffix += 1;
+            placement = format!("{seed}-{suffix}");
+        }
+        let prefix = format!("{seed}/");
+        let remap = |id: &str| {
+            id.strip_prefix(&prefix)
+                .map(|tail| format!("{placement}/{tail}"))
+                .unwrap_or_else(|| id.to_owned())
+        };
+        let mut prepared = proposal.clone();
+        for definition in prepared
+            .definitions
+            .iter_mut()
+            .filter(|definition| definition.id.starts_with(&format!("{seed}/definition/")))
+        {
+            definition.id = remap(&definition.id);
+        }
+        for part in prepared
+            .parts
+            .iter_mut()
+            .filter(|part| part_ids.contains(&part.id))
+        {
+            part.id = remap(&part.id);
+            part.definition_id = remap(&part.definition_id);
+            if let Some(properties) = part.properties.as_mut() {
+                properties.insert(
+                    "assemblyId".into(),
+                    serde_json::Value::String(placement.clone()),
+                );
             }
-            let mut placement = seed.clone();
-            let mut suffix = 0_u64;
-            while accepted
-                .document
-                .parts
-                .iter()
-                .any(|part| part.id.starts_with(&format!("{placement}/")))
-                || accepted.document.definitions.iter().any(|definition| {
-                    definition
-                        .id
-                        .starts_with(&format!("{placement}/definition/"))
-                })
-            {
-                suffix += 1;
-                placement = format!("{seed}-{suffix}");
-            }
-            let prefix = format!("{seed}/");
-            let remap = |id: &str| {
-                id.strip_prefix(&prefix)
-                    .map(|tail| format!("{placement}/{tail}"))
-                    .unwrap_or_else(|| id.to_owned())
-            };
-            let mut prepared = proposal.clone();
-            for definition in prepared
-                .definitions
-                .iter_mut()
-                .filter(|definition| definition.id.starts_with(&format!("{seed}/definition/")))
-            {
-                definition.id = remap(&definition.id);
-            }
-            for part in prepared
-                .parts
-                .iter_mut()
-                .filter(|part| part_ids.contains(&part.id))
-            {
-                part.id = remap(&part.id);
-                part.definition_id = remap(&part.definition_id);
-                if let Some(properties) = part.properties.as_mut() {
-                    properties.insert(
-                        "assemblyId".into(),
-                        serde_json::Value::String(placement.clone()),
-                    );
-                }
-            }
-            let ids = part_ids.iter().map(|id| remap(id)).collect::<Vec<_>>();
-            match rebase_assembly_placement(
-                &accepted.document,
-                &prepared,
-                &assets,
-                &scope.board_id,
-                &placement,
-                &ids,
-            ) {
-                Ok(document) => {
-                    let mut targets = ids;
-                    targets.push(scope.board_id.clone());
-                    replacement_commit(
-                        EditOperation::ReplaceDocument {
-                            document: Box::new(document),
-                        },
-                        targets,
-                    )
-                }
-                Err(reason) => Resolution::Retire(reason),
-            }
-        },
-    )
+        }
+        let ids = part_ids.iter().map(|id| remap(id)).collect::<Vec<_>>();
+        *replacement = rebase_assembly_placement(
+            &accepted.document,
+            &prepared,
+            &assets,
+            &scope.board_id,
+            &placement,
+            &ids,
+        )?;
+        let mut targets = ids;
+        targets.push(scope.board_id.clone());
+        Ok(targets)
+    })
 }
 
 fn assembly_matrix_resolver(
@@ -470,7 +450,7 @@ pub fn SavedAssembliesEditor(
         let definitions = definitions.clone();
         let preparing = preparing_place;
         let feedback = feedback;
-        move |(draft, origin_x, origin_y): (AssemblyDraft, String, String)| {
+        move |(draft, origin_x, origin_y): (AssemblyDraft, f64, f64)| {
             begin_place_assembly_on_board(
                 runtime.clone(),
                 workspace,
@@ -552,12 +532,12 @@ pub fn SavedAssembliesEditor(
         section { class: "grid gap-2", "aria-label": "Saved assemblies",
             h2 { "Assemblies" }
             if action_slot.is_none() {
-                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: move |event| create_action.call(event), "New assembly" }
+                Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS, onclick: move |event| create_action.call(event), "New assembly" }
             }
             if assembly_selection().is_some() {
                 Button {
                     variant: ButtonVariant::Secondary,
-                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: TOUCH_CLS,
                     disabled: !has_preset_definitions,
                     onclick: customize_preset,
                     "Customize 3D assembly"
@@ -574,10 +554,10 @@ pub fn SavedAssembliesEditor(
                               rsx! {
                                 Item { size: ItemSize::Xs, key: "{assembly.id}",
                                     Button { variant: ButtonVariant::Ghost,
-                                        class: "flex-1 justify-start whitespace-normal text-left max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                        class: "flex-1 justify-start whitespace-normal text-left {TOUCH_CLS}",
                                         onclick: move |_| open_existing(existing_assembly.clone()), "{assembly.name}" }
                                     Button { variant: ButtonVariant::Secondary,
-                                        class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                        class: TOUCH_CLS,
                                         aria_label: "Duplicate {assembly.name}", onclick: move |_| duplicate(duplicate_assembly.clone()), "Duplicate" }
                                 }
                               }
@@ -660,15 +640,15 @@ fn update_member(
 enum MemberPatch {
     Definition(String),
     Side(bool),
-    X(String),
-    Y(String),
-    Rotation(String),
+    X(f64),
+    Y(f64),
+    Rotation(f64),
     Parameters(Option<std::collections::BTreeMap<String, serde_json::Value>>),
     ModelMode(bool, Vec<PartModel>),
     AddModel(PartModel),
     RemoveModel(usize),
     ModelAsset(usize, String),
-    ModelVector(usize, ModelVector, ModelAxis, String),
+    ModelVector(usize, ModelVector, ModelAxis, f64),
     RemoveMember,
 }
 
@@ -693,23 +673,17 @@ impl MemberPatch {
                 }
             }
             Self::X(value) => {
-                if let Ok(value) = value.parse::<f64>()
-                    && value.is_finite()
-                {
+                if value.is_finite() {
                     member.pose.at.x = value;
                 }
             }
             Self::Y(value) => {
-                if let Ok(value) = value.parse::<f64>()
-                    && value.is_finite()
-                {
+                if value.is_finite() {
                     member.pose.at.y = value;
                 }
             }
             Self::Rotation(value) => {
-                if let Ok(value) = value.parse::<f64>()
-                    && value.is_finite()
-                {
+                if value.is_finite() {
                     member.pose.rotation = value;
                 }
             }
@@ -737,50 +711,16 @@ impl MemberPatch {
                     model.asset_id = asset_id;
                 }
             }
-            Self::ModelVector(index, field, axis, raw) => {
-                let Ok(value) = raw.parse::<f64>() else {
-                    return;
-                };
-                if !value.is_finite() || (matches!(field, ModelVector::Scale) && value <= 0.0) {
+            Self::ModelVector(index, field, axis, value) => {
+                if !valid_transform_value(field, value) {
                     return;
                 }
-                let Some(model) = member.models.get_mut(index) else {
-                    return;
-                };
-                let vector = match field {
-                    ModelVector::Offset => &mut model.offset,
-                    ModelVector::Rotation => &mut model.rotation,
-                    ModelVector::Scale => &mut model.scale,
-                };
-                match axis {
-                    ModelAxis::X => vector.x = value,
-                    ModelAxis::Y => vector.y = value,
-                    ModelAxis::Z => vector.z = value,
+                if let Some(model) = member.models.get_mut(index) {
+                    set_model_axis(model, field, axis, value);
                 }
             }
             Self::RemoveMember => { /* handled by update_member's assembly-level branch */ }
         }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq)]
-enum ModelVector {
-    Offset,
-    Rotation,
-    Scale,
-}
-#[derive(Clone, Copy)]
-enum ModelAxis {
-    X,
-    Y,
-    Z,
-}
-
-fn model_vector(model: &PartModel, field: ModelVector) -> Vec3 {
-    match field {
-        ModelVector::Offset => model.offset,
-        ModelVector::Rotation => model.rotation,
-        ModelVector::Scale => model.scale,
     }
 }
 
@@ -856,27 +796,6 @@ fn model_options(document_assets: &[Asset], draft_assets: &[Asset]) -> Vec<Model
     options
 }
 
-fn default_model(asset_id: String) -> PartModel {
-    PartModel {
-        asset_id,
-        offset: Vec3 {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        rotation: Vec3 {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        scale: Vec3 {
-            x: 1.0,
-            y: 1.0,
-            z: 1.0,
-        },
-    }
-}
-
 fn assembly_preview_recipe(
     assembly: &AssemblyDefinition,
     definitions: &[PartDefinition],
@@ -922,29 +841,24 @@ fn assembly_owner_current(
     draft: &AssemblyDraft,
     workspace: Workspace,
 ) -> bool {
-    if workspace != Workspace::Parts || runtime.scope() != draft.scope {
-        return false;
-    }
-    let model = runtime.model();
-    model.accepted.as_ref().is_some_and(|accepted| {
-        accepted.document.id == draft.document_id && accepted.session_epoch == draft.session_epoch
+    let guard = crate::parts_custom_definition::PartsOwnerGuard::document(
+        draft.scope.clone(),
+        draft.session_epoch,
+        draft.document_id.clone(),
+    );
+    runtime.model().accepted.as_ref().is_some_and(|accepted| {
+        guard.is_current(accepted, runtime.scope(), None, None, None, Some(workspace))
     })
 }
 
 fn unique_asset_id(root: &str, document_assets: &[Asset], draft_assets: &[Asset]) -> String {
-    let used = |id: &str| {
+    crate::parts_custom_definition::unique_suffixed_id_capped(root, |id| {
         document_assets
             .iter()
             .chain(draft_assets)
             .any(|asset| asset.id == id)
-    };
-    if !used(root) {
-        return root.to_owned();
-    }
-    (2..=1024)
-        .map(|suffix| format!("{root}-{suffix}"))
-        .find(|id| !used(id))
-        .unwrap_or_else(|| format!("{root}-new"))
+    })
+    .unwrap_or_else(|| format!("{root}-new"))
 }
 
 fn saved_document(
@@ -1024,20 +938,10 @@ fn saved_document(
 
 fn next_id(document: &ProjectDoc) -> Result<String, String> {
     let base = browser_uuid().unwrap_or_else(|| format!("{:x}", Date::now().max(0.0) as u64));
-    let used = |candidate: &str| {
-        document
-            .assemblies
-            .iter()
-            .any(|assembly| assembly.id == candidate)
-    };
-    let root = format!("assembly-{base}");
-    if !used(&root) {
-        return Ok(root);
-    }
-    (2..=1024)
-        .map(|suffix| format!("{root}-{suffix}"))
-        .find(|candidate| !used(candidate))
-        .ok_or_else(|| "Could not allocate a unique assembly identity.".into())
+    crate::parts_custom_definition::unique_suffixed_id_capped(&format!("assembly-{base}"), |id| {
+        document.assemblies.iter().any(|assembly| assembly.id == id)
+    })
+    .ok_or_else(|| "Could not allocate a unique assembly identity.".into())
 }
 
 fn browser_uuid() -> Option<String> {
@@ -1052,14 +956,10 @@ fn browser_uuid() -> Option<String> {
 fn member_id(assembly: &AssemblyDefinition) -> Option<String> {
     let current = Date::now().max(0.0) as u64;
     let root = browser_uuid().unwrap_or_else(|| format!("{current:x}"));
-    let used = |candidate: &str| assembly.members.iter().any(|member| member.id == candidate);
-    let candidate = format!("component-{}", &root[..root.len().min(8)]);
-    if !used(&candidate) {
-        return Some(candidate);
-    }
-    (2..=1024)
-        .map(|suffix| format!("{candidate}-{suffix}"))
-        .find(|id| !used(id))
+    crate::parts_custom_definition::unique_suffixed_id_capped(
+        &format!("component-{}", &root[..root.len().min(8)]),
+        |id| assembly.members.iter().any(|member| member.id == id),
+    )
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

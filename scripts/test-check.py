@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -39,6 +40,50 @@ class CheckTests(unittest.TestCase):
     @staticmethod
     def option_values(command, option):
         return [value for flag, value in zip(command, command[1:]) if flag == option]
+
+    def test_build_overlaps_web_and_browser_prebuilds_and_retains_artifacts(self):
+        barrier = threading.Barrier(2, timeout=2)
+        css_calls = []
+        lane_envs = {}
+        state = {}
+        env = {}
+
+        def serial(command, environment, cwd, outputs=None, **kwargs):
+            if command == ["tailwind"]:
+                self.assertEqual(cwd, check.ROOT / "web")
+                css_calls.append(list(command))
+                return 0, 0
+            if command == check.STEPS["build"][1][0]:
+                lane_envs["web"] = environment.copy()
+                barrier.wait()
+            elif command == check.PAGE_TEST_BUILD:
+                lane_envs["page"] = environment.copy()
+                outputs.append((command, "/tmp/page.wasm\n"))
+            return 0, 0
+
+        def crates(command, environment, cwd, state):
+            lane_envs["crates"] = environment.copy()
+            barrier.wait()
+            state["crates"] = {"host": Path("/tmp/host.wasm")}
+            return True
+
+        with patch.object(check, "check_jobs", return_value=2), \
+             patch.object(check, "test_css_command", return_value=["tailwind"]), \
+             patch.object(check, "run_serial", side_effect=serial), \
+             patch.object(check, "build_crate_tests", side_effect=crates):
+            _, passed = check.run_commands("build", check.STEPS["build"][1], env, state=state)
+            self.assertTrue(passed)
+            self.assertEqual(css_calls, [["tailwind"]])
+            self.assertEqual(lane_envs["web"][check.TEST_CSS_READY], "1")
+            self.assertEqual(lane_envs["web"][check.IN_OVERLAP_ENV], "1")
+            self.assertEqual(lane_envs["page"][check.TEST_CSS_READY], "1")
+            self.assertEqual(lane_envs["crates"][check.TEST_CSS_READY], "1")
+            _, second = check.run_commands("build", check.STEPS["build"][1], {}, state=state)
+            self.assertTrue(second)
+            self.assertEqual(len(css_calls), 1)
+        self.assertEqual(state["page"], "/tmp/page.wasm")
+        self.assertEqual(state["crates"], {"host": Path("/tmp/host.wasm")})
+        self.assertEqual(env[check.TEST_CSS_READY], "1")
 
     def test_packaged_plan_uses_page_prebuild_only(self):
         with patch.object(check.browser_tools, "locate_chrome"), \

@@ -22,6 +22,27 @@ pub fn captured_case_scene(
     captured_case_inputs(snapshot, scope).map(|(_, scene)| scene)
 }
 
+/// The snapshot still matches `scope`; anything else is stale, never partial.
+fn check_scope_current(
+    snapshot: &AcceptedSnapshot,
+    scope: &Scope,
+    message: &str,
+) -> Result<(), CadJobError> {
+    (scope.session_epoch == snapshot.session_epoch
+        && scope.document_id == snapshot.document.id
+        && snapshot.scene.revision == snapshot.document.revision)
+        .then_some(())
+        .ok_or_else(|| CadJobError::Stale(message.into()))
+}
+
+/// The single item a capture expects: missing or ambiguous reads are `Blocked`.
+fn single<T>(mut items: impl Iterator<Item = T>, message: &str) -> Result<T, CadJobError> {
+    match (items.next(), items.next()) {
+        (Some(item), None) => Ok(item),
+        _ => Err(CadJobError::Blocked(message.into())),
+    }
+}
+
 /// Return the consumer-owned document projection for a selected physical
 /// board instance, including effective shared mechanical defaults and flip
 /// transforms. The accepted snapshot is never mutated.
@@ -46,54 +67,39 @@ pub fn captured_pcb_source(
     scope: &Scope,
 ) -> Result<Option<CapturedPcbSource>, CadJobError> {
     let document = snapshot.document.as_ref();
-    if snapshot.session_epoch != scope.session_epoch
-        || document.id != scope.document_id
-        || snapshot.scene.revision != document.revision
-    {
-        return Err(CadJobError::Stale("PCB source scope changed".into()));
-    }
-    if document
+    check_scope_current(snapshot, scope, "PCB source scope changed")?;
+    let boards = document
         .boards
         .iter()
-        .filter(|board| board.id == scope.board_id)
-        .count()
-        != 1
-    {
-        return Err(CadJobError::Blocked(
-            "PCB source board is missing or ambiguous".into(),
-        ));
-    }
+        .filter(|board| board.id == scope.board_id);
+    single(boards, "PCB source board is missing or ambiguous")?;
     let flipped = if let Some(id) = &scope.instance_id {
-        let instances = document
+        let hardware = document
             .hardware
             .as_ref()
             .into_iter()
-            .flat_map(|hardware| &hardware.instances)
-            .filter(|instance| instance.id == *id && instance.board_id == scope.board_id)
-            .collect::<Vec<_>>();
-        if instances.len() != 1 {
-            return Err(CadJobError::Blocked(
-                "PCB source physical instance is missing or ambiguous".into(),
-            ));
-        }
-        instances[0].flipped
+            .flat_map(|hardware| &hardware.instances);
+        single(
+            hardware.filter(|instance| instance.id == *id && instance.board_id == scope.board_id),
+            "PCB source physical instance is missing or ambiguous",
+        )?
+        .flipped
     } else {
         false
     };
-    let references = document
+    let mut references = document
         .board_references
         .iter()
-        .filter(|reference| reference.board_id == scope.board_id && reference.enabled)
-        .collect::<Vec<_>>();
-    if references.is_empty() {
-        return Ok(None);
-    }
-    if references.len() != 1 {
-        return Err(CadJobError::Blocked(
-            "PCB source reference is ambiguous".into(),
-        ));
-    }
-    let reference = references[0];
+        .filter(|reference| reference.board_id == scope.board_id && reference.enabled);
+    let reference = match (references.next(), references.next()) {
+        (Some(reference), None) => reference,
+        (None, None) => return Ok(None),
+        _ => {
+            return Err(CadJobError::Blocked(
+                "PCB source reference is ambiguous".into(),
+            ));
+        }
+    };
     if !reference.elevation.is_finite()
         || !reference.pose.at.x.is_finite()
         || !reference.pose.at.y.is_finite()
@@ -106,9 +112,9 @@ pub fn captured_pcb_source(
     let assets = document
         .assets
         .iter()
-        .filter(|asset| asset.id == reference.asset_id)
-        .collect::<Vec<_>>();
-    if assets.len() != 1 || assets[0].sha256.is_empty() {
+        .filter(|asset| asset.id == reference.asset_id);
+    let asset = single(assets, "PCB source asset is missing or ambiguous")?;
+    if asset.sha256.is_empty() {
         return Err(CadJobError::Blocked(
             "PCB source asset is missing or ambiguous".into(),
         ));
@@ -121,7 +127,7 @@ pub fn captured_pcb_source(
     }
     Ok(Some(CapturedPcbSource {
         reference: reference.clone(),
-        asset: assets[0].clone(),
+        asset: asset.clone(),
         placement,
         flipped,
     }))
@@ -131,14 +137,11 @@ fn captured_case_inputs(
     snapshot: &AcceptedSnapshot,
     scope: &Scope,
 ) -> Result<(ProjectDoc, SceneDelta), CadJobError> {
-    if scope.session_epoch != snapshot.session_epoch
-        || scope.document_id != snapshot.document.id
-        || snapshot.scene.revision != snapshot.document.revision
-    {
-        return Err(CadJobError::Stale(
-            "case scene scope or accepted revision changed".into(),
-        ));
-    }
+    check_scope_current(
+        snapshot,
+        scope,
+        "case scene scope or accepted revision changed",
+    )?;
     let document = boardstudio_application::resolved_document(&snapshot.document);
     effective_case_inputs(&document, &snapshot.scene, scope)
 }
@@ -220,19 +223,13 @@ pub fn prepare_captured_case(
             }
         }
         CoreReply::Error { message, .. } => return Err(CadJobError::Blocked(message)),
-        _ => {
-            return Err(CadJobError::Failed(
-                "unexpected core case preparation reply".into(),
-            ));
-        }
+        _ => return Err(unexpected_case_reply()),
     };
     let reply = core(prepare);
     let mut prepared = match reply {
         CoreReply::CasePrepared { ir, .. } => Ok(ir),
         CoreReply::Error { message, .. } => Err(CadJobError::Blocked(message)),
-        _ => Err(CadJobError::Failed(
-            "unexpected core case preparation reply".into(),
-        )),
+        _ => Err(unexpected_case_reply()),
     }?;
     if let Some(reference) = pcb_reference {
         let request_id = format!("{request_prefix}-pcb-reference");
@@ -262,6 +259,12 @@ pub fn prepare_captured_case(
         }
     }
     validate_prepared(identity, prepared, mechanical_assembly)
+}
+
+/// A core reply the case pipeline never accepts.
+#[cfg(target_arch = "wasm32")]
+fn unexpected_case_reply() -> CadJobError {
+    CadJobError::Failed("unexpected core case preparation reply".into())
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -307,18 +310,15 @@ fn effective_case_inputs(
     let selected_instance = match &scope.instance_id {
         None => None,
         Some(instance_id) => {
-            let instance = document
+            let hardware = document
                 .hardware
                 .as_ref()
-                .and_then(|hardware| {
-                    hardware
-                        .instances
-                        .iter()
-                        .find(|instance| instance.id == *instance_id)
-                })
-                .ok_or_else(|| {
-                    CadJobError::Blocked("selected physical board instance is unavailable".into())
-                })?;
+                .into_iter()
+                .flat_map(|hardware| &hardware.instances);
+            let instance = single(
+                hardware.filter(|instance| instance.id == *instance_id),
+                "selected physical board instance is missing or ambiguous",
+            )?;
             if instance.board_id != scope.board_id {
                 return Err(CadJobError::Stale(
                     "selected instance belongs to another board".into(),

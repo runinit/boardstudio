@@ -6,11 +6,10 @@ use super::keycaps_settings::{
     KeycapsSettingsEditor, SelectedKeySettings,
 };
 use super::objects;
-use super::workbench::editor_session::findings_navigation;
 use super::workspace_composition::{CanvasEventHandlers, SharedObjectsInput};
 use super::workspace_composition::{
-    WorkspaceInteraction, WorkspaceOutputs, WorkspaceSurfaces, design_toolbar, publish_surfaces,
-    use_frame,
+    WorkspaceInteraction, WorkspaceSurfaces, design_key_select_handler, design_toolbar, use_frame,
+    use_publish_surfaces,
 };
 use super::*;
 use super::{keycaps_finding_marker, keycaps_navigation};
@@ -281,7 +280,6 @@ pub(super) fn KeycapsWorkspace() -> Element {
     let adapter = use_context::<SelectionAdapter>();
     let frame = use_frame();
     let interaction = use_context::<WorkspaceInteraction>();
-    let outputs = use_context::<WorkspaceOutputs>();
     let runtime = editor.runtime();
     let workspace = editor.workspace;
     let instance_selection = editor.instance_selection;
@@ -290,26 +288,24 @@ pub(super) fn KeycapsWorkspace() -> Element {
     let fit = use_clearance_assessment(editor, model, current_scope.as_ref());
     let navigation = use_context::<KeycapsWorkspaceState>();
     let case_selection = use_context::<shared_viewer::CaseSelection>();
-    let on_finding = findings_navigation::on_keycaps_finding_handler(
-        findings_navigation::OnKeycapsFindingInput {
-            runtime: runtime.clone(),
-            adapter: adapter.clone(),
-            scope: frame.scope.clone(),
-            generation: frame.owner.generation,
-            workspace,
-            objects_open: editor.panels.objects_open,
-            inspect_open: editor.panels.inspector_open,
-            body_selection: case_selection.body,
-            case_selection_for_owner: case_selection,
-            navigation_alive: navigation.navigation_alive(),
-            inspector_settings: interaction.inspector_settings,
-            fit_state: fit.state.clone(),
-            keycaps_state: navigation,
-            source_surface: frame.svg.clone(),
-            select_tree: frame.objects.on_select,
-            case_selection,
-        },
-    );
+    let on_finding = on_keycaps_finding_handler(OnKeycapsFindingInput {
+        runtime: runtime.clone(),
+        adapter: adapter.clone(),
+        scope: frame.scope.clone(),
+        generation: frame.owner.generation,
+        workspace,
+        objects_open: editor.panels.objects_open,
+        inspect_open: editor.panels.inspector_open,
+        body_selection: case_selection.body,
+        case_selection_for_owner: case_selection,
+        navigation_alive: navigation.navigation_alive(),
+        inspector_settings: interaction.inspector_settings,
+        fit_state: fit.state.clone(),
+        keycaps_state: navigation,
+        source_surface: frame.svg.clone(),
+        select_tree: frame.objects.on_select,
+        case_selection,
+    });
     let document = &frame.document;
     let keycaps_edit_source = current_scope
         .as_ref()
@@ -342,7 +338,25 @@ pub(super) fn KeycapsWorkspace() -> Element {
         || (None, Rc::from([])),
         |(view, contours)| (Some(view), contours),
     );
-    let on_select_key = on_select_key(editor, adapter.clone(), &frame);
+    let on_select_key = design_key_select_handler(
+        editor,
+        adapter.clone(),
+        &frame,
+        Workspace::Keycaps,
+        false,
+        move |model, scope| {
+            active_board_scope_matches(model, scope) && instance_selection.is_current(model)
+        },
+        |model, scope, key_id| {
+            model
+                .accepted
+                .as_ref()
+                .and_then(|snapshot| {
+                    keycaps_scene::project(snapshot, scope, &model.active_board_id)
+                })
+                .is_some_and(|view| view.keys.iter().any(|key| key.id.as_ref() == key_id))
+        },
+    );
     let (view_box, handlers, status) = frame.use_design_canvas(
         editor,
         &adapter,
@@ -411,97 +425,167 @@ pub(super) fn KeycapsWorkspace() -> Element {
         status,
         layers: rsx! {},
     };
-    publish_surfaces(outputs, Workspace::Keycaps, surfaces);
+    use_publish_surfaces(Workspace::Keycaps, surfaces);
     rsx! {}
 }
 
-fn on_select_key(
-    editor: EditorContext,
-    adapter: SelectionAdapter,
-    frame: &workspace_composition::WorkspaceFrame,
-) -> EventHandler<String> {
-    let runtime = editor.runtime();
-    let workspace = editor.workspace;
-    let scope = frame.scope.clone();
-    let generation = frame.owner.generation;
-    let CompactPanelState {
+pub(super) struct OnKeycapsFindingInput {
+    pub runtime: Rc<Runtime>,
+    pub adapter: SelectionAdapter,
+    pub scope: Scope,
+    pub generation: u64,
+    pub workspace: Signal<Workspace>,
+    pub objects_open: Signal<bool>,
+    pub inspect_open: Signal<bool>,
+    pub body_selection: Signal<Option<shared_viewer::BodySelection>>,
+    pub case_selection_for_owner: shared_viewer::CaseSelection,
+    pub navigation_alive: Rc<Cell<bool>>,
+    pub inspector_settings: Signal<PanelSettings>,
+    pub fit_state: Option<keycaps_fit::KeycapsFitState>,
+    pub keycaps_state: keycaps_workspace::KeycapsWorkspaceState,
+    pub source_surface: Rc<RefCell<Option<SvgElement>>>,
+    pub select_tree: EventHandler<objects::TreeSelectRequest>,
+    pub case_selection: shared_viewer::CaseSelection,
+}
+
+pub(super) fn on_keycaps_finding_handler(
+    input: OnKeycapsFindingInput,
+) -> EventHandler<keycaps_fit::FindingNavigationRequest> {
+    let OnKeycapsFindingInput {
+        runtime,
+        adapter,
+        scope,
+        generation,
+        mut workspace,
         mut objects_open,
-        inspector_open: mut inspect_open,
-    } = editor.panels;
-    let instance_selection = editor.instance_selection;
-    EventHandler::new(move |key_id: String| {
-        if workspace() != Workspace::Keycaps
-            || runtime.scope().as_ref() != Some(&scope)
-            || (adapter.generation)() != generation
-        {
-            return;
-        }
+        mut inspect_open,
+        mut body_selection,
+        case_selection_for_owner,
+        navigation_alive,
+        inspector_settings,
+        fit_state,
+        keycaps_state,
+        source_surface,
+        select_tree,
+        case_selection,
+    } = input;
+    EventHandler::new(move |request: keycaps_fit::FindingNavigationRequest| {
+        let owner = keycaps_navigation::OwnerIdentity {
+            scope: &scope,
+            generation,
+        };
         let model = runtime.model();
-        if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model) {
-            return;
-        }
-        if key_id.is_empty() {
-            let mut selected_context = adapter.selected_context;
-            selected_context.set(None);
-            let mut anchor_scope = adapter.anchor_scope;
-            anchor_scope.set(None);
-            runtime.submit(boardstudio_application::Event::SelectParts {
-                operation_id: runtime.operation(),
-                part_ids: Vec::new(),
-                range_part_ids: Vec::new(),
-                mode: SelectionMode::Replace,
-            });
-            return;
-        }
         let Some(snapshot) = model.accepted.as_ref() else {
             return;
         };
-        let Some(view) = keycaps_scene::project(snapshot, &scope, &model.active_board_id) else {
+        let live_mechanical_layers = current_case_layer_ids(&runtime, &scope, snapshot);
+        let Some(state) = fit_state.as_ref() else {
             return;
         };
-        if !view.keys.iter().any(|key| key.id.as_ref() == key_id) {
-            return;
-        }
-        let Some(context) = objects::context_for_part(&model, &key_id) else {
+        let Some(accepted_scope) = runtime.scope() else {
             return;
         };
-        if !selection::context_is_current(&model, &scope, &context) {
-            return;
-        }
-        let Some(selected_ids) = selection::submit_canvas_selection(
-            &runtime,
-            &adapter,
-            &scope,
-            generation,
-            context.clone(),
-            SelectionMode::Replace,
-            Vec::new(),
+        let accepted = keycaps_navigation::AcceptedNavigationSource {
+            scope: accepted_scope,
+            session_epoch: snapshot.session_epoch,
+            token: snapshot.token,
+            revision: snapshot.document.revision,
+            active_board_id: model.active_board_id.clone(),
+        };
+        let Some(admitted) = keycaps_navigation::admit_accepted_request(
+            &request,
+            keycaps_navigation::NavigationAdmission {
+                current_workspace: workspace(),
+                owner,
+                live_scope: runtime.scope().as_ref(),
+                live_generation: (adapter.generation)(),
+                accepted: &accepted,
+                fit_state: state,
+                document: &snapshot.document,
+                live_mechanical_layers: live_mechanical_layers.as_deref(),
+            },
+            |target| match target {
+                keycaps_fit::FindingNavigationTarget::Part { part_id, .. } => {
+                    objects::component_context_for_finding_part(&model, part_id)
+                }
+                _ => None,
+            },
         ) else {
             return;
         };
-        if selected_ids.is_empty()
-            || runtime.scope().as_ref() != Some(&scope)
-            || (adapter.generation)() != generation
-        {
-            return;
-        }
-        let current = runtime.model();
-        if !active_board_scope_matches(&current, &scope)
-            || !selection::context_is_current(&current, &scope, &context)
-            || !instance_selection.is_current(&current)
-        {
-            return;
-        }
-        let Some(snapshot) = current.accepted.as_ref() else {
-            return;
+        let focused = keycaps_navigation::focused_finding_for_admitted_route(&request, &admitted);
+        let effects = admitted.effects;
+        let navigation_owner = admitted.owner;
+        let source_basis = if workspace() == Workspace::Keycaps {
+            source_surface.borrow().as_ref().and_then(|surface| {
+                let rect = surface.get_bounding_client_rect();
+                keycaps_fit::layout_camera_basis(
+                    &snapshot.document,
+                    &snapshot.scene,
+                    &request.source.scope.board_id,
+                    (rect.width(), rect.height()),
+                )
+            })
+        } else {
+            None
         };
-        let Some(view) = keycaps_scene::project(snapshot, &scope, &current.active_board_id) else {
-            return;
-        };
-        if !view.keys.iter().any(|key| key.id.as_ref() == key_id) {
-            return;
-        }
-        objects_open.set(false);
-        inspect_open.set(true);
+        keycaps_state.set_focused_finding(focused);
+        let focus_runtime = runtime.clone();
+        let focus_adapter = adapter.clone();
+        let focus_body_selection = body_selection;
+        let focus_case_selection = case_selection_for_owner;
+        let focus_workspace = workspace;
+        keycaps_state.set_pending_layout_fit(None);
+        keycaps_navigation::dispatch_route_with_camera_basis(
+            effects,
+            &request,
+            source_basis,
+            |effect| match effect {
+                keycaps_navigation::RouteAction::SetWorkspace(name) => workspace.set(name),
+                keycaps_navigation::RouteAction::SelectTree { scope, context } => {
+                    select_tree.call(objects::TreeSelectRequest {
+                        scope,
+                        context,
+                        mode: SelectionMode::Replace,
+                        outline_action: None,
+                    });
+                }
+                keycaps_navigation::RouteAction::SelectCaseLayer { scope, layer_id } => {
+                    case_selection.select_layer(scope, layer_id);
+                }
+                keycaps_navigation::RouteAction::SelectCaseBody { scope, body_id } => {
+                    // Dioxus retains body and layer selections independently; clear an older
+                    // layer so the body finding becomes the active, reachable Inspector owner.
+                    case_selection_for_owner.clear_layer_for_scope(&scope);
+                    body_selection.set(Some(shared_viewer::BodySelection { scope, body_id }));
+                }
+                keycaps_navigation::RouteAction::CloseObjects => objects_open.set(false),
+                keycaps_navigation::RouteAction::OpenInspector => inspect_open.set(true),
+                keycaps_navigation::RouteAction::PinInspector => {
+                    pin_inspector_on_desktop(inspector_settings);
+                }
+                keycaps_navigation::RouteAction::QueueLayoutFit(request) => {
+                    keycaps_state.set_pending_layout_fit(Some(*request));
+                }
+                keycaps_navigation::RouteAction::Report(message) => runtime.report(message),
+                keycaps_navigation::RouteAction::FocusInspector => {
+                    let scheduled_runtime = focus_runtime.clone();
+                    let scheduled_adapter = focus_adapter.clone();
+                    focus_first_inspector_control_on_next_frame(
+                        navigation_alive.clone(),
+                        navigation_owner.clone(),
+                        move || {
+                            current_keycaps_navigation_owner(
+                                focus_workspace,
+                                &scheduled_runtime,
+                                &scheduled_adapter,
+                                focus_body_selection,
+                                focus_case_selection,
+                            )
+                        },
+                    );
+                }
+            },
+        );
     })
 }

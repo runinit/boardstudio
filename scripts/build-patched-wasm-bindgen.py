@@ -23,6 +23,9 @@ import tempfile
 import tomllib
 import urllib.request
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import wasm_bindgen_tools
+
 VERSION = "0.2.129"
 CRATES = {
     "wasm-bindgen-cli-0.2.129": "5fd044ed178958a277eeaf21f3d384287b0f4428d38c019141df01da9c03168c",
@@ -43,13 +46,8 @@ def digest(path):
 
 
 def check_workspace_lock(workspace_lock):
-    with Path(workspace_lock).open("rb") as lock:
-        packages = tomllib.load(lock).get("package", [])
-    if not isinstance(packages, list) or any(not isinstance(package, dict) for package in packages):
-        raise ValueError("workspace lock must contain Cargo package entries")
-    versions = [package.get("version") for package in packages if package.get("name") == "wasm-bindgen"]
-    if versions != [VERSION]:
-        raise ValueError(f"workspace must contain exactly one wasm-bindgen package at version {VERSION}: {versions}")
+    if wasm_bindgen_tools.locked_version(ROOT, lock_path=workspace_lock) != VERSION:
+        raise ValueError(f"workspace must contain exactly one wasm-bindgen package at version {VERSION}")
 
 
 def pinned_env():
@@ -88,11 +86,7 @@ def cache_key(workspace_lock):
 
 
 def verify_pair(directory):
-    for name in BINS:
-        binary = Path(directory).absolute() / name
-        result = subprocess.run([str(binary), "--version"], capture_output=True, text=True, check=True)
-        if result.stdout.strip() != f"{name} {VERSION}":
-            raise ValueError(f"unexpected version from {binary}: {result.stdout.strip()!r}")
+    wasm_bindgen_tools.validate_pair(Path(directory).absolute(), VERSION)
 
 
 def build(output, crate_dir, offline, workspace_lock):

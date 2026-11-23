@@ -29,17 +29,6 @@ pub struct CatalogGroup<'a> {
     pub entries: Vec<&'a CatalogEntry>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum CatalogKind {
-    Switch,
-    Controller,
-    Connector,
-    Encoder,
-    Passive,
-    Utility,
-    Custom,
-}
-
 impl CatalogEntry {
     pub fn matches_library_search(&self, query: &str) -> bool {
         query.is_empty() || self.library_search_text().to_lowercase().contains(query)
@@ -65,6 +54,18 @@ impl CatalogEntry {
                 .unwrap_or_default(),
             search_aliases(&self.definition),
         )
+    }
+}
+
+fn kind_search_label(kind: &PartKind) -> &'static str {
+    match kind {
+        PartKind::Switch => "switch",
+        PartKind::Controller => "controller",
+        PartKind::Connector => "connector",
+        PartKind::Encoder => "encoder",
+        PartKind::Passive => "passive",
+        PartKind::Utility => "utility",
+        PartKind::Custom => "custom",
     }
 }
 
@@ -114,13 +115,18 @@ pub async fn load_bundled(reversible: bool) -> Result<Rc<Vec<CatalogEntry>>, Str
         .into_iter()
         .map(|part| part.definition)
         .collect::<Vec<_>>();
-    let generated = generators::catalogue()?
+    let generated = generators::catalogue()?;
+    let supported = |definition| {
+        construction_definition_with_support(definition, reversible)
+            .map(|(definition, _)| definition)
+    };
+    let generated = generated
         .into_iter()
-        .map(|definition| construction_definition(definition, reversible))
+        .map(supported)
         .collect::<Result<Vec<_>, _>>()?;
     let imported = imported
         .into_iter()
-        .map(|definition| construction_definition(definition, reversible))
+        .map(supported)
         .collect::<Result<Vec<_>, _>>()?;
     let entries = Rc::new(merge_bundled_sources(&generated, &imported));
     BUNDLED_CACHE.with(|cache| {
@@ -133,31 +139,46 @@ pub async fn load_bundled(reversible: bool) -> Result<Rc<Vec<CatalogEntry>>, Str
     Ok(entries)
 }
 
+fn upsert_entries(
+    entries: &mut Vec<CatalogEntry>,
+    positions: &mut HashMap<String, usize>,
+    definitions: &[PartDefinition],
+    source: CatalogueSource,
+) {
+    for definition in definitions {
+        if let Some(index) = positions.get(&definition.id).copied() {
+            entries[index] = CatalogEntry {
+                definition: Rc::new(definition.clone()),
+                source,
+            };
+        } else {
+            positions.insert(definition.id.clone(), entries.len());
+            entries.push(CatalogEntry {
+                definition: Rc::new(definition.clone()),
+                source,
+            });
+        }
+    }
+}
+
 fn merge_bundled_sources(
     generated: &[PartDefinition],
     imported: &[PartDefinition],
 ) -> Vec<CatalogEntry> {
     let mut entries = Vec::with_capacity(generated.len() + imported.len());
     let mut positions = HashMap::<String, usize>::with_capacity(entries.capacity());
-    for (definitions, source) in [
-        (generated, CatalogueSource::Generator),
-        (imported, CatalogueSource::Imported),
-    ] {
-        for definition in definitions {
-            if let Some(index) = positions.get(&definition.id).copied() {
-                entries[index] = CatalogEntry {
-                    definition: Rc::new(definition.clone()),
-                    source,
-                };
-            } else {
-                positions.insert(definition.id.clone(), entries.len());
-                entries.push(CatalogEntry {
-                    definition: Rc::new(definition.clone()),
-                    source,
-                });
-            }
-        }
-    }
+    upsert_entries(
+        &mut entries,
+        &mut positions,
+        generated,
+        CatalogueSource::Generator,
+    );
+    upsert_entries(
+        &mut entries,
+        &mut positions,
+        imported,
+        CatalogueSource::Imported,
+    );
     entries
 }
 
@@ -170,20 +191,12 @@ pub fn merge_project_overrides(
     for (index, entry) in entries.iter().enumerate() {
         positions.insert(entry.definition.id.clone(), index);
     }
-    for definition in project {
-        if let Some(index) = positions.get(&definition.id).copied() {
-            entries[index] = CatalogEntry {
-                definition: Rc::new(definition.clone()),
-                source: CatalogueSource::Project,
-            };
-        } else {
-            positions.insert(definition.id.clone(), entries.len());
-            entries.push(CatalogEntry {
-                definition: Rc::new(definition.clone()),
-                source: CatalogueSource::Project,
-            });
-        }
-    }
+    upsert_entries(
+        &mut entries,
+        &mut positions,
+        project,
+        CatalogueSource::Project,
+    );
     entries
 }
 
@@ -196,20 +209,20 @@ pub fn catalogue_choices(entries: &[CatalogEntry]) -> Vec<&CatalogEntry> {
 
 pub fn group_choices(entries: &[CatalogEntry]) -> Vec<CatalogGroup<'_>> {
     let groups = [
-        ("Switches", CatalogKind::Switch),
-        ("Controllers", CatalogKind::Controller),
-        ("Connectors & sockets", CatalogKind::Connector),
-        ("Encoders", CatalogKind::Encoder),
-        ("Passives & LEDs", CatalogKind::Passive),
-        ("Utilities", CatalogKind::Utility),
-        ("Custom", CatalogKind::Custom),
+        ("Switches", PartKind::Switch),
+        ("Controllers", PartKind::Controller),
+        ("Connectors & sockets", PartKind::Connector),
+        ("Encoders", PartKind::Encoder),
+        ("Passives & LEDs", PartKind::Passive),
+        ("Utilities", PartKind::Utility),
+        ("Custom", PartKind::Custom),
     ];
     groups
         .into_iter()
         .filter_map(|(label, kind)| {
             let entries = catalogue_choices(entries)
                 .into_iter()
-                .filter(|entry| catalog_kind(&entry.definition.kind) == kind)
+                .filter(|entry| entry.definition.kind == kind)
                 .collect::<Vec<_>>();
             (!entries.is_empty()).then_some(CatalogGroup { label, entries })
         })
@@ -284,13 +297,6 @@ pub async fn normalize_generator_definition(
     Ok(normalized)
 }
 
-fn construction_definition(
-    definition: PartDefinition,
-    reversible: bool,
-) -> Result<PartDefinition, String> {
-    construction_definition_with_support(definition, reversible).map(|(definition, _)| definition)
-}
-
 fn construction_definition_with_support(
     mut definition: PartDefinition,
     reversible: bool,
@@ -322,24 +328,28 @@ fn construction_definition_with_support(
     Ok((normalized, true))
 }
 
+/// The generator normalizer for an intent: reversible layouts re-normalize
+/// through the generators, everything else passes definitions through.
+type SetupNormalize = fn(&PartDefinition, bool) -> Result<(PartDefinition, bool), String>;
+
+fn normalize_for_intent(intent: &crate::physical_setup::SetupIntent) -> SetupNormalize {
+    use crate::physical_setup::SetupIntent;
+    match intent {
+        SetupIntent::ReversibleLayout(_) => {
+            |definition, enabled| construction_definition_with_support(definition.clone(), enabled)
+        }
+        _ => |definition, _| Ok((definition.clone(), false)),
+    }
+}
+
 /// Prepare a project setup proposal through catalogue-owned helpers; callers receive
 /// proposals, not access to the generators.
 pub fn prepare_physical_setup_proposal(
     accepted: &ProjectDoc,
     intent: crate::physical_setup::SetupIntent,
 ) -> Result<ProjectDoc, String> {
-    use crate::physical_setup::SetupIntent;
-
-    match intent {
-        SetupIntent::ReversibleLayout(enabled) => crate::physical_setup::propose(
-            accepted,
-            SetupIntent::ReversibleLayout(enabled),
-            |definition, enabled| construction_definition_with_support(definition.clone(), enabled),
-        ),
-        intent => crate::physical_setup::propose(accepted, intent, |definition, _| {
-            Ok((definition.clone(), false))
-        }),
-    }
+    let normalize = normalize_for_intent(&intent);
+    crate::physical_setup::propose(accepted, intent, normalize)
 }
 
 pub async fn prepare_physical_setup_proposal_from_package(
@@ -359,20 +369,8 @@ pub fn prepare_physical_setup_proposal_with_pair(
     accepted: &ProjectDoc,
     intent: crate::physical_setup::SetupIntent,
 ) -> Result<crate::physical_setup::PhysicalSetupProposal, String> {
-    use crate::physical_setup::SetupIntent;
-
-    match intent {
-        SetupIntent::ReversibleLayout(enabled) => crate::physical_setup::propose_with_mirror_pair(
-            accepted,
-            SetupIntent::ReversibleLayout(enabled),
-            |definition, enabled| construction_definition_with_support(definition.clone(), enabled),
-        ),
-        intent => {
-            crate::physical_setup::propose_with_mirror_pair(accepted, intent, |definition, _| {
-                Ok((definition.clone(), false))
-            })
-        }
-    }
+    let normalize = normalize_for_intent(&intent);
+    crate::physical_setup::propose_with_mirror_pair(accepted, intent, normalize)
 }
 
 #[cfg(test)]
@@ -504,30 +502,6 @@ mod generator_tests {
             std::task::Poll::Ready(value) => value,
             std::task::Poll::Pending => panic!("generator wrapper suspended"),
         }
-    }
-}
-
-fn catalog_kind(kind: &PartKind) -> CatalogKind {
-    match kind {
-        PartKind::Switch => CatalogKind::Switch,
-        PartKind::Controller => CatalogKind::Controller,
-        PartKind::Connector => CatalogKind::Connector,
-        PartKind::Encoder => CatalogKind::Encoder,
-        PartKind::Passive => CatalogKind::Passive,
-        PartKind::Utility => CatalogKind::Utility,
-        PartKind::Custom => CatalogKind::Custom,
-    }
-}
-
-fn kind_search_label(kind: &PartKind) -> &'static str {
-    match kind {
-        PartKind::Switch => "switch",
-        PartKind::Controller => "controller",
-        PartKind::Connector => "connector",
-        PartKind::Encoder => "encoder",
-        PartKind::Passive => "passive",
-        PartKind::Utility => "utility",
-        PartKind::Custom => "custom",
     }
 }
 

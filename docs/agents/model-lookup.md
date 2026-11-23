@@ -2,7 +2,7 @@
 
 Reading the T3 orchestration catalog for one provider/model without printing the whole
 catalog. The helper is [`scripts/model-lookup.js`](../../scripts/model-lookup.js); its
-fixture tests are [`scripts/test-model-lookup.cjs`](../../scripts/test-model-lookup.cjs).
+fixture tests are [`scripts/test-model-lookup-pilot.py`](../../scripts/test-model-lookup-pilot.py).
 
 ## When
 
@@ -81,7 +81,7 @@ to inherit the provider default, or explicitly choose a supported value from `ch
 - Direct-call harnesses are unsupported: a tool result that has already entered model context
   cannot be filtered by this helper.
 - An ACP terminal pipeline is not demonstrated here and is not required.
-- Verified so far: the fixture tests in `scripts/test-model-lookup.cjs` (registered for the
+- Verified so far: the fixture tests in `scripts/test-model-lookup-pilot.py` (registered for the
   tooling step), and the paste-probe-emit block above running in a confined code-mode runtime.
   A live capabilities lookup verifies catalog transport and pre-exposure selection; it does
   not prove that delegating to the selected provider/model succeeds.

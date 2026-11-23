@@ -4,13 +4,16 @@
 //! or a renderer. Runtime and the shared viewer supply those owners and recheck this
 //! captured identity after each asynchronous boundary.
 
+use crate::model_delivery::{
+    PreviewLease, PreviewSlot, PreviewSnapshot, capture_board_preview_request,
+};
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
 use boardstudio_model::model::{
-    ArtifactRequest, Asset, BoardReference, Contour, ExportTarget, KeycapSpec, PcbPreview,
-    PrepareExportRequest, ProjectDoc, ResolvedModule,
+    ArtifactRequest, BoardReference, Contour, KeycapSpec, PcbPreview, ProjectDoc, ResolvedModule,
 };
-use std::{cell::Cell, rc::Rc};
-use std::{collections::BTreeMap, sync::Arc};
+#[cfg(test)]
+use boardstudio_model::model::{Asset, ExportTarget};
+use std::{collections::BTreeMap, rc::Rc, sync::Arc};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LayoutSourceIdentity {
@@ -22,14 +25,8 @@ pub struct LayoutSourceIdentity {
     pub source_generation: u64,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum LayoutPreviewRequest {
-    Authored(Box<PrepareExportRequest>),
-    Imported {
-        reference: BoardReference,
-        asset: Asset,
-    },
-}
+pub use crate::model_delivery::BoardPreviewRequest as LayoutPreviewRequest;
+pub type LayoutSourceLease = PreviewLease<LayoutSourceIdentity>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LayoutSourceCapture {
@@ -67,147 +64,18 @@ pub struct LayoutKeycapPickSource<'a> {
     pub body_ids: &'a [String],
 }
 
-#[derive(Debug)]
-pub struct LayoutSourceLease {
-    active: Cell<bool>,
-    identity: LayoutSourceIdentity,
-}
-
-impl LayoutSourceLease {
-    fn new(identity: LayoutSourceIdentity) -> Rc<Self> {
-        Rc::new(Self {
-            active: Cell::new(true),
-            identity,
-        })
-    }
-
-    pub fn is_active(&self) -> bool {
-        self.active.get()
-    }
-
-    pub fn matches(&self, identity: &LayoutSourceIdentity) -> bool {
-        self.is_active() && self.identity == *identity
-    }
-
-    pub fn invalidate(&self) {
-        self.active.set(false);
+impl PreviewSnapshot<LayoutSourceIdentity> for LayoutPreviewSnapshot {
+    fn source(
+        &self,
+    ) -> (
+        &LayoutSourceIdentity,
+        &Rc<PreviewLease<LayoutSourceIdentity>>,
+    ) {
+        (&self.owner, &self.lease)
     }
 }
 
-impl PartialEq for LayoutSourceLease {
-    fn eq(&self, other: &Self) -> bool {
-        std::ptr::eq(self, other)
-    }
-}
-
-#[derive(Default)]
-pub struct LayoutPreviewState {
-    pub published: Option<Rc<LayoutPreviewSnapshot>>,
-    pub pending: Option<(LayoutSourceIdentity, Rc<LayoutSourceLease>)>,
-    pub error: Option<(LayoutSourceIdentity, String)>,
-    source_generation: u64,
-}
-
-impl LayoutPreviewState {
-    pub fn next_generation(&mut self) -> Result<u64, String> {
-        self.retire();
-        let generation = self
-            .source_generation
-            .checked_add(1)
-            .ok_or_else(|| "Layout source generation exhausted".to_owned())?;
-        self.source_generation = generation;
-        Ok(generation)
-    }
-
-    pub fn begin(&mut self, capture: &LayoutSourceCapture) {
-        self.retire();
-        self.pending = Some((capture.owner.clone(), capture.lease.clone()));
-    }
-
-    pub fn owns(&self, owner: &LayoutSourceIdentity) -> bool {
-        self.published
-            .as_ref()
-            .is_some_and(|source| source.lease.matches(owner))
-            || self
-                .pending
-                .as_ref()
-                .is_some_and(|(pending, lease)| pending == owner && lease.matches(owner))
-    }
-
-    pub fn publish(&mut self, source: LayoutPreviewSnapshot) -> Result<(), String> {
-        if !self.owns(&source.owner)
-            || !self.pending.as_ref().is_some_and(|(owner, lease)| {
-                owner == &source.owner && Rc::ptr_eq(lease, &source.lease)
-            })
-        {
-            source.lease.invalidate();
-            return Err("Layout source owner changed before preview publication".into());
-        }
-        self.pending.take();
-        self.error.take();
-        self.published = Some(Rc::new(source));
-        Ok(())
-    }
-
-    pub fn retire_generation(&mut self, generation: u64) -> bool {
-        if generation == self.source_generation {
-            self.retire();
-            self.source_generation = self.source_generation.saturating_add(1);
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn retire_unless_request_matches(
-        &mut self,
-        expected: Option<(&Scope, SnapshotToken)>,
-    ) -> bool {
-        let current = self
-            .published
-            .as_ref()
-            .map(|source| &source.owner)
-            .or_else(|| self.pending.as_ref().map(|(owner, _)| owner))
-            .or_else(|| self.error.as_ref().map(|(owner, _)| owner));
-        let Some(current) = current else {
-            return false;
-        };
-        if expected.is_some_and(|(scope, token)| {
-            current.scope == *scope && current.snapshot_token == token
-        }) {
-            return false;
-        }
-        self.retire_generation(current.source_generation)
-    }
-
-    pub fn fail(&mut self, owner: LayoutSourceIdentity, error: String) {
-        let is_current_pending = self
-            .pending
-            .as_ref()
-            .is_some_and(|(pending, lease)| pending == &owner && lease.matches(&owner));
-        if is_current_pending {
-            if let Some((_, lease)) = self.pending.take() {
-                lease.invalidate();
-            }
-            self.error = Some((owner, error));
-        }
-    }
-
-    pub fn fail_before_begin(&mut self, owner: LayoutSourceIdentity, error: String) {
-        self.retire();
-        self.error = Some((owner, error));
-    }
-
-    fn retire(&mut self) {
-        if let Some(source) = self.published.take() {
-            source.lease.invalidate();
-        }
-        if let Some((_, lease)) = self.pending.take() {
-            lease.invalidate();
-        }
-        self.error.take();
-    }
-}
+pub type LayoutPreviewState = PreviewSlot<LayoutSourceIdentity, LayoutPreviewSnapshot>;
 
 impl LayoutSourceIdentity {
     pub fn from_accepted(
@@ -265,7 +133,7 @@ impl LayoutSourceCapture {
             .boards
             .iter()
             .filter(|board| board.id == scope.board_id);
-        let board = boards.next().ok_or_else(|| {
+        boards.next().ok_or_else(|| {
             "Selected board is unavailable in the accepted Layout document".to_owned()
         })?;
         if boards.next().is_some() {
@@ -291,48 +159,14 @@ impl LayoutSourceCapture {
             );
         }
 
-        let mut references = snapshot
-            .document
-            .board_references
-            .iter()
-            .filter(|reference| reference.board_id == scope.board_id && reference.enabled);
-        let request = if let Some(reference) = references.next() {
-            if references.next().is_some() {
-                return Err("Selected board has multiple enabled imported-board sources".into());
-            }
-            let mut assets = snapshot
-                .document
-                .assets
-                .iter()
-                .filter(|asset| asset.id == reference.asset_id);
-            let asset = assets
-                .next()
-                .filter(|asset| !asset.sha256.is_empty())
-                .cloned()
-                .ok_or_else(|| {
-                    "Imported board asset is unavailable in the accepted document".to_owned()
-                })?;
-            if assets.next().is_some() {
-                return Err(
-                    "Imported board asset identity is ambiguous in the accepted document".into(),
-                );
-            }
-            LayoutPreviewRequest::Imported {
-                reference: reference.clone(),
-                asset,
-            }
-        } else {
-            LayoutPreviewRequest::Authored(Box::new(PrepareExportRequest {
-                snapshot_token: request_token,
-                expected_revision: snapshot.document.revision,
-                document: snapshot.document.as_ref().clone(),
-                target: ExportTarget::Board {
-                    board_id: board.id.clone(),
-                },
-                contours: contours.clone(),
-                model_paths: model_paths.clone(),
-            }))
-        };
+        let request = capture_board_preview_request(
+            &snapshot.document,
+            &scope.board_id,
+            &contours,
+            &model_paths,
+            request_token,
+            "accepted document",
+        )?;
 
         let owner = LayoutSourceIdentity::from_accepted(snapshot, scope, source_generation);
         let module_scenes = snapshot

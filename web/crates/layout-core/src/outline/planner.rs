@@ -41,62 +41,37 @@ pub fn unique_outline_version_id(
     unique_outline_entity_id("outline-version", operation_id, existing_ids)
 }
 
+/// The (scope, token, revision, generation, board id) envelope carried by every
+/// presentation outline action. `OutlineActionKind` holds only the payload that
+/// differs per action, so the envelope is written once instead of twelve times.
 #[derive(Clone, Debug, PartialEq)]
-pub enum OutlineAction {
+pub struct OutlineActionEnvelope {
+    pub scope: Scope,
+    pub token: boardstudio_application::SnapshotToken,
+    pub revision: u64,
+    pub generation: u64,
+    pub board_id: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum OutlineActionKind {
     Activate {
-        scope: Scope,
-        token: boardstudio_application::SnapshotToken,
-        revision: u64,
-        generation: u64,
         context: TreeContext,
         require_selected_version: bool,
-        board_id: String,
         version_id: Option<String>,
     },
-    Copy {
-        scope: Scope,
-        token: boardstudio_application::SnapshotToken,
-        revision: u64,
-        generation: u64,
-        board_id: String,
-    },
+    Copy,
     Delete {
-        scope: Scope,
-        token: boardstudio_application::SnapshotToken,
-        revision: u64,
-        generation: u64,
-        board_id: String,
         version_id: String,
     },
     Update {
-        scope: Scope,
-        token: boardstudio_application::SnapshotToken,
-        revision: u64,
-        generation: u64,
-        board_id: String,
         edit: OutlineEdit,
     },
-    Refine {
-        scope: Scope,
-        token: boardstudio_application::SnapshotToken,
-        revision: u64,
-        generation: u64,
-        board_id: String,
-    },
+    Refine,
     Freeze {
-        scope: Scope,
-        token: boardstudio_application::SnapshotToken,
-        revision: u64,
-        generation: u64,
-        board_id: String,
         version_id: String,
     },
     EditPerimeter {
-        scope: Scope,
-        token: boardstudio_application::SnapshotToken,
-        revision: u64,
-        generation: u64,
-        board_id: String,
         context: TreeContext,
         target: OutlinePointTarget,
         points: Vec<Vec2>,
@@ -104,53 +79,34 @@ pub enum OutlineAction {
         transaction_id: String,
     },
     AddFeature {
-        scope: Scope,
-        token: boardstudio_application::SnapshotToken,
-        revision: u64,
-        generation: u64,
-        board_id: String,
         context: TreeContext,
         feature: OutlineFeature,
     },
     AddConnection {
-        scope: Scope,
-        token: boardstudio_application::SnapshotToken,
-        revision: u64,
-        generation: u64,
-        board_id: String,
         context: TreeContext,
         points: Vec<Vec2>,
     },
     SetFeature {
-        scope: Scope,
-        token: boardstudio_application::SnapshotToken,
-        revision: u64,
-        generation: u64,
-        board_id: String,
         context: TreeContext,
         version_id: Option<String>,
         before: OutlineFeature,
         after: OutlineFeature,
     },
     RemoveFeature {
-        scope: Scope,
-        token: boardstudio_application::SnapshotToken,
-        revision: u64,
-        generation: u64,
-        board_id: String,
         context: TreeContext,
         version_id: String,
         feature_id: String,
     },
     FocusGap {
-        scope: Scope,
-        token: boardstudio_application::SnapshotToken,
-        revision: u64,
-        generation: u64,
-        board_id: String,
         context: TreeContext,
         gap_id: String,
     },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct OutlineAction {
+    pub envelope: OutlineActionEnvelope,
+    pub kind: OutlineActionKind,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -312,102 +268,14 @@ impl OutlineAction {
         u64,
         &String,
     ) {
-        match self {
-            OutlineAction::Activate {
-                scope,
-                token,
-                revision,
-                generation,
-                board_id,
-                ..
-            }
-            | OutlineAction::Copy {
-                scope,
-                token,
-                revision,
-                generation,
-                board_id,
-            }
-            | OutlineAction::Delete {
-                scope,
-                token,
-                revision,
-                generation,
-                board_id,
-                ..
-            }
-            | OutlineAction::Update {
-                scope,
-                token,
-                revision,
-                generation,
-                board_id,
-                ..
-            }
-            | OutlineAction::Refine {
-                scope,
-                token,
-                revision,
-                generation,
-                board_id,
-            }
-            | OutlineAction::Freeze {
-                scope,
-                token,
-                revision,
-                generation,
-                board_id,
-                ..
-            }
-            | OutlineAction::EditPerimeter {
-                scope,
-                token,
-                revision,
-                generation,
-                board_id,
-                ..
-            }
-            | OutlineAction::AddFeature {
-                scope,
-                token,
-                revision,
-                generation,
-                board_id,
-                ..
-            }
-            | OutlineAction::AddConnection {
-                scope,
-                token,
-                revision,
-                generation,
-                board_id,
-                ..
-            }
-            | OutlineAction::SetFeature {
-                scope,
-                token,
-                revision,
-                generation,
-                board_id,
-                ..
-            }
-            | OutlineAction::RemoveFeature {
-                scope,
-                token,
-                revision,
-                generation,
-                board_id,
-                ..
-            }
-            | OutlineAction::FocusGap {
-                scope,
-                token,
-                revision,
-                generation,
-                board_id,
-                ..
-            } => (scope, token, *revision, *generation, board_id),
-        }
+        let envelope = &self.envelope;
+        (
+            &envelope.scope,
+            &envelope.token,
+            envelope.revision,
+            envelope.generation,
+            &envelope.board_id,
+        )
     }
 
     pub fn for_tree(
@@ -423,15 +291,19 @@ impl OutlineAction {
         else {
             return None;
         };
-        Some(Self::Activate {
-            scope: scope.clone(),
-            token: snapshot.token,
-            revision: snapshot.document.revision,
-            generation,
-            context: context.clone(),
-            require_selected_version: true,
-            board_id: board_id.clone(),
-            version_id: version_id.clone(),
+        Some(Self {
+            envelope: OutlineActionEnvelope {
+                scope: scope.clone(),
+                token: snapshot.token,
+                revision: snapshot.document.revision,
+                generation,
+                board_id: board_id.clone(),
+            },
+            kind: OutlineActionKind::Activate {
+                context: context.clone(),
+                require_selected_version: true,
+                version_id: version_id.clone(),
+            },
         })
     }
 }

@@ -128,7 +128,7 @@ pub(super) fn ExportWithWiring(
             (editor.scope_generation)(),
         )
     });
-    let wiring = super::pcb_wiring::use_pcb_wiring_controller(runtime.clone(), editor.version);
+    let wiring = use_context::<super::pcb_wiring::SharedPcbWiring>();
     let zmk_firmware = super::use_export_panel_input(
         runtime,
         workspace,

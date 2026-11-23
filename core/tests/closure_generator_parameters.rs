@@ -19,8 +19,7 @@ use boardstudio_core::mechanical::change::{
 use boardstudio_core::model::{
     Board, Contour, ExportTarget, HardwareConfiguration, HardwareTopology, HardwareTransport,
     MechanicalConstructionOwnership, MechanicalFeatureKind, Mount, MountKind, Operation,
-    OutlineFeature, PartDefinition, PhysicalBoardInstance, Pose2, PrepareExportRequest, ProjectDoc,
-    Vec2,
+    PartDefinition, PhysicalBoardInstance, Pose2, PrepareExportRequest, ProjectDoc, Vec2,
 };
 use boardstudio_core::model::{CoreReply, CoreRequest};
 use boardstudio_core::{CoreEngine, document_format};
@@ -48,15 +47,14 @@ fn board(id: &str) -> Board {
 fn document() -> ProjectDoc {
     let mut document = ProjectDoc::empty("closure", "Closure");
     document.boards.push(board("board"));
-    document.outline.push(OutlineFeature::Rect {
-        anchor_part_id: None,
-        id: "outline".into(),
-        center: Vec2 { x: 0.0, y: 0.0 },
-        size: Vec2 { x: 80.0, y: 60.0 },
-        radius: 0.0,
-        rotation: None,
-        operation: Operation::Add,
-    });
+    document.outline.push(fixture::rect(
+        "outline",
+        0.0,
+        0.0,
+        80.0,
+        60.0,
+        Operation::Add,
+    ));
     document.mechanical = Some(fixture::mechanical("board"));
     document
 }

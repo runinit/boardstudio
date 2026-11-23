@@ -72,11 +72,11 @@ fn column_stagger_moves_this_and_following_columns() {
             record.stagger = value;
         }
     }
-    let (_, doc) = edit(&mut engine, &doc, fixture::set_matrix(matrix));
+    let (_, doc) = commit_edit(&mut engine, &doc, fixture::set_matrix(matrix));
     let before: Vec<_> = (0..3)
         .map(|column| at(&doc, &member("main", 0, column)))
         .collect();
-    let (_, after) = edit(&mut engine, &doc, stagger(1, 5.0));
+    let (_, after) = commit_edit(&mut engine, &doc, stagger(1, 5.0));
     assert_eq!(
         after.matrices[0]
             .column_layout
@@ -103,7 +103,7 @@ fn column_offset_moves_only_its_column() {
         .flat_map(|row| (0..3u32).map(move |column| (row, column)))
         .map(|(row, column)| at(&doc, &member("main", row, column)))
         .collect();
-    let (_, after) = edit(
+    let (_, after) = commit_edit(
         &mut engine,
         &doc,
         EditOperation::SetMatrixPlacement {
@@ -139,7 +139,7 @@ fn row_offset_moves_only_its_row() {
         .flat_map(|row| (0..3u32).map(move |column| (row, column)))
         .map(|(row, column)| at(&doc, &member("main", row, column)))
         .collect();
-    let (_, after) = edit(
+    let (_, after) = commit_edit(
         &mut engine,
         &doc,
         EditOperation::SetMatrixPlacement {
@@ -174,7 +174,7 @@ fn companions_follow_placement_changes() {
     let key_before = at(&before, &member("main", 0, 0));
     let diode_before = at(&before, &companion("main", 0, 0, "diode"));
     let led_before = at(&before, &companion("main", 0, 0, "led"));
-    let (_, after) = edit(
+    let (_, after) = commit_edit(
         &mut engine,
         &before,
         EditOperation::SetMatrixPlacement {
@@ -234,7 +234,7 @@ fn invalid_changes_error() {
     }
 
     // Setting the current value is a valid no-op.
-    let (reply, after) = edit(&mut engine, &doc, stagger(0, 0.0));
+    let (reply, after) = commit_edit(&mut engine, &doc, stagger(0, 0.0));
     assert!(reply.changed_ids.is_empty());
     assert_eq!(after.matrices, doc.matrices);
 }
@@ -254,7 +254,7 @@ fn preview_and_undo() {
         other => panic!("expected preview: {other:?}"),
     };
     assert_eq!(snapshot(&mut engine).matrices, doc.matrices);
-    let (committed, after) = edit(&mut engine, &doc, operation);
+    let (committed, after) = commit_edit(&mut engine, &doc, operation);
     assert_eq!(after.matrices[0].column_layout[0].stagger, 2.0);
     assert_eq!(preview.matrix_scenes, committed.matrix_scenes);
     let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
@@ -266,7 +266,7 @@ fn preview_and_undo() {
 #[test]
 fn changed_ids_are_precise() {
     let mut doc = ProjectDoc::empty("placement", "Placement");
-    doc.definitions = definitions();
+    doc.definitions = fixture::companion_definitions();
     doc.parts.push(Part {
         pose: Pose2 {
             at: Vec2 { x: 100.0, y: 100.0 },
@@ -274,8 +274,8 @@ fn changed_ids_are_precise() {
         },
         ..fixture::part("spare", "switch", "SPARE")
     });
-    let (mut engine, _, doc) = open(doc);
-    let mut matrix = matrix("main", 1, 3);
+    let (mut engine, _, doc) = open_engine(doc);
+    let mut matrix = fixture::matrix("main", 1, 3);
     matrix.cells = vec![MatrixCell {
         shift: None,
         bend: None,
@@ -296,8 +296,8 @@ fn changed_ids_are_precise() {
         }],
         assemblies_local: None,
     }];
-    let (_, doc) = edit(&mut engine, &doc, fixture::set_matrix(matrix));
-    let (reply, _) = edit(&mut engine, &doc, stagger(1, 2.0));
+    let (_, doc) = commit_edit(&mut engine, &doc, fixture::set_matrix(matrix));
+    let (reply, _) = commit_edit(&mut engine, &doc, stagger(1, 2.0));
     for id in [
         "main".to_string(),
         member("main", 0, 1),

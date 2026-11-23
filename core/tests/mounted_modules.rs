@@ -1,13 +1,10 @@
 use crate::support::fixture::{self, request};
-use crate::support::query::{any, arr, empty_project};
+use crate::support::query::{any, arr, module_host_document};
 use boardstudio_core::CoreEngine;
 use serde_json::{Value, json};
 
 fn document() -> Value {
-    let mut doc = empty_project("modules", "Modules");
-    doc["boards"] = json!([{"id":"host","name":"Host","partIds":[],"netIds":[],"outlineIds":["outline"],"thickness":1.6}]);
-    doc["outline"] = json!([{"kind":"rect","id":"outline","center":{"x":0,"y":0},"size":{"x":80,"y":80},"radius":0,"operation":"add"}]);
-    doc
+    module_host_document()
 }
 
 fn definition() -> Value {

@@ -94,167 +94,6 @@ pub(super) fn navigate_handler(
     }
 }
 
-pub(in crate::presentation) struct OnKeycapsFindingInput {
-    pub runtime: Rc<Runtime>,
-    pub adapter: SelectionAdapter,
-    pub scope: Scope,
-    pub generation: u64,
-    pub workspace: Signal<Workspace>,
-    pub objects_open: Signal<bool>,
-    pub inspect_open: Signal<bool>,
-    pub body_selection: Signal<Option<shared_viewer::BodySelection>>,
-    pub case_selection_for_owner: shared_viewer::CaseSelection,
-    pub navigation_alive: Rc<Cell<bool>>,
-    pub inspector_settings: Signal<PanelSettings>,
-    pub fit_state: Option<keycaps_fit::KeycapsFitState>,
-    pub keycaps_state: keycaps_workspace::KeycapsWorkspaceState,
-    pub source_surface: Rc<RefCell<Option<SvgElement>>>,
-    pub select_tree: EventHandler<objects::TreeSelectRequest>,
-    pub case_selection: shared_viewer::CaseSelection,
-}
-
-pub(in crate::presentation) fn on_keycaps_finding_handler(
-    input: OnKeycapsFindingInput,
-) -> EventHandler<keycaps_fit::FindingNavigationRequest> {
-    let OnKeycapsFindingInput {
-        runtime,
-        adapter,
-        scope,
-        generation,
-        mut workspace,
-        mut objects_open,
-        mut inspect_open,
-        mut body_selection,
-        case_selection_for_owner,
-        navigation_alive,
-        inspector_settings,
-        fit_state,
-        keycaps_state,
-        source_surface,
-        select_tree,
-        case_selection,
-    } = input;
-    EventHandler::new(move |request: keycaps_fit::FindingNavigationRequest| {
-        let owner = keycaps_navigation::OwnerIdentity {
-            scope: &scope,
-            generation,
-        };
-        let model = runtime.model();
-        let Some(snapshot) = model.accepted.as_ref() else {
-            return;
-        };
-        let live_mechanical_layers = current_case_layer_ids(&runtime, &scope, snapshot);
-        let Some(state) = fit_state.as_ref() else {
-            return;
-        };
-        let Some(accepted_scope) = runtime.scope() else {
-            return;
-        };
-        let accepted = keycaps_navigation::AcceptedNavigationSource {
-            scope: accepted_scope,
-            session_epoch: snapshot.session_epoch,
-            token: snapshot.token,
-            revision: snapshot.document.revision,
-            active_board_id: model.active_board_id.clone(),
-        };
-        let Some(admitted) = keycaps_navigation::admit_accepted_request(
-            &request,
-            keycaps_navigation::NavigationAdmission {
-                current_workspace: workspace(),
-                owner,
-                live_scope: runtime.scope().as_ref(),
-                live_generation: (adapter.generation)(),
-                accepted: &accepted,
-                fit_state: state,
-                document: &snapshot.document,
-                live_mechanical_layers: live_mechanical_layers.as_deref(),
-            },
-            |target| match target {
-                keycaps_fit::FindingNavigationTarget::Part { part_id, .. } => {
-                    objects::component_context_for_finding_part(&model, part_id)
-                }
-                _ => None,
-            },
-        ) else {
-            return;
-        };
-        let focused = keycaps_navigation::focused_finding_for_admitted_route(&request, &admitted);
-        let effects = admitted.effects;
-        let navigation_owner = admitted.owner;
-        let source_basis = if workspace() == Workspace::Keycaps {
-            source_surface.borrow().as_ref().and_then(|surface| {
-                let rect = surface.get_bounding_client_rect();
-                keycaps_fit::layout_camera_basis(
-                    &snapshot.document,
-                    &snapshot.scene,
-                    &request.source.scope.board_id,
-                    (rect.width(), rect.height()),
-                )
-            })
-        } else {
-            None
-        };
-        keycaps_state.set_focused_finding(focused);
-        let focus_runtime = runtime.clone();
-        let focus_adapter = adapter.clone();
-        let focus_body_selection = body_selection;
-        let focus_case_selection = case_selection_for_owner;
-        let focus_workspace = workspace;
-        keycaps_state.set_pending_layout_fit(None);
-        keycaps_navigation::dispatch_route_with_camera_basis(
-            effects,
-            &request,
-            source_basis,
-            |effect| match effect {
-                keycaps_navigation::RouteAction::SetWorkspace(name) => workspace.set(name),
-                keycaps_navigation::RouteAction::SelectTree { scope, context } => {
-                    select_tree.call(objects::TreeSelectRequest {
-                        scope,
-                        context,
-                        mode: SelectionMode::Replace,
-                        outline_action: None,
-                    });
-                }
-                keycaps_navigation::RouteAction::SelectCaseLayer { scope, layer_id } => {
-                    case_selection.select_layer(scope, layer_id);
-                }
-                keycaps_navigation::RouteAction::SelectCaseBody { scope, body_id } => {
-                    // Dioxus retains body and layer selections independently; clear an older
-                    // layer so the body finding becomes the active, reachable Inspector owner.
-                    case_selection_for_owner.clear_layer_for_scope(&scope);
-                    body_selection.set(Some(shared_viewer::BodySelection { scope, body_id }));
-                }
-                keycaps_navigation::RouteAction::CloseObjects => objects_open.set(false),
-                keycaps_navigation::RouteAction::OpenInspector => inspect_open.set(true),
-                keycaps_navigation::RouteAction::PinInspector => {
-                    pin_inspector_on_desktop(inspector_settings);
-                }
-                keycaps_navigation::RouteAction::QueueLayoutFit(request) => {
-                    keycaps_state.set_pending_layout_fit(Some(*request));
-                }
-                keycaps_navigation::RouteAction::Report(message) => runtime.report(message),
-                keycaps_navigation::RouteAction::FocusInspector => {
-                    let scheduled_runtime = focus_runtime.clone();
-                    let scheduled_adapter = focus_adapter.clone();
-                    focus_first_inspector_control_on_next_frame(
-                        navigation_alive.clone(),
-                        navigation_owner.clone(),
-                        move || {
-                            current_keycaps_navigation_owner(
-                                focus_workspace,
-                                &scheduled_runtime,
-                                &scheduled_adapter,
-                                focus_body_selection,
-                                focus_case_selection,
-                            )
-                        },
-                    );
-                }
-            },
-        );
-    })
-}
-
 pub(super) struct LayoutFindingCallbacksInput {
     pub runtime: Rc<Runtime>,
     pub adapter: SelectionAdapter,
@@ -271,7 +110,7 @@ pub(super) struct LayoutFindingCallbacksInput {
     pub svg: Rc<RefCell<Option<SvgElement>>>,
 }
 
-pub(super) struct LayoutFindingCallbacks {
+pub(in crate::presentation) struct LayoutFindingCallbacks {
     pub on_toggle_layout_findings: Callback<(), ()>,
     pub on_close_layout_findings: Callback<(), ()>,
     pub on_return_from_layout_finding: Callback<(), ()>,
@@ -726,13 +565,6 @@ pub(super) fn use_physical_setup_reconcile(
     ));
 }
 
-pub(super) fn on_show_configured_board_handler(
-    mut navigate: impl FnMut((Scope, String, Option<String>)) + 'static,
-    scope: Scope,
-) -> EventHandler<String> {
-    EventHandler::new(move |board_id: String| navigate((scope.clone(), board_id, None)))
-}
-
 pub(super) fn use_selection_cleanup(
     runtime: Rc<Runtime>,
     adapter: SelectionAdapter,
@@ -793,7 +625,7 @@ pub(super) fn use_selection_cleanup(
 
 pub(super) type NavigateFn = Box<dyn FnMut((Scope, String, Option<String>))>;
 
-pub(super) struct NavNamed {
+pub(in crate::presentation) struct NavNamed {
     pub callbacks: LayoutFindingCallbacks,
     pub show_configured_board: EventHandler<String>,
 }
@@ -893,7 +725,10 @@ pub(super) fn use_navigation_bundle(
     );
     let instance_scope_pending = !instance_selection.is_current(model);
     let on_show_configured_board =
-        on_show_configured_board_handler(navigate.clone(), render_scope.clone());
+        crate::presentation::case_workspace::on_show_configured_board_handler(
+            navigate.clone(),
+            render_scope.clone(),
+        );
     use_selection_cleanup(
         runtime.clone(),
         adapter.clone(),

@@ -69,17 +69,8 @@ pub fn project(
                 PressScanMode::Direct
             })
     });
-    let board_net_ids = board.net_ids.iter().collect::<BTreeSet<_>>();
-    let nets = document
-        .nets
-        .iter()
-        .filter(|net| {
-            board_net_ids.contains(&net.id)
-                || net
-                    .pins
-                    .iter()
-                    .any(|pin| board.part_ids.iter().any(|part_id| part_id == &pin.part_id))
-        })
+    let nets = super::part_connections::board_nets(document, board)
+        .into_iter()
         .map(|net| NetChoice {
             id: net.id.clone(),
             name: net.name.clone(),

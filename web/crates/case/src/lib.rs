@@ -58,7 +58,7 @@ pub mod case_bodies;
 mod case_collision;
 #[cfg(target_arch = "wasm32")]
 pub mod case_controller;
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(target_arch = "wasm32", test))]
 pub mod case_preview_lifecycle;
 pub mod case_selection;
 #[cfg(target_arch = "wasm32")]

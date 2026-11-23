@@ -763,6 +763,17 @@ pub fn validate_query_qualification(
     sources: Option<[&SourceQualification; 2]>,
 ) -> Result<ValidatedQueryQualification, String> {
     crate::cad_jobs::validate_collision_mesh_pair(meshes)?;
+    validate_query_qualification_for_checked_meshes(report, expected, limits, meshes, sources)
+}
+
+// Worker dispatch also uses this after checking the transferred pair on receipt.
+pub(crate) fn validate_query_qualification_for_checked_meshes(
+    report: QueryQualification,
+    expected: &Binding,
+    limits: &Limits,
+    meshes: &CadCollisionMeshPair,
+    sources: Option<[&SourceQualification; 2]>,
+) -> Result<ValidatedQueryQualification, String> {
     // JSON equality distinguishes signed zero, which PartialEq on floats cannot.
     if serde_json::to_vec(&report.binding).ok() != serde_json::to_vec(expected).ok()
         || report.version != 1
@@ -830,6 +841,8 @@ pub fn validate_query_qualification(
     {
         return Err("qualification uses another worker generation".into());
     }
+    let min_mag = 2_f64.powi(limits.minimum_exponent);
+    let max_mag = 2_f64.powi(limits.maximum_exponent);
     let preflight_refusal = [
         (
             &meshes.left_positions_mm_f64,
@@ -852,10 +865,7 @@ pub fn validate_query_qualification(
                         + row[axis + 8] * p[2]
                         + row[axis + 12];
                     !value.is_finite()
-                        || (value != 0.0
-                            && !(2_f64.powi(limits.minimum_exponent)
-                                ..=2_f64.powi(limits.maximum_exponent))
-                                .contains(&value.abs()))
+                        || (value != 0.0 && !(min_mag..=max_mag).contains(&value.abs()))
                 })
             })
     });

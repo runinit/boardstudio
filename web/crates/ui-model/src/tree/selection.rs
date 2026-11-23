@@ -1,6 +1,43 @@
 //! Selection resolution and tree-context lookup for the PCB tree.
 use super::*;
 
+/// Every named member of one matrix (primaries plus declared companions)
+/// mapped to its projected cell.
+fn member_coords(
+    matrix: &Matrix,
+    scene: &MatrixScene,
+    is_live: &impl Fn(&str) -> bool,
+) -> HashMap<String, (u32, u32)> {
+    let matrix_parts: HashSet<_> = matrix.part_ids.iter().map(String::as_str).collect();
+    let mut configurations = HashMap::new();
+    for config in &matrix.cells {
+        #[cfg(test)]
+        CELL_CONFIG_VISITS.set(CELL_CONFIG_VISITS.get() + 1);
+        configurations
+            .entry((config.row, config.column))
+            .or_insert(config);
+    }
+    let mut coords = HashMap::new();
+    for cell in scene.cells.iter().filter(|cell| cell.enabled) {
+        let Some(primary) = cell.member_id.as_deref().filter(|id| is_live(id)) else {
+            continue;
+        };
+        if matrix_parts.contains(primary) {
+            coords.insert(primary.to_owned(), (cell.row, cell.column));
+        }
+        if let Some(config) = configurations.get(&(cell.row, cell.column)) {
+            for assembly in &config.assemblies {
+                let id = format!("{primary}/{}", assembly.id);
+                if is_live(&id) && matrix_parts.contains(id.as_str()) {
+                    // Keep IDs owned by the document; row/column filtering still uses its primary cell.
+                    coords.insert(id, (cell.row, cell.column));
+                }
+            }
+        }
+    }
+    coords
+}
+
 pub fn resolve_selection(
     model: &boardstudio_application::ReadModel,
     context: &TreeContext,
@@ -49,33 +86,7 @@ pub fn resolve_selection(
         };
     let matrix_ordered_members =
         |item: &Matrix, scene: &MatrixScene, filter: Option<(bool, u32)>| -> Vec<String> {
-            let matrix_parts: HashSet<_> = item.part_ids.iter().map(String::as_str).collect();
-            let mut configurations = HashMap::new();
-            for config in &item.cells {
-                #[cfg(test)]
-                CELL_CONFIG_VISITS.set(CELL_CONFIG_VISITS.get() + 1);
-                configurations
-                    .entry((config.row, config.column))
-                    .or_insert(config);
-            }
-            let mut coord_for_id: HashMap<String, (u32, u32)> = HashMap::new();
-            for cell in scene.cells.iter().filter(|cell| cell.enabled) {
-                let Some(primary) = cell.member_id.as_deref().filter(|id| is_live(id)) else {
-                    continue;
-                };
-                if matrix_parts.contains(primary) {
-                    coord_for_id.insert(primary.to_owned(), (cell.row, cell.column));
-                }
-                if let Some(config) = configurations.get(&(cell.row, cell.column)) {
-                    for assembly in &config.assemblies {
-                        let id = format!("{primary}/{}", assembly.id);
-                        if is_live(&id) && matrix_parts.contains(id.as_str()) {
-                            // Keep IDs owned by the document; row/column filtering still uses its primary cell.
-                            coord_for_id.insert(id, (cell.row, cell.column));
-                        }
-                    }
-                }
-            }
+            let coord_for_id = member_coords(item, scene, &is_live);
             item.part_ids
                 .iter()
                 .filter(|id| {
@@ -391,7 +402,7 @@ pub(crate) fn eligible_live_ids(model: &boardstudio_application::ReadModel) -> V
         .iter()
         .flat_map(|matrix| matrix.part_ids.iter().map(String::as_str))
         .collect();
-    let mut eligible: HashSet<&str> = HashSet::new();
+    let mut eligible: HashSet<String> = HashSet::new();
     for matrix in matrices {
         let Some(scene) = snapshot
             .scene
@@ -401,28 +412,11 @@ pub(crate) fn eligible_live_ids(model: &boardstudio_application::ReadModel) -> V
         else {
             continue;
         };
-        let members: HashSet<_> = matrix.part_ids.iter().map(String::as_str).collect();
-        let mut configurations = HashMap::new();
-        for config in &matrix.cells {
-            configurations
-                .entry((config.row, config.column))
-                .or_insert(config);
-        }
-        for cell in scene.cells.iter().filter(|cell| cell.enabled) {
-            let Some(primary) = cell.member_id.as_deref() else {
-                continue;
-            };
-            if let Some(id) = members.get(primary) {
-                eligible.insert(id);
-            }
-            if let Some(config) = configurations.get(&(cell.row, cell.column)) {
-                for assembly in &config.assemblies {
-                    if let Some(id) = members.get(format!("{primary}/{}", assembly.id).as_str()) {
-                        eligible.insert(id);
-                    }
-                }
-            }
-        }
+        // Eligibility projects every member the scene names, live or not: the
+        // board-level filter below still removes dead ids, but a live companion
+        // of a removed primary stays eligible exactly as `context_for_part`
+        // resolves it.
+        eligible.extend(member_coords(matrix, scene, &(|_: &str| true)).into_keys());
     }
     board
         .part_ids
@@ -543,24 +537,7 @@ pub fn context_label(
             .matrices
             .iter()
             .find(|matrix| matrix.id == *matrix_id)
-            .map(|matrix| {
-                matrix
-                    .name
-                    .as_deref()
-                    .filter(|name| !name.trim().is_empty())
-                    .map(str::to_owned)
-                    .unwrap_or_else(|| {
-                        format!(
-                            "Matrix {}",
-                            document
-                                .matrices
-                                .iter()
-                                .position(|item| item.id == *matrix_id)
-                                .unwrap_or(0)
-                                + 1
-                        )
-                    })
-            }),
+            .map(|matrix| matrix_display_name(document, matrix)),
         TreeContext::Row { row, .. } => Some(format!("Row {}", row + 1)),
         TreeContext::Column { column, .. } => Some(format!("Column {}", column + 1)),
         TreeContext::Key {

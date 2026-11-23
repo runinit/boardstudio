@@ -1,12 +1,13 @@
 //! Apply the exact current accepted board plan through the normal Session edit owner.
 use super::mode::{
     BoardWiringFailure, BoardWiringModeIdentity, board_mode, current_edit_snapshot, mode_identity,
+    settle_board_commit,
 };
 use super::{PcbWiringResolution, PcbWiringSource, WiringPlanIdentity};
 use crate::runtime::Runtime;
-use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
+use boardstudio_application::EditResolver;
 use boardstudio_core_mechanical::electrical::{self, ElectricalPlan};
-use boardstudio_model::model::{EditOperation, ProjectDoc};
+use boardstudio_model::model::ProjectDoc;
 use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -36,7 +37,6 @@ pub fn use_board_wiring_apply(
     let submit = use_callback({
         let runtime = runtime.clone();
         let instance_is_current = instance_is_current.clone();
-        let mut failure = failure;
         move |(identity, release): (BoardWiringModeIdentity, bool)| {
             let Some(snapshot) = current_edit_snapshot(
                 &runtime,
@@ -64,12 +64,12 @@ pub fn use_board_wiring_apply(
                 return;
             }
             let target = identity.feedback_target();
-            let resolver = apply_resolver(identity, (*plan).clone(), review);
-            failure.set(
-                runtime
-                    .commit("pcb-wiring-apply", resolver)
-                    .err()
-                    .map(|message| BoardWiringFailure { target, message }),
+            settle_board_commit(
+                &runtime,
+                "pcb-wiring-apply",
+                apply_resolver(identity, (*plan).clone(), review),
+                target,
+                failure,
             );
         }
     });
@@ -89,12 +89,7 @@ pub fn use_board_wiring_apply(
             current_plan(&identity.plan, &resolution.read(), &snapshot.document).is_some()
         })
     });
-    let target = identity
-        .as_ref()
-        .map(BoardWiringModeIdentity::feedback_target);
-    let failure = failure()
-        .filter(|failure| target.as_ref() == Some(&failure.target))
-        .map(|failure| failure.message);
+    let failure = BoardWiringFailure::for_identity(failure(), identity.as_ref());
     BoardWiringApplyActions {
         identity,
         editable,
@@ -109,66 +104,44 @@ fn apply_resolver(
     plan: ElectricalPlan,
     review: Option<super::connections::ExistingConnectionReview>,
 ) -> EditResolver {
-    EditResolver::new("pcb-wiring-apply", move |accepted: &AcceptedSnapshot| {
+    super::mode::replace_document_resolver("pcb-wiring-apply", move |accepted, replacement| {
         let board_id = &identity.ui_scope.board_id;
-        if !accepted
-            .document
-            .boards
-            .iter()
-            .any(|board| &board.id == board_id)
-        {
-            return Resolution::Retire("The board was deleted.".into());
+        if !replacement.boards.iter().any(|board| &board.id == board_id) {
+            return Err("The board was deleted.".into());
         }
         if plan
             .controller_part_id
             .as_ref()
-            .is_some_and(|id| !accepted.document.parts.iter().any(|part| &part.id == id))
-            || plan.nets.iter().flat_map(|net| &net.pins).any(|pin| {
-                !accepted
-                    .document
-                    .parts
-                    .iter()
-                    .any(|part| part.id == pin.part_id)
-            })
+            .is_some_and(|id| !replacement.parts.iter().any(|part| &part.id == id))
+            || plan
+                .nets
+                .iter()
+                .flat_map(|net| &net.pins)
+                .any(|pin| !replacement.parts.iter().any(|part| part.id == pin.part_id))
         {
-            return Resolution::Retire(
+            return Err(
                 "A part used by this wiring plan was deleted. Resolve the plan again.".into(),
             );
         }
         if board_mode(&accepted.document, board_id) != plan.mode {
-            return Resolution::Retire(
-                "The board wiring mode changed. Resolve the plan again.".into(),
-            );
+            return Err("The board wiring mode changed. Resolve the plan again.".into());
         }
-        let proposal = if let Some(review) = &review {
-            if review.nets.iter().any(|reviewed| {
-                !accepted
-                    .document
-                    .nets
-                    .iter()
-                    .any(|net| net.id == reviewed.id)
-            }) {
-                return Resolution::Retire("A reviewed connection net was deleted.".into());
+        if let Some(review) = &review {
+            if review
+                .nets
+                .iter()
+                .any(|reviewed| !replacement.nets.iter().any(|net| net.id == reviewed.id))
+            {
+                return Err("A reviewed connection net was deleted.".into());
             }
-            super::connections::release_reviewed_connections(&accepted.document, review)
+            *replacement =
+                super::connections::release_reviewed_connections(&accepted.document, review);
         } else {
-            let mut proposal = (*accepted.document).clone();
             let mut plan = plan.clone();
             plan.revision = accepted.document.revision;
-            if let Err(reason) = electrical::materialize(&mut proposal, &plan) {
-                return Resolution::Retire(reason);
-            }
-            proposal
-        };
-        if proposal == *accepted.document {
-            return Resolution::Unchanged;
+            electrical::materialize(replacement, &plan)?;
         }
-        Resolution::submit(
-            vec![board_id.clone()],
-            EditOperation::ReplaceDocument {
-                document: Box::new(proposal),
-            },
-        )
+        Ok(vec![board_id.clone()])
     })
 }
 

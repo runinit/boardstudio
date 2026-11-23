@@ -3,6 +3,7 @@
 //! The returned geometry is for preview and conservative layout bounds only;
 //! callers must preserve the original source as the export authority.
 
+use super::mechanical_extract::circular_arc_parameters;
 use super::sexpr;
 use crate::model::{
     ArtifactDiagnostic, ArtifactDiagnosticKind, ArtifactError, ArtifactErrorCode, Pad, PadShape,
@@ -76,8 +77,7 @@ fn project_pad(
     let parts = sexpr::items(node).ok_or_else(|| error("Invalid pad"))?;
     let number = parts
         .get(1)
-        .and_then(|node| sexpr::kicad_quoted(source, sexpr::span(node)))
-        .or_else(|| parts.get(1).and_then(sexpr::atom).map(str::to_owned))
+        .and_then(|node| sexpr::decoded_text(source, node))
         .unwrap_or_default();
     let kind = parts.get(2).and_then(sexpr::atom).unwrap_or("");
     let source_shape = parts.get(3).and_then(sexpr::atom).unwrap_or("");
@@ -447,39 +447,20 @@ fn project_courtyard(
     Ok(chain_courtyard_edges(edges).unwrap_or_default())
 }
 
-fn chain_courtyard_edges(mut edges: Vec<(Vec2, Vec2, Vec<Vec2>)>) -> Option<Vec<Vec2>> {
+fn chain_courtyard_edges(edges: Vec<(Vec2, Vec2, Vec<Vec2>)>) -> Option<Vec<Vec2>> {
     // Chain shuffled and reversed segments by endpoint proximity. A single
     // polygon can represent only one loop, so multiple loops become a
     // conservative convex envelope rather than concatenated invalid rings.
     let tolerance = 0.01;
+    let mut edges: Vec<_> = edges.into_iter().map(|(_, _, curve)| curve).collect();
     let mut loops = Vec::new();
     while !edges.is_empty() {
-        let (_, _, mut chain) = edges.remove(0);
-        let first = *chain.first()?;
-        let mut current = *chain.last()?;
-        while !near(current, first, tolerance) {
-            let index = edges.iter().position(|(a, b, _)| {
-                near(*a, current, tolerance) || near(*b, current, tolerance)
-            })?;
-            let (a, b, mut curve) = edges.remove(index);
-            if near(b, current, tolerance) {
-                curve.reverse();
-            }
-            if near(*curve.first()?, current, tolerance) {
-                curve.remove(0);
-            }
-            chain.extend(curve);
-            current = if near(a, current, tolerance) { b } else { a };
-        }
+        let first = edges.remove(0);
+        let mut chain = sexpr::chain_loop_from(first, &mut edges, tolerance)?;
         if chain.len() < 4 {
             return None;
         }
-        if chain
-            .last()
-            .is_some_and(|last| near(*last, first, tolerance))
-        {
-            chain.pop();
-        }
+        chain.pop();
         loops.push(chain);
     }
     if loops.len() == 1 {
@@ -526,22 +507,18 @@ fn flatten_arc(node: &Node) -> Result<Vec<Vec2>, ArtifactError> {
     let end_node = sexpr::child(node, "end").ok_or_else(|| error("Arc needs end"))?;
     if let Some(angle_node) = sexpr::child(node, "angle") {
         // KiCad 5 stored an arc as its center, an endpoint, and a signed sweep.
+        // Its positive sweep is clockwise in the Y-down frame. `point` already
+        // converted that frame to Y-up, so the shared parameters negate it.
         let center = point(start_node, "legacy arc center")?;
         let endpoint = point(end_node, "legacy arc endpoint")?;
-        let radius = (endpoint.x - center.x).hypot(endpoint.y - center.y);
-        if radius <= 0.0 {
-            return Err(error("Degenerate legacy courtyard arc"));
-        }
-        let sweep = sexpr::items(angle_node)
+        let degrees = sexpr::items(angle_node)
             .and_then(|parts| parts.get(1))
             .and_then(sexpr::atom)
             .ok_or_else(|| error("Legacy arc needs angle"))
-            .and_then(parse_finite)?
-            .to_radians();
-        // KiCad 5's positive sweep is clockwise in its Y-down frame. `point`
-        // already converted that frame to Y-up, so negate the sweep here.
-        let sweep = -sweep;
-        let initial = (endpoint.y - center.y).atan2(endpoint.x - center.x);
+            .and_then(parse_finite)?;
+        let (_, initial, sweep, radius) =
+            circular_arc_parameters(center, None, endpoint, Some(degrees))
+                .map_err(|_| error("Degenerate legacy courtyard arc"))?;
         let step = 2.0 * (1.0 - 0.01 / radius.max(0.01)).clamp(-1.0, 1.0).acos();
         let count = (sweep.abs() / step.max(0.001)).ceil().max(2.0) as usize;
         return Ok((0..=count)
@@ -560,42 +537,19 @@ fn flatten_arc(node: &Node) -> Result<Vec<Vec2>, ArtifactError> {
         "arc midpoint",
     )?;
     let end = point(end_node, "arc end")?;
-    let (cx, cy, r) =
-        circumcenter(start, mid, end).ok_or_else(|| error("Degenerate courtyard arc"))?;
-    let angle = |p: Vec2| (p.y - cy).atan2(p.x - cx);
-    let a0 = angle(start);
-    let am = angle(mid);
-    let a1 = angle(end);
-    let ccw =
-        (am - a0).rem_euclid(std::f64::consts::TAU) <= (a1 - a0).rem_euclid(std::f64::consts::TAU);
-    let sweep = if ccw {
-        (a1 - a0).rem_euclid(std::f64::consts::TAU)
-    } else {
-        -((a0 - a1).rem_euclid(std::f64::consts::TAU))
-    };
+    let (center, a0, sweep, r) = circular_arc_parameters(start, Some(mid), end, None)
+        .map_err(|_| error("Degenerate courtyard arc"))?;
     let step = 2.0 * (1.0 - 0.01 / r.max(0.01)).clamp(-1.0, 1.0).acos();
     let count = (sweep.abs() / step.max(0.001)).ceil().max(2.0) as usize;
     Ok((0..=count)
         .map(|i| {
             let a = a0 + sweep * i as f64 / count as f64;
             Vec2 {
-                x: cx + r * a.cos(),
-                y: cy + r * a.sin(),
+                x: center.x + r * a.cos(),
+                y: center.y + r * a.sin(),
             }
         })
         .collect())
-}
-fn circumcenter(a: Vec2, b: Vec2, c: Vec2) -> Option<(f64, f64, f64)> {
-    let d = 2.0 * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y));
-    if d.abs() < 1e-12 {
-        return None;
-    }
-    let aa = a.x * a.x + a.y * a.y;
-    let bb = b.x * b.x + b.y * b.y;
-    let cc = c.x * c.x + c.y * c.y;
-    let x = (aa * (b.y - c.y) + bb * (c.y - a.y) + cc * (a.y - b.y)) / d;
-    let y = (aa * (c.x - b.x) + bb * (a.x - c.x) + cc * (b.x - a.x)) / d;
-    Some((x, y, (a.x - x).hypot(a.y - y)))
 }
 
 fn primitive_extent(node: &Node) -> Result<Option<Vec2>, ArtifactError> {

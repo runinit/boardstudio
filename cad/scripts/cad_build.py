@@ -10,6 +10,8 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 import browser_tools
+import cargo_json
+from tailwind_tools import check_jobs
 
 CAD_ROOT = Path(__file__).resolve().parents[1]
 OUT_NAME = "boardstudio_cad_wasm"
@@ -158,14 +160,7 @@ def _prebuild(command, env, output, expected, binaries, duplicates):
     with subprocess.Popen(command, cwd=CAD_ROOT, env=env, stdout=subprocess.PIPE,
                           stderr=subprocess.STDOUT, text=True,
                           **({"pass_fds": (fd,)} if fd is not None else {})) as process:
-        for line in process.stdout:
-            try:
-                message = json.loads(line)
-            except json.JSONDecodeError:
-                output.write(line)
-                continue
-            if message.get("reason") == "compiler-message":
-                output.write(message["message"].get("rendered") or "")
+        for message in (message for line in process.stdout for message in cargo_json.messages(line, output)):
             if (message.get("reason") != "compiler-artifact"
                     or not message.get("executable")
                     or not message.get("profile", {}).get("test")):
@@ -219,10 +214,7 @@ def _test_cad_unified(output):
                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         return result.stdout
 
-    try:
-        jobs = int(os.environ.get("BOARDSTUDIO_CHECK_JOBS", "2"))
-    except ValueError:
-        jobs = 2
+    jobs = check_jobs()
     if jobs <= 1:
         for item in runs:
             try:

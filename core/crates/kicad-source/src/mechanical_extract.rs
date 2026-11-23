@@ -52,13 +52,7 @@ pub fn extract(
 
     let source_name = sexpr::items(root)
         .and_then(|items| items.get(1))
-        .and_then(|node| sexpr::kicad_quoted(source, sexpr::span(node)))
-        .or_else(|| {
-            sexpr::items(root)
-                .and_then(|items| items.get(1))
-                .and_then(sexpr::atom)
-                .map(str::to_owned)
-        });
+        .and_then(|node| sexpr::decoded_text(source, node));
 
     let mut primitives = Vec::new();
     let mut geometry_index = 0usize;
@@ -277,20 +271,9 @@ fn purpose_contours(
     }
 
     while !edges.is_empty() {
-        let mut chain = edges.remove(0);
-        while !near(*chain.last().expect("edge has endpoints"), chain[0]) {
-            let current = *chain.last().expect("edge has endpoints");
-            let Some(index) = edges.iter().position(|edge| {
-                near(edge[0], current) || near(*edge.last().expect("edge has endpoints"), current)
-            }) else {
-                return Err(validation("Plate cutout geometry contains an open contour"));
-            };
-            let mut edge = edges.remove(index);
-            if near(*edge.last().expect("edge has endpoints"), current) {
-                edge.reverse();
-            }
-            chain.extend(edge.into_iter().skip(1));
-        }
+        let first = edges.remove(0);
+        let mut chain = sexpr::chain_loop_from(first, &mut edges, CONTOUR_ENDPOINT_TOLERANCE_MM)
+            .ok_or_else(|| validation("Plate cutout geometry contains an open contour"))?;
         chain.pop();
         if chain.len() < 3 {
             return Err(validation(
@@ -401,27 +384,19 @@ fn tessellate_drill(
     Ok(points)
 }
 
-fn circular_arc_parameters(
+/// Center, start angle, signed sweep, and radius of a three-point or legacy
+/// KiCad arc. Shared by the mechanical, footprint, and board projections.
+pub fn circular_arc_parameters(
     start: Vec2,
     mid: Option<Vec2>,
     end: Vec2,
     legacy_sweep_degrees: Option<f64>,
 ) -> Result<(Vec2, f64, f64, f64), ArtifactError> {
     let (center, first, sweep, radius) = if let (Some(mid), None) = (mid, legacy_sweep_degrees) {
-        let (center, radius) = circumcenter(start, mid, end)
+        let (center, radius) = sexpr::circumcenter(start, mid, end, 1e-12)
             .ok_or_else(|| validation("Degenerate plate-cutout arc"))?;
-        let angle = |point: Vec2| (point.y - center.y).atan2(point.x - center.x);
-        let a0 = angle(start);
-        let am = angle(mid);
-        let a1 = angle(end);
-        let ccw = (am - a0).rem_euclid(std::f64::consts::TAU)
-            <= (a1 - a0).rem_euclid(std::f64::consts::TAU);
-        let sweep = if ccw {
-            (a1 - a0).rem_euclid(std::f64::consts::TAU)
-        } else {
-            -((a0 - a1).rem_euclid(std::f64::consts::TAU))
-        };
-        (center, a0, sweep, radius)
+        let (first, sweep) = sexpr::arc_sweep_through_mid(center, start, mid, end);
+        (center, first, sweep, radius)
     } else if let (None, Some(degrees)) = (mid, legacy_sweep_degrees) {
         super::legacy_arc_parameters(start, end, degrees)
             .ok_or_else(|| validation("Degenerate legacy plate-cutout arc"))?
@@ -456,25 +431,6 @@ fn tessellate_arc(
             }
         })
         .collect())
-}
-
-fn circumcenter(a: Vec2, b: Vec2, c: Vec2) -> Option<(Vec2, f64)> {
-    let d = 2.0 * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y));
-    if d.abs() < 1e-12 {
-        return None;
-    }
-    let aa = a.x * a.x + a.y * a.y;
-    let bb = b.x * b.x + b.y * b.y;
-    let cc = c.x * c.x + c.y * c.y;
-    let center = Vec2 {
-        x: (aa * (b.y - c.y) + bb * (c.y - a.y) + cc * (a.y - b.y)) / d,
-        y: (aa * (c.x - b.x) + bb * (a.x - c.x) + cc * (b.x - a.x)) / d,
-    };
-    Some((center, (a.x - center.x).hypot(a.y - center.y)))
-}
-
-fn near(a: Vec2, b: Vec2) -> bool {
-    (a.x - b.x).hypot(a.y - b.y) <= CONTOUR_ENDPOINT_TOLERANCE_MM
 }
 
 fn resolve_purpose(

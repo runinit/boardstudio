@@ -222,7 +222,7 @@ pub(super) fn on_show_mechanical_finding_handler(
     })
 }
 
-pub(super) struct Views {
+pub(in crate::presentation) struct Views {
     pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
     pub scene: std::sync::Arc<boardstudio_core::model::SceneDelta>,
     pub findings: Vec<LayoutFinding>,

@@ -24,7 +24,7 @@ import verified_runtime
 
 ROOT = verified_runtime.ROOT
 PIN = json.loads((ROOT / 'scripts/chrome-for-testing.json').read_text())
-CFT = Path(os.environ.get('BOARDSTUDIO_CFT_DIR', Path.home() / '.cache/boardstudio/chrome-for-testing' / PIN['version']))
+CFT = generate.host_probe.browser_tools.pinned_cft_dir()
 CFT_ZIP = Path(os.environ.get('BOARDSTUDIO_CFT_ZIP', CFT.parent / f"chrome-{PIN['version']}.zip"))
 MAX_OUTPUT_BYTES = 4 * 1024 * 1024
 

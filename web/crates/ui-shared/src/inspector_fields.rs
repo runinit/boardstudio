@@ -17,7 +17,8 @@ use crate::ui::{
 };
 use dioxus::prelude::*;
 
-const TOUCH_CLS: &str =
+/// Touch-target sizing shared by inspector controls on narrow/coarse-pointer viewports.
+pub const TOUCH_CLS: &str =
     "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch";
 const SELECT_CLS: &str = "max-[960px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch";
 const COMBO_CLS: &str = "max-[960px]:[&_[data-slot=combobox-input]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=combobox-input]]:min-h-control-touch";
@@ -294,7 +295,7 @@ pub fn InspectorSection(
             keep_mounted: true, open: Some(is_open),
             on_open_change: move |next| { local_open.set(next); if let Some(h) = on_open_change { h.call(next); } },
             div { class: "flex items-center justify-between gap-2",
-                CollapsibleTrigger { class: "flex-1 justify-start {TOUCH_CLS}",
+                CollapsibleTrigger { class: "flex-1 justify-start {TOUCH_CLS}", aria_label: "{title}",
                     span { "{title}" }
                     if let Some(badge) = badge { Badge { variant: BadgeVariant::Secondary, "{badge}" } }
                 }
@@ -302,7 +303,7 @@ pub fn InspectorSection(
                     Button { variant: ButtonVariant::Ghost, size: ButtonSize::Sm, onclick: move |_| reset.call(()), "Reset" }
                 }
             }
-            CollapsibleContent { class: "data-[open=false]:hidden", FieldGroup { {children} } }
+            CollapsibleContent { class: "data-[open=false]:hidden data-[open=true]:overflow-visible", FieldGroup { {children} } }
         }
     }
 }
@@ -468,6 +469,39 @@ pub fn CheckboxField(
                 if let Some(description) = description { FieldDescription { "{description}" } }
                 if let Some(error) = error { FieldError { "{error}" } }
             }
+        }
+    }
+}
+
+/// Hidden native file input behind a named button; reports the picked files and
+/// resets the input so picking the same file again re-fires. Browser-only: the
+/// picked `web_sys::File`s only exist on `wasm32`.
+#[cfg(target_arch = "wasm32")]
+#[component]
+pub fn FilePickerButton(
+    label: String,
+    #[props(into, optional)] accept: Option<String>,
+    #[props(default)] directory: bool,
+    #[props(default)] disabled: bool,
+    #[props(into, optional)] aria_label: Option<String>,
+    #[props(default = ButtonVariant::Secondary)] variant: ButtonVariant,
+    on_files: EventHandler<Vec<web_sys::File>>,
+) -> Element {
+    use dioxus_web::WebEventExt;
+    use wasm_bindgen::JsCast;
+    let mut input = use_signal(|| None::<web_sys::HtmlInputElement>);
+    rsx! {
+        Button { variant, class: TOUCH_CLS, disabled, aria_label: aria_label.clone(),
+            onclick: move |_| if let Some(input) = input() { input.click(); }, "{label}" }
+        input { r#type: "file", hidden: true, accept, multiple: directory, disabled,
+            "webkitdirectory": directory.then_some(""), aria_label: aria_label.unwrap_or(label),
+            onmounted: move |event: MountedEvent| input.set(event.data().downcast::<web_sys::Element>().and_then(|e| e.dyn_ref::<web_sys::HtmlInputElement>()).cloned()),
+            onchange: move |event: FormEvent| {
+                let Some(input) = event.data().try_as_web_event().and_then(|e| e.target()).and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok()) else { return; };
+                let files: Vec<_> = input.files().map(|list| (0..list.length()).filter_map(|i| list.get(i)).collect()).unwrap_or_default();
+                input.set_value("");
+                if !files.is_empty() { on_files.call(files); }
+            },
         }
     }
 }

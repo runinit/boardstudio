@@ -132,7 +132,11 @@ impl Runtime {
         }
         #[cfg(any(test, feature = "test-support"))]
         {
-            let executor = self.case_gesture_preview_test_executor.borrow().clone();
+            let executor = self
+                .test
+                .case_gesture_preview_test_executor
+                .borrow()
+                .clone();
             if let Some(executor) = executor {
                 return executor(snapshot, owner.scope.clone());
             }
@@ -148,46 +152,19 @@ impl Runtime {
         if !is_current() {
             return Err("Case gesture preview was superseded".into());
         }
-        let existing_worker = self
-            .cad_worker
-            .borrow()
-            .as_ref()
-            .filter(|(scope, worker)| scope == &owner.scope && !worker.is_closed())
-            .map(|(_, worker)| worker.clone());
-        let worker = if let Some(worker) = existing_worker {
-            worker
-        } else {
-            if let Some((_, previous)) = self.cad_worker.borrow_mut().take() {
-                previous.close();
-            }
-            let worker = Rc::new(
-                CadWorker::new(
-                    &resource_url("assets/cad-worker/entry.js")
-                        .map_err(|error| error.to_string())?,
-                )
-                .map_err(|error| error.to_string())?,
-            );
-            *self.cad_worker.borrow_mut() = Some((owner.scope.clone(), worker.clone()));
-            worker
-        };
+        let worker = self.case_cad_worker(&owner.scope, true)?;
         worker.ready().await.map_err(|error| error.to_string())?;
         if !is_current() {
             let _ = worker.cancel(&job_id);
             return Err("Case gesture preview was superseded".into());
         }
-        let request = CadRequest {
-            request_id: format!("{job_id}-preview"),
-            job_id: job_id.clone(),
-            identity: prepared.identity.clone(),
-            operation: CadOperation::Preview,
-            prepared: Some(prepared.prepared.clone()),
-            source_sha256: None,
-            step_import_options: None,
-            collision_query: None,
-            generated_analysis_request: None,
-            collision_meshes: None,
-            input_bytes: vec![],
-        };
+        let request = prepared_cad_request(
+            format!("{job_id}-preview"),
+            job_id,
+            &prepared.identity,
+            CadOperation::Preview,
+            prepared.prepared.clone(),
+        );
         let reply = worker
             .request(request.clone())
             .await
@@ -219,30 +196,20 @@ impl Runtime {
     }
 
     pub fn native_case_preview(&self) -> Option<Rc<crate::case_preview::NativePreviewSnapshot>> {
-        self.native_case_preview
-            .borrow()
-            .published
-            .as_ref()
-            .filter(|preview| {
-                preview.lease.matches(&preview.owner)
-                    && self.snapshot_current(preview.owner.snapshot_token, &preview.owner.scope)
-            })
-            .cloned()
+        self.native_case_preview.published().filter(|preview| {
+            preview.lease.matches(&preview.owner)
+                && self.snapshot_current(preview.owner.snapshot_token, &preview.owner.scope)
+        })
     }
 
     pub fn native_case_preview_pending(&self) -> bool {
-        self.native_case_preview
-            .borrow()
-            .pending
-            .as_ref()
-            .is_some_and(|(owner, lease)| {
-                lease.matches(owner) && self.preview_owner_is_current(owner)
-            })
+        self.native_case_preview.pending().is_some_and(|lease| {
+            lease.is_active() && self.preview_owner_is_current(lease.identity())
+        })
     }
 
     pub fn native_case_preview_error(&self) -> Option<String> {
         self.native_case_preview
-            .borrow()
             .current_error(|owner| self.preview_owner_is_current(owner))
     }
 
@@ -277,23 +244,25 @@ impl Runtime {
         if !self.native_preview_snapshot_is_current(&preview) {
             return Ok(());
         }
-        let owner = crate::model_delivery::ModelOwnerIdentity::capture(
+        let source_is_current = {
+            let weak = Rc::downgrade(self);
+            let preview = preview.clone();
+            Rc::new(move || {
+                weak.upgrade()
+                    .is_some_and(|runtime| runtime.native_preview_snapshot_is_current(&preview))
+            }) as Rc<dyn Fn() -> bool>
+        };
+        let batch = self.preview_model_batch(
+            &preview.owner.scope,
             preview.owner.snapshot_token,
+            preview.accepted_document.revision,
             preview.lease.clone(),
+            source_is_current,
         );
-        let native_paths = crate::model_delivery::native_model_path_assets(&preview.path_assets);
-        let unique_model_paths = preview
-            .preview
-            .models
-            .iter()
-            .map(|model| model.path.clone())
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
         let Some(bundled_ids_by_path) = resolve_native_model_paths(
             &self.native_model_delivery,
             &preview.owner,
-            unique_model_paths,
+            unique_model_paths(&preview.preview.models),
             || self.native_preview_snapshot_is_current(&preview),
             || self.changed(),
             |paths| async move {
@@ -304,38 +273,13 @@ impl Runtime {
         else {
             return Ok(());
         };
-        let selections = crate::model_delivery::resolve_preview_assets(
-            &preview.preview.models,
-            preview.board_reference.as_ref(),
-            &native_paths,
-            &preview.accepted_document,
-            |path| bundled_ids_by_path.get(path).cloned().flatten(),
-            packaged_model_asset,
-        )
-        .into_iter()
-        .collect::<BTreeMap<_, _>>();
-        let source_is_current = {
-            let weak = Rc::downgrade(self);
-            let preview = preview.clone();
-            Rc::new(move || {
-                weak.upgrade()
-                    .is_some_and(|runtime| runtime.native_preview_snapshot_is_current(&preview))
-            }) as Rc<dyn Fn() -> bool>
-        };
-        let ports = self.model_delivery_ports(
-            preview.owner.scope.clone(),
-            preview.owner.snapshot_token,
-            preview.accepted_document.revision,
-            source_is_current.clone(),
-        );
-        let results = self
-            .case_model_delivery
-            .deliver_models(
+        let results = batch
+            .deliver_board_models(
                 &preview.preview.models,
-                &selections,
-                &ports,
-                &owner,
-                source_is_current,
+                preview.board_reference.as_ref(),
+                &preview.path_assets,
+                &preview.accepted_document,
+                &bundled_ids_by_path,
             )
             .await;
         let mut state = self.native_model_delivery.borrow_mut();
@@ -393,26 +337,24 @@ impl Runtime {
                     if !is_current() {
                         return Err("Model asset request became stale before loading".into());
                     }
-                    let cached = runtime.assets.borrow().get(&sha256).cloned();
                     let packaged = matches!(asset.source, ModelAssetSource::Packaged { .. });
-                    let cache_packaged = packaged && cached.is_none();
-                    let bytes = match (cached, &asset.source) {
-                        (Some(bytes), _) => Some(bytes),
-                        (None, ModelAssetSource::Document) => runtime
-                            .store
-                            .load_asset(sha256.clone())
-                            .await
-                            .map_err(|error| error.to_string())?
-                            .map(|bytes| bytes.to_vec()),
-                        (None, ModelAssetSource::Packaged { .. }) => {
+                    let mut cache_packaged = false;
+                    let bytes = if packaged {
+                        let cached = runtime.assets.borrow().get(&sha256).cloned();
+                        if cached.is_some() {
+                            cached
+                        } else {
                             if packaged_model_asset(&asset.id).as_ref() != Some(&asset) {
                                 return Err(
                                     "Packaged model descriptor no longer matches the catalogue"
                                         .into(),
                                 );
                             }
+                            cache_packaged = true;
                             Some(crate::bundled_models::bundled_model_bytes(&asset.id).await?)
                         }
+                    } else {
+                        runtime.load_document_asset(&sha256).await?
                     };
                     if !is_current() || !runtime.snapshot_current(token, &scope) {
                         return Err("Model asset request became stale after loading".into());
@@ -504,11 +446,7 @@ impl Runtime {
 
         let generation = self
             .native_case_preview
-            .borrow()
-            .generation
-            .checked_add(1)
-            .ok_or_else(|| "Case preview generation identity exhausted".to_owned())?;
-        self.native_case_preview.borrow_mut().generation = generation;
+            .next_generation("Case preview generation identity exhausted")?;
         let operation = self.operation().0;
         if operation == 0 || operation > MAX_SAFE_INTEGER {
             return Err("Case preview request identity is outside the safe integer range".into());
@@ -531,18 +469,24 @@ impl Runtime {
                     generation,
                     request_token,
                 );
-                self.native_case_preview.borrow_mut().error = Some((owner, error.clone()));
+                self.native_case_preview
+                    .fail_before_begin(owner, error.clone());
                 self.changed();
                 return Err(error);
             }
         };
-        self.set_native_preview_pending(capture.owner.clone(), capture.lease.clone());
+        self.set_native_preview_pending(capture.lease.clone());
         let result = self
             .run_native_case_preview(capture.clone(), operation)
             .await;
         match result {
             Ok(preview) if self.preview_owner_is_current(&preview.owner) => {
-                self.native_case_preview.borrow_mut().publish(preview)?;
+                let generation = preview.owner.projection_generation;
+                self.native_case_preview.publish(
+                    preview,
+                    generation,
+                    "The Case preview owner was cancelled before publication",
+                )?;
                 self.changed();
                 Ok(())
             }
@@ -551,14 +495,10 @@ impl Runtime {
                 Err("The Case preview result became stale before publication".into())
             }
             Err(error) => {
-                let owner_is_current = self.preview_owner_is_current(&capture.owner);
+                let is_current = self.preview_owner_is_current(&capture.owner);
                 capture.lease.invalidate();
-                if owner_is_current {
-                    if let Some((_, lease)) = self.native_case_preview.borrow_mut().pending.take() {
-                        lease.invalidate();
-                    }
-                    self.native_case_preview.borrow_mut().error =
-                        Some((capture.owner.clone(), error.clone()));
+                if is_current {
+                    self.native_case_preview.fail(&capture.lease, error.clone());
                     self.report(format!("Case board preview failed: {error}"));
                 }
                 Err(error)
@@ -603,40 +543,25 @@ impl Runtime {
             return Err("Parts preview became stale after geometry preparation".into());
         }
 
-        let native_paths = crate::model_delivery::native_model_path_assets(&capture.path_assets);
         let bundled_ids_by_path = bundled_preview_paths(&preview.models).await?;
         if !is_current() {
             capture.lease.invalidate();
             return Err("Parts model resolution became stale".into());
         }
-        let selections = crate::model_delivery::resolve_preview_assets(
-            &preview.models,
-            None,
-            &native_paths,
-            &capture.sample_document,
-            |path| bundled_ids_by_path.get(path).cloned().flatten(),
-            packaged_model_asset,
-        )
-        .into_iter()
-        .collect::<BTreeMap<_, _>>();
-        let owner = crate::model_delivery::ModelOwnerIdentity::capture(
-            capture.owner.snapshot_token,
-            capture.lease.clone(),
-        );
-        let ports = self.model_delivery_ports(
-            capture.owner.scope.clone(),
+        let batch = self.preview_model_batch(
+            &capture.owner.scope,
             capture.owner.snapshot_token,
             capture.sample_document.revision,
+            capture.lease.clone(),
             is_current.clone(),
         );
-        let model_rows = self
-            .case_model_delivery
-            .deliver_models(
+        let model_rows = batch
+            .deliver_board_models(
                 &preview.models,
-                &selections,
-                &ports,
-                &owner,
-                is_current.clone(),
+                None,
+                &capture.path_assets,
+                &capture.sample_document,
+                &bundled_ids_by_path,
             )
             .await;
         if !is_current() {
@@ -666,11 +591,10 @@ impl Runtime {
 
     pub(super) fn set_native_preview_pending(
         &self,
-        owner: crate::case_preview::CasePreviewOwnerIdentity,
         lease: Rc<crate::case_preview::CasePreviewOwnerLease>,
     ) {
         self.cancel_native_model_jobs();
-        self.native_case_preview.borrow_mut().begin(owner, lease);
+        self.native_case_preview.begin(lease);
         self.changed();
     }
 
@@ -679,14 +603,14 @@ impl Runtime {
         owner: &crate::case_preview::CasePreviewOwnerIdentity,
     ) -> bool {
         self.snapshot_current(owner.snapshot_token, &owner.scope)
-            && self.native_case_preview.borrow().generation == owner.projection_generation
+            && self.native_case_preview.generation() == owner.projection_generation
     }
 
     pub(super) fn preview_owner_lease_is_current(
         &self,
         owner: &crate::case_preview::CasePreviewOwnerIdentity,
     ) -> bool {
-        self.native_case_preview.borrow().owns(owner)
+        self.native_case_preview.owns(owner)
     }
 
     pub(super) async fn run_native_case_preview(

@@ -1,7 +1,78 @@
 use super::super::*;
 use boardstudio_web_ui_model::Workspace;
 
-pub(super) struct MatrixPointerDownInput {
+pub(in crate::presentation) struct LayoutPointer {
+    pub matrix_pointer_down: EventHandler<layout_canvas::MatrixPointerDown>,
+    pub part_pointer_down: EventHandler<layout_canvas::PartPointerDown>,
+}
+
+/// Layout's canvas pointer-down handlers, built inside `LayoutWorkspace` from
+/// the frame and contexts instead of being forwarded through the session.
+pub(in crate::presentation) fn build_canvas_pointer(
+    frame: &workspace_composition::WorkspaceFrame,
+) -> LayoutPointer {
+    let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
+    let adapter = use_context::<SelectionAdapter>();
+    let interaction = use_context::<workspace_composition::WorkspaceInteraction>();
+    let layout_state = use_context::<layout_workspace::LayoutWorkspaceState>();
+    let services = &frame.layout_services;
+    let runtime = editor.runtime();
+    let render_scope = frame.scope.clone();
+    let render_generation = frame.owner.generation;
+    let matrix_pointer_down = matrix_pointer_down_handler(MatrixPointerDownInput {
+        runtime: runtime.clone(),
+        adapter: adapter.clone(),
+        svg: frame.svg.clone(),
+        space_down: interaction.navigation.space_key_state(),
+        scope: render_scope.clone(),
+        generation: render_generation,
+        range_ids: services.visible_ids.clone(),
+        selection_kind: layout_state.selection_kind(),
+        owner: frame.owner.clone(),
+        tree_cell_anchor: interaction.tree_cell_anchor.clone(),
+        pending_splay_pick: layout_state.pending_splay_origin_pick(),
+        pending_anchor_pick: layout_state.pending_anchor_pick(),
+        transform_inspector: services.matrix_transform_inspector.clone(),
+        canvas_interaction: interaction.arbiter.clone(),
+        mirrored_pair: services.mirrored_pair.clone(),
+        split_focus: layout_state.split_focus(),
+        workspace: editor.workspace,
+        view_x: frame.camera.view_x,
+        view_y: frame.camera.view_y,
+        width: frame.camera.width,
+        height: frame.camera.height,
+    });
+    let part_pointer_down = part_pointer_down_handler(PartPointerDownInput {
+        runtime,
+        svg: frame.svg.clone(),
+        drag: interaction.navigation.drag_interaction(),
+        space_down: interaction.navigation.space_key_state(),
+        canvas_interaction: interaction.arbiter.clone(),
+        navigation: interaction.navigation.clone(),
+        adapter,
+        render_scope,
+        generation: render_generation,
+        range_ids: services.visible_ids.clone(),
+        selection_kind: layout_state.selection_kind(),
+        owner: frame.owner.clone(),
+        tree_cell_anchor: interaction.tree_cell_anchor.clone(),
+        mirrored_pair: services.mirrored_pair.clone(),
+        pending_splay_pick: layout_state.pending_splay_origin_pick(),
+        transform_inspector: services.matrix_transform_inspector.clone(),
+        split_focus: layout_state.split_focus(),
+        workspace: editor.workspace,
+        view_x: frame.camera.view_x,
+        view_y: frame.camera.view_y,
+        width: frame.camera.width,
+        height: frame.camera.height,
+    });
+    LayoutPointer {
+        matrix_pointer_down,
+        part_pointer_down,
+    }
+}
+
+pub(in crate::presentation) struct MatrixPointerDownInput {
     pub runtime: Rc<Runtime>,
     pub adapter: SelectionAdapter,
     pub svg: Rc<RefCell<Option<SvgElement>>>,
@@ -25,7 +96,7 @@ pub(super) struct MatrixPointerDownInput {
     pub height: f64,
 }
 
-pub(super) fn matrix_pointer_down_handler(
+pub(in crate::presentation) fn matrix_pointer_down_handler(
     input: MatrixPointerDownInput,
 ) -> EventHandler<layout_canvas::MatrixPointerDown> {
     let MatrixPointerDownInput {
@@ -201,7 +272,7 @@ pub(super) fn matrix_pointer_down_handler(
     })
 }
 
-pub(super) struct PartPointerDownInput {
+pub(in crate::presentation) struct PartPointerDownInput {
     pub runtime: Rc<Runtime>,
     pub svg: Rc<RefCell<Option<SvgElement>>>,
     pub drag: Rc<RefCell<Option<Drag>>>,
@@ -226,7 +297,7 @@ pub(super) struct PartPointerDownInput {
     pub height: f64,
 }
 
-pub(super) fn part_pointer_down_handler(
+pub(in crate::presentation) fn part_pointer_down_handler(
     input: PartPointerDownInput,
 ) -> EventHandler<layout_canvas::PartPointerDown> {
     let PartPointerDownInput {

@@ -5,7 +5,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core_mechanical::electrical::{ElectricalMode, ElectricalPlan};
-use boardstudio_model::model::EditOperation;
+use boardstudio_model::model::{EditOperation, ProjectDoc};
 use boardstudio_web_ui_model::Workspace;
 #[cfg(target_arch = "wasm32")]
 use boardstudio_web_ui_model::editor::{EditGuard, use_guarded_edit};
@@ -86,45 +86,86 @@ pub struct BoardWiringModeActions {
     pub on_change: EventHandler<BoardWiringModeEditRequest>,
 }
 
+/// The shared `ReplaceDocument` resolver for board-wiring edits: clone the
+/// accepted document, apply `edit` (submit targets or retire reason), resolve
+/// `Unchanged` when the clone still equals the accepted document (ADR-0005).
+pub(super) fn replace_document_resolver(
+    name: &'static str,
+    edit: impl Fn(&AcceptedSnapshot, &mut ProjectDoc) -> Result<Vec<String>, String> + 'static,
+) -> EditResolver {
+    EditResolver::new(name, move |accepted: &AcceptedSnapshot| {
+        let mut replacement = accepted.document.as_ref().clone();
+        match edit(accepted, &mut replacement) {
+            Err(reason) => Resolution::Retire(reason),
+            Ok(_) if replacement == *accepted.document => Resolution::Unchanged,
+            Ok(target_ids) => Resolution::submit(
+                target_ids,
+                EditOperation::ReplaceDocument {
+                    document: Box::new(replacement),
+                },
+            ),
+        }
+    })
+}
+
+/// The one scoped board-wiring action hook: a target-filtered failure signal, a
+/// guarded edit admitted against the exact current wiring plan, and a
+/// `runtime.commit` settled onto that target. `admit` builds the resolver for an
+/// admitted request (`None` silently drops it, as before).
+#[cfg(target_arch = "wasm32")]
+pub(super) fn use_board_wiring_edit<Req: 'static>(
+    guard: EditGuard,
+    source: &Option<PcbWiringSource>,
+    resolution: Signal<PcbWiringResolution>,
+    label: &'static str,
+    admit: impl Fn(&AcceptedSnapshot, &ElectricalPlan, Req) -> Option<EditResolver> + 'static,
+    identity_of: impl Fn(&Req) -> BoardWiringModeIdentity + 'static,
+) -> (
+    Option<BoardWiringModeIdentity>,
+    bool,
+    Option<String>,
+    EventHandler<Req>,
+) {
+    let failure = use_signal(|| None::<BoardWiringFailure>);
+    let on_change = use_guarded_edit(guard, move |runtime, request: Req| {
+        let identity = identity_of(&request);
+        let current_resolution = resolution.read();
+        let Some((snapshot, plan)) = current_wiring_edit(
+            runtime,
+            &identity,
+            (guard.editor.scope_generation)(),
+            &current_resolution,
+        ) else {
+            return;
+        };
+        let target = identity.feedback_target();
+        if let Some(resolver) = admit(&snapshot, plan, request) {
+            settle_board_commit(runtime, label, resolver, target, failure);
+        }
+    });
+    let identity = source.as_ref().map(mode_identity);
+    let editable = wiring_editable(guard, identity.as_ref(), resolution);
+    let failure = BoardWiringFailure::for_identity(failure(), identity.as_ref());
+    (identity, editable, failure, on_change)
+}
+
 #[cfg(target_arch = "wasm32")]
 pub fn use_board_wiring_mode_edits(
     guard: EditGuard,
     source: Option<PcbWiringSource>,
     resolution: Signal<PcbWiringResolution>,
 ) -> BoardWiringModeActions {
-    let failure = use_signal(|| None::<BoardWiringFailure>);
     let mode = source.as_ref().map_or(ElectricalMode::Matrix, |source| {
         board_mode(&source.document, &source.ui_scope.board_id)
     });
-    let mut feedback = failure;
-    let on_change = use_guarded_edit(
+    let (identity, editable, failure, on_change) = use_board_wiring_edit(
         guard,
-        move |runtime, request: BoardWiringModeEditRequest| {
-            let Some((_snapshot, _plan)) = current_wiring_edit(
-                runtime,
-                &request.identity,
-                (guard.editor.scope_generation)(),
-                &resolution.read(),
-            ) else {
-                return;
-            };
-            let target = request.identity.feedback_target();
-            let result = runtime.commit("pcb-wiring-mode", mode_resolver(request));
-            feedback.set(
-                result
-                    .err()
-                    .map(|message| BoardWiringFailure { target, message }),
-            );
-        },
+        &source,
+        resolution,
+        "pcb-wiring-mode",
+        |_, _, request| Some(mode_resolver(request)),
+        |request: &BoardWiringModeEditRequest| request.identity.clone(),
     );
-    let identity = source.as_ref().map(mode_identity);
-    let editable = wiring_editable(guard, identity.as_ref(), resolution);
-    let target = identity
-        .as_ref()
-        .map(BoardWiringModeIdentity::feedback_target);
-    let failure = failure()
-        .filter(|failure| Some(&failure.target) == target.as_ref())
-        .map(|failure| failure.message);
     BoardWiringModeActions {
         identity,
         editable,
@@ -178,23 +219,61 @@ pub fn mode_identity(source: &PcbWiringSource) -> BoardWiringModeIdentity {
     }
 }
 
-pub(super) fn pcb_source(
-    runtime: &Runtime,
-    generation: u64,
-) -> Option<(AcceptedSnapshot, PcbWiringSource)> {
+/// The accepted snapshot while the editor is Ready, durable (Saved/Saving) and
+/// free of gestures and display previews — the shared liveness floor for every
+/// scoped PCB action owner.
+pub fn ready_snapshot(runtime: &Runtime) -> Option<AcceptedSnapshot> {
     let model = runtime.model();
-    let snapshot = model.accepted?;
-    let scope = runtime.scope()?;
     if model.lifecycle != Lifecycle::Ready
         || model.gesture.is_some()
         || model.display_preview.is_some()
-        || model.active_board_id != scope.board_id
-        || model.active_instance_id != scope.instance_id
         || !matches!(
             model.durability,
             Durability::Saved { .. } | Durability::Saving { .. }
         )
     {
+        return None;
+    }
+    model.accepted
+}
+
+impl BoardWiringFailure {
+    /// The failure message when it belongs to the currently rendered board target.
+    pub(super) fn for_identity(
+        failure: Option<BoardWiringFailure>,
+        identity: Option<&BoardWiringModeIdentity>,
+    ) -> Option<String> {
+        let target = identity.map(BoardWiringModeIdentity::feedback_target);
+        failure
+            .filter(|failure| Some(&failure.target) == target.as_ref())
+            .map(|failure| failure.message)
+    }
+}
+
+/// Commit one board-wiring resolver and settle its failure onto the board target.
+pub(super) fn settle_board_commit(
+    runtime: &std::rc::Rc<Runtime>,
+    label: &'static str,
+    resolver: EditResolver,
+    target: BoardWiringModeFeedbackTarget,
+    mut failure: Signal<Option<BoardWiringFailure>>,
+) {
+    failure.set(
+        runtime
+            .commit(label, resolver)
+            .err()
+            .map(|message| BoardWiringFailure { target, message }),
+    );
+}
+
+pub(super) fn pcb_source(
+    runtime: &Runtime,
+    generation: u64,
+) -> Option<(AcceptedSnapshot, PcbWiringSource)> {
+    let snapshot = ready_snapshot(runtime)?;
+    let model = runtime.model();
+    let scope = runtime.scope()?;
+    if model.active_board_id != scope.board_id || model.active_instance_id != scope.instance_id {
         return None;
     }
     let board_scope = Scope {

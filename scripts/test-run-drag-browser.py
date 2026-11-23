@@ -21,12 +21,14 @@ class DragBrowserTests(unittest.TestCase):
         events = []
         smoke.project = Mock(return_value=initial)
         smoke.button = Mock(side_effect=lambda name: events.append(name))
+        smoke.evaluate = Mock(side_effect=["true", "false"])
+        smoke.click = Mock(side_effect=lambda selector: events.append(selector))
         smoke.select_option = Mock(side_effect=lambda name, value: events.append((name, value)))
         smoke.persisted_after = Mock(side_effect=lambda revision: {
             3: configured, 4: rigid,
         }[revision])
         smoke.prepare_collision()
-        self.assertEqual(events, ["Open Case workspace", "Configure mechanical stack",
+        self.assertEqual(events, ["Open Case workspace", '[aria-label="Live preview"]', "Configure mechanical stack",
                                   ("Mount style", "Rigid mount"), "Update preview"])
         self.assertEqual(smoke.persisted_after.call_args_list, [call(3), call(4)])
         self.assertEqual(drag.mechanical_mounts({"hardware": {"instances": [

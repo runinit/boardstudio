@@ -68,69 +68,12 @@ impl Runtime {
         self.refresh_after_session(previous_scope, previous_snapshot);
         let result = observed_outcome(&effects, observe);
         #[cfg(any(test, feature = "test-support"))]
-        if self.in_process_adapters.borrow().is_some() {
-            self.held_effects.borrow_mut().extend(effects);
+        if self.test.in_process_adapters.borrow().is_some() {
+            self.test.held_effects.borrow_mut().extend(effects);
             return result;
         }
         self.drive_effects(effects);
         result
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn set_case_gesture_preview_executor_test(
-        &self,
-        executor: Rc<CaseGesturePreviewTestExecutor>,
-    ) {
-        *self.case_gesture_preview_test_executor.borrow_mut() = Some(executor);
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn case_gesture_preview_active_test(&self) -> bool {
-        self.case_gesture_preview.borrow().active_owner().is_some()
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn set_cad_scene_test(&self, scene: Option<Rc<CadScene>>) {
-        *self.cad_scene.borrow_mut() = scene;
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn set_keycaps_preview_executor_test(&self, executor: Rc<KeycapsPreviewTestExecutor>) {
-        *self.keycaps_preview_test_executor.borrow_mut() = Some(executor);
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn install_case_pcb_preview_test(&self) {
-        let accepted = self.accepted_snapshot().expect("accepted preview fixture");
-        let scope = self.scope().expect("selected physical fixture scope");
-        let generation = self.native_case_preview.borrow().generation + 1;
-        let capture = crate::case_preview::capture_native_preview(
-            &accepted,
-            &scope,
-            generation,
-            format!("case-keycaps-test-{generation}"),
-        )
-        .expect("valid accepted Case preview input");
-        self.native_case_preview.borrow_mut().generation = generation;
-        self.set_native_preview_pending(capture.owner.clone(), capture.lease.clone());
-        let preview = crate::case_preview::accept_native_preview(
-            capture,
-            PcbPreview {
-                revision: accepted.document.revision,
-                thickness: 1.6,
-                contours: vec![],
-                surfaces: vec![],
-                holes: vec![],
-                models: vec![],
-                diagnostics: vec![],
-            },
-        )
-        .expect("controlled PCB payload preserves the accepted preview owner");
-        self.native_case_preview
-            .borrow_mut()
-            .publish(preview)
-            .unwrap();
-        self.changed();
     }
 
     pub(super) fn complete(self: &Rc<Self>, event: Completion) -> Vec<Effect> {
@@ -207,18 +150,13 @@ impl Runtime {
         self.with_model(|model| model.accepted.as_ref().map(|snapshot| snapshot.token))
     }
 
-    #[cfg(any(test, feature = "test-support"))]
-    pub(super) fn drive(self: &Rc<Self>, effects: Vec<Effect>) {
-        self.drive_effects(effects);
-    }
-
-    fn drive_effects(self: &Rc<Self>, effects: Vec<Effect>) {
+    pub(super) fn drive_effects(self: &Rc<Self>, effects: Vec<Effect>) {
         let this = self.clone();
         let mut effects = VecDeque::from(effects);
         #[cfg(any(test, feature = "test-support"))]
-        let finished = self.in_process_adapters.borrow().as_ref().map(|_| {
+        let finished = self.test.in_process_adapters.borrow().as_ref().map(|_| {
             let (finished, receive) = futures_channel::oneshot::channel();
-            self.in_process_drives.borrow_mut().push(receive);
+            self.test.in_process_drives.borrow_mut().push(receive);
             finished
         });
         spawn_local(async move {

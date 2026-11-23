@@ -1,6 +1,10 @@
 //! Read-only board projection. Original source remains the export authority.
+use super::mechanical_extract::circular_arc_parameters;
 use super::parsed_board::{BoardParseError, ParsedBoard};
-use super::sexpr::{atom, child, children, head, items};
+use super::sexpr::{
+    arc_sweep_through_mid, atom, chain_loop_from, child, children, circumcenter, decoded_text,
+    head, items,
+};
 use crate::model::*;
 use boardstudio_contracts::polygon_contains;
 use kiutils_sexpr::Node;
@@ -17,12 +21,7 @@ fn value(n: &Node, i: usize) -> &str {
 fn decoded(source: &str, n: &Node, i: usize) -> String {
     items(n)
         .and_then(|v| v.get(i))
-        .map(|item| match item {
-            Node::Atom { span, .. } => super::sexpr::kicad_quoted(source, *span)
-                .or_else(|| atom(item).map(str::to_owned))
-                .unwrap_or_default(),
-            Node::List { .. } => String::new(),
-        })
+        .and_then(|item| decoded_text(source, item))
         .unwrap_or_default()
 }
 fn number(n: &Node, i: usize, fallback: f64) -> Result<f64, ArtifactError> {
@@ -113,30 +112,15 @@ fn arc(n: &Node) -> Result<Vec<Vec2>, ArtifactError> {
         if degrees == 0. || degrees.abs() > 360. {
             return Err(error("Invalid legacy board arc"));
         }
-        super::legacy_arc_parameters(a, c, degrees)
-            .ok_or_else(|| error("Invalid legacy board arc"))?
+        circular_arc_parameters(a, None, c, Some(degrees))
+            .map_err(|_| error("Invalid legacy board arc"))?
     } else {
         let b = child(n, "mid")
             .map(point)
             .ok_or_else(|| error("Arc needs either a midpoint or a legacy angle"))??;
-        let d = 2. * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y));
-        if d.abs() < 1e-10 {
-            return Err(error("Degenerate board arc"));
-        }
-        let aa = a.x * a.x + a.y * a.y;
-        let bb = b.x * b.x + b.y * b.y;
-        let cc = c.x * c.x + c.y * c.y;
-        let o = Vec2 {
-            x: (aa * (b.y - c.y) + bb * (c.y - a.y) + cc * (a.y - b.y)) / d,
-            y: (aa * (c.x - b.x) + bb * (a.x - c.x) + cc * (b.x - a.x)) / d,
-        };
-        let start = (a.y - o.y).atan2(a.x - o.x);
-        let middle = ((b.y - o.y).atan2(b.x - o.x) - start).rem_euclid(TAU);
-        let mut sweep = ((c.y - o.y).atan2(c.x - o.x) - start).rem_euclid(TAU);
-        if middle > sweep {
-            sweep -= TAU;
-        }
-        let radius = (a.x - o.x).hypot(a.y - o.y);
+        let (o, radius) =
+            circumcenter(a, b, c, 1e-10).ok_or_else(|| error("Degenerate board arc"))?;
+        let (start, sweep) = arc_sweep_through_mid(o, a, b, c);
         (o, start, sweep, radius)
     };
     let steps = ((radius * sweep.abs() / 0.1).ceil() as usize).clamp(8, 2048);
@@ -359,27 +343,12 @@ fn xyz(n: &Node, key: &str, default: f64) -> Result<Vec3, ArtifactError> {
         }),
     }
 }
-fn close(a: Vec2, b: Vec2) -> bool {
-    (a.x - b.x).hypot(a.y - b.y) < 0.002
-}
 fn contours(mut edges: Vec<Vec<Vec2>>) -> Result<Vec<Contour>, ArtifactError> {
     edges.retain(|p| p.len() > 1);
     let mut loops = vec![];
-    while let Some(mut path) = edges.pop() {
-        while !close(path[0], *path.last().unwrap()) {
-            let last = *path.last().unwrap();
-            let Some(i) = edges
-                .iter()
-                .position(|e| close(e[0], last) || close(*e.last().unwrap(), last))
-            else {
-                return Err(error("PCB outline is open; close Edge.Cuts in KiCad"));
-            };
-            let mut next = edges.swap_remove(i);
-            if !close(next[0], last) {
-                next.reverse();
-            }
-            path.extend(next.into_iter().skip(1));
-        }
+    while let Some(path) = edges.pop() {
+        let mut path = chain_loop_from(path, &mut edges, 0.002)
+            .ok_or_else(|| error("PCB outline is open; close Edge.Cuts in KiCad"))?;
         path.pop();
         if path.len() >= 3 {
             loops.push(path);

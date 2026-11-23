@@ -1,7 +1,7 @@
 use super::super::*;
 use boardstudio_web_ui_model::Workspace;
 
-pub(super) fn polygon_points(points: &[Vec2]) -> String {
+pub(in crate::presentation) fn polygon_points(points: &[Vec2]) -> String {
     points
         .iter()
         .map(|p| format!("{},{}", p.x, p.y))
@@ -9,39 +9,19 @@ pub(super) fn polygon_points(points: &[Vec2]) -> String {
         .join(" ")
 }
 
-pub(in crate::presentation) struct LayoutScene {
-    pub canvas_aria_label: &'static str,
-    pub canvas_grid: objects::LayoutCanvasGridStyle,
-    pub outline_inspector: Option<outline_lifecycle::OutlineInspectorProjection>,
-    pub outline_overlay_key: Option<String>,
-    pub outline_snap_settings: objects::LayoutSnapSettings,
-    pub outline_pitch: Vec2,
-    pub outline_snap_origins: Rc<Vec<outline_snapping::Origin>>,
-    pub selected_bridge: Option<boardstudio_core::model::OutlineBridge>,
-    pub matrix_placement: objects::MatrixPlacementMount,
-    pub mirrored_pair: objects::MirroredPairMount,
-    pub split_focused_half: Option<boardstudio_web_ui_model::split_focus::SplitHalf>,
-    pub spacing_ghost_prop: Option<layout_canvas::SpacingGhost>,
-    pub selected_tree_context: Option<objects::ScopedTreeContext>,
-    pub canvas_anchor_badge: Option<anchor_badge::AnchorBadge>,
-    pub matrix_pointer_down: EventHandler<layout_canvas::MatrixPointerDown>,
-    pub part_pointer_down: EventHandler<layout_canvas::PartPointerDown>,
-    pub selection_geometry_anchor: Option<(f64, f64, f64)>,
-    pub canvas_transform_menu: Option<objects::LayoutTransformMenuMount>,
-    pub matrix_transform_inspector: objects::MatrixTransformInspectorMount,
-    pub drag: Rc<RefCell<Option<Drag>>>,
-    pub layout_transform_target: Option<(
-        std::rc::Rc<boardstudio_core::model::Matrix>,
-        std::rc::Rc<boardstudio_core::model::MatrixScene>,
-        objects::TreeContext,
-    )>,
-    pub part_rail_selection: Option<(String, boardstudio_web_layout::part_rail::PartRailFacts)>,
-    pub part_rail_snap: Option<objects::GestureSnapInputs>,
+pub(in crate::presentation) struct LayoutCanvasExtras {
+    pub bridge: Option<boardstudio_core::model::OutlineBridge>,
+    pub focused_half: Option<boardstudio_web_ui_model::split_focus::SplitHalf>,
+    pub anchor: Option<(f64, f64, f64)>,
 }
 
-pub(super) fn use_layout_canvas(
+pub(in crate::presentation) fn use_layout_canvas(
     frame: &workspace_composition::WorkspaceFrame,
-    input: &LayoutScene,
+    canvas: &super::inspector_wiring::CanvasNamed,
+    transform_menu: &objects::LayoutTransformMenuMount,
+    pointer: &super::pointer::LayoutPointer,
+    overlay: &OutlineOverlay,
+    extras: LayoutCanvasExtras,
 ) -> Element {
     let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
     let layout_state = use_context::<layout_workspace::LayoutWorkspaceState>();
@@ -58,31 +38,35 @@ pub(super) fn use_layout_canvas(
             }
         };
     }
-    let LayoutScene {
-        canvas_aria_label,
-        canvas_grid,
-        outline_inspector,
-        outline_overlay_key,
-        outline_snap_settings,
-        outline_pitch,
-        outline_snap_origins,
-        selected_bridge,
-        matrix_placement,
-        mirrored_pair,
-        split_focused_half,
-        spacing_ghost_prop,
-        selected_tree_context,
-        canvas_anchor_badge,
-        matrix_pointer_down,
-        part_pointer_down,
-        selection_geometry_anchor,
-        canvas_transform_menu,
-        matrix_transform_inspector,
-        drag,
-        layout_transform_target,
-        part_rail_selection,
-        part_rail_snap,
-    } = input;
+    let services = &frame.layout_services;
+    let LayoutCanvasExtras {
+        bridge,
+        focused_half,
+        anchor,
+    } = extras;
+    let canvas_aria_label = canvas.inspector.canvas_aria_label;
+    let canvas_grid = &overlay.canvas_grid;
+    let outline_inspector = &services.outline_inspector;
+    let outline_overlay_key = &overlay.outline_overlay_key;
+    let outline_snap_settings = &overlay.outline_snap_settings;
+    let outline_pitch = overlay.outline_pitch;
+    let outline_snap_origins = &overlay.outline_snap_origins;
+    let selected_bridge = bridge.as_ref();
+    let matrix_placement = &services.matrix_placement;
+    let mirrored_pair = &services.mirrored_pair;
+    let split_focused_half = focused_half;
+    let spacing_ghost_prop = canvas.selection.spacing_ghost_prop.clone();
+    let selected_tree_context = &canvas.selection.selected_tree_context;
+    let canvas_anchor_badge = canvas.selection.canvas_anchor_badge.clone();
+    let matrix_pointer_down = pointer.matrix_pointer_down;
+    let part_pointer_down = pointer.part_pointer_down;
+    let selection_geometry_anchor = anchor;
+    let canvas_transform_menu = Some(transform_menu.clone());
+    let matrix_transform_inspector = services.matrix_transform_inspector.clone();
+    let drag = interaction.navigation.drag_interaction();
+    let layout_transform_target = canvas.selection.layout_transform_target.clone();
+    let part_rail_selection = canvas.selection.part_rail_selection.clone();
+    let part_rail_snap = canvas.selection.part_rail_snap;
     let workspace_composition::CanvasEventHandlers {
         mount,
         start_pan,
@@ -140,14 +124,14 @@ pub(super) fn use_layout_canvas(
                 width,
                 height,
                 outline_snap_settings,
-                outline_pitch: *outline_pitch,
+                outline_pitch,
                 outline_snap_origins,
-                selected_bridge: selected_bridge.as_ref(),
+                selected_bridge,
             })}
             {scene_placement_previews(layer_visibility, matrix_placement, mirrored_pair)}
             layout_canvas::Scene {
                 source: canvas_source,
-                focused_half: *split_focused_half,
+                focused_half: split_focused_half,
                 preview_active: model.display_preview.is_some(),
                 accepted_scene: model
                     .display_preview
@@ -164,11 +148,11 @@ pub(super) fn use_layout_canvas(
                 keycaps_visible: !(layer_visibility.hidden)().contains("Keycaps"),
                 footprints_visible: (layer_visibility.footprints)()
                     && !(layer_visibility.hidden)().contains("Footprints"),
-                on_matrix_pointer_down: *matrix_pointer_down,
-                on_part_pointer_down: *part_pointer_down,
+                on_matrix_pointer_down: matrix_pointer_down,
+                on_part_pointer_down: part_pointer_down,
             }
             {selection_anchor(SelectionAnchorInput {
-                selection_geometry_anchor: *selection_geometry_anchor,
+                selection_geometry_anchor,
                 canvas_transform_menu: canvas_transform_menu.clone(),
                 matrix_transform_inspector: matrix_transform_inspector.clone(),
                 selected_tree_context,
@@ -208,7 +192,7 @@ pub(super) fn use_layout_canvas(
                 layout_assembly_3d,
                 part_rail_selection: part_rail_selection.clone(),
                 selected_tree_context,
-                part_rail_snap: *part_rail_snap,
+                part_rail_snap,
                 layout_transform_tool,
                 layout_state,
                 runtime: runtime.clone(),
@@ -239,7 +223,7 @@ pub(super) fn use_layout_canvas(
                 width,
                 height,
                 outline_snap_settings,
-                outline_pitch: *outline_pitch,
+                outline_pitch,
                 outline_snap_origins,
             })}
         }
@@ -247,7 +231,7 @@ pub(super) fn use_layout_canvas(
     }
 }
 
-pub(super) struct SceneBoardsInput<'a> {
+pub(in crate::presentation) struct SceneBoardsInput<'a> {
     pub layer_visibility: &'a LayerVisibility,
     pub scene: &'a boardstudio_core::model::SceneDelta,
     pub model: &'a ReadModel,
@@ -266,7 +250,7 @@ pub(super) struct SceneBoardsInput<'a> {
     pub selected_bridge: Option<&'a boardstudio_core::model::OutlineBridge>,
 }
 
-pub(super) fn scene_boards(input: SceneBoardsInput<'_>) -> Element {
+pub(in crate::presentation) fn scene_boards(input: SceneBoardsInput<'_>) -> Element {
     let SceneBoardsInput {
         layer_visibility,
         scene,
@@ -315,7 +299,7 @@ pub(super) fn scene_boards(input: SceneBoardsInput<'_>) -> Element {
     }
 }
 
-pub(super) fn scene_placement_previews(
+pub(in crate::presentation) fn scene_placement_previews(
     layer_visibility: &LayerVisibility,
     matrix_placement: &objects::MatrixPlacementMount,
     mirrored_pair: &objects::MirroredPairMount,
@@ -366,7 +350,7 @@ pub(super) fn scene_placement_previews(
     }
 }
 
-pub(super) struct SelectionAnchorInput<'a> {
+pub(in crate::presentation) struct SelectionAnchorInput<'a> {
     pub selection_geometry_anchor: Option<(f64, f64, f64)>,
     pub canvas_transform_menu: Option<objects::LayoutTransformMenuMount>,
     pub matrix_transform_inspector: objects::MatrixTransformInspectorMount,
@@ -385,7 +369,7 @@ pub(super) struct SelectionAnchorInput<'a> {
     pub height: f64,
 }
 
-pub(super) fn selection_anchor(input: SelectionAnchorInput<'_>) -> Element {
+pub(in crate::presentation) fn selection_anchor(input: SelectionAnchorInput<'_>) -> Element {
     let SelectionAnchorInput {
         selection_geometry_anchor,
         canvas_transform_menu,
@@ -459,7 +443,7 @@ pub(super) fn selection_anchor(input: SelectionAnchorInput<'_>) -> Element {
     }
 }
 
-pub(super) struct TransformOverlaysInput<'a> {
+pub(in crate::presentation) struct TransformOverlaysInput<'a> {
     pub active_workspace: Workspace,
     pub layout_assembly_3d: Signal<bool>,
     pub layout_transform_target: Option<(
@@ -482,7 +466,7 @@ pub(super) struct TransformOverlaysInput<'a> {
     pub height: f64,
 }
 
-pub(super) fn transform_overlays(input: TransformOverlaysInput<'_>) -> Element {
+pub(in crate::presentation) fn transform_overlays(input: TransformOverlaysInput<'_>) -> Element {
     let TransformOverlaysInput {
         active_workspace,
         layout_assembly_3d,
@@ -545,7 +529,7 @@ pub(super) fn transform_overlays(input: TransformOverlaysInput<'_>) -> Element {
     }
 }
 
-pub(super) struct PartRailInput<'a> {
+pub(in crate::presentation) struct PartRailInput<'a> {
     pub active_workspace: Workspace,
     pub layout_assembly_3d: Signal<bool>,
     pub part_rail_selection: Option<(String, boardstudio_web_layout::part_rail::PartRailFacts)>,
@@ -565,7 +549,7 @@ pub(super) struct PartRailInput<'a> {
     pub height: f64,
 }
 
-pub(super) fn part_rail(input: PartRailInput<'_>) -> Element {
+pub(in crate::presentation) fn part_rail(input: PartRailInput<'_>) -> Element {
     let PartRailInput {
         active_workspace,
         layout_assembly_3d,
@@ -642,7 +626,7 @@ pub(super) fn part_rail(input: PartRailInput<'_>) -> Element {
     }
 }
 
-pub(super) fn placement_preview(
+pub(in crate::presentation) fn placement_preview(
     part_placement: &part_placement::PartPlacementMount,
     width: f64,
     zoom_surface_size: Signal<(f64, f64)>,
@@ -686,7 +670,7 @@ pub(super) fn placement_preview(
     }
 }
 
-pub(super) struct MarkerDraftInput<'a> {
+pub(in crate::presentation) struct MarkerDraftInput<'a> {
     pub active_workspace: Workspace,
     pub render_scope: Scope,
     pub snapshot: &'a AcceptedSnapshot,
@@ -706,7 +690,7 @@ pub(super) struct MarkerDraftInput<'a> {
     pub outline_snap_origins: &'a Rc<Vec<outline_snapping::Origin>>,
 }
 
-pub(super) fn finding_marker_draft(input: MarkerDraftInput<'_>) -> Element {
+pub(in crate::presentation) fn finding_marker_draft(input: MarkerDraftInput<'_>) -> Element {
     let MarkerDraftInput {
         active_workspace,
         render_scope,
@@ -753,4 +737,365 @@ pub(super) fn finding_marker_draft(input: MarkerDraftInput<'_>) -> Element {
             }
         }
     }
+}
+
+// --- Canvas selection state (spacing ghost, transform target, part rail) ---
+
+pub(in crate::presentation) struct CanvasSelectionState {
+    pub selected_tree_context: Option<objects::ScopedTreeContext>,
+    pub canvas_anchor_badge: Option<anchor_badge::AnchorBadge>,
+    pub spacing_ghost_prop: Option<layout_canvas::SpacingGhost>,
+    pub layout_transform_target: Option<(
+        std::rc::Rc<boardstudio_core::model::Matrix>,
+        std::rc::Rc<boardstudio_core::model::MatrixScene>,
+        objects::TreeContext,
+    )>,
+    pub part_rail_selection: Option<(String, boardstudio_web_layout::part_rail::PartRailFacts)>,
+    pub part_rail_snap: Option<objects::GestureSnapInputs>,
+}
+
+pub(in crate::presentation) fn use_canvas_selection_state(
+    frame: &workspace_composition::WorkspaceFrame,
+) -> CanvasSelectionState {
+    let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
+    let adapter = use_context::<SelectionAdapter>();
+    let layout_state = use_context::<layout_workspace::LayoutWorkspaceState>();
+    let version = editor.version;
+    let runtime = editor.runtime();
+    // A spacing commit shows the previous accepted scene until another edit,
+    // undo/redo, selection change, or workspace switch. The tracker only writes view state.
+    let mut last_spacing_seen = use_signal(|| None::<spacing_ghost::SeenAccepted>);
+    let mut spacing_ghost_state = use_signal(|| None::<spacing_ghost::SpacingGhostState>);
+    let ghost_effect_runtime = runtime.clone();
+    let ghost_effect_selection = adapter.selected_context;
+    use_effect(move || {
+        let _ = version();
+        let tree_context = (ghost_effect_selection)();
+        let model = ghost_effect_runtime.model();
+        let Some(snapshot) = model.accepted.clone() else {
+            return;
+        };
+        let current = spacing_ghost::AcceptedView {
+            revision: snapshot.document.revision,
+            transaction: snapshot.scene.transaction_id.clone(),
+            document: snapshot.document.clone(),
+            scene: snapshot.scene.clone(),
+            selected_ids: model.selected_part_ids.clone(),
+            selected_context: tree_context,
+        };
+        // Clone the settled values first: the tracker borrows nothing, and the
+        // guarded writes below only fire on real advances.
+        let seen_before = last_spacing_seen.peek().clone();
+        let ghost_before = spacing_ghost_state.peek().clone();
+        match spacing_ghost::advance_spacing_ghost(
+            seen_before.as_ref(),
+            &current,
+            ghost_before.as_ref(),
+        ) {
+            spacing_ghost::GhostAdvance::Keep => {}
+            spacing_ghost::GhostAdvance::Set { seen, ghost } => {
+                if Some(&seen) != seen_before.as_ref() {
+                    last_spacing_seen.set(Some(seen));
+                }
+                if ghost != ghost_before {
+                    spacing_ghost_state.set(ghost);
+                }
+            }
+        }
+    });
+    let render_scope = frame.scope.clone();
+    let model = &frame.model;
+    let snapshot = &frame.snapshot;
+    let layer_visibility = editor.layers;
+    let canvas_source = frame.camera.canvas_source.clone();
+    let accepted_canvas_source = frame.camera.accepted_canvas_source.clone();
+    let document = frame.document.clone();
+    let active_workspace = Workspace::Layout;
+    let layout_snap_settings = layout_state.snap_settings();
+    let layout_owner = frame.owner.clone();
+    let layout_assembly_3d = layout_state.assembly_3d();
+    let selected_tree_context = adapter.selected_context.read().clone().filter(|selected| {
+        selected.scope == render_scope
+            && selection::context_is_current(model, &selected.scope, &selected.context)
+    });
+    // Ticket 02: the anchor badge and the "Placed from" readout share one
+    // projection of the displayed scene. It clears with the selection, and
+    // the canvas ring reads the same value through its scene prop.
+    let canvas_anchor_badge = (!(layer_visibility.hidden)().contains("Keys"))
+        .then(|| {
+            selected_tree_context.as_ref().and_then(|selected| {
+                let scene_refs: Vec<_> = canvas_source.scene.matrix_scenes.iter().collect();
+                anchor_badge::anchor_badge(
+                    &canvas_source.document,
+                    &scene_refs,
+                    Some(&selected.context),
+                )
+            })
+        })
+        .flatten();
+    // Ticket 18: the live spacing ghost, if it still describes this paint —
+    // the revision and selection it was born with, and no drag preview up.
+    // The revision check covers the paint between a commit landing and the
+    // tracker effect recording it; the selection check covers the paint
+    // between a selection landing and the effect retiring the ghost.
+    let spacing_ghost_prop = spacing_ghost_state
+        .read()
+        .clone()
+        .filter(|state| {
+            state.revision == snapshot.document.revision
+                && state.selected_ids == model.selected_part_ids
+                && state.selected_context == selected_tree_context
+                && model.display_preview.is_none()
+        })
+        .map(|state| layout_canvas::SpacingGhost {
+            scene: state.scene.clone(),
+            delta_mm: state.delta_mm,
+            axis_x: state.axis_x,
+        });
+    let transform_matrix_id = selected_tree_context
+        .as_ref()
+        .filter(|selected| selected.scope == render_scope && active_workspace == Workspace::Layout)
+        .and_then(|selected| {
+            let matrix_id = match &selected.context {
+                objects::TreeContext::Matrix { matrix_id }
+                | objects::TreeContext::Row { matrix_id, .. }
+                | objects::TreeContext::Column { matrix_id, .. }
+                | objects::TreeContext::Key { matrix_id, .. } => matrix_id.as_str(),
+                objects::TreeContext::Component {
+                    matrix_id: Some(matrix_id),
+                    ..
+                } => matrix_id.as_str(),
+                _ => return None,
+            };
+            Some(matrix_id.to_owned())
+        });
+    let transform_matrix = use_memo(use_reactive(
+        (&accepted_canvas_source, &transform_matrix_id),
+        |(source, matrix_id)| {
+            let matrix_id = matrix_id?;
+            source
+                .document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == matrix_id)
+                .cloned()
+                .map(Rc::new)
+        },
+    ))();
+    let transform_projection = use_memo(use_reactive(
+        (&canvas_source, &transform_matrix_id),
+        |(source, matrix_id)| {
+            let matrix_id = matrix_id?;
+            source
+                .scene
+                .matrix_scenes
+                .iter()
+                .find(|matrix| matrix.matrix_id == matrix_id)
+                .cloned()
+                .map(Rc::new)
+        },
+    ))();
+    let layout_transform_target = transform_matrix
+        .zip(transform_projection)
+        .zip(selected_tree_context.as_ref())
+        .map(|((matrix, projection), selected)| (matrix, projection, selected.context.clone()));
+    // Ticket 07: the part rail facts for an independent part selection behind
+    // `transform_tools` and the part rail below. Members and companions keep
+    // their matrix's tools: the facts name them and the pure list stays empty.
+    let part_rail_selection =
+        selected_tree_context
+            .as_ref()
+            .and_then(|selected| match &selected.context {
+                objects::TreeContext::Component {
+                    part_id: Some(part_id),
+                    matrix_id: None,
+                    ..
+                } => {
+                    let part = document.parts.iter().find(|part| &part.id == part_id)?;
+                    Some((
+                        part_id.clone(),
+                        boardstudio_web_layout::part_rail::PartRailFacts {
+                            anchored: part.anchor.is_some(),
+                            anchor_column: part.anchor.as_ref().map_or(0, |anchor| anchor.column),
+                            locked: part.locked == Some(true),
+                            member_or_companion: document
+                                .matrices
+                                .iter()
+                                .any(|matrix| matrix.part_ids.contains(part_id)),
+                        },
+                    ))
+                }
+                _ => None,
+            });
+    // Ticket 07: the part rail drag snap: anchored drags snap in the anchor
+    // matrix's pitch, like the matrix tools snap in their own.
+    let part_rail_snap = part_rail_selection.as_ref().map(|(part_id, _)| {
+        let anchor_pitch = document
+            .parts
+            .iter()
+            .find(|part| &part.id == part_id)
+            .and_then(|part| part.anchor.as_ref())
+            .and_then(|anchor| {
+                document
+                    .matrices
+                    .iter()
+                    .find(|matrix| matrix.id == anchor.matrix_id)
+            })
+            .map(|matrix| matrix.pitch);
+        objects::gesture_snap_inputs(&layout_snap_settings.read().clone(), anchor_pitch, None)
+    });
+    let transform_tool_owner = (
+        layout_owner.scope.clone(),
+        layout_owner.generation,
+        layout_transform_target
+            .as_ref()
+            .map(|(matrix, _, _)| matrix.id.clone()),
+        active_workspace,
+        layout_assembly_3d(),
+    );
+    layout_state.observe_transform_tool_owner(transform_tool_owner);
+    CanvasSelectionState {
+        selected_tree_context,
+        canvas_anchor_badge,
+        spacing_ghost_prop,
+        layout_transform_target,
+        part_rail_selection,
+        part_rail_snap,
+    }
+}
+
+/// Only a linked Layout split has an unfocused half.
+pub(in crate::presentation) fn split_focused_half(
+    document: &boardstudio_core::model::ProjectDoc,
+    split_focus: Signal<boardstudio_web_ui_model::split_focus::SplitHalf>,
+) -> Option<boardstudio_web_ui_model::split_focus::SplitHalf> {
+    if boardstudio_web_ui_model::split_focus::has_split(document) {
+        Some(split_focus())
+    } else {
+        None
+    }
+}
+
+/// The outline bridge named by the selected tree context, for the Layout
+/// canvas overlay.
+pub(in crate::presentation) fn selected_bridge(
+    snapshot: &AcceptedSnapshot,
+    selected: Option<&objects::ScopedTreeContext>,
+) -> Option<boardstudio_core::model::OutlineBridge> {
+    let objects::TreeContext::Bridge {
+        board_id,
+        bridge_id,
+    } = &selected?.context
+    else {
+        return None;
+    };
+    snapshot
+        .scene
+        .board_outline_scenes
+        .iter()
+        .find(|scene| scene.board_id == *board_id)
+        .and_then(|scene| scene.bridges.iter().find(|bridge| bridge.id == *bridge_id))
+        .cloned()
+}
+
+/// Outline pitch/snap/grid derivation for the Layout canvas while outline
+/// point editing is live.
+pub(in crate::presentation) struct OutlineOverlay {
+    pub outline_pitch: Vec2,
+    pub outline_snap_origins: Rc<Vec<outline_snapping::Origin>>,
+    pub outline_snap_settings: objects::LayoutSnapSettings,
+    pub canvas_grid: objects::LayoutCanvasGridStyle,
+    pub outline_overlay_key: Option<String>,
+}
+
+pub(in crate::presentation) fn use_outline_overlay(
+    frame: &workspace_composition::WorkspaceFrame,
+) -> OutlineOverlay {
+    let adapter = use_context::<SelectionAdapter>();
+    let interaction = use_context::<workspace_composition::WorkspaceInteraction>();
+    let layout_state = use_context::<layout_workspace::LayoutWorkspaceState>();
+    let model = frame.model.as_ref();
+    let render_scope = &frame.scope;
+    let tree_cell_anchor = &interaction.tree_cell_anchor;
+    let layout_owner = &frame.owner;
+    let accepted_canvas_source = frame.camera.accepted_canvas_source.clone();
+    let layout_snap_settings = layout_state.snap_settings();
+    let outline_inspector = &frame.layout_services.outline_inspector;
+    let width = frame.camera.width;
+    let zoom_surface_size = frame.surface_size;
+    let outline_pitch = {
+        let retained = tree_cell_anchor_for_owner(tree_cell_anchor, layout_owner);
+        matrix_snap_parameters(model, render_scope, &adapter, retained.as_ref())
+            .0
+            .unwrap_or(Vec2 { x: 19.05, y: 19.05 })
+    };
+    let outline_snap_origins = use_memo(use_reactive((&accepted_canvas_source,), |(source,)| {
+        Rc::new(layout_canvas::snap_origins(
+            &source.document,
+            &source.board_id,
+            &source.scene,
+        ))
+    }))();
+    let outline_snap_settings = layout_snap_settings.read().clone();
+    let outline_grid_active = outline_inspector
+        .as_ref()
+        .is_some_and(|projection| (projection.editing_points)());
+    let canvas_grid = objects::layout_canvas_grid_style(
+        width,
+        zoom_surface_size().0,
+        outline_pitch.x,
+        outline_snap_settings.snap_fraction,
+        outline_grid_active,
+    );
+    let outline_overlay_key = outline_inspector
+        .as_ref()
+        .map(outline_lifecycle::OutlineInspectorProjection::canvas_edit_key);
+    OutlineOverlay {
+        outline_pitch,
+        outline_snap_origins,
+        outline_snap_settings,
+        canvas_grid,
+        outline_overlay_key,
+    }
+}
+
+/// The canvas-space anchor for the selection transform menu: centroid x of
+/// the selected parts, clamped into the view, above their lowest edge.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::presentation) fn selection_geometry_anchor(
+    visible: &[&Part],
+    scene: &boardstudio_core::model::SceneDelta,
+    selected_ids: &[String],
+    svg_mounted: bool,
+    zoom_surface_size: Signal<(f64, f64)>,
+    width: f64,
+    height: f64,
+    view_x: f64,
+) -> Option<(f64, f64, f64)> {
+    let points: Vec<_> = visible
+        .iter()
+        .filter(|part| selected_ids.contains(&part.id))
+        .map(|part| {
+            scene
+                .transforms
+                .iter()
+                .find(|t| t.id == part.id)
+                .map_or(part.pose.at, |t| t.pose.at)
+        })
+        .collect();
+    if points.is_empty() {
+        return None;
+    }
+    let scale = if svg_mounted {
+        let (surface_width, surface_height) = zoom_surface_size();
+        (width / surface_width.max(1.0)).max(height / surface_height.max(1.0))
+    } else {
+        1.0
+    };
+    let x = (points.iter().map(|p| p.x).sum::<f64>() / points.len() as f64).clamp(
+        view_x + 60.0 * scale,
+        (view_x + width - 60.0 * scale).max(view_x + 60.0 * scale),
+    );
+    let y = points.iter().map(|p| p.y).fold(f64::INFINITY, f64::min) - 12.0 - 6.0 * scale;
+    Some((x, y, scale))
 }

@@ -267,30 +267,26 @@ impl Canvas {
         self.element.set_attribute("data-renderer-state", state)
     }
 
+    fn weak_callback(self: &Rc<Self>, run: impl Fn(&Self) + 'static) -> Frame {
+        let weak = Rc::downgrade(self);
+        Frame::new(move || weak.upgrade().map_or((), |canvas| run(&canvas)))
+    }
+
     fn install(self: &Rc<Self>) -> Result<(), JsValue> {
-        let weak = Rc::downgrade(self);
-        let callback = Frame::new(move || {
-            if let Some(c) = weak.upgrade() {
-                c.frame.set(None);
-                if c.active()
-                    && let Err(error) = c.draw()
-                {
-                    c.lost.set(true);
-                    let _ = c.mark("frame-failed");
-                    (c.status)(RendererStatus::Error(format!(
-                        "Renderer submission failed: {}",
-                        js_error(error)
-                    )));
-                }
+        *self.frame_callback.borrow_mut() = Some(self.weak_callback(|canvas| {
+            canvas.frame.set(None);
+            if canvas.active()
+                && let Err(error) = canvas.draw()
+            {
+                canvas.lost.set(true);
+                let _ = canvas.mark("frame-failed");
+                (canvas.status)(RendererStatus::Error(format!(
+                    "Renderer submission failed: {}",
+                    js_error(error)
+                )));
             }
-        });
-        *self.frame_callback.borrow_mut() = Some(callback);
-        let weak = Rc::downgrade(self);
-        let callback = Frame::new(move || {
-            if let Some(c) = weak.upgrade() {
-                c.report(c.resize());
-            }
-        });
+        }));
+        let callback = self.weak_callback(|canvas| canvas.report(canvas.resize()));
         let observer = ResizeObserver::new(callback.as_ref().unchecked_ref())?;
         observer.observe(&self.element);
         *self.observer.borrow_mut() = Some((observer, callback));
@@ -401,30 +397,31 @@ impl Canvas {
         canvas.set_attribute("data-dpr", &dpr.to_string())
     }
 
+    fn replay(&self, canvas: &HtmlCanvasElement, next: &JsValue) -> Result<(), JsValue> {
+        for (name, packet) in PACKETS.into_iter().zip(self.packets.borrow().iter()) {
+            if let Some(packet) = packet {
+                let answer = call(next, name, std::slice::from_ref(packet))?;
+                if name == "setScene" && answer.as_bool() != Some(true) {
+                    return Err("Renderer rejected its restored scene".into());
+                }
+            }
+        }
+        call(
+            next,
+            "resize",
+            &[canvas.width().into(), canvas.height().into()],
+        )?;
+        call(next, "fit", &[])?;
+        Ok(())
+    }
+
     fn restore(&self) -> Result<(), JsValue> {
         if self.disposed.get() || !self.lost.get() {
             return Ok(());
         }
         let canvas = &self.element;
         let next = Reflect::construct(&self.constructor, &Array::of1(canvas))?;
-        let replay = (|| {
-            for (name, packet) in PACKETS.into_iter().zip(self.packets.borrow().iter()) {
-                if let Some(packet) = packet {
-                    let answer = call(&next, name, std::slice::from_ref(packet))?;
-                    if name == "setScene" && answer.as_bool() != Some(true) {
-                        return Err("Renderer rejected its restored scene".into());
-                    }
-                }
-            }
-            call(
-                &next,
-                "resize",
-                &[canvas.width().into(), canvas.height().into()],
-            )?;
-            call(&next, "fit", &[])?;
-            Ok(())
-        })();
-        if let Err(error) = replay {
+        if let Err(error) = self.replay(canvas, &next) {
             let _ = release_renderer(&next);
             return Err(error);
         }
@@ -636,10 +633,15 @@ mod tests {
         TimeoutFuture::new(100).await;
     }
 
+    fn mounted(fail: &str) -> (Fixture, RendererPageHost) {
+        let fixture = Fixture::new(fail);
+        let host = fixture.mount().unwrap();
+        (fixture, host)
+    }
+
     #[wasm_bindgen_test]
     async fn scene_sequences_are_monotonic_and_only_accepted_updates_draw() {
-        let f = Fixture::new("");
-        let host = f.mount().unwrap();
+        let (f, host) = mounted("");
         settle().await;
         let renders = f.calls(1, "render").len();
         let scene: JsValue = Object::new().into();
@@ -660,8 +662,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn observer_resizes_backing_buffer_and_teardown_stops_draws() {
-        let f = Fixture::new("");
-        let host = f.mount().unwrap();
+        let (f, host) = mounted("");
         f.canvas.style().set_property("width", "125px").unwrap();
         settle().await;
         let dpr = web_sys::window().unwrap().device_pixel_ratio().max(1.0);
@@ -686,8 +687,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     fn dpr_change_replaces_its_listener_and_resizes_the_canvas() {
-        let f = Fixture::new("");
-        let host = f.mount().unwrap();
+        let (f, host) = mounted("");
         let key = JsValue::from_str("devicePixelRatio");
         let window = host.0.window.unchecked_ref::<Object>();
         let previous = Object::get_own_property_descriptor(window, &key);
@@ -720,10 +720,9 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn lost_context_blocks_input_and_restoration_replays_latest_packets() {
-        let f = Fixture::new("");
+        let (f, host) = mounted("");
         // Use the real WebGL context if available. The lifecycle still receives native DOM events.
         let gl = f.canvas.get_context("webgl2").unwrap();
-        let host = f.mount().unwrap();
         assert!(host.submit_scene(Object::new().into(), 5).unwrap());
         host.set_display_state(Object::new().into()).unwrap();
         host.set_handles(Array::new().into()).unwrap();
@@ -766,8 +765,7 @@ mod tests {
         assert_eq!(failed.calls(1, "free").len(), 1);
         assert_eq!(failed.state().as_deref(), Some("disposed"));
 
-        let frame = Fixture::new("render");
-        let host = frame.mount().unwrap();
+        let (frame, host) = mounted("render");
         settle().await;
         assert_eq!(frame.state().as_deref(), Some("frame-failed"));
         assert!(host.fit().is_err());

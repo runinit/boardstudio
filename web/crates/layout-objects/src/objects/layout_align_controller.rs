@@ -1,9 +1,10 @@
 //! Admission and synchronous execution for Layout Align commands.
 use super::layout_align::{alignment_delta, reconcile_reference_choice, transformed_envelope};
+use super::layout_align_geometry::reference_choice;
 use super::layout_align_logic::{make_edit, workspace_route_matches};
 use super::{
-    AlignAction, AlignCommand, AlignFeedback, AlignReference, LayoutAlignMount, ScopedTreeContext,
-    TreeContext,
+    AlignAction, AlignCommand, AlignFeedback, AlignReference, LayoutAlignMount,
+    LayoutWorkspaceState, ScopedTreeContext, TreeContext,
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{
@@ -52,7 +53,9 @@ struct AlignProjectionIdentity {
     owner_workspace: Workspace,
 }
 
-/// Must run at the Editor lifetime, including while the Layout toolbar is hidden.
+/// May run inside the owning workspace: the Layout reference choice persists on
+/// `LayoutWorkspaceState` (session lifetime) across workspace switches, while any
+/// other owner keeps a mount-local choice. Feedback and projection stay per-mount.
 pub fn use_canvas_align(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
@@ -61,7 +64,13 @@ pub fn use_canvas_align(
     scope_generation: Signal<u64>,
     owner_workspace: Workspace,
 ) -> LayoutAlignMount {
-    let mut selected_reference = use_signal(|| None::<String>);
+    let local_reference = use_signal(|| None::<String>);
+    let persisted_reference =
+        try_use_context::<LayoutWorkspaceState>().map(|state| state.selected_reference());
+    let mut selected_reference = match (owner_workspace, persisted_reference) {
+        (Workspace::Layout, Some(persisted)) => persisted,
+        _ => local_reference,
+    };
     let feedback = use_signal(|| None::<AlignFeedbackState>);
     let selected = selected_context.read().clone();
     let current_workspace = workspace();
@@ -136,12 +145,24 @@ pub fn use_canvas_align(
         .iter()
         .map(|reference| reference.id.clone())
         .collect();
-    projection.selected_reference = reconcile_reference_choice(
+    let authoritative = projection.reference_authoritative;
+    projection.selected_reference = reference_choice(
         reference_id.as_deref(),
         &eligible_reference_ids,
-        projection.reference_authoritative,
-        |next| selected_reference.set(next),
+        authoritative,
     );
+    // Reconcile the retained choice after render; writing the signal here would
+    // mark subscribers dirty mid-pass. Non-authoritative projections (owner
+    // workspace hidden) never write, preserving the choice across switches.
+    use_effect(use_reactive(
+        (&eligible_reference_ids, &authoritative),
+        move |(eligible, authoritative)| {
+            let current = selected_reference.peek().clone();
+            reconcile_reference_choice(current.as_deref(), &eligible, authoritative, |next| {
+                selected_reference.set(next)
+            });
+        },
+    ));
     let shown_feedback = feedback.read().clone().and_then(|state| {
         (selected
             .as_ref()
@@ -386,16 +407,18 @@ fn project(
         .iter()
         .filter(|part| board.part_ids.contains(&part.id))
         .collect();
-    let moving_matrix = context_matrix(&selected.context).or_else(|| {
-        moving_ids.iter().find_map(|id| {
-            snapshot
-                .document
-                .matrices
-                .iter()
-                .find(|matrix| matrix.part_ids.contains(id))
-                .map(|matrix| matrix.id.clone())
-        })
-    });
+    let moving_matrix = super::matrix_id_for_context(&selected.context)
+        .map(str::to_owned)
+        .or_else(|| {
+            moving_ids.iter().find_map(|id| {
+                snapshot
+                    .document
+                    .matrices
+                    .iter()
+                    .find(|matrix| matrix.part_ids.contains(id))
+                    .map(|matrix| matrix.id.clone())
+            })
+        });
     let linked_partner_parts = moving_matrix
         .as_deref()
         .and_then(|matrix_id| linked_partner(&snapshot.document, &scope, matrix_id))
@@ -531,22 +554,6 @@ fn unsupported_source(
     None
 }
 
-fn context_matrix(context: &TreeContext) -> Option<String> {
-    match context {
-        TreeContext::Matrix { matrix_id }
-        | TreeContext::Row { matrix_id, .. }
-        | TreeContext::Column { matrix_id, .. }
-        | TreeContext::Key { matrix_id, .. } => Some(matrix_id.clone()),
-        TreeContext::Component { matrix_id, .. } => matrix_id.clone(),
-        TreeContext::Board { .. }
-        | TreeContext::LayoutGroup { .. }
-        | TreeContext::Outline { .. }
-        | TreeContext::OutlineVersion { .. }
-        | TreeContext::Bridge { .. }
-        | TreeContext::MountedModule { .. } => None,
-    }
-}
-
 fn linked_selection(
     context: &TreeContext,
     moving_ids: &[String],
@@ -593,26 +600,14 @@ fn linked_selection(
 }
 
 fn linked_partner(document: &ProjectDoc, scope: &Scope, matrix_id: &str) -> Option<String> {
-    let layout = document.layouts.iter().find(|layout| {
-        layout.board_id == scope.board_id && layout.matrix_ids.iter().any(|id| *id == matrix_id)
-    })?;
-    let linked = if let Some(link) = &layout.mirror_link {
-        document.layouts.iter().find(|candidate| {
-            candidate.board_id == scope.board_id && candidate.id == link.source_id
-        })
-    } else {
-        document.layouts.iter().find(|candidate| {
-            candidate.board_id == scope.board_id
-                && candidate
-                    .mirror_link
-                    .as_ref()
-                    .is_some_and(|link| link.source_id == layout.id)
-        })
-    }?;
+    let layout =
+        super::mirror_links::layout_for_matrix(&document.layouts, &scope.board_id, matrix_id)?;
+    let partner = super::mirror_links::partner_layout(&document.layouts, layout)
+        .filter(|partner| partner.board_id == scope.board_id)?;
     layout
         .mirror_link
         .as_ref()
-        .or(linked.mirror_link.as_ref())?
+        .or(partner.mirror_link.as_ref())?
         .partner_matrix(matrix_id)
         .map(str::to_owned)
 }

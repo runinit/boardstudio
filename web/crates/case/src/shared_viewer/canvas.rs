@@ -1,33 +1,23 @@
-use super::interaction::ViewportInteraction;
+use super::interaction::{
+    PointerOwner, ViewportInteraction, cancel_handle_capture, cancel_superseded_pointer,
+};
 use super::*;
 use crate::case_handles::active_case_handles;
-use crate::case_viewport::controls::{
-    edit_controls, inline_view_controls, layer_controls, use_assembly_adjustments,
-};
+use crate::case_viewport::controls::{CameraAction, ViewerChrome};
 use boardstudio_web_host::renderer_host::{RendererStatus, renderer_module};
 
 #[derive(Props, Clone, PartialEq)]
 pub(super) struct ViewportCanvas {
     pub projection: Rc<RendererSceneProjection>,
-    pub assembly_layers: Vec<crate::presentation::case_assembly_layers::CaseAssemblyLayer>,
-    pub component_layers: Vec<crate::presentation::case_assembly_layers::CaseComponentLayer>,
-    pub selectable_layers: Vec<String>,
+    pub overlay: ViewerOverlayConfig,
     pub canvas_context: ViewerCanvasContext,
-    pub selected_layer: String,
-    pub selected_reference: Option<String>,
-    pub display: CaseDisplay,
     pub theme: String,
     pub owner: Rc<ViewerOwner>,
     pub current_source: SourceGuard,
     pub on_signal: EventHandler<ScopedViewerSignal>,
     pub on_display_change: EventHandler<ScopedDisplayChange>,
-    pub mechanical_settings: Option<crate::presentation::MechanicalSettingsProps>,
-    pub inline_case_controls: bool,
-    pub toolbar_leading: Option<Element>,
     pub handle_projection: Option<CaseHandleProjection>,
-    pub handles: Vec<ViewerHandle>,
     pub handle_preview: Option<Vec<ViewerHandle>>,
-    pub gesture_message: Option<String>,
     pub focus_request: Option<ViewerFocusRequest>,
 }
 
@@ -42,7 +32,7 @@ pub(super) fn MountedCanvas(props: ViewportCanvas) -> Element {
 
     let edit_mode = use_signal(|| None::<usize>);
     let mut status = use_signal(|| "Starting 3D preview…".to_owned());
-    let mut transient = use_signal(TransientView::default);
+    let transient = use_signal(TransientView::default);
     let mounted = use_signal(|| false);
     let host = use_hook(|| Rc::new(RefCell::new(None::<Rc<RendererPageHost>>)));
     let canvas = use_hook(|| Rc::new(RefCell::new(None::<HtmlCanvasElement>)));
@@ -57,7 +47,11 @@ pub(super) fn MountedCanvas(props: ViewportCanvas) -> Element {
         identity: props.projection.identity.clone(),
         source: props.current_source.clone(),
         applied,
-        handles: active_case_handles(&props.handles, props.handle_preview.as_deref(), edit_mode()),
+        handles: active_case_handles(
+            &props.overlay.handles,
+            props.handle_preview.as_deref(),
+            edit_mode(),
+        ),
         handle_projection: props.handle_projection.clone(),
         on_signal: props.on_signal,
         status,
@@ -81,102 +75,37 @@ pub(super) fn MountedCanvas(props: ViewportCanvas) -> Element {
     let change_display = EventHandler::new({
         let interaction = interaction.clone();
         move |display| {
-            if (interaction.source.0)() && interaction.current() {
-                on_display_change.call(ScopedDisplayChange {
-                    identity: interaction.identity.clone(),
-                    display,
-                    owner: Rc::downgrade(&interaction.owner),
-                });
+            if (interaction.source.0)() {
+                interaction
+                    .owner
+                    .emit(on_display_change, &interaction.identity, (), display);
             }
         }
     });
-    let camera =
-        EventHandler::new(move |action: CameraAction| run_host(&host, action, &mut status));
+    let camera = EventHandler::new(move |action: CameraAction| {
+        if let Some(host) = host.borrow().as_ref()
+            && let Err(error) = action(host)
+        {
+            status.set(error);
+        }
+    });
     let accepts_case_edit = {
         let interaction = interaction.clone();
-        move |scope: &Scope| {
-            (interaction.source.0)()
-                && interaction.current()
-                && scope == &interaction.identity.scope
+        move |scope: Scope| {
+            (interaction.source.0)() && interaction.current() && scope == interaction.identity.scope
         }
     };
-    let case_edit_controls = edit_controls(
-        &props.selected_layer,
-        props.mechanical_settings.as_ref(),
-        &props.handles,
-        edit_mode,
-        camera,
-        accepts_case_edit,
-    );
-    let show_assembly_controls = props.projection.layers.iter().any(|(id, _)| id != "pcb");
-
-    let display_mode = view_choices(
-        if props.inline_case_controls {
-            "Display mode".to_owned()
-        } else {
-            format!("{} display mode", props.canvas_context.name())
-        },
-        props.inline_case_controls,
-        transient().mode,
-        [
-            ("Shaded", RenderMode::Shaded),
-            ("Wireframe", RenderMode::Wireframe),
-            ("Hybrid", RenderMode::Hybrid),
-        ],
-        move |mode| transient.with_mut(|view| view.mode = mode),
-    );
-    let assembly_view = view_choices(
-        if props.inline_case_controls {
-            "Mechanical assembly view".to_owned()
-        } else if props.canvas_context == ViewerCanvasContext::Parts {
-            "Parts sample view".to_owned()
-        } else {
-            format!("{} assembly view", props.canvas_context.name())
-        },
-        props.inline_case_controls,
-        transient().assembly,
-        [
-            ("Assembled", AssemblyView::Assembled),
-            ("Exploded", AssemblyView::Exploded),
-            ("Section", AssemblyView::Section),
-        ],
-        move |assembly| transient.with_mut(|view| view.assembly = assembly),
-    );
-    let assembly_adjustments = use_assembly_adjustments(transient, props.inline_case_controls);
-    let docked_layers = boardstudio_web_ui_shared::layer_dock::use_docked_layers(rsx! {
-        CaseAssemblyLayers {
-            initially_open: false,
-            assembly: props.assembly_layers,
-            components: props.component_layers,
-            selectable_layers: props.selectable_layers,
-            selected_layer: props.selected_layer.clone(),
-            on_select_layer: select_layer,
-            display: props.display.clone(),
-            on_display_change: change_display,
-        }
-        if !props.inline_case_controls {
-            {layer_controls(&props.projection.layers, &props.selected_layer, &props.display, select_layer, change_display)}
-        }
-    });
-
     rsx! {
-        div { class: "relative flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden",
-            style: (!props.inline_case_controls).then_some("container-type: size"),
-            div { class: if props.inline_case_controls { "relative z-[5] m-3 flex w-max max-w-[calc(100%-24px)] flex-none flex-wrap items-center self-start gap-1 overflow-visible rounded-2xl bg-toolbar p-[5px] shadow-[0_6px_18px_rgb(0_0_0/16%)] [&_[role=group]]:m-0 [&_[role=group]]:flex-none [&_[role=group]]:gap-0.5 [&_[role=group]]:p-0" } else { "relative flex flex-none flex-wrap items-center justify-center gap-1 rounded-md bg-toolbar p-1" },
-                {props.toolbar_leading}
-                if props.inline_case_controls { {inline_view_controls(camera, transient, display_mode.clone(), assembly_view.clone(), show_assembly_controls)} }
-                {case_edit_controls}
-                if !props.inline_case_controls {
-                    {compact_view_controls(props.canvas_context, camera, transient, display_mode, assembly_view, assembly_adjustments.clone())}
-                }
-            }
-            if props.inline_case_controls && show_assembly_controls {
-                {assembly_adjustments}
-            }
-            div { class: "relative flex min-h-[160px] min-w-0 flex-1 [&>canvas]:h-full [&>canvas]:min-h-0 [&>canvas]:min-w-0 [&>canvas]:w-full [&>canvas]:flex-1 [&>canvas]:border-0",
-                if let Some(reference) = props.selected_reference.as_deref() {
-                    div { class: "pointer-events-none absolute bottom-14 left-3 z-[2] max-w-[min(70%,320px)] overflow-hidden truncate rounded-sm border border-border bg-card px-[9px] py-[7px] font-mono text-sm leading-[1.45] text-foreground", "aria-hidden": "true", "{reference}" }
-                }
+        ViewerChrome {
+            overlay: props.overlay,
+            context: props.canvas_context,
+            transient,
+            edit_mode,
+            status,
+            camera,
+            select_layer,
+            change_display,
+            accepts_case_edit: Callback::new(accepts_case_edit),
                 canvas {
                     style: "width:100%;height:100%;display:block",
                     tabindex: "0", role: "img",
@@ -191,14 +120,6 @@ pub(super) fn MountedCanvas(props: ViewportCanvas) -> Element {
                     onkeydown: interaction.bind_event(ViewportInteraction::key),
                     onwheel: interaction.bind_event(ViewportInteraction::wheel),
                 }
-                if let Some(message) = props.gesture_message.as_deref() {
-                    p { class: "pointer-events-none absolute top-14 left-3 z-[3] m-0 max-w-[calc(100%-24px)] rounded-sm border border-border bg-card px-2 py-1.5 text-foreground", role: "status", "aria-label": "Case edit guidance", "{message}" }
-                }
-                if !status().is_empty() && !matches!(status().as_str(), "3D preview updated." | "3D preview ready." | "Starting the 3D renderer…" | "A stale 3D scene update was ignored.") {
-                    p { class: "pointer-events-none absolute top-3 left-3 z-[3] m-0 max-w-[min(70%,420px)] rounded-md bg-card px-[7px] py-1 text-sm text-muted-foreground [&[role=alert]]:pointer-events-auto [&[role=alert]]:text-destructive", role: if status().to_ascii_lowercase().contains("unavailable") || status().contains("failed") { "alert" } else { "status" }, "aria-live": "polite", "{status()}" }
-                }
-            }
-            {docked_layers}
         }
     }
 }
@@ -272,11 +193,8 @@ fn use_renderer_mount(
                         RendererStatus::ContextLost => {
                             mounted.set(false);
                             status.set("WebGL context lost. Waiting for 3D recovery…".into());
-                            if let Some(captured) = release_capture(&pointer, &canvas)
-                                && let PointerOwner::Handle { identity, id, .. } = captured
-                            {
-                                emit_signal(
-                                    &owner,
+                            if let Some((identity, id)) = cancel_handle_capture(&pointer, &canvas) {
+                                owner.emit(
                                     on_signal,
                                     &identity,
                                     ViewerSignalKind::HandleGesture {
@@ -284,16 +202,17 @@ fn use_renderer_mount(
                                         handle_id: id,
                                         point: None,
                                     },
+                                    (),
                                 );
                             }
                         }
                         RendererStatus::Error(error) if (source.0)() => {
                             status.set(error.clone());
-                            emit_signal(
-                                &owner,
+                            owner.emit(
                                 on_signal,
                                 &projection.identity,
                                 ViewerSignalKind::Failed(error),
+                                (),
                             );
                         }
                         RendererStatus::Error(_) => {}
@@ -318,11 +237,11 @@ fn use_renderer_mount(
                 }
                 Err(error) => {
                     status.set(format!("3D preview unavailable: {error}"));
-                    emit_signal(
-                        &interaction.owner,
+                    interaction.owner.emit(
                         on_signal,
                         &identity,
                         ViewerSignalKind::Failed(error),
+                        (),
                     );
                 }
             }
@@ -342,8 +261,8 @@ fn use_renderer_updates(
         (
             &props.projection,
             &interaction.handle_projection,
-            &props.display,
-            &props.selected_layer,
+            &props.overlay.display,
+            &props.overlay.selected_layer,
             &props.theme,
             &transient,
             &interaction.handles,
@@ -420,124 +339,4 @@ fn use_renderer_updates(
             }
         },
     ));
-}
-
-fn compact_view_controls(
-    context: ViewerCanvasContext,
-    camera: EventHandler<CameraAction>,
-    mut transient: Signal<TransientView>,
-    display_mode: Element,
-    assembly_view: Element,
-    adjustments: Element,
-) -> Element {
-    rsx! {
-        {camera_button(context.fit_label(), "Fit", context.fit_label(), camera, RendererPageHost::fit)}
-        Collapsible { keep_mounted: true,
-            Tooltip {
-                TooltipTrigger { as: move |attributes| rsx! {
-                        CollapsibleTrigger { aria_label: "View controls", class: "size-control-compact justify-center max-[960px]:min-h-11 max-[960px]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]", attributes, {viewer_control_icon("View controls")} }
-                    } }
-                TooltipContent { "View controls" }
-            }
-            CollapsibleContent { class: "absolute left-0 top-full z-50 mt-2 max-h-[min(60vh,max(0px,calc(100cqh-5rem)))] w-[min(320px,calc(100vw-32px))] overflow-auto rounded-md bg-card p-3 shadow-md data-[open=false]:hidden max-[960px]:[&_[data-slot=button]]:min-h-11 max-[960px]:[&_[data-slot=toggle-group-item]]:min-h-11 max-[960px]:[&_[data-slot=select-trigger]]:min-h-11",
-                div { role: "group", "aria-label": format!("{} camera", context.name()),
-                    for (_, label, action) in CAMERA_VIEWS {
-                        UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| camera.call(action), "{label}" }
-                    }
-                    for (label, action) in CAMERA_NAVIGATION {
-                        UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| camera.call(action), "{label}" }
-                    }
-                }
-                {display_mode}
-                {assembly_view}
-                {adjustments}
-                Label { html_for: format!("viewer-show-hidden-{}", dioxus::core::current_scope_id().0), class: "max-[960px]:min-h-11",
-                    UiCheckbox { id: format!("viewer-show-hidden-{}", dioxus::core::current_scope_id().0), aria_label: "Show hidden lines",
-                        checked: Some(if transient().show_hidden { CheckboxState::Checked } else { CheckboxState::Unchecked }),
-                        on_checked_change: move |value| transient.with_mut(|state| state.show_hidden = bool::from(value)),
-                    }
-                    "Show hidden lines"
-                }
-            }
-        }
-    }
-}
-
-pub(crate) type CameraAction = fn(&RendererPageHost) -> Result<(), String>;
-
-pub(crate) const CAMERA_VIEWS: [(&str, &str, CameraAction); 3] = [
-    ("Top", "Top view", |host| host.view("top")),
-    ("Bottom", "Bottom view", |host| host.view("bottom")),
-    ("Isometric", "Isometric view", |host| host.view("isometric")),
-];
-
-const CAMERA_NAVIGATION: [(&str, CameraAction); 4] = [
-    ("Rotate left", |host| host.orbit(-50.0, 0.0)),
-    ("Rotate right", |host| host.orbit(50.0, 0.0)),
-    ("Zoom in", |host| host.zoom(0.85)),
-    ("Zoom out", |host| host.zoom(1.15)),
-];
-
-const ICON_CONTROL: &str = "max-[960px]:min-h-11 max-[960px]:min-w-11 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]";
-
-pub(crate) fn camera_button(
-    name: &'static str,
-    icon: &'static str,
-    tooltip: &'static str,
-    camera: EventHandler<CameraAction>,
-    action: CameraAction,
-) -> Element {
-    rsx! {
-        Tooltip {
-            TooltipTrigger { as: move |attributes| rsx! {
-                UiButton { attributes, variant: UiButtonVariant::Secondary, size: UiButtonSize::IconSm,
-                    class: ICON_CONTROL, aria_label: name, onclick: move |_| camera.call(action),
-                    {viewer_control_icon(icon)}
-                }
-            } }
-            TooltipContent { "{tooltip}" }
-        }
-    }
-}
-
-fn view_choices<T: Copy + PartialEq + 'static>(
-    label: String,
-    inline: bool,
-    selected: T,
-    choices: [(&'static str, T); 3],
-    on_change: impl FnMut(T) + 'static,
-) -> Element {
-    let mut on_change = on_change;
-    let pressed = choices.iter().position(|(_, choice)| *choice == selected);
-    rsx! {
-        ToggleGroup {
-            aria_label: label, horizontal: true,
-            pressed: Some(pressed.into_iter().collect()),
-            on_pressed_change: move |next: std::collections::HashSet<usize>| {
-                if let Some((_, choice)) = next.iter().next().and_then(|index| choices.get(*index)) {
-                    on_change(*choice);
-                }
-            },
-            for (index, (name, _)) in choices.into_iter().enumerate() {
-                if inline {
-                    {icon_toggle(index, name)}
-                } else {
-                    ToggleItem { index, "{name.to_ascii_lowercase()}" }
-                }
-            }
-        }
-    }
-}
-
-pub(crate) fn icon_toggle(index: usize, name: &'static str) -> Element {
-    rsx! {
-        Tooltip {
-            TooltipTrigger { as: move |attributes: Vec<Attribute>| rsx! {
-                ToggleItem { index, aria_label: name, class: ICON_CONTROL, attributes,
-                    {viewer_control_icon(name)}
-                }
-            } }
-            TooltipContent { "{name}" }
-        }
-    }
 }

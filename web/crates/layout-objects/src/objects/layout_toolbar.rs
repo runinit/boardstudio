@@ -8,17 +8,16 @@ pub use super::layout_toolbar_logic::{
     gesture_snap_inputs, layout_canvas_grid_style, snap_label,
 };
 pub use boardstudio_web_ui_model::state::{LayoutSnapSettings, TreeCellAnchor};
+use boardstudio_web_ui_shared::inspector_fields::{SelectField, ToggleField};
 use boardstudio_web_ui_shared::ui::{
     button::{Button, ButtonVariant},
     callout::Callout,
-    checkbox::Checkbox,
+    checkbox::{Checkbox, CheckboxState},
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
-    dropdown_menu::{DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger},
     input::InputType,
     input_group::{InputGroup, InputGroupInput},
     label::Label,
     popover::{Popover, PopoverContent, PopoverTrigger},
-    select::{Select, SelectOption},
     toggle_group::{ToggleGroup, ToggleItem},
     toolbar::Toolbar,
     tooltip::{Tooltip, TooltipContent, TooltipTrigger},
@@ -162,56 +161,62 @@ pub fn LayoutCommandPill(
     on_show_relationships: EventHandler<()>,
     #[props(default)] snap_in_dock: bool,
 ) -> Element {
-    let pointer_tools_visible = true;
     let geometry_snap_enabled = snap_settings.geometry_snap;
     let workspace = try_use_context::<boardstudio_web_ui_model::state::WorkspaceState>();
     let mut commands = Vec::new();
     if workspace.is_some_and(|w| w.0() == Workspace::Layout) {
         use boardstudio_web_ui_shared::ui::command::Command;
-        for kind in LayoutSelectionKind::ALL {
-            commands.push(Command {
+        let workspace_command =
+            |label: String, reason: Option<String>, on_select: EventHandler<()>| Command {
                 group: "Current Workspace",
-                label: format!("Select {}", kind.label()),
-                reason: None,
+                label,
+                reason,
                 hint: None,
-                on_select: EventHandler::new(move |()| {
+                on_select,
+            };
+        const PROPERTIES_REASON: &str =
+            "Select a matrix, row, column, key or part to open its current transform properties.";
+        for kind in LayoutSelectionKind::ALL {
+            commands.push(workspace_command(
+                format!("Select {}", kind.label()),
+                None,
+                EventHandler::new(move |()| {
                     on_selection_kind.call(kind);
                     let mut menu = open_menu;
                     menu.set(Some(LayoutCommandMenu::Select));
                 }),
-            });
+            ));
         }
         for (label, menu) in [
             ("Snap settings", LayoutCommandMenu::Snap),
             ("Align", LayoutCommandMenu::Align),
             ("Transform", LayoutCommandMenu::Transform),
         ] {
-            commands.push(Command {
-                group: "Current Workspace",
-                label: label.into(),
-                reason: None,
-                hint: None,
-                on_select: EventHandler::new(move |()| {
+            commands.push(workspace_command(
+                label.into(),
+                None,
+                EventHandler::new(move |()| {
                     let mut open = open_menu;
                     open.set(Some(menu));
                     if menu == LayoutCommandMenu::Snap {
                         restore_layout_command_focus(menu);
                     }
                 }),
-            });
+            ));
         }
-        commands.push(Command {
-            group: "Current Workspace",
-            label: "Geometry snap".into(),
-            reason: None,
-            hint: None,
-            on_select: EventHandler::new(move |()| {
+        commands.push(workspace_command(
+            "Geometry snap".into(),
+            None,
+            EventHandler::new(move |()| {
                 on_snap_intent.call(LayoutSnapIntent::GeometrySnap(!geometry_snap_enabled))
             }),
-        });
+        ));
         let properties = transform.on_show_properties;
-        commands.push(Command { group: "Current Workspace", label: "Position & rotation".into(),
-            reason: (!transform.properties_available).then(|| "Select a matrix, row, column, key or part to open its current transform properties.".into()), hint: None, on_select: properties });
+        commands.push(workspace_command(
+            "Position & rotation".into(),
+            (!transform.properties_available).then(|| PROPERTIES_REASON.into()),
+            properties,
+        ));
         for (kind, label, available) in [
             (
                 LayoutSelectionKind::Column,
@@ -224,9 +229,11 @@ pub fn LayoutCommandPill(
                 transform.row_available,
             ),
         ] {
-            commands.push(Command { group: "Current Workspace", label: label.into(),
-                reason: (!available).then(|| "Select a matrix, row, column, key or part to open its current transform properties.".into()), hint: None,
-                on_select: EventHandler::new(move |()| on_selection_kind.call(kind)) });
+            commands.push(workspace_command(
+                label.into(),
+                (!available).then(|| PROPERTIES_REASON.into()),
+                EventHandler::new(move |()| on_selection_kind.call(kind)),
+            ));
         }
     }
     boardstudio_web_ui_shared::ui::command::use_commands(commands);
@@ -297,14 +304,9 @@ pub fn LayoutCommandPill(
                 }
             },
             div { class: "layout-scope-strip",
-                if pointer_tools_visible {
-                    LayoutSelectionToolbar { open_menu, selection_kind, on_selection_kind, transform: Some(transform.clone()) }
-                } else {
-                    LayoutSelectMenu { open_menu, selection_kind, on_selection_kind }
-                }
+                LayoutSelectionToolbar { open_menu, selection_kind, on_selection_kind, transform: Some(transform.clone()) }
             }
             div { class: "layout-context-strip",
-                if pointer_tools_visible {
                 div { class: "layout-action-slot",
                 if has_selection_context {
                     super::layout_rail_menu::LayoutContextActionToolbar {
@@ -312,19 +314,16 @@ pub fn LayoutCommandPill(
                     }
                 }
                 }
-                }
                 div { class: "layout-menu-actions", role: "group", aria_label: "Selection actions",
                     super::layout_align::LayoutAlignToolbar {
                         mount: align, open_menu, show_relationships, has_selection_context, on_show_relationships,
                     }
                     super::layout_rail_menu::LayoutTransformToolbar {
-                        open_menu, mount: transform.clone(),
-                        selection_kind: pointer_tools_visible.then_some(selection_kind),
+                        open_menu, mount: transform.clone(), selection_kind,
                     }
                     if !snap_in_dock {
-                        LayoutSnapMenu { open_menu, settings: snap_settings, on_snap_intent, show_layout_state: pointer_tools_visible }
-                        if pointer_tools_visible {
-                            Tooltip {
+                        LayoutSnapMenu { open_menu, settings: snap_settings, on_snap_intent }
+                        Tooltip {
                                 TooltipTrigger { r#as: move |attributes: Vec<Attribute>| rsx! {
                                     Button { attributes, variant: ButtonVariant::Ghost,
                                         class: "layout-geometry-control",
@@ -337,7 +336,6 @@ pub fn LayoutCommandPill(
                                 } }
                                 TooltipContent { "Geometry snap" }
                             }
-                        }
                     }
                 }
             }
@@ -475,13 +473,7 @@ pub fn LayoutSnapDock(
             CollapsibleTrigger {
                 id: "m1-layout-snap-trigger", aria_label: "Snap",
                 class: "flex w-full min-h-control-touch items-center justify-start gap-2 rounded-none border-0 bg-transparent px-3 py-2.5 text-left text-foreground hover:bg-accent",
-                attributes: vec![dioxus::events::onkeydown(move |event: KeyboardEvent| {
-                    // Space must activate the button, not the Layout window's pan shortcut.
-                    if event.key().to_string() == " " {
-                        event.stop_propagation();
-                        if let Some(raw) = event.data().try_as_web_event() { raw.stop_propagation(); }
-                    }
-                })],
+                attributes: vec![dioxus::events::onkeydown(super::stop_space_pan)],
                 svg { class: "size-[18px] fill-none stroke-current stroke-[1.5]", view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M5 3v8a5 5 0 0 0 10 0V3h-4v7a1 1 0 0 1-2 0V3ZM5 6h4M11 6h4" } }
                 span { "Snap" } small { class: "ml-auto text-muted-foreground", "{snap_label(settings.snap_fraction)}" }
             }
@@ -490,38 +482,10 @@ pub fn LayoutSnapDock(
                 div { class: "flex items-center gap-2 px-3 py-2 text-sm",
                     Checkbox {
                         aria_label: "Canvas handles",
-                        checked: Some(if handles_visible { dioxus_primitives::checkbox::CheckboxState::Checked } else { dioxus_primitives::checkbox::CheckboxState::Unchecked }),
-                        on_checked_change: move |value: dioxus_primitives::checkbox::CheckboxState| on_toggle_handles.call(value.into()),
+                        checked: Some(if handles_visible { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                        on_checked_change: move |value: CheckboxState| on_toggle_handles.call(value.into()),
                     }
                     span { "Canvas handles" }
-                }
-            }
-        }
-    }
-}
-
-#[component]
-fn LayoutSelectMenu(
-    mut open_menu: Signal<Option<LayoutCommandMenu>>,
-    selection_kind: LayoutSelectionKind,
-    on_selection_kind: EventHandler<LayoutSelectionKind>,
-) -> Element {
-    rsx! {
-        DropdownMenu {
-            open: Some(open_menu() == Some(LayoutCommandMenu::Select)),
-            on_open_change: move |next| {
-                if next { open_menu.set(Some(LayoutCommandMenu::Select)); }
-                else if open_menu() == Some(LayoutCommandMenu::Select) { open_menu.set(None); }
-            },
-            DropdownMenuTrigger { id: "m1-layout-select-trigger", aria_label: format!("Select: {}", selection_kind.label()),
-                LayoutSelectionIcon { kind: selection_kind } span { "{selection_kind.label()}" }
-            }
-            DropdownMenuContent { id: "m1-layout-select-menu",
-                for (index, kind) in LayoutSelectionKind::ALL.into_iter().enumerate() {
-                    DropdownMenuItem { index, value: kind, role: "menuitemradio", aria_checked: kind == selection_kind,
-                        on_select: move |_: LayoutSelectionKind| { on_selection_kind.call(kind); close_layout_command_menu(open_menu, LayoutCommandMenu::Select); },
-                        "{kind.label()}"
-                    }
                 }
             }
         }
@@ -533,12 +497,11 @@ fn LayoutSnapMenu(
     open_menu: Signal<Option<LayoutCommandMenu>>,
     settings: LayoutSnapSettings,
     on_snap_intent: EventHandler<LayoutSnapIntent>,
-    show_layout_state: bool,
 ) -> Element {
     rsx! {
         LayoutCommandPopup {
             open_menu, menu: LayoutCommandMenu::Snap, label: "Snap settings",
-            trigger: rsx! { span { "Snap" } if show_layout_state { small { "{snap_label(settings.snap_fraction)}" } } },
+            trigger: rsx! { span { "Snap" } small { "{snap_label(settings.snap_fraction)}" } },
             LayoutSnapOptions { settings, on_snap_intent }
         }
     }
@@ -600,32 +563,29 @@ fn LayoutSnapOptions(
         "m1-layout-snap-envelope-gap-{}",
         dioxus::core::current_scope_id().0
     );
-    let fraction = use_memo(use_reactive((&settings.snap_fraction,), |(value,)| {
-        Some(value.to_string())
-    }));
     rsx! {
         div { class: "layout-snap-fields",
-            Label { "Snap increment" }
-            Select::<String> {
-                aria_label: "Snap increment", value: Some(fraction.into()),
-                on_value_change: move |value: Option<String>| {
-                    if let Some(value) = value.and_then(|value| value.parse::<f64>().ok())
+            SelectField::<String> {
+                label: "Snap increment".to_owned(),
+                aria_label: "Snap increment",
+                value: settings.snap_fraction.to_string(),
+                options: SNAP_STEPS.iter().map(|(_, value, label)| (value.to_string(), label.to_string())).collect(),
+                on_commit: move |next: String| {
+                    if let Ok(value) = next.parse::<f64>()
                         && value.is_finite() && SNAP_STEPS.iter().any(|(step, _, _)| *step == value)
                     { on_snap_intent.call(LayoutSnapIntent::Fraction(value)); }
                 },
-                for (index, (_, value, label)) in SNAP_STEPS.into_iter().enumerate() {
-                    SelectOption::<String> { index, value: value.to_owned(), text_value: label, "{label}" }
-                }
             }
-            Label { html_for: geometry_id.clone(),
-                Checkbox { id: geometry_id, aria_label: "Geometry snap", checked: Some(if settings.geometry_snap { dioxus_primitives::checkbox::CheckboxState::Checked } else { dioxus_primitives::checkbox::CheckboxState::Unchecked }),
-                    on_checked_change: move |value: dioxus_primitives::checkbox::CheckboxState| on_snap_intent.call(LayoutSnapIntent::GeometrySnap(value.into())) }
-                "Geometry snap"
+            ToggleField {
+                id: geometry_id, aria_label: "Geometry snap", label: "Geometry snap",
+                checked: settings.geometry_snap,
+                on_commit: move |next: bool| on_snap_intent.call(LayoutSnapIntent::GeometrySnap(next)),
             }
-            Label { html_for: envelope_id.clone(),
-                Checkbox { id: envelope_id, aria_label: "Envelope gap", checked: Some(if settings.gap_snap { dioxus_primitives::checkbox::CheckboxState::Checked } else { dioxus_primitives::checkbox::CheckboxState::Unchecked }), disabled: !settings.geometry_snap,
-                    on_checked_change: move |value: dioxus_primitives::checkbox::CheckboxState| on_snap_intent.call(LayoutSnapIntent::GapSnap(value.into())) }
-                "Envelope gap"
+            ToggleField {
+                id: envelope_id, aria_label: "Envelope gap", label: "Envelope gap",
+                checked: settings.gap_snap,
+                disabled_reason: (!settings.geometry_snap).then(|| "Enable geometry snap first".to_owned()),
+                on_commit: move |next: bool| on_snap_intent.call(LayoutSnapIntent::GapSnap(next)),
             }
             Label { html_for: "layout-snap-gap", "Gap (mm)" }
             InputGroup {

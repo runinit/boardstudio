@@ -1,16 +1,16 @@
 //! Center-workspace manual mechanical profile draft and accepted edit.
 
-use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope};
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Scope};
 use boardstudio_core_mechanical::mechanical::{
     default_plate_thickness, generator_switch_family, mounting_datum,
 };
 use boardstudio_model::model::{
-    EditOperation, MechanicalBuiltinProfile, MechanicalPartProfile, MechanicalSwitchFamily,
-    PartDefinition,
+    MechanicalBuiltinProfile, MechanicalPartProfile, MechanicalSwitchFamily, PartDefinition,
 };
-use boardstudio_web_ui_model::Workspace;
 
-use crate::parts_custom_definition::replacement_commit;
+use crate::parts_custom_definition::{
+    PartsOwnerGuard, replace_document_resolver, upsert_definition,
+};
 
 pub(crate) const PROFILE_GONE: &str = "This part definition no longer exists.";
 
@@ -41,15 +41,6 @@ pub fn standard_profile_controls(
         definition.kind == boardstudio_model::model::PartKind::Switch,
         profile.switch_family.is_some(),
     )
-}
-
-fn profile_editor_is_current(
-    workspace: Workspace,
-    captured_generation: (u64, u64),
-    current_generation: impl FnOnce() -> (u64, u64),
-    owner_matches: impl FnOnce() -> bool,
-) -> bool {
-    workspace == Workspace::Parts && captured_generation == current_generation() && owner_matches()
 }
 
 pub fn merge_standard_profile(
@@ -96,53 +87,23 @@ pub fn mechanical_profile_resolver(
     definition: PartDefinition,
     profile: MechanicalPartProfile,
 ) -> EditResolver {
-    EditResolver::new(
-        "parts-mechanical-profile",
-        move |accepted: &AcceptedSnapshot| {
-            let document = &accepted.document;
-            let mut replacement = document.as_ref().clone();
-            match source {
-                ProfileDefinitionSource::Project => {
-                    let Some(target) = replacement
-                        .definitions
-                        .iter_mut()
-                        .find(|item| item.id == definition_id)
-                    else {
-                        return Resolution::Retire(PROFILE_GONE.into());
-                    };
-                    target.mechanical_profile = Some(profile.clone());
-                }
-                ProfileDefinitionSource::Generator | ProfileDefinitionSource::Imported => {
-                    // The captured catalogue definition is only the seed: if the project
-                    // gained this definition while the editor was open, the accepted one
-                    // wins and only the profile is set on it.
-                    if let Some(target) = replacement
-                        .definitions
-                        .iter_mut()
-                        .find(|item| item.id == definition_id)
-                    {
-                        target.mechanical_profile = Some(profile.clone());
-                    } else {
-                        let mut materialized = definition.clone();
-                        materialized.mechanical_profile = Some(profile.clone());
-                        replacement.definitions.push(materialized);
-                    }
-                }
-            }
-            // The clone is built from the accepted document, so equality means this
-            // profile already holds: resolve Unchanged, not a landing heuristic
-            // (ADR-0005).
-            if replacement == **document {
-                return Resolution::Unchanged;
-            }
-            replacement_commit(
-                EditOperation::ReplaceDocument {
-                    document: Box::new(replacement),
-                },
-                vec![definition_id.clone()],
-            )
-        },
-    )
+    replace_document_resolver("parts-mechanical-profile", move |_, replacement| {
+        // The captured catalogue definition is only the seed: if the project gained
+        // this definition while the editor was open, the accepted one wins and only
+        // the profile is set on it. A project-owned definition must still exist.
+        let existing = replacement
+            .definitions
+            .iter()
+            .find(|item| item.id == definition_id);
+        let mut target = match (source, existing) {
+            (_, Some(existing)) => existing.clone(),
+            (ProfileDefinitionSource::Project, None) => return Err(PROFILE_GONE.into()),
+            (_, None) => definition.clone(),
+        };
+        target.mechanical_profile = Some(profile.clone());
+        upsert_definition(replacement, target);
+        Ok(vec![definition_id.clone()])
+    })
 }
 
 pub fn initial_profile(
@@ -254,25 +215,22 @@ pub(crate) mod ui {
         let workspace = use_context::<WorkspaceState>().0;
         let selection_generation = use_context::<PartsSelectionGeneration>().0;
         let scope_generation = use_context::<SelectionAdapter>().generation;
-        let generation = (scope_generation(), selection_generation());
-        let capture = crate::parts_custom_definition::DefinitionPanelCapture::new(
-            &snapshot,
-            scope,
-            &definition,
-        );
+        let capture = PartsOwnerGuard::capture(&snapshot, scope, &definition.id)
+            .require_scope()
+            .generations(Some(selection_generation()), Some(scope_generation()));
         let current = {
             let runtime = runtime.clone();
             move || {
-                profile_editor_is_current(
-                    workspace(),
-                    generation,
-                    || (scope_generation(), selection_generation()),
-                    || {
-                        runtime.model().accepted.as_ref().is_some_and(|snapshot| {
-                            capture.owner_matches(snapshot, runtime.scope(), selection())
-                        })
-                    },
-                )
+                runtime.model().accepted.as_ref().is_some_and(|snapshot| {
+                    capture.is_current(
+                        snapshot,
+                        runtime.scope(),
+                        selection(),
+                        Some(selection_generation()),
+                        Some(scope_generation()),
+                        Some(workspace()),
+                    )
+                })
             }
         };
         let mut draft =
@@ -531,31 +489,41 @@ mod tests {
 
     #[test]
     fn delayed_geometry_requires_the_same_live_profile_editor() {
-        let generation = (2, 3);
-        assert!(profile_editor_is_current(
-            Workspace::Parts,
-            generation,
-            || generation,
-            || true
-        ));
-        assert!(!profile_editor_is_current(
-            Workspace::Parts,
-            generation,
-            || generation,
-            || false
-        ));
-        for (workspace, active) in [
-            (Workspace::Layout, generation),
-            (Workspace::Parts, (3, 3)),
-            (Workspace::Parts, (2, 4)),
-        ] {
-            assert!(!profile_editor_is_current(
-                workspace,
-                generation,
-                || active,
-                || { panic!("obsolete editor must be rejected before resolving the owner") }
-            ));
-        }
+        use boardstudio_web_ui_model::Workspace;
+        let scene = serde_json::from_value(serde_json::json!({"revision":0,"transactionId":"t","changedIds":[],"transforms":[],"matrixScenes":[],"contours":[],"boardContours":[],"boardReadiness":[],"findings":[],"readiness":{"layout":true,"outline":false,"pcb":false,"case":false}})).unwrap();
+        let snapshot = AcceptedSnapshot {
+            token: boardstudio_application::SnapshotToken(1),
+            session_epoch: boardstudio_application::SessionEpoch(4),
+            document: std::sync::Arc::new(boardstudio_model::model::ProjectDoc::empty(
+                "project-1",
+                "Fixture",
+            )),
+            scene: std::sync::Arc::new(scene),
+        };
+        let scope = Scope {
+            session_epoch: boardstudio_application::SessionEpoch(4),
+            document_id: "project-1".into(),
+            board_id: "board-1".into(),
+            instance_id: None,
+        };
+        let guard = PartsOwnerGuard::capture(&snapshot, Some(scope.clone()), "switch")
+            .require_scope()
+            .generations(Some(3), Some(2));
+        let selected = Some((Some(scope.clone()), "switch".to_owned()));
+        let cur = |sel, sg, cg, ws| {
+            guard.is_current(
+                &snapshot,
+                Some(scope.clone()),
+                sel,
+                Some(sg),
+                Some(cg),
+                Some(ws),
+            )
+        };
+        assert!(cur(selected.clone(), 3, 2, Workspace::Parts));
+        assert!(!cur(selected.clone(), 3, 2, Workspace::Layout));
+        assert!(!cur(selected.clone(), 4, 2, Workspace::Parts));
+        assert!(!cur(selected, 3, 3, Workspace::Parts));
     }
 
     #[test]

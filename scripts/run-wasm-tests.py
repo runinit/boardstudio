@@ -17,12 +17,12 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, nullcontext
 import importlib.util
+import hashlib
 import json
 import os
 from pathlib import Path
 import re
 import shlex
-import shutil
 import subprocess
 import browser_tools
 import wasm_bindgen_tools
@@ -91,29 +91,9 @@ def module_filter(path, path_modules=None):
 
 def wasm_bindgen_dir(root=ROOT):
     try:
-        if wasm_bindgen_tools.DIRECTORY_ENV in os.environ:
-            env = wasm_bindgen_tools.configure(os.environ, root)
-            return Path(env[wasm_bindgen_tools.DIRECTORY_ENV])
-        version = wasm_bindgen_tools.locked_version(root)
-        cache = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
-        if patched := wasm_bindgen_tools.local_patched_pair(cache, root, version):
-            return patched
+        return wasm_bindgen_tools.find_pair(root)
     except (OSError, ValueError) as error:
         raise RunnerError(str(error)) from error
-    cache /= ".wasm-pack"
-    candidates = [path.parent for path in sorted(cache.glob(
-        f"wasm-bindgen-*/{wasm_bindgen_tools.TEST_RUNNER}"))]
-    if bindgen := shutil.which("wasm-bindgen"):
-        candidates.insert(0, Path(bindgen).absolute().parent)
-    for directory in candidates:
-        try:
-            wasm_bindgen_tools.validate_pair(directory, version)
-        except (OSError, subprocess.SubprocessError, ValueError):
-            continue
-        return directory
-    raise RunnerError(f"no wasm-bindgen pair at locked version {version} on PATH or in {cache}; "
-                      f"run `cargo install wasm-bindgen-cli --locked --version {version}` "
-                      "or set BOARDSTUDIO_WASM_BINDGEN_DIR to a matching pair")
 
 
 def runner_environment(root=ROOT):
@@ -204,6 +184,27 @@ def list_wasm_tests(env, root):
     if len(set(names)) != len(names):
         raise RunnerError("duplicate test names in WASM listing")
     return sorted(names)
+
+
+def cached_wasm_tests(env, root, custom):
+    cache = root / "target/wasm-tests/page-test-list.json"
+    digest = hashlib.sha256(Path(env[PAGE_ARTIFACT]).read_bytes()).hexdigest() if not custom else None
+    names = None
+    if digest and cache.is_file():
+        try:
+            saved = json.loads(cache.read_text())
+            if (saved.get("sha256") == digest and isinstance(saved.get("names"), list)
+                    and saved["names"] and all(isinstance(name, str) and name for name in saved["names"])
+                    and saved["names"] == sorted(set(saved["names"]))):
+                names = saved["names"]
+        except (ValueError, OSError, AttributeError):
+            pass
+    if names is None:
+        names = list_wasm_tests(env, root)
+        if digest:
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            cache.write_text(json.dumps({"sha256": digest, "names": names}))
+    return names
 
 
 def select_tests(names, files, depth, isolated, root):
@@ -298,7 +299,7 @@ def main(argv=None):
             env["WASM_BINDGEN_TEST_ONLY_WEB"] = "1"
         known = {entry["test"] for entry in json.loads(KNOWN_FAILURES.read_text())}
         with (nullcontext(env) if custom else desktop_webdriver_config(env, root)) as env:
-            names = list_wasm_tests(env, root)
+            names = cached_wasm_tests(env, root, custom)
             groups = select_tests(names, args.files, args.depth, sorted(set(args.isolate)), root)
             workers = 1 if os.environ.get("GITHUB_ACTIONS") == "true" else check_jobs()
             with ThreadPoolExecutor(max_workers=min(workers, len(groups))) as pool:

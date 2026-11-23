@@ -7,8 +7,8 @@ use scene::{BuiltScene, build_scene, push_data};
 use crate::{
     ModelMesh, decode_stl, decode_wrl,
     geometry::{
-        BoardContour, MeshData, SurfaceClipper, board_mesh, feature_edges, polygon_area,
-        stroke_mesh, surface_mesh,
+        BoardContour, MeshData, SurfaceClipper, board_mesh, box_corners, feature_edges,
+        polygon_area, stroke_mesh, surface_mesh,
     },
     is_stale_scene_revision,
     math::{component_model_transform, pcb_model_transform, physical_pcb_transform},
@@ -401,7 +401,6 @@ pub struct Renderer {
     bounds_radius: f32,
     focused_ids: Vec<String>,
     revision: u64,
-    section_x: Option<f32>,
 }
 
 #[wasm_bindgen]
@@ -446,7 +445,7 @@ impl Renderer {
                 Vec3::new(40.0, 40.0, 30.0),
                 Vec3::new(0.0, 0.0, 0.0),
                 Vec3::new(0.0, 0.0, 1.0),
-                three_d::radians(34.0_f32.to_radians()),
+                three_d::radians(FOV_Y_DEGREES.to_radians()),
                 0.01,
                 100_000.0,
             ),
@@ -484,7 +483,6 @@ impl Renderer {
             bounds_radius: 1.0,
             focused_ids: Vec::new(),
             revision: 0,
-            section_x: None,
         };
         renderer.update_camera();
         Ok(renderer)
@@ -543,28 +541,26 @@ impl Renderer {
         if focused_ids.is_empty() {
             return Ok(false);
         }
-        let mut low = Vec3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY);
-        let mut high = Vec3::new(f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
-        for object in self
-            .objects
-            .iter()
-            .filter(|object| focused_ids.contains(&object.id))
-        {
-            let offset = if self.state.view == "exploded" {
-                object.explode * self.state.explode_amount.unwrap_or(1.)
-            } else {
-                0.
-            };
-            for point in object.triangles.iter().flatten().chain(&object.line_points) {
-                let point = (object.pose * point.extend(1.)).truncate() + Vec3::new(0., 0., offset);
-                low.x = low.x.min(point.x);
-                low.y = low.y.min(point.y);
-                low.z = low.z.min(point.z);
-                high.x = high.x.max(point.x);
-                high.y = high.y.max(point.y);
-                high.z = high.z.max(point.z);
-            }
-        }
+        let (low, high) = bounds_of(
+            self.objects
+                .iter()
+                .filter(|object| focused_ids.contains(&object.id))
+                .flat_map(|object| {
+                    let offset = exploded_view_offset(
+                        &self.state.view,
+                        object.explode,
+                        self.state.explode_amount,
+                    );
+                    object
+                        .triangles
+                        .iter()
+                        .flatten()
+                        .chain(&object.line_points)
+                        .map(move |point| {
+                            (object.pose * point.extend(1.)).truncate() + Vec3::new(0., 0., offset)
+                        })
+                }),
+        );
         if !low.x.is_finite() {
             return Ok(false);
         }
@@ -573,9 +569,7 @@ impl Renderer {
         let focus_center = (low + high) / 2.;
         let focus_radius = ((high - low).magnitude() / 2.).max(0.1);
         self.target = focus_center;
-        let vertical = 17.0_f32.to_radians();
-        let horizontal = (vertical.tan() * self.width as f32 / self.height.max(1) as f32).atan();
-        self.distance = focus_radius / vertical.min(horizontal).sin() * 1.3;
+        self.distance = frame_distance(self.width, self.height, focus_radius, 1.3);
         self.update_camera();
         Ok(true)
     }
@@ -651,36 +645,32 @@ impl Renderer {
         self.apply_state();
         // Hidden case bodies must not keep a small imported PCB off-centre.
         // Derive fit bounds on demand without rebuilding any geometry.
-        let mut low = Vec3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY);
-        let mut high = Vec3::new(f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
-        for object in self
-            .objects
-            .iter()
-            .filter(|item| item.visible && item.id != "pcb-selection")
-        {
-            let offset = if self.state.view == "exploded" {
-                object.explode * self.state.explode_amount.unwrap_or(1.)
-            } else {
-                0.
-            };
-            for point in object.triangles.iter().flatten().chain(&object.line_points) {
-                let point = (object.pose * point.extend(1.)).truncate() + Vec3::new(0., 0., offset);
-                low.x = low.x.min(point.x);
-                low.y = low.y.min(point.y);
-                low.z = low.z.min(point.z);
-                high.x = high.x.max(point.x);
-                high.y = high.y.max(point.y);
-                high.z = high.z.max(point.z);
-            }
-        }
+        let (low, high) = bounds_of(
+            self.objects
+                .iter()
+                .filter(|item| item.visible && item.id != "pcb-selection")
+                .flat_map(|object| {
+                    let offset = exploded_view_offset(
+                        &self.state.view,
+                        object.explode,
+                        self.state.explode_amount,
+                    );
+                    object
+                        .triangles
+                        .iter()
+                        .flatten()
+                        .chain(&object.line_points)
+                        .map(move |point| {
+                            (object.pose * point.extend(1.)).truncate() + Vec3::new(0., 0., offset)
+                        })
+                }),
+        );
         if low.x.is_finite() {
             self.bounds_center = (low + high) / 2.;
             self.bounds_radius = ((high - low).magnitude() / 2.).max(0.1);
         }
         self.target = self.bounds_center;
-        let vertical = 17.0_f32.to_radians();
-        let horizontal = (vertical.tan() * self.width as f32 / self.height.max(1) as f32).atan();
-        self.distance = self.bounds_radius / vertical.min(horizontal).sin() * 1.16;
+        self.distance = frame_distance(self.width, self.height, self.bounds_radius, 1.16);
         self.yaw = 0.78;
         self.pitch = 0.55;
         self.update_camera();
@@ -762,7 +752,6 @@ impl Renderer {
                 let mut built = BuiltScene {
                     objects: vec![],
                     bounds: None,
-                    section_x: None,
                     revision: 0,
                     keep_camera: true,
                 };
@@ -817,11 +806,8 @@ impl Renderer {
             if picked_handle && object.handle_length.is_none() {
                 break;
             }
-            let offset = if self.state.view == "exploded" {
-                object.explode * self.state.explode_amount.unwrap_or(1.)
-            } else {
-                0.
-            };
+            let offset =
+                exploded_view_offset(&self.state.view, object.explode, self.state.explode_amount);
             let Some(inverse) = object.pose.invert() else {
                 continue;
             };
@@ -1017,15 +1003,54 @@ struct HandleInput {
     invalid: bool,
 }
 
-fn hex_color(value: &str) -> Option<[f32; 4]> {
+/// Full vertical field of view shared by the perspective camera and fit framing.
+const FOV_Y_DEGREES: f32 = 34.0;
+
+/// Framing distance for a bounding radius, matching the camera projection.
+fn frame_distance(width: u32, height: u32, radius: f32, margin: f32) -> f32 {
+    let vertical = (FOV_Y_DEGREES * 0.5).to_radians();
+    let horizontal = (vertical.tan() * width as f32 / height.max(1) as f32).atan();
+    radius / vertical.min(horizontal).sin() * margin
+}
+
+/// Z lift of one object in the exploded view; assembled views stay at zero.
+fn exploded_view_offset(view: &str, explode: f32, amount: Option<f32>) -> f32 {
+    if view == "exploded" {
+        explode * amount.unwrap_or(1.)
+    } else {
+        0.
+    }
+}
+
+/// Fold transformed points into an axis-aligned bounding box.
+fn bounds_of(points: impl IntoIterator<Item = Vec3>) -> (Vec3, Vec3) {
+    let mut low = Vec3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY);
+    let mut high = Vec3::new(f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
+    for point in points {
+        low.x = low.x.min(point.x);
+        low.y = low.y.min(point.y);
+        low.z = low.z.min(point.z);
+        high.x = high.x.max(point.x);
+        high.y = high.y.max(point.y);
+        high.z = high.z.max(point.z);
+    }
+    (low, high)
+}
+
+fn hex_rgb(value: &str) -> Option<[u8; 3]> {
     if value.len() != 7 || !value.starts_with('#') {
         return None;
     }
     let rgb = u32::from_str_radix(&value[1..], 16).ok()?;
+    Some([(rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8])
+}
+
+fn hex_color(value: &str) -> Option<[f32; 4]> {
+    let [red, green, blue] = hex_rgb(value)?;
     Some([
-        ((rgb >> 16) & 255) as f32 / 255.0,
-        ((rgb >> 8) & 255) as f32 / 255.0,
-        (rgb & 255) as f32 / 255.0,
+        red as f32 / 255.0,
+        green as f32 / 255.0,
+        blue as f32 / 255.0,
         1.0,
     ])
 }

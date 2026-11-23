@@ -4,6 +4,7 @@
 //! Copyright (c) 2023 Marco Massarelli
 //! SPDX-License-Identifier: CC-BY-NC-SA-4.0
 //! Author: @ceoloide
+use super::display_shared;
 use crate::Result;
 use crate::context::NetRef;
 use crate::context::RenderContext;
@@ -54,7 +55,7 @@ pub static SPEC: GeneratorSpec = GeneratorSpec {
 
 fn body(p: &RenderContext<'_>) -> Result<String> {
     let (reversible, side) = (p.flag("reversible"), p.side());
-    let mut dst_nets: Vec<NetRef> = ["SDA", "SCL", "VCC", "GND"]
+    let dst_nets: Vec<NetRef> = ["SDA", "SCL", "VCC", "GND"]
         .iter()
         .map(|name| p.net(name).clone())
         .collect();
@@ -64,43 +65,16 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         p.local_net("3")?,
         p.local_net("4")?,
     ];
-    if reversible || side == "B" {
-        dst_nets.reverse();
-    }
-    let socket_nets = if reversible {
-        local_nets.clone()
-    } else {
-        dst_nets.clone()
-    };
-
-    let mut jumpers_offset = 0.0;
-    let mut labels_offset = 3.75;
-    let mut jumpers_front_top = dst_nets.clone();
-    let mut jumpers_front_bottom = local_nets.clone();
-    let mut jumpers_back_top = dst_nets.clone();
-    let mut jumpers_back_bottom: Vec<NetRef> = local_nets.iter().rev().cloned().collect();
-    if p.flag("invert_labels_position") {
-        labels_offset = if reversible && !p.flag("invert_jumpers_position") {
-            -1.62
-        } else {
-            0.0
-        };
-    } else if reversible && p.flag("invert_jumpers_position") {
-        labels_offset = 1.62 + 3.75;
-    }
-    if p.flag("invert_jumpers_position") {
-        jumpers_offset = 4.4;
-        jumpers_front_top = local_nets.clone();
-        jumpers_front_bottom = dst_nets.clone();
-        jumpers_back_top = local_nets.iter().rev().cloned().collect();
-        jumpers_back_bottom = dst_nets.clone();
-    }
-    let _ = (
-        &jumpers_front_top,
-        &jumpers_front_bottom,
-        &jumpers_back_top,
-        &jumpers_back_bottom,
-    );
+    let display_shared::DisplayJumperNets {
+        dst_nets,
+        socket_nets,
+        jumpers_offset,
+        labels_offset,
+        jumpers_front_top,
+        jumpers_front_bottom,
+        jumpers_back_top,
+        jumpers_back_bottom,
+    } = display_shared::display_jumper_nets(p, dst_nets, local_nets);
 
     // The model origin is its header; the footprint origin is the display center.
     let rotation = p.vec3("display_3dmodel_xyz_rotation")?.unwrap_or([

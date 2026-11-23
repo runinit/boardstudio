@@ -2,16 +2,15 @@
 
 This tooling generates `core/tests/fixtures/ergogen-layout-parity.json` for the
 [layout-parity spec](../../docs/plans/ergogen-layout-parity/spec.md). It does not
-activate version 7, compare Rust yet, or replace the still-active legacy oracle.
+activate version 7 or compare Rust yet.
 
 ## Generate or verify
 
-Use Node 18+ and Git. From the repository root:
+Use Python, Git, Chrome and ChromeDriver. From the repository root:
 
 ```sh
-npm ci --ignore-scripts --prefix scripts/ergogen-parity
-node scripts/generate-ergogen-parity-fixtures.cjs
-node scripts/generate-ergogen-parity-fixtures.cjs --check
+python3 scripts/ergogen-parity/generate.py
+python3 scripts/ergogen-parity/generate.py --check
 ```
 
 The default source checkout is outside the repository at
@@ -34,22 +33,21 @@ are maintainer tooling, not app/runtime dependencies or committed vendor trees.
 The offline contract check is:
 
 ```sh
-node scripts/test-ergogen-parity.cjs
+python3 scripts/ergogen-parity/test_generate.py --hermetic
 ```
 
-It uses Node's standard library, Git temporary-test repositories and committed data:
+It uses Python, Git temporary-test repositories and committed data:
 no npm installation, network, upstream checkout or Cargo. It is an optional maintainer check.
 The default `tooling` step runs `test_generate.py --hermetic`; the default `browser`
 step runs `test_generate.py --source` against the live catalog in Chrome.
 Generation/`--check` are separate opt-in maintainer checks. Inspect input and expected
 pose diffs before committing; never bless a different pin or moving tag accidentally.
-An optional existing-cache check is `node scripts/test-ergogen-parity.cjs /path/to/checkout`;
-it creates/removes only its own untracked probe to verify the cleanliness guard.
 
-### Node-free generator (experimental)
+
+### Generator
 
 `python3 scripts/ergogen-parity/generate.py [--cache CHECKOUT] [--output JSON] [--check]` has the
-same CLI contract as the Node generator without running Node. `verified_runtime.py` validates the
+fixture generator without running Node. `verified_runtime.py` validates the
 checkout (pin, clean status, no Git filters or hidden index changes) and extracts the pinned Git
 object plus every SHA-512-verified locked archive from the local npm cache (`--npm-cache`; never
 downloaded) into a private temporary tree. The stdlib WebDriver runner then opens Chrome to run the actual pinned `points.parse` and evaluates `cases.cjs`
@@ -66,8 +64,7 @@ atomically publishes the staged result outside the sandbox. The checkout must al
 JavaScript sandbox for hostile code, and identity is checked against the local pin and lock, not
 publisher signatures. Keep the checkout, lockfile and temporary parent private and stable.
 
-`python3 scripts/ergogen-parity/test_generate.py --hermetic` ports every offline group of
-`test-ergogen-parity.cjs` (no browser, network, npm, Cargo or upstream). `--source` evaluates
+`python3 scripts/ergogen-parity/test_generate.py --hermetic` covers the offline fixture contract (no browser, network, npm, Cargo or upstream). `--source` evaluates
 `cases.cjs` in Chrome and rebuilds the committed fixture byte-for-byte from its recorded poses, which
 also catches source edits without regeneration. `--upstream` (with `ERGOGEN_CHECKOUT`) runs the real
 parser through the CLI. `test_verified_runtime.py` and `test_host_probe.py` cover the preparer and
@@ -78,7 +75,7 @@ Licences and notices of extracted packages are not redistributed.
 ## Fixture contract
 
 `cases.cjs` independently authors the Ergogen config and equivalent BoardStudio
-parameters. It contains no BoardStudio layout evaluator. `oracle.cjs` calls upstream
+parameters. It contains no BoardStudio layout evaluator. The browser host calls upstream
 `points.parse(config.points, units.parse(config.units || {}))` on cloned configuration;
 the generator copies its finite x/y/r values without angle wrapping or rounding.
 

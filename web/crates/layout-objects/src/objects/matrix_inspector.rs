@@ -226,29 +226,13 @@ pub fn MatrixInspector(mount: MatrixInspectorMount) -> Element {
         })
         .cloned();
     let linked = layout.as_ref().and_then(|active| {
-        let partner = |id: &str| {
-            snapshot
-                .document
-                .layouts
-                .iter()
-                .find(|candidate| candidate.id == id)
+        let partner = super::mirror_links::partner_layout(&snapshot.document.layouts, active)?;
+        let carrier = if active.mirror_link.is_some() {
+            &active.id
+        } else {
+            &partner.id
         };
-        match &active.mirror_link {
-            Some(link) => {
-                partner(&link.source_id).map(|partner| (active.id.clone(), partner.name.clone()))
-            }
-            None => snapshot
-                .document
-                .layouts
-                .iter()
-                .find(|other| {
-                    other
-                        .mirror_link
-                        .as_ref()
-                        .is_some_and(|link| link.source_id == active.id)
-                })
-                .map(|other| (other.id.clone(), other.name.clone())),
-        }
+        Some((carrier.clone(), partner.name.clone()))
     });
     let choices = switch_choices(&snapshot.document, &templates(), &matrix.definition_id);
     let catalogue = templates();

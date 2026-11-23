@@ -1,19 +1,14 @@
 //! Shared 2D coordinates, grid status and camera actions.
-use super::objects::{LayoutCommandMenu, LayoutSnapSettings};
 use boardstudio_web_ui_shared::ui::{
     badge::{Badge, BadgeVariant},
     button::{Button, ButtonVariant},
     toolbar::{Toolbar, ToolbarButton},
 };
 use dioxus::prelude::*;
-use dioxus_web::WebEventExt;
 
 #[component]
 pub(in crate::presentation) fn CanvasStatusFooter(
-    snap_settings: LayoutSnapSettings,
     active_part_position: Option<boardstudio_core::model::Vec2>,
-    snap_menu_available: bool,
-    open_menu: Signal<Option<LayoutCommandMenu>>,
     board_available: bool,
     selection_available: bool,
     zoom_percent: f64,
@@ -24,7 +19,6 @@ pub(in crate::presentation) fn CanvasStatusFooter(
     on_zoom_out: EventHandler<()>,
     on_zoom_in: EventHandler<()>,
 ) -> Element {
-    let _ = (snap_settings, snap_menu_available, open_menu);
     let (x, y) = active_part_position.map_or((0.0, 0.0), |p| (p.x, p.y));
     rsx! {
         div { class: "shell-coordinates", aria_label: "Selected part coordinates",
@@ -46,14 +40,7 @@ pub(super) fn FindingsButton(count: usize, on_toggle: EventHandler<()>) -> Eleme
     rsx! {
         Button { id: "m1-layout-findings-trigger", class: "ml-auto", variant: ButtonVariant::Ghost, aria_label: "Layout findings: {count}",
             button_type: "button",
-            onkeydown: move |event: KeyboardEvent| {
-                if matches!(event.key(), Key::Character(value) if value == " ") {
-                    event.stop_propagation();
-                    if let Some(raw) = event.data().try_as_web_event() {
-                        raw.stop_propagation();
-                    }
-                }
-            },
+            onkeydown: super::view_helpers::stop_space_propagation,
             onclick: move |_| on_toggle.call(()), "Layout findings: " Badge { variant: BadgeVariant::Warning, "{count}" } }
     }
 }

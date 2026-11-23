@@ -3,12 +3,7 @@ use crate::model::*;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub fn world(at: Vec2, pose: &Pose2, side: Side) -> Vec2 {
-    let x = if side == Side::Back { -at.x } else { at.x };
-    let (sin, cos) = pose.rotation.to_radians().sin_cos();
-    Vec2 {
-        x: pose.at.x + x * cos - at.y * sin,
-        y: pose.at.y + x * sin + at.y * cos,
-    }
+    crate::geometry::part_to_world(at, pose, side)
 }
 
 /// World pose of a part as stored before an edit: the stored half-frame pose
