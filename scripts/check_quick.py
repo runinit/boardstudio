@@ -117,8 +117,8 @@ def select(files: list[str], packages: dict[str, Package]) -> Selection:
         elif (package := owner(path, packages)) is not None:
             selection.rust = True
             direct.add(package.name)
-            if package.directory == "web" and path.startswith(("web/src/", "web/tests/")):
-                if path.startswith("web/src/") and path.endswith(".rs"):
+            if package.directory == "web" and path.startswith("web/src/"):
+                if path.endswith(".rs"):
                     selection.page_files.append(path)
                 else:
                     selection.full_rust = True

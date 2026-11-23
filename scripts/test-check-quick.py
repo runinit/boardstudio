@@ -148,8 +148,7 @@ class QuickPlanTests(unittest.TestCase):
             self.assertFalse(any(arg.startswith("--isolate") for arg in command))
 
     def test_unfilterable_page_inputs_keep_full_consuming_test_coverage(self):
-        for path in ("web/src/presentation/layout_layers_fixtures/paired-rejoin-preview.json",
-                     "web/tests/page.rs"):
+        for path in ("web/src/presentation/layout_layers_fixtures/paired-rejoin-preview.json",):
             for files in ([path], ["web/src/presentation/a.rs", path],
                           [path, "web/src/presentation/a.rs"]):
                 with self.subTest(files=files):

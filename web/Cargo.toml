@@ -4,9 +4,6 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 publish = false
-# The files in tests/ `#[path]`-include wasm-only presentation sources and do not build
-# natively; `cargo test --workspace` must not try. Browser tests live in src/.
-autotests = false
 
 [lib]
 name = "boardstudio_web"
@@ -63,7 +60,6 @@ boardstudio-web-case = { path = "crates/case" }
 boardstudio-web-keymap = { path = "crates/keymap" }
 boardstudio-web-library = { path = "crates/library" }
 boardstudio-web-keycaps = { path = "crates/keycaps" }
-tokio = { version = "=1.53.1", features = ["macros", "rt", "time"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 # The page, the CAD and offline workers and the renderer (`renderer/Cargo.toml`) are separate
