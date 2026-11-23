@@ -276,6 +276,7 @@ name = "boardstudio-core-mirrored-half"
 version = "0.1.0"
 dependencies = [
  "boardstudio-model",
+ "serde_json",
 ]
 
 [[package]]

@@ -5,7 +5,7 @@
 //! launches only `host`, `worker-host` and packaged-page tests). This test
 //! drives the real `boardstudio_application::Session` through Open, rename and
 //! persist completions and feeds the resulting durability transitions through
-//! the extracted [`super::persist_completion_decision`] plus
+//! the extracted [`super::persist_report`] plus
 //! [`super::publish`]/[`super::take_notifications`], preserving the original
 //! browser-test assertions: the general subscriber fires only on the refresh
 //! path, the durability subscriber fires on save-only completions, the status
@@ -69,7 +69,12 @@ impl Harness {
         let next = self.session.read_model().clone();
         let snapshot_changed = next.accepted.as_ref().map(|snapshot| snapshot.token)
             != previous.accepted.as_ref().map(|snapshot| snapshot.token);
-        let report = persist_report(&previous.durability, &next.durability, snapshot_changed, &effects);
+        let report = persist_report(
+            &previous.durability,
+            &next.durability,
+            snapshot_changed,
+            &effects,
+        );
         let has_report = report.is_some();
         if let Some(report) = report {
             publish(&self.status, &self.notifications, report, || {});
