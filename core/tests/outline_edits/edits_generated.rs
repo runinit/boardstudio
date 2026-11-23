@@ -151,7 +151,7 @@ fn create_generated_registers_the_envelope_and_board_membership() {
             "seed": 92
         }),
     );
-    assert!(matches!(version_target, Err(_)));
+    assert!(version_target.is_err());
     let unknown_part = reply(
         &mut engine,
         redone.revision,
@@ -165,7 +165,7 @@ fn create_generated_registers_the_envelope_and_board_membership() {
             "seed": 93
         }),
     );
-    assert!(matches!(unknown_part, Err(_)));
+    assert!(unknown_part.is_err());
     assert_eq!(
         serde_json::to_value(document(&mut engine)).unwrap(),
         before,

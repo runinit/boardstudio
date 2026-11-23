@@ -264,7 +264,7 @@ fn add_part_refuses_conflicting_definitions_and_invalid_layouts() {
                 layout_id: Some(layout_id.into()),
             },
         ));
-        assert!(matches!(reply, Err(_)), "{reply:?}");
+        assert!(reply.is_err(), "{reply:?}");
         let (_, after_refusal) = scene(engine.snapshot());
         assert_eq!(
             after_refusal, document,
@@ -329,9 +329,9 @@ fn failed_matrix_preview_restores_document() {
         EditPhase::Preview,
         fixture::set_matrix(matrix(1, 2)),
     ));
-    assert!(matches!(reply, Err(_)));
+    assert!(reply.is_err());
     assert_eq!(fixture::outline_snapshot(&mut engine), original);
-    assert!(matches!(engine.undo(), Err(_)));
+    assert!(engine.undo().is_err());
 }
 
 #[test]
@@ -408,10 +408,7 @@ fn constraint_preview_commit_and_undo() {
     );
     let (_, committed) = scene(engine.commit_edit(edit(0, EditPhase::Commit, op.clone())));
     assert_eq!(committed.parts[1].pose.at.x, 15.0);
-    assert!(matches!(
-        engine.commit_edit(edit(0, EditPhase::Commit, op)),
-        Err(_)
-    ));
+    assert!(engine.commit_edit(edit(0, EditPhase::Commit, op)).is_err());
     let (_, undone) = scene(engine.undo());
     assert_eq!(undone.parts[1].pose.at.x, 10.0);
     let (_, moved) =

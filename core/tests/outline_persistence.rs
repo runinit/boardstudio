@@ -285,10 +285,7 @@ fn refusing_an_older_document_preserves_its_outline_versions_and_identity_reserv
     assert_eq!(older.to_string(), original);
     let mut engine = CoreEngine::new();
     let before = scene(engine.open(browser_writeback(&stored)));
-    assert!(matches!(
-        engine.open(serde_json::from_value(older).unwrap()),
-        Err(_)
-    ));
+    assert!(engine.open(serde_json::from_value(older).unwrap()).is_err());
     let after = scene(engine.snapshot());
     assert_eq!(after.board_contours, before.board_contours);
 }

@@ -73,7 +73,7 @@ fn exercise_history(seed: u32) {
     assert_eq!(initial, Vec2 { x: 8.0, y: 3.0 });
     let refusal = move_part(&mut engine, canonical.revision, "4/pair/part/switch", 3.0);
     assert!(matches!(refusal, Err(message) if message.contains("is linked")));
-    assert!(matches!(engine.undo(), Err(_)));
+    assert!(engine.undo().is_err());
 
     let mut seed = 0x84ba_318a_u32 ^ seed;
     let mut previous = initial;
@@ -138,7 +138,7 @@ fn version_and_linked_target_errors_preserve_the_accepted_snapshot() {
         })
     );
     assert_eq!(accepted(engine.snapshot()), (accepted_doc, accepted_pose));
-    assert!(matches!(engine.undo(), Err(_)));
+    assert!(engine.undo().is_err());
 }
 
 #[test]

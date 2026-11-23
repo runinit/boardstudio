@@ -187,7 +187,7 @@ fn matrix_state() -> Value {
 /// margin, Freeze, a linked perimeter edit, a copy recording its origin, a delete and
 /// the single Undo that restores it.
 fn outline_requests() -> Vec<Value> {
-    let requests = vec![
+    let mut requests = vec![
         // The boundary fixture's parts borrow a geometry-less definition, so the
         // outline block authors one with a courtyard and places a single component.
         commit(
@@ -219,194 +219,184 @@ fn outline_requests() -> Vec<Value> {
                 "matrix/matrix/r1c0", "matrix/matrix/r1c1", "matrix/matrix/r1c2",
                 "matrix/matrix/r2c0", "matrix/matrix/r2c1", "matrix/matrix/r2c2" ] }),
         ),
-        // Generate authors the Generated envelope and its board membership.
-        outline_edit(
+    ];
+    // Generate authors the Generated envelope and its board membership.
+    // One row per typed outline edit: (id, base revision, target, change, seed, reviewed).
+    let board = board_target();
+    let edited = version_target(EDITED);
+    let refined = version_target(REFINED);
+    type OutlineEdit<'a> = (&'a str, u64, Value, Value, u64, Option<Value>);
+    let edits: Vec<OutlineEdit<'_>> = vec![
+        (
             "outline-generate",
             20,
-            board_target(),
-            json!({ "create-generated": {
-            "margin": 4.0,
-            "settings": { "corners": "fillet", "size": 2.0, "bridgeWidth": 10.0 },
-            "part_ids": ["outline-part"] } }),
+            board.clone(),
+            json!({ "create-generated": { "margin": 4.0, "settings": { "corners": "fillet", "size": 2.0, "bridgeWidth": 10.0 }, "part_ids": ["outline-part"] } }),
             1,
             None,
         ),
-        outline_edit(
+        (
             "outline-corners",
             21,
-            board_target(),
+            board.clone(),
             json!({ "set-corners": { "corners": "sharp" } }),
             2,
             None,
         ),
-        outline_edit(
+        (
             "outline-corners-repeat",
             22,
-            board_target(),
+            board.clone(),
             json!({ "set-corners": { "corners": "sharp" } }),
             3,
             None,
         ),
-        outline_edit(
+        (
             "outline-margin",
             22,
-            board_target(),
+            board.clone(),
             json!({ "set-margin": { "margin": 6.0 } }),
             4,
             None,
         ),
-        outline_edit(
+        (
             "outline-bridge",
             23,
-            board_target(),
+            board.clone(),
             json!({ "set-bridge-width": { "bridge_width": 3.0 } }),
             5,
             None,
         ),
-        outline_edit(
+        (
             "outline-connection-add",
             24,
-            board_target(),
-            json!({ "add-connection": { "connection": {
-            "id": "conn-a", "width": 3.0,
-            "points": [{ "at": { "x": -6.0, "y": 0.0 } }, { "at": { "x": 6.0, "y": 0.0 } }] } } }),
+            board.clone(),
+            json!({ "add-connection": { "connection": { "id": "conn-a", "width": 3.0, "points": [{ "at": { "x": -6.0, "y": 0.0 } }, { "at": { "x": 6.0, "y": 0.0 } }] } } }),
             6,
             None,
         ),
-        outline_edit(
+        (
             "outline-connection-remove",
             25,
-            board_target(),
+            board.clone(),
             json!({ "remove-connection": { "connection_id": "conn-a" } }),
             7,
             None,
         ),
-        outline_edit(
+        (
             "outline-gap-set",
             26,
-            board_target(),
-            json!({ "set-protected-gap": { "gap_id": "gap-a", "points": [
-            { "at": { "x": -4.0, "y": -4.0 } }, { "at": { "x": 4.0, "y": -4.0 } },
-            { "at": { "x": 4.0, "y": 4.0 } }, { "at": { "x": -4.0, "y": 4.0 } }] } }),
+            board.clone(),
+            json!({ "set-protected-gap": { "gap_id": "gap-a", "points": [ { "at": { "x": -4.0, "y": -4.0 } }, { "at": { "x": 4.0, "y": -4.0 } }, { "at": { "x": 4.0, "y": 4.0 } }, { "at": { "x": -4.0, "y": 4.0 } }] } }),
             8,
             None,
         ),
-        outline_edit(
+        (
             "outline-gap-remove",
             27,
-            board_target(),
+            board.clone(),
             json!({ "remove-protected-gap": { "gap_id": "gap-a" } }),
             9,
             None,
         ),
-        // The perimeter edit carries the generated source shape the user reviewed and
-        // creates one fixed copy in the same accepted edit.
-        outline_edit(
+        (
             "outline-perimeter",
             28,
-            board_target(),
-            json!({ "edit-generated-perimeter": {
-            "contour": 0,
-            "points": [{ "x": -12.0, "y": -12.0 }, { "x": 12.0, "y": -12.0 }, { "x": 12.0, "y": 12.0 }, { "x": -12.0, "y": 12.0 }] } }),
+            board.clone(),
+            json!({ "edit-generated-perimeter": { "contour": 0, "points": [{ "x": -12.0, "y": -12.0 }, { "x": 12.0, "y": -12.0 }, { "x": 12.0, "y": 12.0 }, { "x": -12.0, "y": 12.0 }] } }),
             12,
             Some(json!([{ "hole": false, "points": [
                 { "x": -13.0, "y": 13.0 }, { "x": -13.0, "y": -13.0 }, { "x": 13.0, "y": -13.0 }, { "x": 13.0, "y": 13.0 }] }])),
         ),
-        outline_edit(
+        (
             "outline-version-bridge",
             29,
-            version_target(EDITED),
+            edited.clone(),
             json!({ "set-bridge-width": { "bridge_width": 1.5 } }),
             12,
             None,
         ),
-        outline_edit(
+        (
             "outline-version-feature-add",
             30,
-            version_target(EDITED),
-            json!({ "add-feature": { "feature": {
-            "kind": "polygon", "id": "cut-a", "operation": "subtract",
-            "points": [{ "x": -3.0, "y": -3.0 }, { "x": 3.0, "y": -3.0 }, { "x": 3.0, "y": 3.0 }, { "x": -3.0, "y": 3.0 }] } } }),
+            edited.clone(),
+            json!({ "add-feature": { "feature": { "kind": "polygon", "id": "cut-a", "operation": "subtract", "points": [{ "x": -3.0, "y": -3.0 }, { "x": 3.0, "y": -3.0 }, { "x": 3.0, "y": 3.0 }, { "x": -3.0, "y": 3.0 }] } } }),
             13,
             None,
         ),
-        outline_edit(
+        (
             "outline-version-feature-remove",
             31,
-            version_target(EDITED),
+            edited.clone(),
             json!({ "remove-feature": { "feature_id": "cut-a" } }),
             14,
             None,
         ),
-        outline_edit(
+        (
             "outline-version-rename",
             32,
-            version_target(EDITED),
+            edited.clone(),
             json!({ "rename": { "name": "Renamed" } }),
             15,
             None,
         ),
-        outline_edit(
+        (
             "outline-activate-generated",
             33,
-            board_target(),
+            board.clone(),
             json!("activate"),
             16,
             None,
         ),
-        // A linked refinement follows the board's current component and owns its settings.
-        outline_edit(
+        (
             "outline-refine",
             34,
-            board_target(),
+            board.clone(),
             json!({ "create-linked-refinement": { "version_id": REFINED, "name": "Refined" } }),
             17,
             None,
         ),
-        outline_edit(
+        (
             "outline-refine-margin",
             35,
-            version_target(REFINED),
+            refined.clone(),
             json!({ "set-margin": { "margin": 7.0 } }),
             18,
             None,
         ),
-        outline_edit(
+        (
             "outline-freeze",
             36,
-            version_target(REFINED),
+            refined.clone(),
             json!({ "freeze": { "name": "Frozen" } }),
             19,
             None,
         ),
-        outline_edit(
+        (
             "outline-activate-refined",
             37,
-            version_target(REFINED),
+            refined.clone(),
             json!("activate"),
             20,
             None,
         ),
-        // Editing the linked refinement's perimeter keeps the link and adds a fixed copy.
-        outline_edit(
+        (
             "outline-refine-perimeter",
             38,
-            version_target(REFINED),
-            json!({ "edit-feature-perimeter": {
-            "feature_id": "board:board:version:v-refined:contour:0",
-            "points": [{ "x": -13.0, "y": -13.0 }, { "x": 13.0, "y": -13.0 }, { "x": 13.0, "y": 13.0 }, { "x": -13.0, "y": 13.0 }] } }),
+            refined.clone(),
+            json!({ "edit-feature-perimeter": { "feature_id": "board:board:version:v-refined:contour:0", "points": [{ "x": -13.0, "y": -13.0 }, { "x": 13.0, "y": -13.0 }, { "x": 13.0, "y": 13.0 }, { "x": -13.0, "y": 13.0 }] } }),
             21,
             None,
         ),
-        outline_edit(
+        (
             "outline-copy",
             39,
-            version_target(EDITED),
+            edited.clone(),
             json!({ "copy": { "version_id": "v-copy", "name": "Copy" } }),
             22,
             None,
         ),
-        outline_edit(
+        (
             "outline-delete",
             40,
             version_target("v-copy"),
@@ -414,18 +404,25 @@ fn outline_requests() -> Vec<Value> {
             23,
             None,
         ),
-        json!({ "id": "outline-undo", "kind": "undo" }),
-        // A rename to the accepted name settles unchanged: no revision step.
-        outline_edit(
-            "outline-rename-repeat",
-            42,
-            version_target(EDITED),
-            json!({ "rename": { "name": "Renamed" } }),
-            24,
-            None,
-        ),
-        json!({ "id": "outline-snapshot", "kind": "snapshot" }),
     ];
+    requests.extend(
+        edits
+            .into_iter()
+            .map(|(id, revision, target, change, seed, reviewed)| {
+                outline_edit(id, revision, target, change, seed, reviewed)
+            }),
+    );
+    requests.push(json!({ "id": "outline-undo", "kind": "undo" }));
+    // A rename to the accepted name settles unchanged: no revision step.
+    requests.push(outline_edit(
+        "outline-rename-repeat",
+        42,
+        edited,
+        json!({ "rename": { "name": "Renamed" } }),
+        24,
+        None,
+    ));
+    requests.push(json!({ "id": "outline-snapshot", "kind": "snapshot" }));
     requests
 }
 

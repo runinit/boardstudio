@@ -571,8 +571,8 @@ fn apply_request_is_reversible() {
         controller_part_id: Some("mcu-left".into()),
     });
     let applied = engine.apply_electrical(base, plan, false);
-    assert!(matches!(applied, Ok(_)), "{applied:?}");
-    assert!(matches!(engine.undo(), Ok(_)));
+    assert!(applied.is_ok(), "{applied:?}");
+    assert!(engine.undo().is_ok());
 }
 
 #[test]

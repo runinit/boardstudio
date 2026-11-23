@@ -40,7 +40,7 @@ fn stagger_document(columns: Option<u32>) -> ProjectDoc {
             },
         ];
         let mut engine = CoreEngine::new();
-        assert!(matches!(apply_op(&mut engine, &open_req(document)), Ok(_)));
+        assert!(apply_op(&mut engine, &open_req(document)).is_ok());
         let Ok(EditOutcome::Committed(CommittedScene {
             document: resized, ..
         })) = apply_op(
@@ -249,10 +249,7 @@ fn compare(
 fn open_preview_fixture(document: ProjectDoc) -> (CoreEngine, CoreEngine) {
     let mut engine = CoreEngine::new();
     let mut cold = CoreEngine::new();
-    assert!(matches!(
-        assert_warm_matches_cold(&mut engine, &mut cold, open_req(document)),
-        Ok(_)
-    ));
+    assert!(assert_warm_matches_cold(&mut engine, &mut cold, open_req(document)).is_ok());
     assert!(engine.reusable_scene.is_some());
     (engine, cold)
 }
@@ -363,7 +360,7 @@ fn matched_preview_of_a_mirrored_move_reprojects_the_commit() {
     let mut engine = CoreEngine::new();
     let mut cold = CoreEngine::new();
     for session in [&mut engine, &mut cold] {
-        assert!(matches!(apply_op(session, &open), Ok(_)));
+        assert!(apply_op(session, &open).is_ok());
     }
     let source_id = String::from("matrix/matrix/r0c1");
     let sources = [source_id.clone()];
@@ -656,10 +653,7 @@ fn stagger_preview_commit_and_invalidation_match_cold_projection() {
     assert_eq!(scene.revision, 1);
     scene.revision = preview.revision;
     assert_eq!(scene, preview);
-    assert!(matches!(
-        compare(&mut engine, &mut cold, preview_op(0, stagger(1, 2.0))),
-        Err(_)
-    ));
+    assert!(compare(&mut engine, &mut cold, preview_op(0, stagger(1, 2.0))).is_err());
     assert!(matches!(
         compare(&mut engine, &mut cold, edit(1, stagger(1, value))),
         Ok(EditOutcome::Committed(CommittedScene { scene, .. })) if scene.revision == 1 && scene.changed_ids.is_empty()
@@ -754,19 +748,13 @@ fn rename_and_stagger_match_full_scene_recomputation_through_history() {
                 && scene.findings == initial.findings
                 && !scene.changed_ids.is_empty()
     ));
-    assert!(matches!(
-        compare(&mut engine, &mut cold, edit(0, rename)),
-        Err(_)
-    ));
+    assert!(compare(&mut engine, &mut cold, edit(0, rename)).is_err());
 
     let stagger = |column| EditOperation::SetMatrixPlacement {
         matrix_id: "matrix".into(),
         change: MatrixPlacementChange::ColumnStagger { column, value: 4.0 },
     };
-    assert!(matches!(
-        compare(&mut engine, &mut cold, edit(1, stagger(10))),
-        Err(_)
-    ));
+    assert!(compare(&mut engine, &mut cold, edit(1, stagger(10))).is_err());
     let before = engine.document.clone();
     let Ok(EditOutcome::Committed(CommittedScene { scene, document })) =
         compare(&mut engine, &mut cold, edit(1, stagger(1)))
@@ -839,10 +827,7 @@ fn typed_snapshot_reuses_the_accepted_scene_and_refreshes_its_receipt() {
     assert_eq!(engine.undo.len(), 1);
     let mut invalid = fixture();
     invalid.format.clear();
-    assert!(matches!(
-        compare(&mut engine, &mut cold, open_req(invalid)),
-        Err(_)
-    ));
+    assert!(compare(&mut engine, &mut cold, open_req(invalid)).is_err());
     let projections = engine.full_scene_projections.get();
     for _id in ["first snapshot", "second snapshot"] {
         assert!(matches!(

@@ -5,16 +5,15 @@ fn mount_collections_keep_explicit_empty_and_initialize_absent_ones() {
     // A deliberate explicit empty collection is preserved and never re-initialized.
     let mut doc = document();
     assert_eq!(stored(&doc).closure_mounts, Some(vec![]));
-    apply_change(
-        &mut doc,
-        MechanicalChange::SetDimension {
-            field: MechanicalDimension::WallThickness,
-            value: 3.0,
-        },
-    )
-    .unwrap();
     assert_eq!(
-        stored(&doc).closure_mounts,
+        set(
+            &mut doc,
+            MechanicalChange::SetDimension {
+                field: MechanicalDimension::WallThickness,
+                value: 3.0,
+            },
+        )
+        .closure_mounts,
         Some(vec![]),
         "an unrelated change preserves a deliberate explicit empty collection"
     );
@@ -98,26 +97,32 @@ fn mount_editing_reports_the_mount_id() {
         vec!["board", "case-mechanical-mount-1"]
     );
     assert_eq!(stored(&doc).mounts[0].hole_diameter, 3.0);
-    apply_change(
-        &mut doc,
-        MechanicalChange::SetMountPosition {
-            collection: MechanicalMountCollection::Suspension,
-            mount_id: "case-mechanical-mount-1".into(),
-            at: Vec2 { x: 4.0, y: 5.0 },
-        },
-    )
-    .unwrap();
-    assert_eq!(stored(&doc).mounts[0].at, Vec2 { x: 4.0, y: 5.0 });
-    apply_change(
-        &mut doc,
-        MechanicalChange::SetMountKind {
-            collection: MechanicalMountCollection::Suspension,
-            mount_id: "case-mechanical-mount-1".into(),
-            kind: MountKind::Boss,
-        },
-    )
-    .unwrap();
-    assert_eq!(stored(&doc).mounts[0].kind, MountKind::Boss);
+    assert_eq!(
+        set(
+            &mut doc,
+            MechanicalChange::SetMountPosition {
+                collection: MechanicalMountCollection::Suspension,
+                mount_id: "case-mechanical-mount-1".into(),
+                at: Vec2 { x: 4.0, y: 5.0 },
+            },
+        )
+        .mounts[0]
+            .at,
+        Vec2 { x: 4.0, y: 5.0 }
+    );
+    assert_eq!(
+        set(
+            &mut doc,
+            MechanicalChange::SetMountKind {
+                collection: MechanicalMountCollection::Suspension,
+                mount_id: "case-mechanical-mount-1".into(),
+                kind: MountKind::Boss,
+            },
+        )
+        .mounts[0]
+            .kind,
+        MountKind::Boss
+    );
     assert_eq!(
         apply_change(
             &mut doc,
@@ -172,15 +177,21 @@ fn openings_and_vertices_apply_and_report_opening_ids() {
         vec!["board", "opening-1", "vertex-5"]
     );
     assert_eq!(stored(&doc).openings.as_ref().unwrap()[0].vertices.len(), 5);
-    apply_change(
-        &mut doc,
-        MechanicalChange::RemoveOpeningVertex {
-            opening_id: "opening-1".into(),
-            vertex_id: "vertex-1".into(),
-        },
-    )
-    .unwrap();
-    assert_eq!(stored(&doc).openings.as_ref().unwrap()[0].vertices.len(), 4);
+    assert_eq!(
+        set(
+            &mut doc,
+            MechanicalChange::RemoveOpeningVertex {
+                opening_id: "opening-1".into(),
+                vertex_id: "vertex-1".into(),
+            },
+        )
+        .openings
+        .as_ref()
+        .unwrap()[0]
+            .vertices
+            .len(),
+        4
+    );
     assert_eq!(
         apply_change(
             &mut doc,
@@ -203,18 +214,20 @@ fn gasket_support_dimension_placement_unlinked_and_reset_apply() {
     layout.supports = vec![anchor("left:0", 0.25)];
     doc.mechanical.as_mut().unwrap().gasket_layout = Some(layout);
 
-    apply_change(
-        &mut doc,
-        MechanicalChange::SetGasketSupportDimension {
-            support_id: "left:0".into(),
-            anchors: vec![anchor("left:0", 0.25)],
-            field: MechanicalDimension::GasketSupportLength,
-            value: 20.0,
-        },
-    )
-    .unwrap();
     assert_eq!(
-        stored(&doc).gasket_layout.as_ref().unwrap().supports[0]
+        set(
+            &mut doc,
+            MechanicalChange::SetGasketSupportDimension {
+                support_id: "left:0".into(),
+                anchors: vec![anchor("left:0", 0.25)],
+                field: MechanicalDimension::GasketSupportLength,
+                value: 20.0,
+            },
+        )
+        .gasket_layout
+        .as_ref()
+        .unwrap()
+        .supports[0]
             .length
             .unwrap(),
         20.0
@@ -287,7 +300,7 @@ fn legacy_gasket_support_resize_preserves_saved_anchor_metadata() {
     layout.supports = anchors.clone();
     doc.mechanical.as_mut().unwrap().gasket_layout = Some(layout);
 
-    apply_change(
+    set(
         &mut doc,
         MechanicalChange::SetGasketSupportDimension {
             support_id: "left:0".into(),
@@ -295,8 +308,7 @@ fn legacy_gasket_support_resize_preserves_saved_anchor_metadata() {
             field: MechanicalDimension::GasketSupportLength,
             value: 20.0,
         },
-    )
-    .unwrap();
+    );
 
     let supports = &stored(&doc).gasket_layout.as_ref().unwrap().supports;
     assert_eq!(supports.len(), 2);
@@ -317,27 +329,29 @@ fn legacy_gasket_support_resize_preserves_saved_anchor_metadata() {
 #[test]
 fn method_mount_style_and_frame_switches_apply() {
     let mut doc = document();
-    apply_change(&mut doc, MechanicalChange::SetMethod(PlateMethod::Cnc)).unwrap();
-    assert_eq!(stored(&doc).method, PlateMethod::Cnc);
-    apply_change(
-        &mut doc,
-        MechanicalChange::SetBottomStyle(MechanicalBottomStyle::Sheet),
-    )
-    .unwrap();
     assert_eq!(
-        stored(&doc).bottom_style,
+        set(&mut doc, MechanicalChange::SetMethod(PlateMethod::Cnc)).method,
+        PlateMethod::Cnc
+    );
+    assert_eq!(
+        set(
+            &mut doc,
+            MechanicalChange::SetBottomStyle(MechanicalBottomStyle::Sheet),
+        )
+        .bottom_style,
         Some(MechanicalBottomStyle::Sheet)
     );
-    apply_change(&mut doc, MechanicalChange::SetMiddleFrame(true)).unwrap();
-    assert_eq!(stored(&doc).middle_frame, Some(true));
-    apply_change(&mut doc, MechanicalChange::SetIntegratedPlateFrame(true)).unwrap();
+    assert_eq!(
+        set(&mut doc, MechanicalChange::SetMiddleFrame(true)).middle_frame,
+        Some(true)
+    );
+    set(&mut doc, MechanicalChange::SetIntegratedPlateFrame(true));
     assert!(stored(&doc).integrated_plate_frame);
 
-    apply_change(
+    set(
         &mut doc,
         MechanicalChange::SetMount(MechanicalMount::Gasket),
-    )
-    .unwrap();
+    );
     let gasket = stored(&doc);
     assert_eq!(gasket.mount, MechanicalMount::Gasket);
     assert!(gasket.gasket_layout.is_some());
@@ -373,15 +387,17 @@ fn process_overrides_route_standard_thickness_and_preserve_other_targets() {
         },
     ]);
 
-    apply_change(
-        &mut doc,
-        MechanicalChange::SetProcessThickness {
-            part_id: "plate".into(),
-            thickness: 2.2,
-        },
-    )
-    .unwrap();
-    assert_eq!(stored(&doc).plate_thickness, 2.2);
+    assert_eq!(
+        set(
+            &mut doc,
+            MechanicalChange::SetProcessThickness {
+                part_id: "plate".into(),
+                thickness: 2.2,
+            },
+        )
+        .plate_thickness,
+        2.2
+    );
     assert_eq!(
         stored(&doc).part_processes.as_ref().unwrap()[0].thickness,
         2.2
@@ -392,14 +408,13 @@ fn process_overrides_route_standard_thickness_and_preserve_other_targets() {
         "the unrelated bottom target keeps its thickness"
     );
 
-    apply_change(
+    set(
         &mut doc,
         MechanicalChange::SetProcessMethod {
             part_id: "plate".into(),
             method: PlateMethod::Cnc,
         },
-    )
-    .unwrap();
+    );
     let processes = stored(&doc).part_processes.as_ref().unwrap();
     assert_eq!(stored(&doc).method, PlateMethod::Cnc);
     assert_eq!(processes[0].material, "Aluminium");

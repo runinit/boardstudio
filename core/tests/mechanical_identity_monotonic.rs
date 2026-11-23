@@ -96,7 +96,7 @@ fn replace_identity(
 fn remove_and_add_assigns_a_fresh_identity_for_all_five_kinds() {
     // Opening.
     let mut engine = Session::default();
-    assert!(matches!(engine.open(unibody()), Ok(_)));
+    assert!(engine.open(unibody()).is_ok());
     let first = one_id(
         &engine.commit_mechanical(board_target(), MechanicalChange::AddOpening),
         "opening-",
@@ -158,7 +158,7 @@ fn remove_and_add_assigns_a_fresh_identity_for_all_five_kinds() {
         ),
     ] {
         let mut engine = Session::default();
-        assert!(matches!(engine.open(unibody()), Ok(_)));
+        assert!(engine.open(unibody()).is_ok());
         replace_identity(&mut engine, label, add, ids);
     }
 }
@@ -196,7 +196,7 @@ fn add_undo_add_assigns_a_fresh_identity_for_all_five_kinds() {
     ];
     for (label, add, ids) in cases {
         let mut engine = Session::default();
-        assert!(matches!(engine.open(unibody()), Ok(_)));
+        assert!(engine.open(unibody()).is_ok());
         if label == "vertex" {
             let _ = engine
                 .commit_mechanical(board_target(), MechanicalChange::AddOpening)
@@ -219,7 +219,7 @@ fn add_undo_add_assigns_a_fresh_identity_for_all_five_kinds() {
 #[test]
 fn owners_keep_separate_counters_and_survive_disable_reenable() {
     let mut engine = Session::default();
-    assert!(matches!(engine.open(paired_owners()), Ok(_)));
+    assert!(engine.open(paired_owners()).is_ok());
     let left_first = one_id(
         &engine.commit_mechanical(instance_target("left"), MechanicalChange::AddOpening),
         "opening-",
@@ -319,7 +319,7 @@ fn sparse_imported_ids_seed_allocation_and_max_identities_exhaust_cleanly() {
         let mut document = unibody();
         mutate(document.mechanical.as_mut().unwrap());
         let mut engine = Session::default();
-        assert!(matches!(engine.open(document), Ok(_)));
+        assert!(engine.open(document).is_ok());
         let _ = engine.commit_mechanical(board_target(), add).unwrap();
         let added = ids(&engine.snapshot()).pop().unwrap();
         assert_eq!(added, expected, "{label}: {added}");
@@ -382,7 +382,7 @@ fn sparse_imported_ids_seed_allocation_and_max_identities_exhaust_cleanly() {
         let mut document = unibody();
         mutate(document.mechanical.as_mut().unwrap());
         let mut engine = Session::default();
-        assert!(matches!(engine.open(document), Ok(_)));
+        assert!(engine.open(document).is_ok());
         let _ = engine
             .commit_mechanical(board_target(), add.clone())
             .unwrap();
@@ -401,7 +401,7 @@ fn sparse_imported_ids_seed_allocation_and_max_identities_exhaust_cleanly() {
     let mut document = unibody();
     document.mechanical.as_mut().unwrap().next_opening_identity = u64::MAX - 1;
     let mut engine = Session::default();
-    assert!(matches!(engine.open(document), Ok(_)));
+    assert!(engine.open(document).is_ok());
     let _ = engine
         .commit_mechanical(board_target(), MechanicalChange::AddOpening)
         .unwrap();
@@ -424,7 +424,7 @@ fn sparse_imported_ids_seed_allocation_and_max_identities_exhaust_cleanly() {
         next_vertex_identity: 0,
     }]);
     let mut engine = Session::default();
-    assert!(matches!(engine.open(document), Ok(_)));
+    assert!(engine.open(document).is_ok());
     let refused = engine.commit_mechanical(board_target(), MechanicalChange::AddOpening);
     assert!(error(&refused).contains("exhausted"), "{refused:?}");
 }
@@ -462,7 +462,7 @@ fn exhausted_reservations_do_not_reopen_after_disable_reenable() {
     }]);
     left.mechanical.as_mut().unwrap().next_opening_identity = u64::MAX;
     let mut engine = Session::default();
-    assert!(matches!(engine.open(document), Ok(_)));
+    assert!(engine.open(document).is_ok());
     let _ = engine
         .commit_mechanical(instance_target("left"), MechanicalChange::Disable)
         .unwrap();
@@ -478,7 +478,7 @@ fn exhausted_reservations_do_not_reopen_after_disable_reenable() {
 #[test]
 fn failed_open_keeps_reservations_and_successful_open_starts_a_new_session() {
     let mut engine = Session::default();
-    assert!(matches!(engine.open(unibody()), Ok(_)));
+    assert!(engine.open(unibody()).is_ok());
     let first = one_id(
         &engine.commit_mechanical(board_target(), MechanicalChange::AddOpening),
         "opening-",
@@ -490,7 +490,7 @@ fn failed_open_keeps_reservations_and_successful_open_starts_a_new_session() {
     duplicate.parts.push(part.clone());
     duplicate.parts.push(part);
     let reply = engine.open(duplicate);
-    assert!(matches!(reply, Err(_)));
+    assert!(reply.is_err());
 
     let second = one_id(
         &engine.commit_mechanical(board_target(), MechanicalChange::AddOpening),
@@ -499,7 +499,7 @@ fn failed_open_keeps_reservations_and_successful_open_starts_a_new_session() {
     assert_ne!(second, first, "a failed Open reset the reservation");
 
     // A successful explicit Open is a new session: imported/live ids seed it.
-    assert!(matches!(engine.open(unibody()), Ok(_)));
+    assert!(engine.open(unibody()).is_ok());
     let reset = one_id(
         &engine.commit_mechanical(board_target(), MechanicalChange::AddOpening),
         "opening-",
@@ -527,7 +527,7 @@ fn stored_instance_reservations_seed_re_enabled_allocation() {
         next_mount_identity: 1,
     });
     let mut engine = Session::default();
-    assert!(matches!(engine.open(document), Ok(_)));
+    assert!(engine.open(document).is_ok());
     let _ = engine
         .commit_mechanical(instance_target("left"), MechanicalChange::Enable)
         .unwrap();
@@ -541,7 +541,7 @@ fn stored_instance_reservations_seed_re_enabled_allocation() {
 #[test]
 fn stale_setters_cannot_change_a_replacement_for_all_five_kinds() {
     let mut engine = Session::default();
-    assert!(matches!(engine.open(unibody()), Ok(_)));
+    assert!(engine.open(unibody()).is_ok());
     let opening_first = one_id(
         &engine.commit_mechanical(board_target(), MechanicalChange::AddOpening),
         "opening-",
@@ -644,7 +644,7 @@ fn stale_setters_cannot_change_a_replacement_for_all_five_kinds() {
     ] {
         let accepted = engine.snapshot();
         let refused = engine.commit_mechanical(board_target(), change);
-        assert!(matches!(refused, Err(_)), "{label}: {refused:?}");
+        assert!(refused.is_err(), "{label}: {refused:?}");
         assert_eq!(engine.snapshot(), accepted, "{label} changed state");
     }
 }
@@ -652,7 +652,7 @@ fn stale_setters_cannot_change_a_replacement_for_all_five_kinds() {
 #[test]
 fn redo_and_undo_of_configuration_creation_keep_high_water_marks() {
     let mut engine = Session::default();
-    assert!(matches!(engine.open(unibody()), Ok(_)));
+    assert!(engine.open(unibody()).is_ok());
     let first = one_id(
         &engine.commit_mechanical(board_target(), MechanicalChange::AddOpening),
         "opening-",
@@ -672,7 +672,7 @@ fn redo_and_undo_of_configuration_creation_keep_high_water_marks() {
     assert_ne!(after_redo, first, "redo reused an identity");
 
     let mut engine = Session::default();
-    assert!(matches!(engine.open(paired_owners()), Ok(_)));
+    assert!(engine.open(paired_owners()).is_ok());
     let left_first = one_id(
         &engine.commit_mechanical(instance_target("left"), MechanicalChange::AddOpening),
         "opening-",
@@ -740,7 +740,7 @@ fn max_counter_sentinels_are_refused_for_all_five_namespaces() {
         let mut document = unibody();
         mutate(document.mechanical.as_mut().unwrap());
         let mut engine = Session::default();
-        assert!(matches!(engine.open(document), Ok(_)));
+        assert!(engine.open(document).is_ok());
         let accepted = engine.snapshot();
         let refused = engine.commit_mechanical(board_target(), add);
         assert!(

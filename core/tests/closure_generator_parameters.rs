@@ -316,9 +316,9 @@ fn a_version_3_closure_project_is_refused_and_current_numeric_parameters_export(
     assert_eq!(saved.to_string(), original);
     let mut engine = CoreEngine::new();
     let reply = engine.open(serde_json::from_value(saved).unwrap());
-    assert!(matches!(reply, Err(_)));
+    assert!(reply.is_err());
     // The current authored numeric document still opens and exports without conversion.
-    assert!(matches!(engine.open(document.clone()), Ok(_)));
+    assert!(engine.open(document.clone()).is_ok());
     let migrated = document;
     assert_renders_previews_and_exports(&migrated);
 }

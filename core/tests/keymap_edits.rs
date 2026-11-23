@@ -19,7 +19,7 @@ fn fixture() -> ProjectDoc {
 
 fn open(doc: ProjectDoc) -> CoreEngine {
     let mut engine = CoreEngine::default();
-    assert!(matches!(engine.open(doc), Ok(_)));
+    assert!(engine.open(doc).is_ok());
     engine
 }
 

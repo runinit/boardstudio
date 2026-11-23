@@ -105,7 +105,7 @@ fn open_replace_undo_and_roundtrip_preserve_settings() {
     let document = doc();
     let mut core = CoreEngine::new();
     let opened = core.open(document.clone());
-    assert!(matches!(opened, Ok(_)));
+    assert!(opened.is_ok());
     let mut changed = document.clone();
     changed
         .keycaps
@@ -347,7 +347,7 @@ fn typed_keycap_size_refuses_invalid_writes_atomically() {
         let mut engine = CoreEngine::new();
         let before = scene_doc(engine.open(size_doc()));
         let reply = commit_size(&mut engine, 0, operation);
-        assert!(matches!(reply, Err(_)), "got {reply:?}");
+        assert!(reply.is_err(), "got {reply:?}");
         let after = scene_doc(engine.snapshot());
         assert_eq!(after, before, "a refused keycap size changes nothing");
     }

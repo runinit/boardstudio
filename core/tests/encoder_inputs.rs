@@ -188,7 +188,7 @@ fn press_scan_modes_are_exclusive_and_invalid_matrix_assignment_is_atomic() {
         plan.peripherals[0].fixed_terminals,
         vec![("B".into(), "GND".into())]
     );
-    assert!(matches!(edit(&mut engine, 1, "matrix"), Err(_)));
+    assert!(edit(&mut engine, 1, "matrix").is_err());
     let (_, after) = scene(engine.snapshot());
     assert_eq!(after, unassigned);
     let (_, direct) = scene(edit(&mut engine, 1, "direct"));
@@ -273,7 +273,7 @@ fn matrix_rejects_rotation_only_profile_without_changing_the_document() {
             definitions: Some(vec![definition]),
         },
     });
-    assert!(matches!(reply, Err(_)), "{reply:?}");
+    assert!(reply.is_err(), "{reply:?}");
     let (_, after) = scene(engine.snapshot());
     assert_eq!(after, original);
 }
@@ -376,7 +376,7 @@ fn changing_scan_mode_preserves_routed_work_and_rejects_the_edit_atomically() {
         },
     ));
     assert!(
-        matches!(reply, Err(_)),
+        reply.is_err(),
         "Existing routed copper needs explicit rerouting before a scan-mode change"
     );
     let (_, after) = scene(engine.snapshot());

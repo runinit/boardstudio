@@ -174,10 +174,7 @@ fn generator_parameter_writes_are_refused_atomically_in_preview_and_commit() {
 
             // A valid write at the same base confirms the refusal consumed no revision.
             let good = part("h1", HOLE_DEFINITION, json!({ "hole_size": 2.0 }));
-            assert!(matches!(
-                edit(&mut engine, 0, EditPhase::Commit, add_part(good)),
-                Ok(_)
-            ));
+            assert!(edit(&mut engine, 0, EditPhase::Commit, add_part(good)).is_ok());
         }
     }
 }
@@ -196,10 +193,9 @@ fn legacy_names_and_list_text_allow_unrelated_edits_and_move_preview() {
     ] {
         let mut session = Session::default();
         assert!(
-            matches!(
-                session.open(document(vec![part(id, definition, parameters)])),
-                Ok(_)
-            ),
+            session
+                .open(document(vec![part(id, definition, parameters)]))
+                .is_ok(),
             "{id}"
         );
         if preview {
@@ -232,7 +228,7 @@ fn legacy_names_and_list_text_allow_unrelated_edits_and_move_preview() {
 #[test]
 fn replace_document_refuses_a_boolean_for_a_number() {
     let mut engine = CoreEngine::new();
-    assert!(matches!(open(&mut engine, document(Vec::new())), Ok(_)));
+    assert!(open(&mut engine, document(Vec::new())).is_ok());
     let replacement = document(vec![part(
         "h1",
         HOLE_DEFINITION,
@@ -252,7 +248,7 @@ fn replace_document_refuses_a_boolean_for_a_number() {
 #[test]
 fn replace_document_warns_on_an_undeclared_name_instead_of_refusing() {
     let mut engine = CoreEngine::new();
-    assert!(matches!(open(&mut engine, document(Vec::new())), Ok(_)));
+    assert!(open(&mut engine, document(Vec::new())).is_ok());
     let replacement = document(vec![part(
         "h1",
         HOLE_DEFINITION,
@@ -367,15 +363,15 @@ fn a_project_that_opened_with_number_text_still_takes_replace_document_and_unrel
     let document = fixture::committed_outcome(replaced).1;
     assert_eq!(document.name, "Renamed");
     let other = part("h2", HOLE_DEFINITION, json!({ "hole_size": 2.0 }));
-    assert!(matches!(
+    assert!(
         edit(
             &mut engine,
             document.revision,
             EditPhase::Commit,
             add_part(other)
-        ),
-        Ok(_)
-    ));
+        )
+        .is_ok()
+    );
 }
 
 #[test]
@@ -406,7 +402,7 @@ fn a_copy_of_a_part_with_a_legacy_name_is_accepted_and_a_new_typo_is_not() {
         HOLE_DEFINITION,
         json!({ "hole_sise": 2.0 }),
     )]);
-    assert!(matches!(open(&mut engine, legacy), Ok(_)));
+    assert!(open(&mut engine, legacy).is_ok());
     // A copy repeats the value the document already holds; the user cannot remove the name
     // from the Parts editor, so refusing the copy would be a dead end.
     let copy = part("h2", HOLE_DEFINITION, json!({ "hole_sise": 2.0 }));
@@ -430,7 +426,7 @@ fn changing_a_matrix_key_to_another_generator_drops_parameters_it_does_not_decla
     doc.format_version = document_format::CURRENT_VERSION;
     doc.definitions.push(catalogue_definition(CHOC));
     doc.definitions.push(catalogue_definition(ENCODER));
-    assert!(matches!(open(&mut engine, doc), Ok(_)));
+    assert!(open(&mut engine, doc).is_ok());
     let placed = fixture::committed_outcome(edit(
         &mut engine,
         0,
@@ -443,7 +439,7 @@ fn changing_a_matrix_key_to_another_generator_drops_parameters_it_does_not_decla
     let mut wired = placed.clone();
     wired.parts[0].generator_parameters =
         Some(serde_json::from_value(json!({ "from": "ROW0", "to": "COL0" })).unwrap());
-    assert!(matches!(open(&mut engine, wired.clone()), Ok(_)));
+    assert!(open(&mut engine, wired.clone()).is_ok());
     for phase in [EditPhase::Preview, EditPhase::Commit] {
         let reply = edit(
             &mut engine,
@@ -469,7 +465,7 @@ fn changing_a_matrix_key_to_another_generator_drops_parameters_it_does_not_decla
 #[test]
 fn a_matrix_preview_that_brings_a_wrong_typed_definition_is_refused_and_leaves_no_trace() {
     let mut engine = CoreEngine::new();
-    assert!(matches!(open(&mut engine, document(Vec::new())), Ok(_)));
+    assert!(open(&mut engine, document(Vec::new())).is_ok());
     // `SetMatrix` previews run through the preview path, which has its own check.
     let mut bad = catalogue_definition(CHOC);
     bad.id = "generator:bad-choc".into();
@@ -491,10 +487,7 @@ fn a_matrix_preview_that_brings_a_wrong_typed_definition_is_refused_and_leaves_n
     assert!(message.contains(CHOC), "{message}");
     // The refused preview restored the document: the same base revision takes a valid edit.
     let good = part("h1", HOLE_DEFINITION, json!({ "hole_size": 2.0 }));
-    assert!(matches!(
-        edit(&mut engine, 0, EditPhase::Commit, add_part(good)),
-        Ok(_)
-    ));
+    assert!(edit(&mut engine, 0, EditPhase::Commit, add_part(good)).is_ok());
 }
 
 #[test]

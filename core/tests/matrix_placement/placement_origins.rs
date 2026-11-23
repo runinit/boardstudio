@@ -253,7 +253,7 @@ fn named_placement_boundary_refuses_nonfinite_and_out_of_bounds_values_atomicall
                 change,
             },
         ));
-        assert!(matches!(reply, Err(_)));
+        assert!(reply.is_err());
         assert_eq!(snapshot(&mut engine), before);
     }
     for change in [
@@ -286,7 +286,7 @@ fn named_placement_boundary_refuses_nonfinite_and_out_of_bounds_values_atomicall
                 change,
             },
         ));
-        assert!(matches!(reply, Err(_)));
+        assert!(reply.is_err());
         assert_eq!(snapshot(&mut engine), before);
     }
 }

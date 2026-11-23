@@ -35,10 +35,7 @@ fn invalid_layer_reference_and_dts_injection_are_rejected() {
     ] {
         let mut map = layered();
         map["layers"][0]["bindings"]["k"] = invalid;
-        assert!(!matches!(
-            CoreEngine::generate_firmware(&firmware_request(map)),
-            Ok(_)
-        ));
+        assert!(!CoreEngine::generate_firmware(&firmware_request(map)).is_ok());
     }
 }
 #[test]
@@ -131,7 +128,7 @@ fn opening_an_invalid_persisted_keymap_returns_an_error() {
         layers: vec![],
         macros: vec![],
     });
-    assert!(matches!(CoreEngine::new().open(doc), Err(_)));
+    assert!(CoreEngine::new().open(doc).is_err());
 }
 #[test]
 fn accepted_large_macros_receive_sufficient_behavior_queue_capacity() {
@@ -154,7 +151,7 @@ fn macro_expansion_respects_zmk_binding_limit_at_the_boundary() {
         let mut map = layered();
         map["macros"] = json!([{"id":"waits","name":"Waits","tapMs":30,"waitMs":0,"steps":vec![json!({"kind":"wait","ms":1});count]}]);
         assert_eq!(
-            matches!(CoreEngine::generate_firmware(&firmware_request(map)), Ok(_)),
+            CoreEngine::generate_firmware(&firmware_request(map)).is_ok(),
             accepted,
             "{count} waits"
         );

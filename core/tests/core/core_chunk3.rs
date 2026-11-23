@@ -138,7 +138,7 @@ fn authored_case_geometry_ignores_missing_material_metadata() {
             contours: scene.board_contours[0].contours.clone(),
         }],
     });
-    assert!(matches!(reply, Ok(_)));
+    assert!(reply.is_ok());
 }
 
 #[test]
@@ -259,17 +259,18 @@ fn matrix_targets_board_and_preview_is_scoped() {
     assert_eq!(updated.boards[1].part_ids.len(), 2);
     let mut invalid = matrix(1, 1);
     invalid.board_id = Some("missing".into());
-    assert!(matches!(
-        engine.commit_edit(edit(
-            2,
-            EditPhase::Commit,
-            EditOperation::SetMatrix {
-                matrix: invalid,
-                definitions: None,
-            }
-        )),
-        Err(_)
-    ));
+    assert!(
+        engine
+            .commit_edit(edit(
+                2,
+                EditPhase::Commit,
+                EditOperation::SetMatrix {
+                    matrix: invalid,
+                    definitions: None,
+                }
+            ))
+            .is_err()
+    );
 }
 
 #[test]
@@ -360,17 +361,18 @@ fn replacing_matrix_switch_remaps_existing_terminal_nets_and_undoes() {
     incoming.definition_id = replacement.id.clone();
     let mut conflicting = replacement.clone();
     conflicting.matrix_terminals.as_mut().unwrap().column = "from".into();
-    assert!(matches!(
-        engine.commit_edit(edit(
-            placed.revision,
-            EditPhase::Commit,
-            EditOperation::SetMatrix {
-                matrix: incoming.clone(),
-                definitions: Some(vec![conflicting])
-            }
-        )),
-        Err(_)
-    ));
+    assert!(
+        engine
+            .commit_edit(edit(
+                placed.revision,
+                EditPhase::Commit,
+                EditOperation::SetMatrix {
+                    matrix: incoming.clone(),
+                    definitions: Some(vec![conflicting])
+                }
+            ))
+            .is_err()
+    );
     let (_, changed) = scene(engine.commit_edit(edit(
         placed.revision,
         EditPhase::Commit,
@@ -487,7 +489,7 @@ fn undo_retains_only_the_latest_hundred_commits() {
         (_, document) = scene(engine.undo());
     }
     assert_eq!(document.parts[0].pose.at.x, 1.0);
-    assert!(matches!(engine.undo(), Err(_)));
+    assert!(engine.undo().is_err());
     for _ in 0..100 {
         (_, document) = scene(engine.redo());
     }
@@ -503,7 +505,7 @@ fn undo_retains_only_the_latest_hundred_commits() {
             }],
         },
     )));
-    assert!(matches!(engine.redo(), Err(_)));
+    assert!(engine.redo().is_err());
     scene(engine.open(ProjectDoc::empty("fresh", "Fresh")));
-    assert!(matches!(engine.undo(), Err(_)));
+    assert!(engine.undo().is_err());
 }

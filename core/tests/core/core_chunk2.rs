@@ -23,7 +23,7 @@ fn preview_does_not_commit_and_stale_edit_fails() {
     assert_eq!(preview.transforms[0].pose.at.x, 10.0);
     let (_, snapshot) = scene(engine.snapshot());
     assert_eq!(snapshot.parts[0].pose.at.x, 0.0);
-    assert!(matches!(engine.undo(), Err(_)));
+    assert!(engine.undo().is_err());
     let failed = EditOperation::MoveParts {
         positions: vec![
             Position {
@@ -36,18 +36,16 @@ fn preview_does_not_commit_and_stale_edit_fails() {
             },
         ],
     };
-    assert!(matches!(
-        engine.apply_edit(edit(0, EditPhase::Preview, failed)),
-        Err(_)
-    ));
+    assert!(
+        engine
+            .apply_edit(edit(0, EditPhase::Preview, failed))
+            .is_err()
+    );
     let (_, snapshot) = scene(engine.snapshot());
     assert_eq!(snapshot.parts[0].pose.at.x, 0.0);
     let (committed, _) = scene(engine.commit_edit(edit(0, EditPhase::Commit, op.clone())));
     assert_eq!(committed.revision, 1);
-    assert!(matches!(
-        engine.commit_edit(edit(0, EditPhase::Commit, op)),
-        Err(_)
-    ));
+    assert!(engine.commit_edit(edit(0, EditPhase::Commit, op)).is_err());
 }
 
 #[test]
@@ -220,7 +218,7 @@ fn add_part_targets_board_and_removal_cleans_both_boards() {
     assert!(preview.board_readiness[1].pcb);
     assert!(!preview.board_readiness[0].pcb);
     assert!(scene(engine.snapshot()).1.parts.is_empty());
-    assert!(matches!(engine.undo(), Err(_)));
+    assert!(engine.undo().is_err());
     let (_, added) = scene(engine.commit_edit(edit(0, EditPhase::Commit, op)));
     assert!(added.boards[0].part_ids.is_empty());
     assert_eq!(added.boards[1].part_ids, vec!["k1"]);
@@ -241,17 +239,19 @@ fn add_part_targets_board_and_removal_cleans_both_boards() {
         definition: None,
         layout_id: None,
     };
-    assert!(matches!(
-        engine.commit_edit(edit(1, EditPhase::Commit, invalid.clone())),
-        Err(_)
-    ));
+    assert!(
+        engine
+            .commit_edit(edit(1, EditPhase::Commit, invalid.clone()))
+            .is_err()
+    );
     if let EditOperation::AddPart { part, .. } = &mut invalid {
         part.id = "k2".into();
     }
-    assert!(matches!(
-        engine.commit_edit(edit(1, EditPhase::Commit, invalid)),
-        Err(_)
-    ));
+    assert!(
+        engine
+            .commit_edit(edit(1, EditPhase::Commit, invalid))
+            .is_err()
+    );
     let (_, removed) = scene(engine.commit_edit(edit(
         1,
         EditPhase::Commit,
@@ -313,7 +313,7 @@ fn add_part_refuses_definition_id_mismatch_without_mutation() {
             layout_id: Some("left-layout".into()),
         },
     ));
-    assert!(matches!(reply, Err(_)), "{reply:?}");
+    assert!(reply.is_err(), "{reply:?}");
     let (_, after_refusal) = scene(engine.snapshot());
     assert_eq!(after_refusal, document);
 }
@@ -429,23 +429,24 @@ fn matrix_registers_definitions_atomically() {
     let (_, snapshot) = scene(engine.snapshot());
     assert!(snapshot.definitions.is_empty());
     assert!(snapshot.parts.is_empty());
-    assert!(matches!(engine.undo(), Err(_)));
+    assert!(engine.undo().is_err());
     let (_, placed) = scene(engine.commit_edit(edit(0, EditPhase::Commit, operation)));
     assert_eq!(placed.definitions.len(), 1);
     assert_eq!(placed.parts.len(), 1);
     let mut conflicting = placed.definitions[0].clone();
     conflicting.name = "Changed".into();
-    assert!(matches!(
-        engine.commit_edit(edit(
-            1,
-            EditPhase::Commit,
-            EditOperation::SetMatrix {
-                matrix: matrix(1, 1),
-                definitions: Some(vec![conflicting]),
-            }
-        )),
-        Err(_)
-    ));
+    assert!(
+        engine
+            .commit_edit(edit(
+                1,
+                EditPhase::Commit,
+                EditOperation::SetMatrix {
+                    matrix: matrix(1, 1),
+                    definitions: Some(vec![conflicting]),
+                }
+            ))
+            .is_err()
+    );
     let (_, undone) = scene(engine.undo());
     assert!(undone.definitions.is_empty());
     assert!(undone.parts.is_empty());
@@ -470,29 +471,31 @@ fn matrix_mirror_rotation_and_bad_dimensions() {
     assert_eq!(doc.matrices[0].edge_gap, Some(Vec2 { x: 1.0, y: 1.0 }));
     let mut bad_gap = matrix(1, 1);
     bad_gap.edge_gap = Some(Vec2 { x: 19.0, y: 1.0 });
-    assert!(matches!(
-        engine.commit_edit(edit(
-            1,
-            EditPhase::Commit,
-            EditOperation::SetMatrix {
-                matrix: bad_gap,
-                definitions: None,
-            }
-        )),
-        Err(_)
-    ));
+    assert!(
+        engine
+            .commit_edit(edit(
+                1,
+                EditPhase::Commit,
+                EditOperation::SetMatrix {
+                    matrix: bad_gap,
+                    definitions: None,
+                }
+            ))
+            .is_err()
+    );
     let bad = matrix(0, 3);
-    assert!(matches!(
-        engine.commit_edit(edit(
-            1,
-            EditPhase::Commit,
-            EditOperation::SetMatrix {
-                matrix: bad,
-                definitions: None,
-            }
-        )),
-        Err(_)
-    ));
+    assert!(
+        engine
+            .commit_edit(edit(
+                1,
+                EditPhase::Commit,
+                EditOperation::SetMatrix {
+                    matrix: bad,
+                    definitions: None,
+                }
+            ))
+            .is_err()
+    );
 }
 
 #[test]

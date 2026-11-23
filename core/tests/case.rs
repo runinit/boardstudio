@@ -86,13 +86,10 @@ fn case_preparation_uses_request_revision_and_preserves_document_and_history() {
         10.0,
         Operation::Add,
     ));
-    assert!(matches!(engine.open(doc), Ok(_)));
-    assert!(matches!(engine.commit_edit(commit_case(0, "first")), Ok(_)));
-    assert!(matches!(
-        engine.commit_edit(commit_case(1, "second")),
-        Ok(_)
-    ));
-    assert!(matches!(engine.undo(), Ok(_)));
+    assert!(engine.open(doc).is_ok());
+    assert!(engine.commit_edit(commit_case(0, "first")).is_ok());
+    assert!(engine.commit_edit(commit_case(1, "second")).is_ok());
+    assert!(engine.undo().is_ok());
 
     let before = snapshot(&mut engine);
     assert_eq!(before.revision, 3);

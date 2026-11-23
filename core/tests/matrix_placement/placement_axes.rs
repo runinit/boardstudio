@@ -229,7 +229,7 @@ fn invalid_changes_error() {
         },
     ] {
         let reply = engine.commit_edit(fixture::commit("bad", "bad", doc.revision, operation));
-        assert!(matches!(reply, Err(_)), "{reply:?}");
+        assert!(reply.is_err(), "{reply:?}");
         assert_eq!(snapshot(&mut engine), before);
     }
 

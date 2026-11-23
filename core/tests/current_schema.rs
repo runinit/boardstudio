@@ -137,5 +137,5 @@ fn open_refuses_documents_that_are_not_at_the_current_version() {
     }
     let current = ProjectDoc::empty("doc", "Doc");
     assert_eq!(current.format_version, CURRENT_VERSION);
-    assert!(matches!(engine.open(current), Ok(_)));
+    assert!(engine.open(current).is_ok());
 }
