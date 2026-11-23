@@ -3,18 +3,19 @@ use super::*;
 
 impl Runtime {
     async fn model_worker(&self, scope: &Scope) -> Result<Rc<CadWorker>, String> {
-        let worker = crate::case_model_lifecycle::case_model_worker(
-            &self.cad_worker,
-            scope,
-            |worker| !worker.is_closed(),
-            || {
-                CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
-                    .map(Rc::new)
-                    .map_err(|error| error.to_string())
-            },
-        )?;
+        let worker = self.case_cad_worker(scope, false)?;
         worker.ready().await.map_err(|error| error.to_string())?;
         Ok(worker)
+    }
+
+    fn model_request(
+        &self,
+        prefix: &str,
+        identity: &CadSnapshotIdentity,
+        operation: CadOperation,
+    ) -> CadRequest {
+        let id = format!("{prefix}-{}-{}", identity.revision, self.operation().0);
+        cad_request(id.clone(), id, identity, operation)
     }
 
     pub(super) async fn read_step_model(
@@ -37,15 +38,7 @@ impl Runtime {
         if !is_current() || self.scope().as_ref() != Some(&scope) {
             return Err("STEP model request became stale before dispatch".into());
         }
-        let operation = self.operation().0;
-        let identity = CadSnapshotIdentity {
-            token: token.0,
-            session_epoch: scope.session_epoch.0,
-            document_id: scope.document_id.clone(),
-            board_id: scope.board_id.clone(),
-            instance_id: scope.instance_id.clone(),
-            revision,
-        };
+        let identity = scoped_snapshot_identity(&scope, token, revision);
         let prefix = if collision {
             "case-model-evidence-step"
         } else if import_options.target_deflection_mm.is_some() {
@@ -54,17 +47,10 @@ impl Runtime {
             "case-model-step"
         };
         let request = CadRequest {
-            request_id: format!("{prefix}-{revision}-{operation}"),
-            job_id: format!("{prefix}-{revision}-{operation}"),
-            identity: identity.clone(),
-            operation: CadOperation::ReadStep,
-            prepared: None,
             source_sha256: Some(bytes.sha256().to_owned()),
             step_import_options: Some(import_options),
-            collision_query: None,
-            generated_analysis_request: None,
-            collision_meshes: None,
             input_bytes: bytes.bytes().to_vec(),
+            ..self.model_request(prefix, &identity, CadOperation::ReadStep)
         };
         self.native_model_jobs
             .borrow_mut()
@@ -72,7 +58,7 @@ impl Runtime {
         let reply = if bytes.is_packaged() {
             worker.request_packaged_step(request.clone()).await
         } else {
-            worker.request(request.clone()).await
+            worker.request(&request).await
         };
         let active = self.native_model_jobs.borrow_mut().remove(&request.job_id);
         let reply = reply.map_err(|error| error.to_string())?;
@@ -111,14 +97,7 @@ impl Runtime {
         use crate::model_delivery::{CadCollisionAssessment, CadCollisionResult};
         use boardstudio_web_host::{cad_jobs::CadCollisionQuery, cad_qualification::MeshDistance};
         let batch = self.collision_batch.get();
-        let identity = CadSnapshotIdentity {
-            token: token.0,
-            session_epoch: scope.session_epoch.0,
-            document_id: scope.document_id.clone(),
-            board_id: scope.board_id.clone(),
-            instance_id: scope.instance_id.clone(),
-            revision,
-        };
+        let identity = scoped_snapshot_identity(&scope, token, revision);
         let mut subjects = [left.clone(), right.clone()];
         for attempt in 0..2 {
             if batch != self.collision_batch.get()
@@ -199,27 +178,23 @@ impl Runtime {
     ) -> Result<crate::model_delivery::CadCollisionResult, String> {
         let [left, right] = subjects;
         let token = SnapshotToken(identity.token);
-        let revision = identity.revision;
         let clearance_threshold_mm = query.clearance_threshold_mm;
         let requested_accuracy_mm = query.requested_accuracy_mm;
         let batch = self.collision_batch.get();
         use crate::model_delivery::assess_subject_collision_observation;
-        use boardstudio_web_host::cad_jobs::CadCollisionMeshPair;
+        use boardstudio_web_host::cad_jobs::{
+            CadCollisionMeshPair, validate_collision_mesh_pair_buffers,
+        };
         if !is_current() || !self.snapshot_current(token, &scope) {
             return Err("collision request became stale before worker setup".into());
         }
         let (left_positions, left_tags) = left.mesh().ok_or("left analysis mesh is unavailable")?;
         let (right_positions, right_tags) =
             right.mesh().ok_or("right analysis mesh is unavailable")?;
-        let pair_bytes = left_positions
-            .len()
-            .saturating_mul(8)
-            .saturating_add(left_tags.len().saturating_mul(4))
-            .saturating_add(right_positions.len().saturating_mul(8))
-            .saturating_add(right_tags.len().saturating_mul(4));
-        if pair_bytes > boardstudio_web_host::cad_jobs::MAX_COLLISION_QUERY_BYTES {
-            return Err("collision pair exceeds the 64 MiB limit before copying".into());
-        }
+        validate_collision_mesh_pair_buffers([
+            (left_positions, left_tags),
+            (right_positions, right_tags),
+        ])?;
         let worker = self.model_worker(&scope).await?;
         if self.collision_batch.get() != batch
             || !is_current()
@@ -227,16 +202,7 @@ impl Runtime {
         {
             return Err("collision request became stale before dispatch".into());
         }
-        let operation = self.operation().0;
         let request = CadRequest {
-            request_id: format!("case-model-collision-{revision}-{operation}"),
-            job_id: format!("case-model-collision-{revision}-{operation}"),
-            identity: identity.clone(),
-            operation: CadOperation::CollisionQuery,
-            prepared: None,
-            source_sha256: None,
-            step_import_options: None,
-            generated_analysis_request: None,
             collision_query: Some(query),
             collision_meshes: Some(CadCollisionMeshPair {
                 left_positions_mm_f64: left_positions.to_vec(),
@@ -244,7 +210,11 @@ impl Runtime {
                 right_positions_mm_f64: right_positions.to_vec(),
                 right_triangle_face_occurrence_indices: right_tags.to_vec(),
             }),
-            input_bytes: Vec::new(),
+            ..self.model_request(
+                "case-model-collision",
+                &identity,
+                CadOperation::CollisionQuery,
+            )
         };
         self.native_model_jobs
             .borrow_mut()
@@ -322,17 +292,10 @@ impl Runtime {
         &self,
         sha: &str,
     ) -> Result<crate::model_delivery::VerifiedModelBytes, String> {
-        let cached = self.assets.borrow().get(sha).cloned();
-        let bytes = match cached {
-            Some(bytes) => bytes,
-            None => self
-                .store
-                .load_asset(sha.into())
-                .await
-                .map_err(|e| e.to_string())?
-                .ok_or("original vendor STEP bytes are unavailable")?
-                .to_vec(),
-        };
+        let bytes = self
+            .load_document_asset(sha)
+            .await?
+            .ok_or("original vendor STEP bytes are unavailable")?;
         crate::model_delivery::VerifiedModelBytes::verify(bytes, sha)
     }
 
@@ -686,27 +649,15 @@ impl Runtime {
             }
             return result;
         }
-        let operation = self.operation().0;
-        let identity = CadSnapshotIdentity {
-            token: scene.token.0,
-            session_epoch: scene.scope.session_epoch.0,
-            document_id: scene.scope.document_id.clone(),
-            board_id: scene.scope.board_id.clone(),
-            instance_id: scene.scope.instance_id.clone(),
-            revision,
-        };
+        let identity = super::export_bytes::snapshot_identity(&scene.snapshot, &scene.scope);
         let request = CadRequest {
-            request_id: format!("case-model-analysis-{revision}-{operation}"),
-            job_id: format!("case-model-analysis-{revision}-{operation}"),
-            identity: identity.clone(),
-            operation: CadOperation::AnalyzeGeneratedBody,
             prepared: Some(prepared.clone()),
             generated_analysis_request: Some(metadata),
-            source_sha256: None,
-            step_import_options: None,
-            collision_query: None,
-            collision_meshes: None,
-            input_bytes: Vec::new(),
+            ..self.model_request(
+                "case-model-analysis",
+                &identity,
+                CadOperation::AnalyzeGeneratedBody,
+            )
         };
         self.native_model_jobs
             .borrow_mut()
@@ -720,7 +671,7 @@ impl Runtime {
             },
         );
         let result: GeneratedAnalysisResult = async {
-            let reply = worker.request(request.clone()).await;
+            let reply = worker.request(&request).await;
             let active = self.native_model_jobs.borrow_mut().remove(&request.job_id);
             let reply = reply.map_err(|error| error.to_string())?;
             if !active
@@ -781,5 +732,20 @@ impl Runtime {
         );
         cache.insert(cache_key, analysis.clone());
         Ok(analysis)
+    }
+}
+
+fn scoped_snapshot_identity(
+    scope: &Scope,
+    token: SnapshotToken,
+    revision: u64,
+) -> CadSnapshotIdentity {
+    CadSnapshotIdentity {
+        token: token.0,
+        session_epoch: scope.session_epoch.0,
+        document_id: scope.document_id.clone(),
+        board_id: scope.board_id.clone(),
+        instance_id: scope.instance_id.clone(),
+        revision,
     }
 }

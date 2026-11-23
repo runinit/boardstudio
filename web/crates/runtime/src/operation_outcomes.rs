@@ -79,10 +79,12 @@ impl EditOutcome {
 #[derive(Default)]
 pub struct OperationOutcomes {
     waiting: RefCell<BTreeMap<OperationId, Weak<RefCell<Option<TerminalOutcome>>>>>,
+    #[cfg(any(target_arch = "wasm32", test, feature = "test-support"))]
     scope: RefCell<Rc<()>>,
 }
 
 impl OperationOutcomes {
+    #[cfg(any(target_arch = "wasm32", test, feature = "test-support"))]
     pub(crate) fn retire_edit_scope(&self) {
         *self.scope.borrow_mut() = Rc::new(());
     }

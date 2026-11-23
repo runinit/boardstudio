@@ -81,7 +81,7 @@ fn generate_bundled_ergogen_models(output: &Path) {
             "bundled model staging path collision: {url_path}"
         );
         rows.push_str(&format!(
-            "    BundledModel {{ id: {:?}, filename: {:?}, media_type: {:?}, source_relative_path: {:?}, url_path: {:?}, sha256: {:?} }},\n",
+            "    BundledModel {{ id: {:?}, filename: {:?}, media_type: {:?}, #[cfg(test)] source_relative_path: {:?}, url_path: {:?}, sha256: {:?} }},\n",
             id, filename, media_type, relative, url_path, sha256
         ));
     }

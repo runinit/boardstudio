@@ -114,10 +114,7 @@ pub(crate) fn install_source_pcb(
 }
 
 pub(crate) fn artifact_reply(request: &ArtifactRequest) -> Result<ArtifactReply, String> {
-    let request = serde_json::to_string(request).map_err(|error| error.to_string())?;
-    let reply = serde_json::from_str(&boardstudio_core::artifact_request(&request))
-        .map_err(|error| error.to_string())?;
-    match reply {
+    match boardstudio_core::artifact::handle(request.clone()) {
         ArtifactReply::Error { error, .. } => {
             let mut message = error.message;
             for diagnostic in error.diagnostics {

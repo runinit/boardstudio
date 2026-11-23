@@ -55,11 +55,23 @@ fn prepared_cad_request(
     prepared: boardstudio_model::model::PreparedCaseAssemblyIR,
 ) -> CadRequest {
     CadRequest {
+        prepared: Some(prepared),
+        ..cad_request(request_id, job_id, identity, operation)
+    }
+}
+
+fn cad_request(
+    request_id: String,
+    job_id: String,
+    identity: &CadSnapshotIdentity,
+    operation: CadOperation,
+) -> CadRequest {
+    CadRequest {
         request_id,
         job_id,
         identity: identity.clone(),
         operation,
-        prepared: Some(prepared),
+        prepared: None,
         source_sha256: None,
         step_import_options: None,
         collision_query: None,
@@ -67,6 +79,17 @@ fn prepared_cad_request(
         collision_meshes: None,
         input_bytes: Vec::new(),
     }
+}
+
+fn captured_board_contours(
+    snapshot: &AcceptedSnapshot,
+    scope: &Scope,
+) -> Result<Option<Vec<boardstudio_model::model::Contour>>, CadJobError> {
+    Ok(captured_case_scene(snapshot, scope)?
+        .board_contours
+        .into_iter()
+        .find(|board| board.board_id == scope.board_id)
+        .map(|board| board.contours))
 }
 
 struct PhysicalStepAssembly {

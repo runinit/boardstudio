@@ -175,13 +175,9 @@ impl Runtime {
         let mut result = validate_reply(&request, reply, &prepared.identity)
             .map_err(|error| format!("Case preview CAD failed: {error:?}"))?;
         result.step.clear();
-        let contours = captured_case_scene(&snapshot, &owner.scope)
+        let contours = captured_board_contours(&snapshot, &owner.scope)
             .map_err(|error| format!("Case preview contours failed: {error:?}"))?
-            .board_contours
-            .into_iter()
-            .find(|board| board.board_id == owner.scope.board_id)
-            .ok_or_else(|| "Case preview contours are unavailable".to_owned())?
-            .contours;
+            .ok_or_else(|| "Case preview contours are unavailable".to_owned())?;
         Ok(CadScene {
             scope: owner.scope.clone(),
             token: owner.snapshot_token,

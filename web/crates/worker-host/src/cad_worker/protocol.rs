@@ -474,9 +474,7 @@ pub(super) fn validate_analysis_buffers(positions: &JsValue, tags: &JsValue) -> 
         .ok_or("analysis tags require Uint32Array")?;
     if !positions.buffer().is_instance_of::<js_sys::ArrayBuffer>()
         || !tags.buffer().is_instance_of::<js_sys::ArrayBuffer>()
-        || positions.length() == 0
-        || positions.length() % 9 != 0
-        || tags.length() != positions.length() / 9
+        || !validate_triangle_tag_buffers(positions.length() as usize, tags.length() as usize)
         || (positions.byte_length() as usize).saturating_add(tags.byte_length() as usize)
             > MAX_COLLISION_QUERY_BYTES
     {
