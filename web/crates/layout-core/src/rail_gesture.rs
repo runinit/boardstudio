@@ -307,6 +307,26 @@ pub fn snap_world_origin(
     }
 }
 
+/// The grid a drag snaps against: none with Alt, else the pitch fraction. A Stagger drag
+/// snaps on the dominant stagger-axis component, so a mostly-horizontal stagger axis steps
+/// in X even when the pitch is square.
+impl RailInput<'_> {
+    /// The grid this sample snaps against: none with Alt, else the pitch fraction, with a
+    /// Stagger drag stepping in X when its stagger axis runs mostly horizontal.
+    fn drag_snap(&self, pitch: Vec2, stagger: bool, basis: &SceneBasis) -> Option<Vec2> {
+        let mut snap = (!self.alt)
+            .then(|| grid_step(pitch, self.snap_fraction))
+            .flatten()?;
+        if stagger && basis.stagger_axis.x.abs() > basis.stagger_axis.y.abs() {
+            snap = Vec2 {
+                x: snap.x,
+                y: snap.x,
+            };
+        }
+        Some(snap)
+    }
+}
+
 fn stored_angle(matrix: &Matrix, column: u32, affect: &MatrixSplayAffect) -> f64 {
     matrix
         .column_layout
@@ -352,19 +372,11 @@ impl RailGesture {
                 parameter,
                 basis,
             } => {
-                let mut snap = if input.alt {
-                    None
-                } else {
-                    grid_step(matrix.pitch, input.snap_fraction)
-                };
-                if matches!(parameter, PlacementParameter::Stagger { .. })
-                    && basis.stagger_axis.x.abs() > basis.stagger_axis.y.abs()
-                {
-                    snap = snap.map(|step| Vec2 {
-                        x: step.x,
-                        y: step.x,
-                    });
-                }
+                let snap = input.drag_snap(
+                    matrix.pitch,
+                    matches!(parameter, PlacementParameter::Stagger { .. }),
+                    basis,
+                );
                 let start = placement_current(matrix, *parameter);
                 let end = gesture_value(basis, *parameter, start, input.world_delta, snap);
                 preview(
@@ -509,19 +521,8 @@ impl RailGesture {
                     }
                     axis => {
                         let basis = part_placement_basis(*base_rotation, anchor.splay);
-                        let mut snap = if input.alt {
-                            None
-                        } else {
-                            grid_step(input.pitch, input.snap_fraction)
-                        };
-                        if matches!(axis, PartAxis::Stagger)
-                            && basis.stagger_axis.x.abs() > basis.stagger_axis.y.abs()
-                        {
-                            snap = snap.map(|step| Vec2 {
-                                x: step.x,
-                                y: step.x,
-                            });
-                        }
+                        let snap =
+                            input.drag_snap(input.pitch, matches!(axis, PartAxis::Stagger), &basis);
                         let (parameter, start) = match axis {
                             PartAxis::Spread => (
                                 PlacementParameter::ColumnSpread {

@@ -1,11 +1,15 @@
 //! Editor-lifetime owner for placing a single Parts-library matrix assembly.
+use super::matrix_preparation::{
+    PendingSettlement, owner_session_current, prepare_matrix_definitions, reversible_layout_param,
+    session_scope_matches,
+};
 use super::matrix_setup::{
     MatrixPlacementInput, MatrixPlacementMount, MatrixPlacementMove, MatrixPlacementOwner,
     MatrixPlacementProjection,
 };
 use super::{ScopedTreeContext, TreeContext};
 use crate::{
-    matrix_setup_operation::{MatrixSetupRequest, next_matrix_id, prepare_matrix},
+    matrix_setup_operation::{MatrixSetupRequest, next_matrix_id},
     presentation::canvas_interaction::CanvasInteractionOwner,
     runtime::Runtime,
 };
@@ -13,7 +17,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
 };
 use boardstudio_model::model::{EditOperation, Matrix, PartDefinition};
-use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
+use boardstudio_web_runtime::operation_outcomes::Settlement;
 use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
@@ -102,7 +106,7 @@ pub fn use_matrix_placement(
     // The committed placement is observed through its ticket; the waiting entry (ticket
     // plus the selection it should restore) is the pending state. Availability derives
     // from it, so no separate disabled flag is kept.
-    let waiting = use_signal(|| None::<(EditOutcome, PlacementFollowUp)>);
+    let waiting = use_signal(|| None::<PendingSettlement<PlacementFollowUp>>);
     let error = use_signal(|| None::<String>);
 
     use_effect(use_reactive(
@@ -117,20 +121,20 @@ pub fn use_matrix_placement(
             let mut selected_context = selected_context;
             let mut anchor_scope = anchor_scope;
             move |(_, current_workspace, current_generation)| {
-                let observation = waiting.read().clone();
-                if let Some((ticket, follow_up)) = observation {
-                    let owner_is_live = same_session_scope(&runtime, &follow_up.owner);
+                if let Some((follow_up, settlement)) =
+                    PendingSettlement::finish(&mut waiting, |follow_up| {
+                        session_scope_matches(&runtime, &follow_up.owner.scope)
+                    })
+                {
                     let visible = current_workspace == Workspace::Layout
                         && current_generation == follow_up.owner.scope_generation
                         && runtime.model().selected_part_ids == follow_up.selected_part_ids
                         && selected_context.peek().as_ref() == follow_up.selected_context.as_ref();
-                    match ticket.settlement(owner_is_live) {
+                    match settlement {
                         Settlement::Retired => {
-                            waiting.set(None);
                             error.set(None);
                         }
                         Settlement::Landed { .. } => {
-                            waiting.set(None);
                             let model = runtime.model();
                             let created = model.accepted.as_ref().is_some_and(|snapshot| {
                                 snapshot
@@ -165,7 +169,6 @@ pub fn use_matrix_placement(
                             }
                         }
                         Settlement::Failed { message } => {
-                            waiting.set(None);
                             error.set(visible.then_some(message));
                         }
                     }
@@ -178,8 +181,13 @@ pub fn use_matrix_placement(
                     && let Some(owner) = active_owner
                     && (current_workspace != Workspace::Layout
                         || current_generation != owner.scope_generation
-                        || !same_session_scope(&runtime, &owner)
-                        || !same_accepted_source(&runtime, &owner))
+                        || !owner_session_current(
+                            &runtime,
+                            &owner.scope,
+                            &owner.board_id,
+                            owner.snapshot_token,
+                            owner.revision,
+                        ))
                 {
                     preparing.set(None);
                     placement.set(None);
@@ -226,12 +234,7 @@ pub fn use_matrix_placement(
                 revision: snapshot.document.revision,
             };
             let accepted = snapshot.clone();
-            let reversible = accepted
-                .document
-                .parameters
-                .get("reversibleLayout")
-                .and_then(serde_json::Value::as_bool)
-                .unwrap_or(false);
+            let reversible = reversible_layout_param(&accepted.document);
             let matrix_key = match &source {
                 super::MatrixPlacementSource::Preset(preset) => {
                     crate::presentation::parts::matrix_setup_preset(*preset)
@@ -270,10 +273,7 @@ pub fn use_matrix_placement(
                     let (mut matrix, definitions) = match source {
                         super::MatrixPlacementSource::Preset(preset_id) => {
                             let preset = crate::presentation::parts::matrix_setup_preset(preset_id);
-                            let templates =
-                                crate::presentation::parts::load_matrix_templates(reversible)
-                                    .await?;
-                            let mut prepared = prepare_matrix(
+                            let Some(prepared) = prepare_matrix_definitions(
                                 matrix_id.clone(),
                                 owner.board_id.clone(),
                                 MatrixSetupRequest {
@@ -282,15 +282,14 @@ pub fn use_matrix_placement(
                                     preset,
                                 },
                                 reversible,
-                                &templates,
-                            )?;
-                            for definition in &mut prepared.definitions {
-                                *definition =
-                                    crate::presentation::parts::normalize_matrix_definition(
-                                        definition.clone(),
-                                    )
-                                    .await?;
-                            }
+                                || alive.get(),
+                            )
+                            .await?
+                            else {
+                                // A stale owner mid-preparation drops the result: the
+                                // watchers below clear `preparing` once the scope moves on.
+                                return Ok(None);
+                            };
                             let orientation_name = match orientation {
                                 super::MatrixSwitchOrientation::South => "south",
                                 super::MatrixSwitchOrientation::North => "north",
@@ -313,11 +312,39 @@ pub fn use_matrix_placement(
                             assembly,
                             definitions: sources,
                         } => {
-                            let seed = assembly_matrix_seed(
-                                matrix_id.clone(),
-                                owner.board_id.clone(),
-                                assembly.name.clone(),
-                            );
+                            use boardstudio_model::model::{MatrixCell, Vec2 as SeedVec2};
+                            let seed = boardstudio_model::model::Matrix {
+                                id: matrix_id.clone(),
+                                name: Some(assembly.name.clone()),
+                                rows: 1,
+                                columns: 1,
+                                pitch: SeedVec2 { x: 19.05, y: 19.05 },
+                                origin: SeedVec2::default(),
+                                definition_id: String::new(),
+                                part_ids: Vec::new(),
+                                board_id: Some(owner.board_id.clone()),
+                                mirror: None,
+                                rotation: None,
+                                edge_gap: Some(SeedVec2 { x: 1.0, y: 1.0 }),
+                                diode_direction: None,
+                                row_layout: vec![],
+                                column_layout: vec![],
+                                anchor: None,
+                                cells: vec![MatrixCell {
+                                    shift: None,
+                                    bend: None,
+                                    deleted: false,
+                                    row: 0,
+                                    column: 0,
+                                    enabled: true,
+                                    definition_id: None,
+                                    variant: None,
+                                    offset: None,
+                                    rotation: Some(0.0),
+                                    assemblies: Vec::new(),
+                                    assemblies_local: Some(true),
+                                }],
+                            };
                             let (matrix, mut definitions) =
                                 crate::presentation::parts::matrix_with_assembly(
                                     &seed,
@@ -342,7 +369,7 @@ pub fn use_matrix_placement(
                     if scenes.len() != 1 {
                         return Err("Core returned an incomplete matrix placement preview.".into());
                     }
-                    Ok::<_, String>((matrix, definitions, scenes.remove(0)))
+                    Ok::<_, String>(Some((matrix, definitions, scenes.remove(0))))
                 }
                 .await;
                 if !alive.get() {
@@ -353,15 +380,21 @@ pub fn use_matrix_placement(
                 }
                 if workspace() != Workspace::Layout
                     || scope_generation() != owner.scope_generation
-                    || !same_session_scope(&runtime, &owner)
-                    || !same_accepted_source(&runtime, &owner)
+                    || !owner_session_current(
+                        &runtime,
+                        &owner.scope,
+                        &owner.board_id,
+                        owner.snapshot_token,
+                        owner.revision,
+                    )
                 {
                     preparing.set(None);
                     canvas_interaction.release(CanvasInteractionOwner::MatrixPlacement);
                     return;
                 }
                 match result {
-                    Ok((matrix, definitions, scene)) => {
+                    Ok(None) => {}
+                    Ok(Some((matrix, definitions, scene))) => {
                         placement.set(Some(MatrixPlacementProjection {
                             owner: owner.clone(),
                             matrix,
@@ -390,8 +423,13 @@ pub fn use_matrix_placement(
                 || scope_generation() != movement.owner.scope_generation
                 || !movement.center.x.is_finite()
                 || !movement.center.y.is_finite()
-                || !same_session_scope(&runtime, &movement.owner)
-                || !same_accepted_source(&runtime, &movement.owner)
+                || !owner_session_current(
+                    &runtime,
+                    &movement.owner.scope,
+                    &movement.owner.board_id,
+                    movement.owner.snapshot_token,
+                    movement.owner.revision,
+                )
             {
                 return;
             }
@@ -441,8 +479,13 @@ pub fn use_matrix_placement(
                 || scope_generation() != movement.owner.scope_generation
                 || !movement.center.x.is_finite()
                 || !movement.center.y.is_finite()
-                || !same_session_scope(&runtime, &movement.owner)
-                || !same_accepted_source(&runtime, &movement.owner)
+                || !owner_session_current(
+                    &runtime,
+                    &movement.owner.scope,
+                    &movement.owner.board_id,
+                    movement.owner.snapshot_token,
+                    movement.owner.revision,
+                )
             {
                 return;
             }
@@ -476,7 +519,10 @@ pub fn use_matrix_placement(
                 Some("matrix placement".into()),
                 place_matrix_resolver(active.matrix, active.definitions),
             );
-            waiting.set(Some((ticket, follow_up)));
+            waiting.set(Some(PendingSettlement {
+                ticket,
+                owner: follow_up,
+            }));
             placement.set(None);
             error.set(None);
             canvas_interaction.release(CanvasInteractionOwner::MatrixPlacement);
@@ -522,66 +568,4 @@ fn placement_source(runtime: &Runtime) -> Option<(AcceptedSnapshot, Scope, Strin
         return None;
     }
     Some((snapshot.clone(), scope.clone(), scope.board_id))
-}
-
-fn assembly_matrix_seed(
-    id: String,
-    board_id: String,
-    name: String,
-) -> boardstudio_model::model::Matrix {
-    use boardstudio_model::model::{Matrix, MatrixCell, Vec2};
-    Matrix {
-        id,
-        name: Some(name),
-        rows: 1,
-        columns: 1,
-        pitch: Vec2 { x: 19.05, y: 19.05 },
-        origin: Vec2::default(),
-        definition_id: String::new(),
-        part_ids: Vec::new(),
-        board_id: Some(board_id),
-        mirror: None,
-        rotation: None,
-        edge_gap: Some(Vec2 { x: 1.0, y: 1.0 }),
-        diode_direction: None,
-        row_layout: vec![],
-        column_layout: vec![],
-        anchor: None,
-        cells: vec![MatrixCell {
-            shift: None,
-            bend: None,
-            deleted: false,
-            row: 0,
-            column: 0,
-            enabled: true,
-            definition_id: None,
-            variant: None,
-            offset: None,
-            rotation: Some(0.0),
-            assemblies: Vec::new(),
-            assemblies_local: Some(true),
-        }],
-    }
-}
-
-fn same_session_scope(runtime: &Runtime, owner: &MatrixPlacementOwner) -> bool {
-    let model = runtime.model();
-    runtime.scope().as_ref() == Some(&owner.scope)
-        && model.accepted.as_ref().is_some_and(|snapshot| {
-            snapshot.document.id == owner.scope.document_id
-                && snapshot.session_epoch == owner.scope.session_epoch
-        })
-}
-
-fn same_accepted_source(runtime: &Runtime, owner: &MatrixPlacementOwner) -> bool {
-    let model = runtime.model();
-    model.lifecycle == Lifecycle::Ready
-        && model.durability
-            == (Durability::Saved {
-                revision: owner.revision,
-            })
-        && model.active_board_id == owner.board_id
-        && model.accepted.as_ref().is_some_and(|snapshot| {
-            snapshot.token == owner.snapshot_token && snapshot.document.revision == owner.revision
-        })
 }

@@ -1,4 +1,5 @@
 use super::*;
+use boardstudio_model::model::{ColumnLayout, RowLayout};
 
 impl View<'_> {
     pub(super) fn key_state(&self, row: u32, column: u32) -> KeyState {
@@ -357,6 +358,30 @@ impl View<'_> {
         }
     }
 
+    fn column_record(&self, column: u32) -> Option<&ColumnLayout> {
+        self.matrix.column_layout.get(column as usize)
+    }
+
+    fn row_record(&self, row: u32) -> Option<&RowLayout> {
+        self.matrix.row_layout.get(row as usize)
+    }
+
+    /// This column's Spread, or the pitch when absent.
+    fn spread_text(&self, column: u32) -> String {
+        self.column_record(column)
+            .and_then(|record| record.spread)
+            .map(|spread| format!("{} mm", mm(spread)))
+            .unwrap_or_else(|| format!("{} mm (pitch)", mm(self.matrix.pitch.x)))
+    }
+
+    /// This row's padding, or the pitch when absent.
+    fn padding_text(&self, row: u32) -> String {
+        self.row_record(row)
+            .and_then(|record| record.padding)
+            .map(|padding| format!("{} mm", mm(padding)))
+            .unwrap_or_else(|| format!("{} mm (pitch)", mm(self.matrix.pitch.y)))
+    }
+
     pub(super) fn row_context(&self, row: u32) -> TreeContext {
         TreeContext::Row {
             matrix_id: self.matrix.id.clone(),
@@ -365,11 +390,8 @@ impl View<'_> {
     }
 
     pub(super) fn stagger(&self, column: u32) -> f64 {
-        self.matrix
-            .column_layout
-            .get(column as usize)
-            .map(|record| &record.stagger)
-            .copied()
+        self.column_record(column)
+            .map(|record| record.stagger)
             .unwrap_or(0.0)
     }
 
@@ -378,16 +400,13 @@ impl View<'_> {
     }
 
     pub(super) fn splay(&self, column: u32) -> f64 {
-        self.matrix
-            .column_layout
-            .get(column as usize)
-            .map(|record| &record.splay)
-            .copied()
+        self.column_record(column)
+            .map(|record| record.splay)
             .unwrap_or(0.0)
     }
 
     pub(super) fn column_turn(&self, column: u32) -> (f64, f64) {
-        let record = self.matrix.column_layout.get(column as usize);
+        let record = self.column_record(column);
         (
             record.map(|record| record.splay).unwrap_or(0.0),
             record.map(|record| record.rotation).unwrap_or(0.0),
@@ -401,13 +420,7 @@ impl View<'_> {
         if column == 0 {
             return format!("no spread, stagger {stagger}");
         }
-        let spread = self
-            .matrix
-            .column_layout
-            .get(column as usize)
-            .and_then(|record| record.spread)
-            .map(|spread| format!("{} mm", mm(spread)))
-            .unwrap_or_else(|| format!("{} mm (pitch)", mm(self.matrix.pitch.x)));
+        let spread = self.spread_text(column);
         format!("spread {spread}, stagger {stagger}")
     }
 
@@ -435,12 +448,7 @@ impl View<'_> {
         if row == 0 {
             return "no padding on row 1".to_owned();
         }
-        self.matrix
-            .row_layout
-            .get(row as usize)
-            .and_then(|record| record.padding)
-            .map(|padding| format!("{} mm", mm(padding)))
-            .unwrap_or_else(|| format!("{} mm (pitch)", mm(self.matrix.pitch.y)))
+        self.padding_text(row)
     }
 
     /// This column's Spread: absent on column 0, the pitch unless explicitly
@@ -449,37 +457,23 @@ impl View<'_> {
         if column == 0 {
             return "no spread on column 1".to_owned();
         }
-        self.matrix
-            .column_layout
-            .get(column as usize)
-            .and_then(|record| record.spread)
-            .map(|spread| format!("{} mm", mm(spread)))
-            .unwrap_or_else(|| format!("{} mm (pitch)", mm(self.matrix.pitch.x)))
+        self.spread_text(column)
     }
 
     pub(super) fn custom_origin(&self, column: u32) -> bool {
-        self.matrix
-            .column_layout
-            .get(column as usize)
-            .map(|record| &record.splay_origin)
-            .is_some_and(|origin| *origin != Vec2::default())
+        self.column_record(column)
+            .is_some_and(|record| record.splay_origin != Vec2::default())
     }
 
     pub(super) fn column_offset(&self, column: u32) -> Vec2 {
-        self.matrix
-            .column_layout
-            .get(column as usize)
-            .map(|record| &record.offset)
-            .copied()
+        self.column_record(column)
+            .map(|record| record.offset)
             .unwrap_or(ZERO)
     }
 
     pub(super) fn row_offset(&self, row: u32) -> Vec2 {
-        self.matrix
-            .row_layout
-            .get(row as usize)
-            .map(|record| &record.offset)
-            .copied()
+        self.row_record(row)
+            .map(|record| record.offset)
             .unwrap_or(ZERO)
     }
 
@@ -726,14 +720,7 @@ impl View<'_> {
         // No per-key value is presented as universal.
         let keys = self.all_keys();
         let spreads: Vec<String> = (1..matrix.columns)
-            .map(|column| {
-                matrix
-                    .column_layout
-                    .get(column as usize)
-                    .and_then(|record| record.spread)
-                    .map(|spread| format!("{} mm", mm(spread)))
-                    .unwrap_or_else(|| format!("{} mm (pitch)", mm(matrix.pitch.x)))
-            })
+            .map(|column| self.spread_text(column))
             .collect();
         structure.push(item(
             "Column spread",
@@ -775,16 +762,7 @@ impl View<'_> {
             None,
             all.clone(),
         ));
-        let paddings: Vec<String> = (1..matrix.rows)
-            .map(|row| {
-                matrix
-                    .row_layout
-                    .get(row as usize)
-                    .and_then(|record| record.padding)
-                    .map(|padding| format!("{} mm", mm(padding)))
-                    .unwrap_or_else(|| format!("{} mm (pitch)", mm(matrix.pitch.y)))
-            })
-            .collect();
+        let paddings: Vec<String> = (1..matrix.rows).map(|row| self.padding_text(row)).collect();
         structure.push(item(
             "Row padding",
             if matrix.rows <= 1 {

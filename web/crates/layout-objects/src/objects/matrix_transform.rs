@@ -310,6 +310,11 @@ impl MatrixTransformInspectorMount {
     }
 }
 
+/// The shared "no longer exists" retire.
+fn missing_matrix() -> Resolution {
+    Resolution::Retire("The selected matrix no longer exists.".into())
+}
+
 fn matrix_of<'a>(accepted: &'a AcceptedSnapshot, id: &str) -> Option<&'a Matrix> {
     accepted
         .document
@@ -332,7 +337,7 @@ fn edit_resolver(
         "layout-matrix-transform",
         move |accepted: &AcceptedSnapshot| {
             let Some(matrix) = matrix_of(accepted, &matrix_id) else {
-                return Resolution::Retire("The selected matrix no longer exists.".into());
+                return missing_matrix();
             };
             let Some(fields) = transform_fields(accepted, &board_id, &context, matrix, &[]) else {
                 return Resolution::Retire(
@@ -374,13 +379,6 @@ fn edit_resolver(
     )
 }
 
-fn set_matrix(matrix: Matrix) -> EditOperation {
-    EditOperation::SetMatrix {
-        matrix,
-        definitions: None,
-    }
-}
-
 fn enable_cells_resolver(
     matrix_id: String,
     board_id: String,
@@ -391,7 +389,7 @@ fn enable_cells_resolver(
         "layout-matrix-transform",
         move |accepted: &AcceptedSnapshot| {
             let Some(matrix) = matrix_of(accepted, &matrix_id) else {
-                return Resolution::Retire("The selected matrix no longer exists.".into());
+                return missing_matrix();
             };
             let mut next = matrix.clone();
             for &(row, column) in &cells {
@@ -422,7 +420,13 @@ fn enable_cells_resolver(
             if &next == matrix {
                 return Resolution::Unchanged;
             }
-            Resolution::submit(vec![matrix.id.clone()], set_matrix(next))
+            Resolution::submit(
+                vec![matrix.id.clone()],
+                EditOperation::SetMatrix {
+                    matrix: next,
+                    definitions: None,
+                },
+            )
         },
     )
 }
@@ -446,7 +450,7 @@ fn add_anchored_resolver(matrix_id: String, row: u32, column: u32) -> EditResolv
         move |accepted: &AcceptedSnapshot| {
             let document = &accepted.document;
             let Some(matrix) = matrix_of(accepted, &matrix_id) else {
-                return Resolution::Retire("The selected matrix no longer exists.".into());
+                return missing_matrix();
             };
             if row >= matrix.rows || column >= matrix.columns {
                 return Resolution::Retire("The selected key no longer exists.".into());

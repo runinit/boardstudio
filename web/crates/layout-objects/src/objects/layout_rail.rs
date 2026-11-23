@@ -595,7 +595,15 @@ impl Ctl {
                 },
             ),
         );
-        if let Err(message) = result {
+        self.report_commit(result, false);
+    }
+
+    /// Report a drag commit (pointer drops never set `unlaid`; keyboard nudges do).
+    fn report_commit(&self, result: Result<AcceptedSnapshot, String>, unlaid: bool) {
+        if unlaid {
+            self.runtime
+                .report("The matrix is anchored to a key that is not laid out.");
+        } else if let Err(message) = result {
             self.runtime.report(message);
         }
     }
@@ -687,11 +695,39 @@ impl Ctl {
     }
 }
 
+/// One document `keydown` subscription; dropping it removes the listener.
+pub(super) struct DocumentKeydown {
+    document: web_sys::Document,
+    keydown: Closure<dyn FnMut(web_sys::KeyboardEvent)>,
+}
+
+impl DocumentKeydown {
+    /// Attach `handler` to the document's `keydown`; `None` without a document.
+    pub(super) fn install(handler: impl FnMut(web_sys::KeyboardEvent) + 'static) -> Option<Self> {
+        let document = web_sys::window()?.document()?;
+        let keydown = Closure::wrap(Box::new(handler) as Box<dyn FnMut(_)>);
+        document
+            .add_event_listener_with_callback("keydown", keydown.as_ref().unchecked_ref())
+            .ok()?;
+        Some(Self { document, keydown })
+    }
+}
+
+impl Drop for DocumentKeydown {
+    fn drop(&mut self) {
+        let _ = self
+            .document
+            .remove_event_listener_with_callback("keydown", self.keydown.as_ref().unchecked_ref());
+    }
+}
+
 /// The document key listener one overlay keeps while mounted: Control (quick offset), Escape.
 struct KeyListener {
+    /// Owns the `keydown` subscription: never read, dropped with the listener.
+    #[allow(dead_code)]
+    down: DocumentKeydown,
     document: web_sys::Document,
     window: web_sys::Window,
-    down: Closure<dyn FnMut(web_sys::KeyboardEvent)>,
     up: Closure<dyn FnMut(web_sys::KeyboardEvent)>,
     blur: Closure<dyn FnMut(web_sys::Event)>,
 }
@@ -703,7 +739,7 @@ impl KeyListener {
     ) -> Option<Self> {
         let window = web_sys::window()?;
         let document = window.document()?;
-        let down = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
+        let down = DocumentKeydown::install(move |event: web_sys::KeyboardEvent| {
             match event.key().as_str() {
                 "Control" => {
                     let _ = control.try_write().map(|mut c| *c = true);
@@ -713,7 +749,7 @@ impl KeyListener {
                 }
                 _ => {}
             }
-        }) as Box<dyn FnMut(_)>);
+        })?;
         let up = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
             if event.key() == "Control" {
                 let _ = control.try_write().map(|mut c| *c = false);
@@ -723,18 +759,15 @@ impl KeyListener {
             let _ = control.try_write().map(|mut c| *c = false);
         }) as Box<dyn FnMut(_)>);
         document
-            .add_event_listener_with_callback("keydown", down.as_ref().unchecked_ref())
-            .ok()?;
-        document
             .add_event_listener_with_callback("keyup", up.as_ref().unchecked_ref())
             .ok()?;
         window
             .add_event_listener_with_callback("blur", blur.as_ref().unchecked_ref())
             .ok()?;
         Some(Self {
+            down,
             document,
             window,
-            down,
             up,
             blur,
         })
@@ -743,9 +776,7 @@ impl KeyListener {
 
 impl Drop for KeyListener {
     fn drop(&mut self) {
-        let _ = self
-            .document
-            .remove_event_listener_with_callback("keydown", self.down.as_ref().unchecked_ref());
+        // The `keydown` subscription removes itself with `down`.
         let _ = self
             .document
             .remove_event_listener_with_callback("keyup", self.up.as_ref().unchecked_ref());
@@ -753,19 +784,6 @@ impl Drop for KeyListener {
             .window
             .remove_event_listener_with_callback("blur", self.blur.as_ref().unchecked_ref());
     }
-}
-
-fn escape_targets_text_entry(event: &web_sys::KeyboardEvent) -> bool {
-    event
-        .target()
-        .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
-        .is_some_and(|target| {
-            target
-                .closest("input, textarea, select, [contenteditable='true']")
-                .ok()
-                .flatten()
-                .is_some()
-        })
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -855,123 +873,123 @@ fn matrix_tokens(
     };
     let mut tokens = Vec::new();
     for &tool in tools {
-        let token = |label: &str, value: String, title: Option<String>| Token {
-            tool,
-            label: label.to_owned(),
-            value,
-            title,
-            glyph_degrees: axis_degrees,
-            guide: None,
-            disabled: false,
-            nudge: None,
+        // One armed token row: the label/value/title chrome plus its guide, nudge,
+        // availability and start maker. Every tool below shares this shape.
+        let pair = |label: &str,
+                    value: String,
+                    title: Option<String>,
+                    guide: Option<(f64, f64)>,
+                    nudge: Option<RailNudge>,
+                    disabled: bool,
+                    maker: Option<Maker>| {
+            Some((
+                Token {
+                    tool,
+                    label: label.to_owned(),
+                    value,
+                    title,
+                    glyph_degrees: axis_degrees,
+                    guide,
+                    nudge,
+                    disabled,
+                },
+                maker,
+            ))
         };
         let entry = match tool {
-            T::Stagger if control => Some((
-                Token {
-                    guide: Some((stagger_axis.x, stagger_axis.y)),
-                    nudge: None,
-                    ..token(
-                        "Drag to offset column",
-                        value_of(PlacementParameter::ColumnOffset { column }),
-                        None,
-                    )
-                },
+            T::Stagger if control => pair(
+                "Drag to offset column",
+                value_of(PlacementParameter::ColumnOffset { column }),
+                None,
+                Some((stagger_axis.x, stagger_axis.y)),
+                None,
+                false,
                 Some(placement(PlacementParameter::ColumnOffset { column })),
-            )),
+            ),
             T::Stagger => {
                 let parameter = PlacementParameter::Stagger { column };
-                Some((
-                    Token {
-                        guide: Some((stagger_axis.x, stagger_axis.y)),
-                        nudge: row.is_none().then_some(RailNudge::Placement(parameter)),
-                        ..token("Drag to stagger", value_of(parameter), None)
-                    },
-                    {
-                        // Ctrl latched at pointer-down turns the whole drag into a free column offset.
-                        let (quick, normal) = (
-                            placement(PlacementParameter::ColumnOffset { column }),
-                            placement(parameter),
-                        );
-                        Some(Rc::new(move |accepted: &AcceptedSnapshot, point, ctrl| {
-                            if ctrl {
-                                quick(accepted, point, ctrl)
-                            } else {
-                                normal(accepted, point, ctrl)
-                            }
-                        }) as Maker)
-                    },
-                ))
+                // Ctrl latched at pointer-down turns the whole drag into a free column offset.
+                let (quick, normal) = (
+                    placement(PlacementParameter::ColumnOffset { column }),
+                    placement(parameter),
+                );
+                let maker: Maker = Rc::new(move |accepted, point, ctrl| {
+                    if ctrl {
+                        quick(accepted, point, ctrl)
+                    } else {
+                        normal(accepted, point, ctrl)
+                    }
+                });
+                pair(
+                    "Drag to stagger",
+                    value_of(parameter),
+                    None,
+                    Some((stagger_axis.x, stagger_axis.y)),
+                    row.is_none().then_some(RailNudge::Placement(parameter)),
+                    false,
+                    Some(maker),
+                )
             }
             // Column 0 follows the pitch, so it has no Spread step to drag.
             T::Spread if column == 0 && row.is_none() => None,
             T::Spread => {
                 let parameter = PlacementParameter::ColumnSpread { column };
-                Some((
-                    Token {
-                        guide: Some((1.0, 0.0)),
-                        nudge: Some(RailNudge::Placement(parameter)),
-                        ..token(
-                            "Drag to spread",
-                            value_of(parameter),
-                            Some(format!("Drag to spread · {}", value_of(parameter))),
-                        )
-                    },
+                pair(
+                    "Drag to spread",
+                    value_of(parameter),
+                    Some(format!("Drag to spread · {}", value_of(parameter))),
+                    Some((1.0, 0.0)),
+                    Some(RailNudge::Placement(parameter)),
+                    false,
                     Some(placement(parameter)),
-                ))
+                )
             }
-            T::Offset => Some((
-                Token {
-                    guide: Some((stagger_axis.x, stagger_axis.y)),
-                    nudge: Some(RailNudge::Placement(offset_parameter)),
-                    ..token(
-                        if row.is_some() {
-                            "Drag to offset row"
-                        } else {
-                            "Drag to offset column"
-                        },
-                        value_of(offset_parameter),
-                        None,
-                    )
+            T::Offset => pair(
+                if row.is_some() {
+                    "Drag to offset row"
+                } else {
+                    "Drag to offset column"
                 },
+                value_of(offset_parameter),
+                None,
+                Some((stagger_axis.x, stagger_axis.y)),
+                Some(RailNudge::Placement(offset_parameter)),
+                false,
                 Some(placement(offset_parameter)),
-            )),
-            T::Shift => carried(context, false).map(|parameter| {
-                (
-                    Token {
-                        nudge: Some(RailNudge::Placement(parameter)),
-                        ..token(
-                            if row.is_some() {
-                                "Drag to shift row"
-                            } else {
-                                "Drag to shift key"
-                            },
-                            value_of(parameter),
-                            None,
-                        )
+            ),
+            T::Shift => carried(context, false).and_then(|parameter| {
+                pair(
+                    if row.is_some() {
+                        "Drag to shift row"
+                    } else {
+                        "Drag to shift key"
                     },
+                    value_of(parameter),
+                    None,
+                    None,
+                    Some(RailNudge::Placement(parameter)),
+                    false,
                     Some(placement(parameter)),
                 )
             }),
-            T::Bend => carried(context, true).map(|parameter| {
-                (
-                    Token {
-                        nudge: Some(RailNudge::Placement(parameter)),
-                        ..token(
-                            if row.is_some() {
-                                "Drag to bend row"
-                            } else {
-                                "Drag to bend key"
-                            },
-                            value_of(parameter),
-                            None,
-                        )
+            T::Bend => carried(context, true).and_then(|parameter| {
+                pair(
+                    if row.is_some() {
+                        "Drag to bend row"
+                    } else {
+                        "Drag to bend key"
                     },
+                    value_of(parameter),
+                    None,
+                    None,
+                    Some(RailNudge::Placement(parameter)),
+                    false,
                     Some(placement(parameter)),
                 )
             }),
             // Origin stays a point on the canvas (`origin_handle`) and never joins the rail.
             T::Origin => None,
-            T::Splay => basis.cloned().map(|basis| {
+            T::Splay => basis.cloned().and_then(|basis| {
                 let (matrix, affect_for_start) = (matrix.clone(), affect.clone());
                 let maker: Maker = Rc::new(move |_, point, ctrl| {
                     let origin = basis.splay_origin;
@@ -987,18 +1005,16 @@ fn matrix_tokens(
                 });
                 let (splay, stagger_rotation) = (basis.splay_angle, basis.rotation);
                 let angle = column_angle(splay, stagger_rotation, affect);
-                (
-                    Token {
-                        nudge: Some(RailNudge::SplayAngle {
-                            column,
-                            affect: affect.clone(),
-                        }),
-                        ..token(
-                            "Drag to splay",
-                            format!("{angle:.1}°"),
-                            Some(format!("Drag to splay · {angle:.0}°")),
-                        )
-                    },
+                pair(
+                    "Drag to splay",
+                    format!("{angle:.1}°"),
+                    Some(format!("Drag to splay · {angle:.0}°")),
+                    None,
+                    Some(RailNudge::SplayAngle {
+                        column,
+                        affect: affect.clone(),
+                    }),
+                    false,
                     Some(maker),
                 )
             }),
@@ -1042,22 +1058,19 @@ fn matrix_tokens(
                 } else {
                     RailNudge::MatrixMove { anchor: None }
                 };
-                Some((
-                    Token {
-                        disabled: rotate && !followed,
-                        nudge: Some(nudge),
-                        ..token(
-                            if rotate {
-                                "Drag to rotate matrix"
-                            } else {
-                                "Drag to move matrix"
-                            },
-                            value,
-                            None,
-                        )
+                pair(
+                    if rotate {
+                        "Drag to rotate matrix"
+                    } else {
+                        "Drag to move matrix"
                     },
+                    value,
+                    None,
+                    None,
+                    Some(nudge),
+                    rotate && !followed,
                     Some(maker),
-                ))
+                )
             }
             T::Anchor => None,
         };
@@ -1195,7 +1208,11 @@ fn part_tokens(
     )
 }
 
-fn part_courtyard_top(document: &boardstudio_model::model::ProjectDoc, definition_id: &str) -> f64 {
+/// The top of a part's courtyard outline, shared with the anchor pick.
+pub(super) fn part_courtyard_top(
+    document: &boardstudio_model::model::ProjectDoc,
+    definition_id: &str,
+) -> f64 {
     document
         .definitions
         .iter()
@@ -1273,7 +1290,17 @@ pub fn LayoutRailOverlay(
         move || {
             Rc::new(KeyListener::install(control, move |event| {
                 let live = ctl.drag.borrow().is_some();
-                if escape_targets_text_entry(event) || !(live || ctl.arbiter.current().is_none()) {
+                let in_text_entry = event
+                    .target()
+                    .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+                    .is_some_and(|target| {
+                        target
+                            .closest("input, textarea, select, [contenteditable='true']")
+                            .ok()
+                            .flatten()
+                            .is_some()
+                    });
+                if in_text_entry || !(live || ctl.arbiter.current().is_none()) {
                     return false;
                 }
                 ctl.abandon();
@@ -1548,11 +1575,7 @@ pub fn LayoutRailOverlay(
                                         )
                                     }),
                                 );
-                                if unlaid.get() {
-                                    ctl.runtime.report("The matrix is anchored to a key that is not laid out.");
-                                } else if let Err(message) = result {
-                                    ctl.runtime.report(message);
-                                }
+                                ctl.report_commit(result, unlaid.get());
                             }
                         },
                         onpointerenter: { let (mut feedback, mut popup_at, name, value, show) = (ctl.feedback, ctl.popup_at, name.clone(), value.clone(), show.clone()); move |_| { hovered.set(Some(index)); show(token.tool); popup_at.set(None); feedback_event(feedback, FeedbackEvent::Choose { name: name.clone(), value: value.clone() }); let _ = &mut feedback; } },

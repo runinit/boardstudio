@@ -7,7 +7,10 @@ use self::native_detached::spawn_local;
 use self::native_setup_types::{
     MatrixSetupCreateRequest, MatrixSetupMount, MatrixSetupOwner, MatrixSetupProjection,
 };
-use super::matrix_preparation::{PendingSettlement, matrix_source, prepare_matrix_definitions};
+use super::matrix_preparation::{
+    PendingSettlement, fail_creation, matrix_dimensions_valid, matrix_source, owner_source_matches,
+    prepare_matrix_definitions, prepared_definitions_error, reversible_layout_param,
+};
 #[cfg(target_arch = "wasm32")]
 use super::matrix_setup::{
     MatrixSetupCreateRequest, MatrixSetupMount, MatrixSetupOwner, MatrixSetupProjection,
@@ -249,13 +252,7 @@ pub fn use_matrix_setup(
             {
                 return;
             }
-            if request.rows == 0
-                || request.columns == 0
-                || request
-                    .rows
-                    .checked_mul(request.columns)
-                    .is_none_or(|cells| cells > 4096)
-            {
+            if !matrix_dimensions_valid(request.rows, request.columns) {
                 error.set(Some(
                     "Rows and columns must be positive, with at most 4096 cells.".into(),
                 ));
@@ -271,22 +268,19 @@ pub fn use_matrix_setup(
                 ));
                 return;
             };
-            if scope != request.owner.scope
-                || board_id != request.owner.board_id
-                || snapshot.token != request.owner.snapshot_token
-                || snapshot.document.revision != request.owner.revision
-            {
+            if !owner_source_matches(
+                &request.owner.scope,
+                request.owner.snapshot_token,
+                request.owner.revision,
+                &scope,
+                snapshot,
+            ) {
                 error.set(Some("The accepted board changed. Close Matrix Setup and reopen it before creating a matrix.".into()));
                 return;
             }
             let owner = request.owner.clone();
             let accepted = snapshot.clone();
-            let reversible = accepted
-                .document
-                .parameters
-                .get("reversibleLayout")
-                .and_then(serde_json::Value::as_bool)
-                .unwrap_or(false);
+            let reversible = reversible_layout_param(&accepted.document);
             let matrix_id = next_matrix_id(
                 &accepted.document.matrices,
                 &accepted.document.definitions,
@@ -361,27 +355,17 @@ pub fn use_matrix_setup(
                     Ok(Some(prepared)) => (prepared.matrix, prepared.definitions),
                     Ok(None) => return,
                     Err(message) => {
-                        fail_preparation(&mut preparing, &mut error, &mut status, message);
+                        fail_creation(&mut preparing, &mut error, &mut status, message);
                         return;
                     }
                 };
-                if matrix.board_id.as_deref() != Some(current_board.as_str())
-                    || definitions.iter().any(|definition| {
-                        definition.generator.is_none()
-                            || definition.id.is_empty()
-                            || current
-                                .document
-                                .definitions
-                                .iter()
-                                .any(|existing| existing.id == definition.id)
-                    })
-                {
-                    fail_preparation(
-                        &mut preparing,
-                        &mut error,
-                        &mut status,
-                        "The prepared matrix definition set is incomplete or conflicts with the accepted document.".into(),
-                    );
+                if let Some(message) = prepared_definitions_error(
+                    current,
+                    &current_board,
+                    matrix.board_id.as_deref(),
+                    &definitions,
+                ) {
+                    fail_creation(&mut preparing, &mut error, &mut status, message);
                     return;
                 }
                 let matrix_id = matrix.id.clone();
@@ -431,17 +415,6 @@ pub fn use_matrix_setup(
     }
 }
 
-fn fail_preparation(
-    preparing: &mut Signal<Option<MatrixSetupOwner>>,
-    error: &mut Signal<Option<String>>,
-    status: &mut Signal<Option<String>>,
-    message: String,
-) {
-    preparing.set(None);
-    error.set(Some(message));
-    status.set(None);
-}
-
 fn setup_owner_live(
     runtime: &Runtime,
     owner: &MatrixSetupOwner,
@@ -453,11 +426,14 @@ fn setup_owner_live(
     }
     let model = runtime.model();
     matrix_source(runtime, &model, runtime.scope().as_ref(), workspace).is_some_and(
-        |(snapshot, scope, board_id)| {
-            scope == owner.scope
-                && board_id == owner.board_id
-                && snapshot.token == owner.snapshot_token
-                && snapshot.document.revision == owner.revision
+        |(snapshot, scope, _)| {
+            owner_source_matches(
+                &owner.scope,
+                owner.snapshot_token,
+                owner.revision,
+                &scope,
+                snapshot,
+            )
         },
     )
 }
