@@ -79,10 +79,12 @@ def require(condition, message):
 
 def wait_for(probe, label, timeout=20):
     deadline = time.monotonic() + timeout
+    delay = 0.02
     while time.monotonic() < deadline:
         if result := probe():
             return result
-        time.sleep(0.1)
+        time.sleep(delay)
+        delay = 0.05 if delay == 0.02 else 0.1
     raise RuntimeError(f"timed out waiting for {label}")
 
 
@@ -296,6 +298,15 @@ class Smoke:
 
     def prepare_collision(self):
         self.button("Open Case workspace")
+        selector = '[aria-label="Live preview"]'
+        checked = wait_for(lambda: self.evaluate(
+            "document.querySelector('[aria-label=\"Live preview\"]')?.getAttribute('aria-checked')"),
+            "Live preview checkbox")
+        if checked == "true":
+            self.click(selector)
+            wait_for(lambda: self.evaluate(
+                "document.querySelector('[aria-label=\"Live preview\"]')?.getAttribute('aria-checked')") == "false",
+                "Live preview disabled")
         before = self.project()
         self.button("Configure mechanical stack")
         configured = wait_for(lambda: (project if (project := self.persisted_after(before["revision"]))

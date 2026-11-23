@@ -17,6 +17,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, nullcontext
 import importlib.util
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -298,7 +299,21 @@ def main(argv=None):
             env["WASM_BINDGEN_TEST_ONLY_WEB"] = "1"
         known = {entry["test"] for entry in json.loads(KNOWN_FAILURES.read_text())}
         with (nullcontext(env) if custom else desktop_webdriver_config(env, root)) as env:
-            names = list_wasm_tests(env, root)
+            cache = root / "target/wasm-tests/page-test-list.json"
+            digest = hashlib.sha256(Path(env[PAGE_ARTIFACT]).read_bytes()).hexdigest() if not custom else None
+            names = None
+            if digest and cache.is_file():
+                try:
+                    saved = json.loads(cache.read_text())
+                    if saved.get("sha256") == digest and isinstance(saved.get("names"), list):
+                        names = saved["names"]
+                except (ValueError, OSError, AttributeError):
+                    pass
+            if names is None:
+                names = list_wasm_tests(env, root)
+                if digest:
+                    cache.parent.mkdir(parents=True, exist_ok=True)
+                    cache.write_text(json.dumps({"sha256": digest, "names": names}))
             groups = select_tests(names, args.files, args.depth, sorted(set(args.isolate)), root)
             workers = 1 if os.environ.get("GITHUB_ACTIONS") == "true" else check_jobs()
             with ThreadPoolExecutor(max_workers=min(workers, len(groups))) as pool:

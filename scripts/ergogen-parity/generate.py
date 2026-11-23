@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Node-free Ergogen fixture generator: same contract as generate-ergogen-parity-fixtures.cjs.
+"""Node-free Ergogen fixture generator.
 
 The pinned parser runs in Chrome from a verified private tree (verified_runtime.py); assembly,
 validation and JSON.stringify-exact output happen here. See README.md for limits.

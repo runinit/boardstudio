@@ -62,13 +62,6 @@ class PilotTests(unittest.TestCase):
         self.assertEqual(pilot.CASES, EXPECTED_CASES)
         self.assertEqual(len(set(EXPECTED_CASES)), 32)
 
-    def test_inventory_still_covers_original_node_checks_while_they_exist(self):
-        original = pilot.ROOT / 'scripts/test-model-lookup.cjs'
-        if original.exists():  # transitional cross-check; the literal above is authoritative
-            names = re.findall(r"check\('([^']+)'", original.read_text())
-            names[1] = 'helper loads as one function declaration in a restricted classic worker'
-            self.assertEqual(tuple(names) + ('boundary-controls',), pilot.CASES)
-
     def test_exact_inventory(self):
         good = {pilot.SUITE: [{'suite': pilot.SUITE, 'case': name, 'ok': True} for name in pilot.CASES]}
         pilot.validate_results(good)
