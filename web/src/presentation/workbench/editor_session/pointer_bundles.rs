@@ -1,16 +1,18 @@
 use super::super::*;
 use boardstudio_web_ui_model::Workspace;
 
+pub(super) struct PointerBundle {
+    pub move_pointer: EventHandler<PointerEvent>,
+    pub end_pointer: EventHandler<PointerEvent>,
+    pub cancel_pointer: EventHandler<PointerEvent>,
+    pub lost_capture: EventHandler<PointerEvent>,
+}
+
 pub(super) fn use_pointer_bundle(
     state: &super::session_state::SessionState,
     cam: &super::camera::CamNamed,
     render_scope: &Scope,
-) -> (
-    impl FnMut(PointerEvent) + Clone + 'static,
-    impl FnMut(PointerEvent) + Clone + 'static,
-    impl FnMut(PointerEvent) + Clone + 'static,
-    impl FnMut(PointerEvent) + Clone + 'static,
-) {
+) -> PointerBundle {
     let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
     let canvas_navigation = &state.canvas_navigation;
     let runtime = &editor.runtime();
@@ -101,10 +103,10 @@ pub(super) fn use_pointer_bundle(
             lost,
         )
     };
-    (
-        move_pointer,
-        end_pointer,
-        cancel_pointer(false),
-        cancel_pointer(true),
-    )
+    PointerBundle {
+        move_pointer: EventHandler::new(move_pointer),
+        end_pointer: EventHandler::new(end_pointer),
+        cancel_pointer: EventHandler::new(cancel_pointer(false)),
+        lost_capture: EventHandler::new(cancel_pointer(true)),
+    }
 }

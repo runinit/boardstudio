@@ -144,10 +144,12 @@ pub(super) fn part_pointer_down(
         if canvas_interaction.space_down() {
             if super::workbench::editor_session::canvas_adapter::capture_canvas_drag(
                 canvas_interaction,
-                CanvasMode::Panning,
-                request.pointer_id as i32,
-                client,
-                false,
+                super::workbench::editor_session::canvas_adapter::CanvasDragStart {
+                    mode: CanvasMode::Panning,
+                    id: request.pointer_id as i32,
+                    client,
+                    control: false,
+                },
                 &runtime,
                 &drag,
                 &svg,
@@ -274,10 +276,12 @@ pub(super) fn part_pointer_down(
         }
         if !super::workbench::editor_session::canvas_adapter::capture_canvas_drag(
             canvas_interaction,
-            CanvasMode::DraggingParts,
-            request.pointer_id as i32,
-            (f64::from(request.client_x), f64::from(request.client_y)),
-            false,
+            super::workbench::editor_session::canvas_adapter::CanvasDragStart {
+                mode: CanvasMode::DraggingParts,
+                id: request.pointer_id as i32,
+                client: (f64::from(request.client_x), f64::from(request.client_y)),
+                control: false,
+            },
             &runtime,
             &drag,
             &svg,

@@ -108,8 +108,7 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
         workspace_composition::current_tree_context(&state.adapter, model, &render_scope);
     let show_position_inspector =
         camera::session_show_position_inspector(model, session_selected_tree_context.as_ref());
-    let (move_pointer, end_pointer, cancel_pointer, lost_capture) =
-        pointer_bundles::use_pointer_bundle(&state, &cam, &render_scope);
+    let pointer = pointer_bundles::use_pointer_bundle(&state, &cam, &render_scope);
     let (keyboard, key_up, start_pan) =
         keyboard::build_keyboard_bundle(&state, &cam, &render_scope);
     let mut layout_input = use_context::<layout_input::LayoutInput>();
@@ -261,10 +260,10 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
             handlers: workspace_composition::CanvasEventHandlers {
                 mount,
                 start_pan: EventHandler::new(start_pan.clone()),
-                move_pointer: EventHandler::new(move_pointer.clone()),
-                end_pointer: EventHandler::new(end_pointer.clone()),
-                cancel_pointer: EventHandler::new(cancel_pointer.clone()),
-                lost_capture: EventHandler::new(lost_capture.clone()),
+                move_pointer: pointer.move_pointer,
+                end_pointer: pointer.end_pointer,
+                cancel_pointer: pointer.cancel_pointer,
+                lost_capture: pointer.lost_capture,
                 keyboard: EventHandler::new(keyboard.clone()),
                 key_up: EventHandler::new(key_up.clone()),
                 wheel: EventHandler::new(wheel.clone()),

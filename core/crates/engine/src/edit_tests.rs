@@ -64,8 +64,11 @@ fn assembly_save_and_placement_each_make_one_undo_entry() {
     )
     .unwrap();
     assert_eq!(saved.scene.changed_ids, ["recipe"]);
-    assert_eq!(saved.document.assemblies, [assembly.clone()]);
-    assert_eq!(saved.document.definitions, [saved_definition.clone()]);
+    assert_eq!(saved.document.assemblies, std::slice::from_ref(&assembly));
+    assert_eq!(
+        saved.document.definitions,
+        std::slice::from_ref(&saved_definition)
+    );
 
     definition.id = "placed/definition/member".into();
     let part: Part = from_value(json!({
@@ -90,7 +93,7 @@ fn assembly_save_and_placement_each_make_one_undo_entry() {
         placed.document.parts[0].properties.as_ref().unwrap()["assemblyId"],
         "placed"
     );
-    assert_eq!(placed.document.assets, [asset.clone()]);
+    assert_eq!(placed.document.assets, std::slice::from_ref(&asset));
 
     asset.sha256.push('x');
     assert!(

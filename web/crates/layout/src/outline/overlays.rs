@@ -268,7 +268,7 @@ pub fn OutlinePointCanvasOverlay(
                                 });
                                 if !up_drag.borrow().as_ref().is_some_and(|drag| drag.pointer_id == pointer.pointer_id()) { return; }
                                 pointer.stop_propagation();
-                                let at = crate::coordinates(&up_svg, &pointer, view_x, view_y, width, height);
+                                let at = crate::coordinates(&up_svg, pointer, view_x, view_y, width, height);
                                 arbiter.handle(CanvasEvent::PointerUp { id: pointer.pointer_id(), operation: None });
                                 pointerup_commit(true, at, final_displaced, pointer.alt_key());
                             return;
@@ -277,7 +277,7 @@ pub fn OutlinePointCanvasOverlay(
                                 let mut active = move_drag.borrow_mut();
                                 let Some(active) = active.as_mut().filter(|active| active.pointer_id == pointer.pointer_id()) else { return; };
                                 pointer.stop_propagation();
-                                let Some(at) = crate::coordinates(&move_svg, &pointer, view_x, view_y, width, height) else { return; };
+                                let Some(at) = crate::coordinates(&move_svg, pointer, view_x, view_y, width, height) else { return; };
                                 apply_point_sample(active, at, &move_snap_inputs, pointer.alt_key());
                                 let preview_world = active.preview_points.clone();
                                 let pending = active.pending.clone();

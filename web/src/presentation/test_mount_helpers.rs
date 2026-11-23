@@ -111,6 +111,7 @@ pub(super) fn use_editor_context(
     version: Signal<u64>,
     adapter: SelectionAdapter,
 ) {
+    let _ = layout_input::use_layout_input();
     use_context_provider(|| WorkspaceState(workspace));
     use_context_provider(|| ExportReturnWorkspace(workspace));
     use_context_provider(|| version);

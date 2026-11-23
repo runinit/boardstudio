@@ -510,10 +510,12 @@ pub(in crate::presentation) fn part_pointer_down_handler(
         }
         if !workbench::editor_session::canvas_adapter::capture_canvas_drag(
             canvas_interaction,
-            CanvasMode::DraggingParts,
-            pointer.pointer_id(),
-            client_point(&pointer),
-            pointer.ctrl_key(),
+            workbench::editor_session::canvas_adapter::CanvasDragStart {
+                mode: CanvasMode::DraggingParts,
+                id: pointer.pointer_id(),
+                client: client_point(&pointer),
+                control: pointer.ctrl_key(),
+            },
             &runtime,
             &drag,
             &svg,

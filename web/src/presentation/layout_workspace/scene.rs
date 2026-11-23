@@ -286,7 +286,16 @@ fn selection_anchor(
                             let positions: Vec<_> = snapshot.document.parts.iter().filter(|p| current.selected_part_ids.contains(&p.id)).map(|p| Position { id: p.id.clone(), at: p.pose.at }).collect();
                             if positions.is_empty() { return; }
                             if !workbench::editor_session::canvas_adapter::capture_canvas_drag(
-                                arbiter, CanvasMode::DraggingParts, pointer.pointer_id(), client_point(&pointer), pointer.ctrl_key(), &runtime, &drag, &svg,
+                                arbiter,
+                                workbench::editor_session::canvas_adapter::CanvasDragStart {
+                                    mode: CanvasMode::DraggingParts,
+                                    id: pointer.pointer_id(),
+                                    client: client_point(&pointer),
+                                    control: pointer.ctrl_key(),
+                                },
+                                &runtime,
+                                &drag,
+                                &svg,
                             ) { return; }
                             *drag.borrow_mut() = Some(Drag { pointer: i64::from(pointer.pointer_id()), scope: scope.clone(), generation: owner.generation, gesture_generation: None, origin, client_x: f64::from(pointer.client_x()), client_y: f64::from(pointer.client_y()), positions, last_sample: None, active: false, pan: false, camera: Vec2::default() });
                         },

@@ -196,9 +196,7 @@ impl CoreEngine {
             return Err("The wiring inputs changed; resolve again before applying".into());
         }
         let mut document = self.document.clone();
-        if let Err(message) = electrical::materialize_reviewed(&mut document, &reviewed, draft) {
-            return Err(message);
-        }
+        electrical::materialize_reviewed(&mut document, &reviewed, draft)?;
         self.commit_edit(EditCommand {
             base_revision,
             transaction_id: "apply-wiring".into(),

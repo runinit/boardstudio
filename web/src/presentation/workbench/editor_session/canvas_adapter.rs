@@ -470,16 +470,26 @@ pub(super) fn cancel_pointer_handler(
     }
 }
 
+pub(in crate::presentation) struct CanvasDragStart {
+    pub mode: CanvasMode,
+    pub id: i32,
+    pub client: (f64, f64),
+    pub control: bool,
+}
+
 pub(in crate::presentation) fn capture_canvas_drag(
     interaction: LayoutInteraction,
-    mode: CanvasMode,
-    id: i32,
-    client: (f64, f64),
-    control: bool,
+    start: CanvasDragStart,
     runtime: &Rc<Runtime>,
     drag: &Rc<RefCell<Option<Drag>>>,
     svg: &Rc<RefCell<Option<SvgElement>>>,
 ) -> bool {
+    let CanvasDragStart {
+        mode,
+        id,
+        client,
+        control,
+    } = start;
     // Some callers stop propagation before the workbench can sync modifiers.
     interaction.sync_control(control);
     if interaction.handle(CanvasEvent::PointerDown {
@@ -516,10 +526,12 @@ pub(in crate::presentation) fn start_pan(
     let client = client_point(pointer);
     if capture_canvas_drag(
         interaction,
-        CanvasMode::Panning,
-        pointer.pointer_id(),
-        client,
-        pointer.ctrl_key(),
+        CanvasDragStart {
+            mode: CanvasMode::Panning,
+            id: pointer.pointer_id(),
+            client,
+            control: pointer.ctrl_key(),
+        },
         runtime,
         &navigation.drag_interaction(),
         svg,
