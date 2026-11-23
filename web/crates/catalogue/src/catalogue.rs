@@ -320,16 +320,22 @@ fn construction_definition_with_support(
     Ok((normalized, true))
 }
 
+/// The generator normalizer for an intent: reversible layouts re-normalize
+/// through the generators, everything else passes definitions through.
 type SetupNormalize = fn(&PartDefinition, bool) -> Result<(PartDefinition, bool), String>;
+
 fn normalize_for_intent(intent: &crate::physical_setup::SetupIntent) -> SetupNormalize {
-    use crate::physical_setup::SetupIntent::*;
+    use crate::physical_setup::SetupIntent;
     match intent {
-        ReversibleLayout(_) => |d, e| construction_definition_with_support(d.clone(), e),
+        SetupIntent::ReversibleLayout(_) => {
+            |d, e| construction_definition_with_support(d.clone(), e)
+        }
         _ => |d, _| Ok((d.clone(), false)),
     }
 }
 
-/// Prepare a project setup proposal; callers receive proposals, not generator access.
+/// Prepare a project setup proposal through catalogue-owned helpers; callers receive
+/// proposals, not access to the generators.
 pub fn prepare_physical_setup_proposal(
     accepted: &ProjectDoc,
     intent: crate::physical_setup::SetupIntent,
@@ -345,8 +351,12 @@ pub async fn prepare_physical_setup_proposal_from_package(
     prepare_physical_setup_proposal(accepted, intent)
 }
 
-/// Pair-aware [`prepare_physical_setup_proposal`] for an eligible mirror pair,
-/// applied through Core's typed mechanical operation when Session executes the intent.
+/// Prepare a pair-aware setup proposal through catalogue-owned helpers.
+///
+/// The document-only [`prepare_physical_setup_proposal`] stays the view for callers
+/// that never establish a pair; the physical-setup caller uses this one so an
+/// eligible mirror pair is not discarded, and applies it through Core's typed
+/// mechanical operation when Session executes the intent.
 pub fn prepare_physical_setup_proposal_with_pair(
     accepted: &ProjectDoc,
     intent: crate::physical_setup::SetupIntent,

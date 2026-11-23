@@ -2,7 +2,7 @@
 //! boundary parity check. The native test (`core/tests/boundary_parity.rs`)
 //! records and verifies the golden transcript; the browser test
 //! (`web/crates/host/src/boundary_parity.rs`) replays the same requests through the real
-//! `CoreEngine` and `archive_request` WASM exports and must reproduce it.
+//! `CoreEngine` and `archive_request` Rust entry points on `wasm32` and must reproduce it.
 //! Ported from `scripts/check-rust-boundaries.mjs`.
 #![allow(dead_code)]
 

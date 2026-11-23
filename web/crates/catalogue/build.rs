@@ -1,22 +1,24 @@
+use std::path::Path;
+
 fn main() {
-    println!("cargo::rerun-if-changed=../../../catalogue/parts/imported-parts.json");
-    let mut out = String::new();
-    let (mut s, mut e) = (false, false);
-    for c in include_str!("../../../catalogue/parts/imported-parts.json").chars() {
-        if s || c == '"' || !c.is_whitespace() {
+    let src =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../catalogue/parts/imported-parts.json");
+    println!("cargo::rerun-if-changed={}", src.display());
+    let input = std::fs::read_to_string(&src).unwrap();
+    let mut out = String::with_capacity(input.len());
+    let (mut in_string, mut escaped) = (false, false);
+    for c in input.chars() {
+        if in_string || c == '"' || !c.is_whitespace() {
             out.push(c);
         }
-        if e {
-            e = false;
+        if escaped {
+            escaped = false;
         } else if c == '\\' {
-            e = s;
+            escaped = in_string;
         } else if c == '"' {
-            s = !s;
+            in_string = !in_string;
         }
     }
-    let path = format!(
-        "{}/imported-parts.min.json",
-        std::env::var("OUT_DIR").unwrap()
-    );
-    std::fs::write(path, out).unwrap();
+    let dest = Path::new(&std::env::var("OUT_DIR").unwrap()).join("imported-parts.min.json");
+    std::fs::write(dest, out).unwrap();
 }

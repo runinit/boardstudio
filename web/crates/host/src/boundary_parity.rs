@@ -1,5 +1,5 @@
 //! Browser half of the native/WASM boundary parity check: replays the shared
-//! requests through the real `CoreEngine` and `archive_request` WASM exports
+//! requests through the real `CoreEngine` and `archive_request` Rust entry points
 //! (typed-array marshalling included) and must reproduce the transcript the
 //! native test recorded in `core/tests/fixtures/boundary/transcript.json`.
 use boardstudio_core::{CoreEngine, archive_request};

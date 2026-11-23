@@ -1,4 +1,4 @@
-//! Rust and WebAssembly entry points for BoardStudio Core.
+//! Rust entry points for BoardStudio Core.
 
 pub use boardstudio_core_artifact::artifact;
 pub use boardstudio_core_engine::{
