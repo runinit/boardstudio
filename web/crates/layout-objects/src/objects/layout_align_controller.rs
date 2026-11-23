@@ -3,8 +3,8 @@ use super::layout_align::{alignment_delta, reconcile_reference_choice, transform
 use super::layout_align_geometry::reference_choice;
 use super::layout_align_logic::{make_edit, workspace_route_matches};
 use super::{
-    AlignAction, AlignCommand, AlignFeedback, AlignReference, LayoutAlignMount, ScopedTreeContext,
-    TreeContext,
+    AlignAction, AlignCommand, AlignFeedback, AlignReference, LayoutAlignMount,
+    LayoutWorkspaceState, ScopedTreeContext, TreeContext,
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{
@@ -53,7 +53,9 @@ struct AlignProjectionIdentity {
     owner_workspace: Workspace,
 }
 
-/// Must run at the Editor lifetime, including while the Layout toolbar is hidden.
+/// May run inside the owning workspace: the Layout reference choice persists on
+/// `LayoutWorkspaceState` (session lifetime) across workspace switches, while any
+/// other owner keeps a mount-local choice. Feedback and projection stay per-mount.
 pub fn use_canvas_align(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
@@ -62,7 +64,13 @@ pub fn use_canvas_align(
     scope_generation: Signal<u64>,
     owner_workspace: Workspace,
 ) -> LayoutAlignMount {
-    let mut selected_reference = use_signal(|| None::<String>);
+    let local_reference = use_signal(|| None::<String>);
+    let persisted_reference =
+        try_use_context::<LayoutWorkspaceState>().map(|state| state.selected_reference());
+    let mut selected_reference = match (owner_workspace, persisted_reference) {
+        (Workspace::Layout, Some(persisted)) => persisted,
+        _ => local_reference,
+    };
     let feedback = use_signal(|| None::<AlignFeedbackState>);
     let selected = selected_context.read().clone();
     let current_workspace = workspace();

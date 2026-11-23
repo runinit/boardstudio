@@ -3,9 +3,7 @@ use boardstudio_web_ui_model::{Workspace, editor::EditorContext};
 
 pub(in crate::presentation) struct WsWiring {
     pub mounted_module_select: EventHandler<String>,
-    pub on_layout_selection_kind_handler: EventHandler<objects::LayoutSelectionKind>,
     pub layout_snap_intent: EventHandler<objects::LayoutSnapIntent>,
-    pub toggle_footprints: EventHandler<()>,
     pub on_browse_parts: EventHandler<()>,
     pub on_empty_board_matrix: Callback<()>,
     pub shared_objects: workspace_composition::SharedObjectsInput,
@@ -24,7 +22,6 @@ pub(super) fn use_workspace_wiring(
     let snapshot = state.snapshot;
     let render_scope = state.render_scope;
     let super::selection_handlers::SelHandlers {
-        on_layout_selection_kind,
         on_layout_snap_intent,
         on_mounted_module_select,
         nudge_tree,
@@ -95,9 +92,7 @@ pub(super) fn use_workspace_wiring(
     });
     WsWiring {
         mounted_module_select: on_mounted_module_select,
-        on_layout_selection_kind_handler: on_layout_selection_kind,
         layout_snap_intent: on_layout_snap_intent,
-        toggle_footprints: super::super::workspace_composition::toggle_footprints(editor.layers),
         on_browse_parts,
         on_empty_board_matrix,
         shared_objects,

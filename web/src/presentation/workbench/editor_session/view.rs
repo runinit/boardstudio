@@ -259,19 +259,12 @@ pub(super) struct CanvasSectionInput<'a> {
     pub guide_project_stage: bool,
     pub hardware_split: bool,
     pub hardware_wired: bool,
-    pub layout_assembly_3d: Signal<bool>,
     pub return_workspace: Signal<Workspace>,
     pub inspector_panel_settings: Signal<PanelSettings>,
     pub snapshot: &'a AcceptedSnapshot,
     pub on_empty_board_matrix: Callback<(), ()>,
     pub on_browse_parts: EventHandler<()>,
     pub show_empty_board: bool,
-    pub part_placement: &'a part_placement::PartPlacementMount,
-    pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
-    pub pending_splay_origin_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
-    pub pending_anchor_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
-    pub field_preview: Signal<Option<FieldPreviewState>>,
-    pub canvas_anchor_badge: &'a Option<anchor_badge::AnchorBadge>,
 }
 
 pub(super) fn canvas_section(input: CanvasSectionInput<'_>) -> Element {
@@ -287,19 +280,12 @@ pub(super) fn canvas_section(input: CanvasSectionInput<'_>) -> Element {
         guide_project_stage,
         hardware_split,
         hardware_wired,
-        layout_assembly_3d,
         return_workspace,
         inspector_panel_settings,
         snapshot,
         on_empty_board_matrix,
         on_browse_parts,
         show_empty_board,
-        part_placement,
-        document,
-        pending_splay_origin_pick,
-        pending_anchor_pick,
-        field_preview,
-        canvas_anchor_badge,
     } = input;
     rsx! {
         section { class: if setup_guide_active { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border-0 bg-card shadow-sm [container:layout-canvas/inline-size] [&>[data-workspace-toolbar]]:hidden" } else if active_workspace == Workspace::Export { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-auto rounded-xl border-0 bg-card shadow-sm" } else { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border-0 bg-card shadow-sm [container:layout-canvas/inline-size]" }, role: "region", id: "m1-workspace-panel", aria_label: "{active_workspace} workspace",
@@ -332,16 +318,7 @@ pub(super) fn canvas_section(input: CanvasSectionInput<'_>) -> Element {
                     on_parts: on_browse_parts,
                 }
             }
-            {layout_workspace::canvas_status_pills(layout_workspace::CanvasStatusPillsInput {
-                active: active_workspace == Workspace::Layout,
-                part_placement,
-                document,
-                pending_splay_origin_pick,
-                pending_anchor_pick,
-                field_preview,
-                layout_assembly_3d,
-                canvas_anchor_badge,
-            })}
+            // Layout renders its own canvas status pills inside its canvas surface.
         }
     }
 }

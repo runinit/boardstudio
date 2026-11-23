@@ -158,19 +158,10 @@ pub(super) struct GuideOverlaysInput<'a> {
     pub scene: std::sync::Arc<boardstudio_core::model::SceneDelta>,
     pub model: &'a ReadModel,
     pub mirrored_pair: objects::MirroredPairMount,
-    pub tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
-    pub layout_owner: LayoutOwnerIdentity,
-    pub render_scope: Scope,
-    pub adapter: SelectionAdapter,
-    pub accepted_canvas_source: layout_canvas::SceneSource,
-    pub layout_snap_settings: Signal<objects::LayoutSnapSettings>,
-    pub outline_inspector: Option<outline_lifecycle::OutlineInspectorProjection>,
     pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
     pub has_matrix: bool,
     pub guide_preferences: Signal<Option<setup_guide::SetupGuidePreferences>>,
     pub workspace: Signal<Workspace>,
-    pub width: f64,
-    pub zoom_surface_size: Signal<(f64, f64)>,
 }
 
 pub(super) struct GuideOverlays {
@@ -178,11 +169,6 @@ pub(super) struct GuideOverlays {
     pub inline_case_basics: Option<Element>,
     pub inline_controller_picker: Option<Element>,
     pub show_empty_board: bool,
-    pub outline_pitch: Vec2,
-    pub outline_snap_origins: Rc<Vec<outline_snapping::Origin>>,
-    pub outline_snap_settings: objects::LayoutSnapSettings,
-    pub canvas_grid: objects::LayoutCanvasGridStyle,
-    pub outline_overlay_key: Option<String>,
 }
 
 pub(super) fn use_guide_overlays(input: GuideOverlaysInput<'_>) -> GuideOverlays {
@@ -203,19 +189,10 @@ pub(super) fn use_guide_overlays(input: GuideOverlaysInput<'_>) -> GuideOverlays
         scene,
         model,
         mirrored_pair,
-        tree_cell_anchor,
-        layout_owner,
-        render_scope,
-        adapter,
-        accepted_canvas_source,
-        layout_snap_settings,
-        outline_inspector,
         document,
         has_matrix,
         guide_preferences,
         workspace,
-        width,
-        zoom_surface_size,
     } = input;
     let matrix_count = matrices.len();
     let placing_matrix = matrix_placement.placement.is_some() || matrix_placement.busy;
@@ -305,34 +282,11 @@ pub(super) fn use_guide_overlays(input: GuideOverlaysInput<'_>) -> GuideOverlays
         && !part_placement.busy;
     let show_empty_board =
         show_empty_board && matrix_placement.placement.is_none() && !matrix_placement.busy;
-    let layout_workspace::scene::OutlineOverlay {
-        outline_pitch,
-        outline_snap_origins,
-        outline_snap_settings,
-        canvas_grid,
-        outline_overlay_key,
-    } = layout_workspace::scene::use_outline_overlay(
-        model,
-        &render_scope,
-        &adapter,
-        &tree_cell_anchor,
-        &layout_owner,
-        accepted_canvas_source.clone(),
-        layout_snap_settings,
-        &outline_inspector,
-        width,
-        zoom_surface_size,
-    );
     GuideOverlays {
         inline_matrix_setup,
         inline_case_basics,
         inline_controller_picker,
         show_empty_board,
-        outline_pitch,
-        outline_snap_origins,
-        outline_snap_settings,
-        canvas_grid,
-        outline_overlay_key,
     }
 }
 
@@ -487,16 +441,10 @@ pub(super) fn on_finish_guide_handler(
 pub(in crate::presentation) struct GuideNamed {
     pub state: GuideState,
     pub show_empty_board: bool,
-    pub outline_pitch: Vec2,
-    pub outline_snap_origins: Rc<Vec<outline_snapping::Origin>>,
-    pub outline_snap_settings: objects::LayoutSnapSettings,
-    pub canvas_grid: objects::LayoutCanvasGridStyle,
-    pub outline_overlay_key: Option<String>,
     pub on_name_change: Callback<String>,
     pub on_name_commit: Callback<()>,
     pub full_case_settings: Signal<bool>,
     pub guide_stage_readiness: [bool; 5],
-    pub selection_geometry_anchor: Option<(f64, f64, f64)>,
     pub name_value: String,
     pub inline_matrix_setup: Option<Element>,
     pub inline_case_basics: Option<Element>,
@@ -518,7 +466,6 @@ pub(super) fn use_setup_guide<'a>(
 ) -> GuideNamed {
     let views = &state.views;
     let snapshot = state.snapshot;
-    let render_scope = state.render_scope;
     let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
     let active_workspace = state.active_workspace;
     let document = &views.document;
@@ -540,13 +487,6 @@ pub(super) fn use_setup_guide<'a>(
     let current_scope = &state.view.current_scope;
     let parts_selection = state.view.parts_selection;
     let layout_assembly_3d = state.layout_state.assembly_3d();
-    let tree_cell_anchor = &state.tree_cell_anchor;
-    let layout_owner = &state.view.layout_owner;
-    let accepted_canvas_source = &cam.scene_bounds.accepted_canvas_source;
-    let layout_snap_settings = state.layout_state.snap_settings();
-    let outline_inspector = &state.view.outline_inspector;
-    let width = cam.scene_bounds.width;
-    let zoom_surface_size = cam.svg_surface.zoom_surface_size;
     let guide_name_draft = state.guide_name_edit.draft;
     let guide_name_edit = &state.guide_name_edit;
     let setup_state = state.setup_state;
@@ -555,9 +495,6 @@ pub(super) fn use_setup_guide<'a>(
     let inspect_open = editor.panels.inspector_open;
     let objects_panel_settings = state.objects_panel_settings;
     let inspector_panel_settings = state.inspector_panel_settings;
-    let svg = &cam.svg_surface.svg;
-    let height = cam.scene_bounds.height;
-    let view_x = cam.scene_bounds.view_x;
     let GuideState {
         active_part_position,
         guide,
@@ -584,11 +521,6 @@ pub(super) fn use_setup_guide<'a>(
         inline_case_basics,
         inline_controller_picker,
         show_empty_board,
-        outline_pitch,
-        outline_snap_origins,
-        outline_snap_settings,
-        canvas_grid,
-        outline_overlay_key,
     } = use_guide_overlays(GuideOverlaysInput {
         guide: &guide,
         matrix_setup: matrix_setup.clone(),
@@ -606,19 +538,10 @@ pub(super) fn use_setup_guide<'a>(
         scene: scene.clone(),
         model,
         mirrored_pair: mirrored_pair.clone(),
-        tree_cell_anchor: tree_cell_anchor.clone(),
-        layout_owner: layout_owner.clone(),
-        render_scope: render_scope.clone(),
-        adapter: adapter.clone(),
-        accepted_canvas_source: accepted_canvas_source.clone(),
-        layout_snap_settings,
-        outline_inspector: outline_inspector.clone(),
         document: document.clone(),
         has_matrix,
         guide_preferences,
         workspace,
-        width,
-        zoom_surface_size,
     });
     let (name_value, on_name_change, on_name_commit) = guide_name_fields(
         guide_name_draft,
@@ -684,21 +607,6 @@ pub(super) fn use_setup_guide<'a>(
             )
         })
         .unwrap_or_default();
-    let selection_geometry_anchor = (!layout_assembly_3d()
-        && active_workspace == Workspace::Layout)
-        .then(|| {
-            layout_workspace::scene::selection_geometry_anchor(
-                visible,
-                scene,
-                &model.selected_part_ids,
-                svg.borrow().is_some(),
-                zoom_surface_size,
-                width,
-                height,
-                view_x,
-            )
-        })
-        .flatten();
     GuideNamed {
         state: GuideState {
             active_part_position,
@@ -708,16 +616,10 @@ pub(super) fn use_setup_guide<'a>(
             setup_wiring_error,
         },
         show_empty_board,
-        outline_pitch,
-        outline_snap_origins,
-        outline_snap_settings,
-        canvas_grid,
-        outline_overlay_key,
         on_name_change,
         on_name_commit,
         full_case_settings,
         guide_stage_readiness,
-        selection_geometry_anchor,
         name_value,
         inline_matrix_setup,
         inline_case_basics,

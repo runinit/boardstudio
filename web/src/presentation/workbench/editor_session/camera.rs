@@ -62,6 +62,56 @@ pub(in crate::presentation) fn use_svg_surface(
     }
 }
 
+/// The shared canvas mount handler plus the placement-focus effect. Every
+/// workspace canvas needs these at session lifetime; Layout-only inspector
+/// projections moved into `LayoutWorkspace`.
+pub(in crate::presentation) fn use_session_canvas_mount(
+    svg: &Rc<RefCell<Option<SvgElement>>>,
+    zoom_surface_size: Signal<(f64, f64)>,
+    runtime: Rc<Runtime>,
+    part_placement: &part_placement::PartPlacementMount,
+    matrix_placement: &objects::MatrixPlacementMount,
+) -> EventHandler<MountedEvent> {
+    let mount = EventHandler::new(CanvasNavigationState::mount_handler(
+        zoom_surface_size,
+        runtime.clone(),
+        svg.clone(),
+        part_placement.projection.is_some(),
+    ));
+    let placement_active = part_placement.projection.is_some()
+        || part_placement.busy
+        || matrix_placement.placement.is_some()
+        || matrix_placement.busy;
+    let focus_svg = svg.clone();
+    use_effect(use_reactive!(|placement_active| {
+        if !placement_active {
+            return;
+        }
+        if let Some(element) = focus_svg.borrow().as_ref() {
+            let options = web_sys::FocusOptions::new();
+            options.set_prevent_scroll(true);
+            let _ = element.focus_with_options(&options);
+        }
+    }));
+    mount
+}
+
+/// The session-level position-inspector flag carried on the frame for PCB.
+/// Layout computes the full version inside `LayoutWorkspace`; the board and
+/// component projections it also consults only ever project while Layout is
+/// active, so the selection check alone is exact for every other workspace.
+pub(in crate::presentation) fn session_show_position_inspector(
+    model: &ReadModel,
+    selected_tree_context: Option<&objects::ScopedTreeContext>,
+) -> bool {
+    selected_tree_context.is_none_or(|selected| {
+        let resolved = selection::resolve_context(model, &selected.context);
+        resolved.is_some_and(|ids| {
+            ids.len() == 1 && model.selected_part_ids.as_slice() == ids.as_slice()
+        }) && matches!(&selected.context, objects::TreeContext::Component { .. })
+    })
+}
+
 pub(in crate::presentation) struct SceneBoundsInput<'a> {
     pub enabled: bool,
     pub model: &'a ReadModel,

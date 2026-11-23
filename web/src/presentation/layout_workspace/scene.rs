@@ -9,9 +9,19 @@ pub(in crate::presentation) fn polygon_points(points: &[Vec2]) -> String {
         .join(" ")
 }
 
+pub(in crate::presentation) struct LayoutCanvasExtras {
+    pub bridge: Option<boardstudio_core::model::OutlineBridge>,
+    pub focused_half: Option<boardstudio_web_ui_model::split_focus::SplitHalf>,
+    pub anchor: Option<(f64, f64, f64)>,
+}
+
 pub(in crate::presentation) fn use_layout_canvas(
     frame: &workspace_composition::WorkspaceFrame,
-    payload: &workspace_composition::WorkspacePayload,
+    canvas: &super::inspector_wiring::CanvasNamed,
+    transform_menu: &objects::LayoutTransformMenuMount,
+    pointer: &super::pointer::LayoutPointer,
+    overlay: &OutlineOverlay,
+    extras: LayoutCanvasExtras,
 ) -> Element {
     let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
     let layout_state = use_context::<layout_workspace::LayoutWorkspaceState>();
@@ -28,35 +38,35 @@ pub(in crate::presentation) fn use_layout_canvas(
             }
         };
     }
-    let workspace_composition::WorkspacePayload::Layout {
-        canvas_aria_label,
-        canvas_grid,
-        outline_inspector,
-        outline_overlay_key,
-        outline_snap_settings,
-        outline_pitch,
-        outline_snap_origins,
-        selected_bridge,
-        matrix_placement,
-        mirrored_pair,
-        split_focused_half,
-        spacing_ghost_prop,
-        selected_tree_context,
-        canvas_anchor_badge,
-        matrix_pointer_down,
-        part_pointer_down,
-        selection_geometry_anchor,
-        canvas_transform_menu,
-        matrix_transform_inspector,
-        drag,
-        layout_transform_target,
-        part_rail_selection,
-        part_rail_snap,
-        ..
-    } = payload
-    else {
-        return rsx! {};
-    };
+    let services = &frame.layout_services;
+    let LayoutCanvasExtras {
+        bridge,
+        focused_half,
+        anchor,
+    } = extras;
+    let canvas_aria_label = canvas.inspector.canvas_aria_label;
+    let canvas_grid = &overlay.canvas_grid;
+    let outline_inspector = &services.outline_inspector;
+    let outline_overlay_key = &overlay.outline_overlay_key;
+    let outline_snap_settings = &overlay.outline_snap_settings;
+    let outline_pitch = overlay.outline_pitch;
+    let outline_snap_origins = &overlay.outline_snap_origins;
+    let selected_bridge = bridge.as_ref();
+    let matrix_placement = &services.matrix_placement;
+    let mirrored_pair = &services.mirrored_pair;
+    let split_focused_half = focused_half;
+    let spacing_ghost_prop = canvas.selection.spacing_ghost_prop.clone();
+    let selected_tree_context = &canvas.selection.selected_tree_context;
+    let canvas_anchor_badge = canvas.selection.canvas_anchor_badge.clone();
+    let matrix_pointer_down = pointer.matrix_pointer_down;
+    let part_pointer_down = pointer.part_pointer_down;
+    let selection_geometry_anchor = anchor;
+    let canvas_transform_menu = Some(transform_menu.clone());
+    let matrix_transform_inspector = services.matrix_transform_inspector.clone();
+    let drag = interaction.navigation.drag_interaction();
+    let layout_transform_target = canvas.selection.layout_transform_target.clone();
+    let part_rail_selection = canvas.selection.part_rail_selection.clone();
+    let part_rail_snap = canvas.selection.part_rail_snap;
     let workspace_composition::CanvasEventHandlers {
         mount,
         start_pan,
@@ -114,14 +124,14 @@ pub(in crate::presentation) fn use_layout_canvas(
                 width,
                 height,
                 outline_snap_settings,
-                outline_pitch: *outline_pitch,
+                outline_pitch,
                 outline_snap_origins,
-                selected_bridge: selected_bridge.as_ref(),
+                selected_bridge,
             })}
             {scene_placement_previews(layer_visibility, matrix_placement, mirrored_pair)}
             layout_canvas::Scene {
                 source: canvas_source,
-                focused_half: *split_focused_half,
+                focused_half: split_focused_half,
                 preview_active: model.display_preview.is_some(),
                 accepted_scene: model
                     .display_preview
@@ -138,11 +148,11 @@ pub(in crate::presentation) fn use_layout_canvas(
                 keycaps_visible: !(layer_visibility.hidden)().contains("Keycaps"),
                 footprints_visible: (layer_visibility.footprints)()
                     && !(layer_visibility.hidden)().contains("Footprints"),
-                on_matrix_pointer_down: *matrix_pointer_down,
-                on_part_pointer_down: *part_pointer_down,
+                on_matrix_pointer_down: matrix_pointer_down,
+                on_part_pointer_down: part_pointer_down,
             }
             {selection_anchor(SelectionAnchorInput {
-                selection_geometry_anchor: *selection_geometry_anchor,
+                selection_geometry_anchor,
                 canvas_transform_menu: canvas_transform_menu.clone(),
                 matrix_transform_inspector: matrix_transform_inspector.clone(),
                 selected_tree_context,
@@ -182,7 +192,7 @@ pub(in crate::presentation) fn use_layout_canvas(
                 layout_assembly_3d,
                 part_rail_selection: part_rail_selection.clone(),
                 selected_tree_context,
-                part_rail_snap: *part_rail_snap,
+                part_rail_snap,
                 layout_transform_tool,
                 layout_state,
                 runtime: runtime.clone(),
@@ -213,7 +223,7 @@ pub(in crate::presentation) fn use_layout_canvas(
                 width,
                 height,
                 outline_snap_settings,
-                outline_pitch: *outline_pitch,
+                outline_pitch,
                 outline_snap_origins,
             })}
         }
@@ -745,26 +755,65 @@ pub(in crate::presentation) struct CanvasSelectionState {
 }
 
 pub(in crate::presentation) fn use_canvas_selection_state(
-    state: &super::super::workbench::editor_session::session_state::SessionState,
-    views: &super::super::workbench::editor_session::setup_workspaces::Views,
-    cam: &super::super::workbench::editor_session::camera::CamNamed,
-    snapshot: &AcceptedSnapshot,
-    render_scope: &Scope,
+    frame: &workspace_composition::WorkspaceFrame,
 ) -> CanvasSelectionState {
     let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
-    let adapter = state.adapter.clone();
-    let render_scope = render_scope.clone();
-    let model = &state.view.model;
+    let adapter = use_context::<SelectionAdapter>();
+    let layout_state = use_context::<layout_workspace::LayoutWorkspaceState>();
+    let version = editor.version;
+    let runtime = editor.runtime();
+    // A spacing commit shows the previous accepted scene until another edit,
+    // undo/redo, or selection change. The tracker only writes view state.
+    let mut last_spacing_seen = use_signal(|| None::<spacing_ghost::SeenAccepted>);
+    let mut spacing_ghost_state = use_signal(|| None::<spacing_ghost::SpacingGhostState>);
+    let ghost_effect_runtime = runtime.clone();
+    let ghost_effect_selection = adapter.selected_context;
+    use_effect(move || {
+        let _ = version();
+        let tree_context = (ghost_effect_selection)();
+        let model = ghost_effect_runtime.model();
+        let Some(snapshot) = model.accepted.clone() else {
+            return;
+        };
+        let current = spacing_ghost::AcceptedView {
+            revision: snapshot.document.revision,
+            transaction: snapshot.scene.transaction_id.clone(),
+            document: snapshot.document.clone(),
+            scene: snapshot.scene.clone(),
+            selected_ids: model.selected_part_ids.clone(),
+            selected_context: tree_context,
+        };
+        // Clone the settled values first: the tracker borrows nothing, and the
+        // guarded writes below only fire on real advances.
+        let seen_before = last_spacing_seen.peek().clone();
+        let ghost_before = spacing_ghost_state.peek().clone();
+        match spacing_ghost::advance_spacing_ghost(
+            seen_before.as_ref(),
+            &current,
+            ghost_before.as_ref(),
+        ) {
+            spacing_ghost::GhostAdvance::Keep => {}
+            spacing_ghost::GhostAdvance::Set { seen, ghost } => {
+                if Some(&seen) != seen_before.as_ref() {
+                    last_spacing_seen.set(Some(seen));
+                }
+                if ghost != ghost_before {
+                    spacing_ghost_state.set(ghost);
+                }
+            }
+        }
+    });
+    let render_scope = frame.scope.clone();
+    let model = &frame.model;
+    let snapshot = &frame.snapshot;
     let layer_visibility = editor.layers;
-    let canvas_source = cam.scene_bounds.canvas_source.clone();
-    let spacing_ghost_state = state.spacing_ghost_state;
-    let accepted_canvas_source = cam.scene_bounds.accepted_canvas_source.clone();
-    let document = views.document.clone();
-    let active_workspace = state.active_workspace;
-    let layout_snap_settings = state.layout_state.snap_settings();
-    let layout_owner = state.view.layout_owner.clone();
-    let layout_assembly_3d = state.layout_state.assembly_3d();
-    let layout_state = state.layout_state;
+    let canvas_source = frame.camera.canvas_source.clone();
+    let accepted_canvas_source = frame.camera.accepted_canvas_source.clone();
+    let document = frame.document.clone();
+    let active_workspace = Workspace::Layout;
+    let layout_snap_settings = layout_state.snap_settings();
+    let layout_owner = frame.owner.clone();
+    let layout_assembly_3d = layout_state.assembly_3d();
     let selected_tree_context = adapter.selected_context.read().clone().filter(|selected| {
         selected.scope == render_scope
             && selection::context_is_current(model, &selected.scope, &selected.context)
@@ -959,22 +1008,24 @@ pub(in crate::presentation) struct OutlineOverlay {
     pub outline_overlay_key: Option<String>,
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(in crate::presentation) fn use_outline_overlay(
-    model: &ReadModel,
-    render_scope: &Scope,
-    adapter: &SelectionAdapter,
-    tree_cell_anchor: &Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
-    layout_owner: &LayoutOwnerIdentity,
-    accepted_canvas_source: layout_canvas::SceneSource,
-    layout_snap_settings: Signal<objects::LayoutSnapSettings>,
-    outline_inspector: &Option<outline_lifecycle::OutlineInspectorProjection>,
-    width: f64,
-    zoom_surface_size: Signal<(f64, f64)>,
+    frame: &workspace_composition::WorkspaceFrame,
 ) -> OutlineOverlay {
+    let adapter = use_context::<SelectionAdapter>();
+    let interaction = use_context::<workspace_composition::WorkspaceInteraction>();
+    let layout_state = use_context::<layout_workspace::LayoutWorkspaceState>();
+    let model = frame.model.as_ref();
+    let render_scope = &frame.scope;
+    let tree_cell_anchor = &interaction.tree_cell_anchor;
+    let layout_owner = &frame.owner;
+    let accepted_canvas_source = frame.camera.accepted_canvas_source.clone();
+    let layout_snap_settings = layout_state.snap_settings();
+    let outline_inspector = &frame.layout_services.outline_inspector;
+    let width = frame.camera.width;
+    let zoom_surface_size = frame.surface_size;
     let outline_pitch = {
         let retained = tree_cell_anchor_for_owner(tree_cell_anchor, layout_owner);
-        matrix_snap_parameters(model, render_scope, adapter, retained.as_ref())
+        matrix_snap_parameters(model, render_scope, &adapter, retained.as_ref())
             .0
             .unwrap_or(Vec2 { x: 19.05, y: 19.05 })
     };

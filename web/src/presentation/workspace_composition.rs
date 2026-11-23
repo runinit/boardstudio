@@ -35,6 +35,26 @@ pub(super) struct WorkspaceInteraction {
     pub inspector_settings: Signal<PanelSettings>,
 }
 
+/// Session-owned services the Layout workspace consumes. Unlike the deleted
+/// `WorkspacePayload::Layout` prop bag, these are raw shared mounts — Layout
+/// assembles its own Objects/Inspector/toolbar/canvas inputs inside
+/// `LayoutWorkspace` instead of receiving them prebuilt from the session.
+#[derive(Clone)]
+pub(super) struct LayoutSessionServices {
+    pub matrix_inspector: objects::MatrixInspectorMount,
+    pub matrix_transform_inspector: objects::MatrixTransformInspectorMount,
+    pub matrix_placement: objects::MatrixPlacementMount,
+    pub mirrored_pair: objects::MirroredPairMount,
+    pub outline_inspector: Option<outline_lifecycle::OutlineInspectorProjection>,
+    pub layout_findings: boardstudio_web_layout::layout_findings_state::LayoutFindingsState,
+    pub on_return_from_layout_finding: Callback<(), ()>,
+    pub on_close_layout_findings: Callback<(), ()>,
+    pub on_layout_finding: Callback<layout_findings::Request, ()>,
+    pub interaction_version: Signal<u64>,
+    pub visible_ids: Rc<Vec<String>>,
+    pub objects_panel_settings: Signal<PanelSettings>,
+}
+
 pub(super) struct WorkspaceFrame {
     pub scope: Scope,
     pub snapshot: AcceptedSnapshot,
@@ -47,6 +67,7 @@ pub(super) struct WorkspaceFrame {
     pub handlers: CanvasEventHandlers,
     pub svg: Rc<RefCell<Option<SvgElement>>>,
     pub surface_size: Signal<(f64, f64)>,
+    pub layout_services: LayoutSessionServices,
 
     pub matrix_setup: objects::MatrixSetupMount,
     pub part_placement: part_placement::PartPlacementMount,
@@ -66,38 +87,7 @@ pub(super) struct WorkspaceFrame {
 pub(super) enum WorkspacePayload {
     Case(case_workspace::CaseFrame),
     Parts(parts_workspace::PartsFrame),
-    Layout {
-        objects: layout_workspace::ObjectsInput,
-        inspector: layout_workspace::InspectorInput,
-        toolbar: layout_workspace::ToolbarInput,
-        canvas_aria_label: &'static str,
-        canvas_grid: objects::LayoutCanvasGridStyle,
-        outline_inspector: Option<outline_lifecycle::OutlineInspectorProjection>,
-        outline_overlay_key: Option<String>,
-        outline_snap_settings: objects::LayoutSnapSettings,
-        outline_pitch: Vec2,
-        outline_snap_origins: Rc<Vec<outline_snapping::Origin>>,
-        selected_bridge: Option<boardstudio_core::model::OutlineBridge>,
-        matrix_placement: objects::MatrixPlacementMount,
-        mirrored_pair: objects::MirroredPairMount,
-        split_focused_half: Option<boardstudio_web_ui_model::split_focus::SplitHalf>,
-        spacing_ghost_prop: Option<layout_canvas::SpacingGhost>,
-        selected_tree_context: Option<objects::ScopedTreeContext>,
-        canvas_anchor_badge: Option<anchor_badge::AnchorBadge>,
-        matrix_pointer_down: EventHandler<layout_canvas::MatrixPointerDown>,
-        part_pointer_down: EventHandler<layout_canvas::PartPointerDown>,
-        selection_geometry_anchor: Option<(f64, f64, f64)>,
-        canvas_transform_menu: Option<objects::LayoutTransformMenuMount>,
-        matrix_transform_inspector: objects::MatrixTransformInspectorMount,
-        drag: Rc<RefCell<Option<Drag>>>,
-        layout_transform_target: Option<(
-            std::rc::Rc<boardstudio_core::model::Matrix>,
-            std::rc::Rc<boardstudio_core::model::MatrixScene>,
-            objects::TreeContext,
-        )>,
-        part_rail_selection: Option<(String, boardstudio_web_layout::part_rail::PartRailFacts)>,
-        part_rail_snap: Option<objects::GestureSnapInputs>,
-    },
+    Layout,
     Pcb,
     Keymap,
     Keycaps,
