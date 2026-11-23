@@ -345,6 +345,9 @@ impl Ctl {
         }
         let id = pointer.pointer_id();
         let client = client_point(pointer);
+        // The latch below trusts `control_down` as well as this event, and the
+        // handle stops propagation, so stale modifiers must be synced first.
+        self.interaction.sync_control(pointer.ctrl_key());
         if self.interaction.handle(CanvasEvent::PointerDown {
             mode: self.mode,
             id,

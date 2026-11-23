@@ -378,7 +378,11 @@ pub fn use_matrix_placement(
                 if preparing.read().as_ref() != Some(&owner) {
                     return;
                 }
-                if workspace() != Workspace::Layout
+                // A cancellation (Escape, scope or workspace change) may already
+                // have ended the canvas mode without clearing `preparing` through
+                // this owner; a late result must never re-arm placement then.
+                if canvas_interaction.current() != Some(CanvasMode::PlacingMatrix)
+                    || workspace() != Workspace::Layout
                     || scope_generation() != owner.scope_generation
                     || !owner_session_current(
                         &runtime,
@@ -393,7 +397,10 @@ pub fn use_matrix_placement(
                     return;
                 }
                 match result {
-                    Ok(None) => {}
+                    Ok(None) => {
+                        preparing.set(None);
+                        canvas_interaction.end(CanvasMode::PlacingMatrix);
+                    }
                     Ok(Some((matrix, definitions, scene))) => {
                         placement.set(Some(MatrixPlacementProjection {
                             owner: owner.clone(),

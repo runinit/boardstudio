@@ -480,6 +480,8 @@ pub(in crate::presentation) fn capture_canvas_drag(
     drag: &Rc<RefCell<Option<Drag>>>,
     svg: &Rc<RefCell<Option<SvgElement>>>,
 ) -> bool {
+    // Some callers stop propagation before the workbench can sync modifiers.
+    interaction.sync_control(control);
     if interaction.handle(CanvasEvent::PointerDown {
         mode,
         id,

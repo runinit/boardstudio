@@ -102,11 +102,30 @@ impl LayoutInput {
         }
     }
 
+    /// Pointer motion and release anywhere in the workbench keep `control_down`
+    /// honest when the keyup was missed (focus on `<body>` or the pointer outside
+    /// the SVG). `sync_control` peeks, so normal motion neither subscribes nor
+    /// re-renders; only an actual modifier change publishes.
+    pub fn pointermove(self, event: PointerEvent) {
+        if let Some(pointer) = event.data().try_as_web_event() {
+            self.interaction.sync_control(pointer.ctrl_key());
+        }
+    }
+
+    pub fn pointerup(self, event: PointerEvent) {
+        if let Some(pointer) = event.data().try_as_web_event() {
+            self.interaction.sync_control(pointer.ctrl_key());
+        }
+    }
+
     pub fn pointerdown(mut self, event: PointerEvent) {
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
         };
         self.interaction.sync_control(pointer.ctrl_key());
+        if pointer.button() != 0 {
+            return;
+        }
         let target = event_target(&pointer);
         if self.menu.peek().is_some()
             && !target.as_ref().is_some_and(|target| {
@@ -137,6 +156,16 @@ pub(super) fn focus_workbench_if_body() {
     let Some(document) = web_sys::window().and_then(|window| window.document()) else {
         return;
     };
+    // An open modal owns focus even when the click inside it left `<body>` active;
+    // recovering the workbench then would strand keyboard input behind the dialog.
+    if document
+        .query_selector("[aria-modal='true'][data-state='open'], dialog[open]")
+        .ok()
+        .flatten()
+        .is_some()
+    {
+        return;
+    }
     if document
         .active_element()
         .is_some_and(|element| element.tag_name() == "BODY")
@@ -158,6 +187,7 @@ fn event_target(event: &web_sys::Event) -> Option<web_sys::Element> {
 mod tests {
     use super::*;
     use boardstudio_web_ui_shared::test_wait::wait_until;
+    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
     #[component]
@@ -204,5 +234,132 @@ mod tests {
                 .unwrap();
             assert_eq!(key.default_prevented(), prevents_scroll);
         }
+    }
+
+    #[component]
+    fn CanvasHost() -> Element {
+        let input = use_layout_input();
+        let interaction = use_context::<super::super::LayoutInteraction>();
+        let mut refresh = use_signal(|| 0u64);
+        let _ = refresh();
+        let _ = interaction.version();
+        let state = format!(
+            "{:?}|{}|{}",
+            interaction.current(),
+            interaction.space_down(),
+            interaction.control_down()
+        );
+        let mut arm = move |mode: CanvasMode| {
+            interaction.handle(CanvasEvent::PointerDown {
+                mode,
+                id: 7,
+                client: (0.0, 0.0),
+                control: false,
+            });
+            refresh += 1;
+        };
+        rsx! {
+            main { id: "m1-workbench", tabindex: "-1",
+                onkeydown: move |event| input.keydown(&event, true, true),
+                onkeyup: move |event| input.keyup(event),
+                onpointerdown: move |event| input.pointerdown(event),
+                button { id: "canvas-key", onkeydown: move |event| { event.stop_propagation(); input.keydown(&event, false, true); }, "Canvas" }
+                button { id: "plain-key", onkeydown: move |event| { event.stop_propagation(); input.keydown(&event, false, false); }, "Plain" }
+                button { id: "arm-pan", onclick: move |_| arm(CanvasMode::Panning), "Arm pan" }
+                button { id: "arm-drag", onclick: move |_| arm(CanvasMode::DraggingParts), "Arm drag" }
+                button { id: "set-control", onclick: move |_| { interaction.sync_control(true); refresh += 1; }, "Set control" }
+                button { id: "refresh", onclick: move |_| refresh += 1, "Refresh" }
+                div { id: "pointer-sync", "Sync target" }
+                output { id: "interaction-state", "{state}" }
+            }
+        }
+    }
+
+    fn canvas_state(root: &test_mount_helpers::MountedRoot) -> Option<String> {
+        root.query_selector("#interaction-state")
+            .ok()
+            .flatten()
+            .and_then(|state| state.text_content())
+    }
+
+    async fn expect_state(root: &test_mount_helpers::MountedRoot, expected: &'static str) {
+        wait_until("canvas interaction state", || {
+            canvas_state(root).as_deref() == Some(expected)
+        })
+        .await;
+        assert_eq!(canvas_state(root).as_deref(), Some(expected));
+    }
+
+    fn click(root: &test_mount_helpers::MountedRoot, selector: &str) {
+        root.query_selector(selector)
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+    }
+
+    fn keydown(
+        root: &test_mount_helpers::MountedRoot,
+        selector: &str,
+        key: &str,
+        code: &str,
+    ) -> bool {
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_key(key);
+        init.set_code(code);
+        init.set_bubbles(true);
+        init.set_cancelable(true);
+        let event =
+            web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap();
+        root.query_selector(selector)
+            .unwrap()
+            .unwrap()
+            .dispatch_event(&event)
+            .unwrap();
+        event.default_prevented()
+    }
+
+    #[wasm_bindgen_test]
+    async fn non_layout_canvas_admits_space_pan_and_escape_without_control() {
+        let root = test_mount_helpers::mount(VirtualDom::new(CanvasHost), None);
+        expect_state(&root, "None|false|false").await;
+        assert!(keydown(&root, "#canvas-key", " ", "Space"));
+        click(&root, "#refresh");
+        expect_state(&root, "None|true|false").await;
+        click(&root, "#arm-pan");
+        expect_state(&root, "Some(Panning)|true|false").await;
+        assert!(!keydown(&root, "#canvas-key", "Control", "ControlLeft"));
+        click(&root, "#refresh");
+        expect_state(&root, "Some(Panning)|true|false").await;
+        assert!(keydown(&root, "#canvas-key", "Escape", "Escape"));
+        expect_state(&root, "None|true|false").await;
+        click(&root, "#arm-drag");
+        expect_state(&root, "Some(DraggingParts)|true|false").await;
+        assert!(keydown(&root, "#canvas-key", "Escape", "Escape"));
+        expect_state(&root, "None|true|false").await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn non_canvas_ignores_space_and_pointerdown_clears_stale_control() {
+        let root = test_mount_helpers::mount(VirtualDom::new(CanvasHost), None);
+        expect_state(&root, "None|false|false").await;
+        assert!(!keydown(&root, "#plain-key", " ", "Space"));
+        click(&root, "#arm-pan");
+        expect_state(&root, "None|false|false").await;
+        click(&root, "#set-control");
+        expect_state(&root, "None|false|true").await;
+        let pointer = js_sys::eval(
+            "new PointerEvent('pointerdown', {bubbles: true, button: 0, ctrlKey: false})",
+        )
+        .unwrap()
+        .dyn_into::<web_sys::Event>()
+        .unwrap();
+        root.query_selector("#pointer-sync")
+            .unwrap()
+            .unwrap()
+            .dispatch_event(&pointer)
+            .unwrap();
+        expect_state(&root, "None|false|false").await;
     }
 }

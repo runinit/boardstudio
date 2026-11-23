@@ -230,6 +230,15 @@ fn merge_assembly_assets(doc: &mut ProjectDoc, assets: &[Asset]) -> Result<(), S
     Ok(())
 }
 
+/// Mirrors the Parts editor's `asset_exists`: document assets resolve by identity,
+/// while bundled catalogue entries and unresolved placeholders need no document row.
+/// Core cannot name the web catalogue, so bundled identities match by their prefix.
+fn assembly_asset_available(doc: &ProjectDoc, asset_id: &str) -> bool {
+    doc.assets.iter().any(|asset| asset.id == asset_id)
+        || asset_id.starts_with("bundled-model:")
+        || asset_id.starts_with("unresolved-model:")
+}
+
 #[cfg(test)]
 pub(crate) fn apply(
     doc: &mut ProjectDoc,
@@ -973,6 +982,26 @@ pub(crate) fn apply_with_ledger(
                     doc.definitions.push(definition.clone());
                 }
             }
+            // Members without a definition are visual-only; every named definition
+            // and model must resolve against the merged document, as in Parts.
+            for member in &assembly.members {
+                if let Some(definition_id) = &member.definition_id
+                    && !doc
+                        .definitions
+                        .iter()
+                        .any(|definition| &definition.id == definition_id)
+                {
+                    return Err(format!("Missing component definition: {definition_id}"));
+                }
+                for model in &member.models {
+                    if !assembly_asset_available(doc, &model.asset_id) {
+                        return Err(format!(
+                            "The model asset '{}' is not available in this project.",
+                            model.asset_id
+                        ));
+                    }
+                }
+            }
             if let Some(existing) = doc.assemblies.iter_mut().find(|a| a.id == assembly.id) {
                 existing.clone_from(assembly);
             } else {
@@ -992,16 +1021,43 @@ pub(crate) fn apply_with_ledger(
                 return Err("An assembly placement needs an identity and at least one part".into());
             }
             merge_assembly_assets(doc, assets)?;
+            // Placement snapshots live under the placement identity; parts may still
+            // name an existing definition when no snapshots are sent.
+            let prefix = format!("{placement_id}/");
             for definition in definitions {
-                if definition.id.trim().is_empty()
-                    || doc
-                        .definitions
-                        .iter()
-                        .any(|existing| existing.id == definition.id)
+                if !definition.id.starts_with(&prefix) {
+                    return Err(format!(
+                        "Assembly definition '{}' is outside placement '{placement_id}'.",
+                        definition.id
+                    ));
+                }
+                if doc
+                    .definitions
+                    .iter()
+                    .any(|existing| existing.id == definition.id)
                 {
                     return Err(format!("Duplicate assembly definition {}", definition.id));
                 }
                 doc.definitions.push(definition.clone());
+            }
+            let mut placed_ids = BTreeSet::new();
+            for part in parts {
+                if !placed_ids.insert(&part.id) {
+                    return Err("Assembly parts must have unique identities.".into());
+                }
+                if !part.id.starts_with(&prefix) {
+                    return Err(format!(
+                        "Assembly part '{}' is outside placement '{placement_id}'.",
+                        part.id
+                    ));
+                }
+                if !doc
+                    .definitions
+                    .iter()
+                    .any(|definition| definition.id == part.definition_id)
+                {
+                    return Err(format!("Unknown definition {}", part.definition_id));
+                }
             }
             let mut changed = Vec::with_capacity(parts.len() + 1);
             for part in parts {

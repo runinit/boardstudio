@@ -280,6 +280,8 @@ fn WorkbenchApp() -> Element {
             onkeyup: move |event| layout_input.keyup(event),
             onfocusout: move |event| layout_input.focusout(event),
             onpointerdown: move |event| layout_input.pointerdown(event),
+            onpointermove: move |event| layout_input.pointermove(event),
+            onpointerup: move |event| layout_input.pointerup(event),
             onmounted: move |event| async move {
                 if web_sys::window().and_then(|window| window.document())
                     .and_then(|document| document.active_element())

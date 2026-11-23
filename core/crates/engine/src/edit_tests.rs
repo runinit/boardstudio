@@ -124,6 +124,194 @@ fn assembly_save_and_placement_each_make_one_undo_entry() {
     assert_eq!(resaved.document.definitions.len(), 2);
 }
 
+#[test]
+fn assembly_edits_reject_unresolved_or_misscoped_inputs() {
+    use serde_json::{from_value, json};
+
+    let mut base = ProjectDoc::empty("assembly-errors", "Assembly errors");
+    base.boards.push(
+        from_value(json!({
+            "id": "pcb", "name": "PCB", "outlineIds": ["edge"], "partIds": ["existing"],
+            "netIds": [], "thickness": 1.6
+        }))
+        .unwrap(),
+    );
+    base.outline.push(
+        from_value(json!({
+            "kind": "part-envelope", "id": "edge", "partIds": ["existing"], "margin": 2,
+            "operation": "add"
+        }))
+        .unwrap(),
+    );
+    let template: PartDefinition = from_value(json!({
+        "id": "template", "name": "Switch", "kind": "switch", "pads": [],
+        "courtyard": [{"x": -2, "y": -2}, {"x": 2, "y": -2}, {"x": 2, "y": 2}, {"x": -2, "y": 2}]
+    }))
+    .unwrap();
+    base.definitions.push(template.clone());
+    base.parts.push(
+        from_value(json!({
+            "id": "existing", "definitionId": "template", "reference": "Recipe member",
+            "pose": {"at": {"x": 0, "y": 0}, "rotation": 0}, "side": "front"
+        }))
+        .unwrap(),
+    );
+    let assembly = |definition_id: Option<&str>, asset_id: Option<&str>| {
+        let models = asset_id.map_or_else(Vec::new, |asset_id| {
+            vec![json!({
+                "assetId": asset_id, "offset": {"x": 0, "y": 0, "z": 0},
+                "rotation": {"x": 0, "y": 0, "z": 0}, "scale": {"x": 1, "y": 1, "z": 1}
+            })]
+        });
+        EditOperation::UpsertAssembly {
+            assembly: Box::new(
+                from_value(json!({
+                    "id": "recipe", "name": "Recipe", "members": [{
+                        "id": "member", "definitionId": definition_id, "side": "front",
+                        "models": models, "pose": {"at": {"x": 0, "y": 0}, "rotation": 0}
+                    }]
+                }))
+                .unwrap(),
+            ),
+            definitions: Vec::new(),
+            assets: Vec::new(),
+        }
+    };
+    let scoped = |id: &str| {
+        let mut definition = template.clone();
+        definition.id = id.into();
+        definition
+    };
+    let part = |id: &str, definition_id: &str, reference: &str| {
+        from_value(json!({
+            "id": id, "definitionId": definition_id, "reference": reference,
+            "pose": {"at": {"x": 0, "y": 0}, "rotation": 0}, "side": "front"
+        }))
+        .unwrap()
+    };
+    let place = |board_id: &str, definitions, parts| EditOperation::PlaceAssembly {
+        board_id: board_id.into(),
+        placement_id: "placed".into(),
+        definitions,
+        parts,
+        assets: Vec::new(),
+    };
+    let placed = || part("placed/member", "placed/definition/member", "Placed member");
+    let reject = |operation: EditOperation, expected: &str| {
+        let mut document = base.clone();
+        let error = apply(&mut document, &[], &operation).unwrap_err();
+        assert!(
+            error.contains(expected),
+            "{error} should mention {expected}"
+        );
+    };
+    reject(
+        assembly(Some("ghost"), None),
+        "Missing component definition: ghost",
+    );
+    reject(
+        assembly(Some("template"), Some("ghost-model")),
+        "The model asset 'ghost-model' is not available",
+    );
+    reject(
+        place(
+            "missing-board",
+            vec![scoped("placed/definition/member")],
+            vec![placed()],
+        ),
+        "Unknown board missing-board",
+    );
+    reject(
+        place(
+            "pcb",
+            vec![scoped("placed/definition/member")],
+            vec![part(
+                "placed/member",
+                "placed/definition/member",
+                "Recipe member",
+            )],
+        ),
+        "already in use",
+    );
+    reject(
+        place(
+            "pcb",
+            vec![
+                scoped("placed/definition/member"),
+                scoped("placed/definition/member"),
+            ],
+            vec![placed()],
+        ),
+        "Duplicate assembly definition placed/definition/member",
+    );
+    reject(
+        place(
+            "pcb",
+            vec![scoped("placed/definition/member")],
+            vec![part("placed/member", "ghost", "Placed member")],
+        ),
+        "Unknown definition ghost",
+    );
+    reject(
+        place(
+            "pcb",
+            vec![scoped("other/definition/member")],
+            vec![part(
+                "placed/member",
+                "other/definition/member",
+                "Placed member",
+            )],
+        ),
+        "outside placement 'placed'",
+    );
+    reject(
+        place(
+            "pcb",
+            vec![scoped("placed/definition/member")],
+            vec![part(
+                "other/member",
+                "placed/definition/member",
+                "Placed member",
+            )],
+        ),
+        "outside placement 'placed'",
+    );
+    reject(
+        place(
+            "pcb",
+            vec![scoped("placed/definition/member")],
+            vec![
+                placed(),
+                part("placed/member", "placed/definition/member", "Second member"),
+            ],
+        ),
+        "unique",
+    );
+    let mut document = base.clone();
+    apply(
+        &mut document,
+        &[],
+        &assembly(None, Some("bundled-model:kiswitch/SW.step")),
+    )
+    .unwrap();
+    apply(
+        &mut document,
+        &[],
+        &assembly(None, Some("unresolved-model:lost")),
+    )
+    .unwrap();
+    apply(
+        &mut document,
+        &[],
+        &place(
+            "pcb",
+            Vec::new(),
+            vec![part("placed/member", "template", "Placed member")],
+        ),
+    )
+    .unwrap();
+}
+
 #[cfg(test)]
 mod preview_electrical_loss_tests {
     use super::*;
