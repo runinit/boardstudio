@@ -105,7 +105,8 @@ pub async fn load_bundled(reversible: bool) -> Result<Rc<Vec<CatalogEntry>>, Str
         .collect::<Vec<_>>();
     let generated = generators::catalogue()?;
     let supported = |definition| {
-        construction_definition_with_support(definition, reversible).map(|(definition, _)| definition)
+        construction_definition_with_support(definition, reversible)
+            .map(|(definition, _)| definition)
     };
     let generated = generated
         .into_iter()
@@ -322,9 +323,9 @@ fn normalize_for_intent(
 ) -> fn(&PartDefinition, bool) -> Result<(PartDefinition, bool), String> {
     use crate::physical_setup::SetupIntent;
     match intent {
-        SetupIntent::ReversibleLayout(_) => |definition, enabled| {
-            construction_definition_with_support(definition.clone(), enabled)
-        },
+        SetupIntent::ReversibleLayout(_) => {
+            |definition, enabled| construction_definition_with_support(definition.clone(), enabled)
+        }
         _ => |definition, _| Ok((definition.clone(), false)),
     }
 }
