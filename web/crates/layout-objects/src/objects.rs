@@ -757,14 +757,10 @@ fn AddObjectEntry(
                                     strong { class: "text-muted-foreground text-sm font-medium", "Add to {board.name}" }
                                 }
                             }
-                            Collapsible {
-                                keep_mounted: true,
-                                open: Some(layouts_open()),
+                            AddMenuSection {
+                                heading: "Layouts".to_owned(),
+                                open: layouts_open(),
                                 on_open_change: move |next| layouts_open.set(next),
-                                CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", "Layouts"  ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
-                                CollapsibleContent {
-                                    hidden: !layouts_open(),
-                                    inert: (!layouts_open()).then_some(""),
 
                                     if existing_half.visible {
                                         AddMenuEntry {
@@ -788,56 +784,37 @@ fn AddObjectEntry(
                                             },
                                         }
                                     }
-                                }
                             }
                             if let Some((matrix_label, matrix_id, selection, mount)) = matrix_actions
                             {
                                 {
-                                    let (row_mount, column_mount) = (mount.clone(), mount);
-                                    let (row_id, column_id) = (matrix_id.clone(), matrix_id);
-                                    let add_row_selection = selection.clone();
-                                    let add_column_selection = selection.clone();
-                                    let select_matrix_for_row = on_select;
-                                    let select_matrix_for_column = on_select;
                                     rsx! {
-                                        Collapsible {
-                                            keep_mounted: true,
-                                            open: Some(matrix_actions_open()),
+                                        AddMenuSection {
+                                            heading: matrix_label,
+                                            open: matrix_actions_open(),
                                             on_open_change: move |next| matrix_actions_open.set(next),
-                                            CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", "{matrix_label}"  ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
-                                            CollapsibleContent {
-                                                hidden: !matrix_actions_open(),
-                                                inert: (!matrix_actions_open()).then_some(""),
-
-                                                AddMenuEntry {
-                                                    label: "Add row",
-                                                    on_press: move |_| {
-                                                        menu_open.set(false);
-                                                        if let Some((scope, matrix_id)) = add_row_selection.clone() {
-                                                            select_matrix_for_row.call(TreeSelectRequest {
-                                                                scope,
-                                                                context: TreeContext::Matrix { matrix_id },
-                                                                mode: SelectionMode::Replace,
-                                                                outline_action: None,
-                                                            });
+                                            for (label, rows) in [("Add row", true), ("Add column", false)] {
+                                                {
+                                                    let selection = selection.clone();
+                                                    let mount = mount.clone();
+                                                    let matrix_id = matrix_id.clone();
+                                                    rsx! {
+                                                        AddMenuEntry {
+                                                            label: label,
+                                                            on_press: move |_| {
+                                                                menu_open.set(false);
+                                                                if let Some((scope, matrix_id)) = selection.clone() {
+                                                                    on_select.call(TreeSelectRequest {
+                                                                        scope,
+                                                                        context: TreeContext::Matrix { matrix_id: matrix_id.clone() },
+                                                                        mode: SelectionMode::Replace,
+                                                                        outline_action: None,
+                                                                    });
+                                                                }
+                                                                report_grow(&mount, mount.grow(&matrix_id, rows));
+                                                            },
                                                         }
-                                                        report_grow(&row_mount, row_mount.grow(&row_id, true));
-                                                    },
-                                                }
-                                                AddMenuEntry {
-                                                    label: "Add column",
-                                                    on_press: move |_| {
-                                                        menu_open.set(false);
-                                                        if let Some((scope, matrix_id)) = add_column_selection.clone() {
-                                                            select_matrix_for_column.call(TreeSelectRequest {
-                                                                scope,
-                                                                context: TreeContext::Matrix { matrix_id },
-                                                                mode: SelectionMode::Replace,
-                                                                outline_action: None,
-                                                            });
-                                                        }
-                                                        report_grow(&column_mount, column_mount.grow(&column_id, false));
-                                                    },
+                                                    }
                                                 }
                                             }
                                         }
@@ -858,32 +835,26 @@ fn AddObjectEntry(
                                 }
                             }
                             if let Some(scope) = scope.as_ref() {
-                                Collapsible {
-                                    keep_mounted: true,
-                                    open: Some(geometry_open()),
+                                AddMenuSection {
+                                    heading: "Board geometry".to_owned(),
+                                    open: geometry_open(),
                                     on_open_change: move |next| geometry_open.set(next),
-                                    CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", "Board geometry"  ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
-                                    CollapsibleContent {
-                                        hidden: !geometry_open(),
-                                        inert: (!geometry_open()).then_some(""),
-
-                                        AddMenuEntry {
-                                            label: "Board outline…",
-                                            on_press: {
-                                                let scope = scope.clone();
-                                                move |_| {
-                                                    menu_open.set(false);
-                                                    on_select.call(TreeSelectRequest {
-                                                        scope: scope.clone(),
-                                                        context: TreeContext::Outline {
-                                                            board_id: scope.board_id.clone(),
-                                                        },
-                                                        mode: SelectionMode::Replace,
-                                                        outline_action: None,
-                                                    });
-                                                }
-                                            },
-                                        }
+                                    AddMenuEntry {
+                                        label: "Board outline…",
+                                        on_press: {
+                                            let scope = scope.clone();
+                                            move |_| {
+                                                menu_open.set(false);
+                                                on_select.call(TreeSelectRequest {
+                                                    scope: scope.clone(),
+                                                    context: TreeContext::Outline {
+                                                        board_id: scope.board_id.clone(),
+                                                    },
+                                                    mode: SelectionMode::Replace,
+                                                    outline_action: None,
+                                                });
+                                            }
+                                        },
                                     }
                                 }
                             }
@@ -899,6 +870,30 @@ fn AddObjectEntry(
                 }
             }
         }
+}
+
+/// One Add-menu collapsible section: identical trigger/content chrome; only the
+/// title, open state and entries vary.
+#[component]
+fn AddMenuSection(
+    heading: String,
+    open: bool,
+    on_open_change: EventHandler<bool>,
+    children: Element,
+) -> Element {
+    rsx! {
+        Collapsible {
+            keep_mounted: true,
+            open: Some(open),
+            on_open_change: move |next| on_open_change.call(next),
+            CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", "{heading}"  ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
+            CollapsibleContent {
+                hidden: !open,
+                inert: (!open).then_some(""),
+                {children}
+            }
+        }
+    }
 }
 
 /// One Add-menu entry: identical Secondary button chrome; only the label, hint,

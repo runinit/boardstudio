@@ -166,50 +166,55 @@ pub fn LayoutCommandPill(
     let mut commands = Vec::new();
     if workspace.is_some_and(|w| w.0() == Workspace::Layout) {
         use boardstudio_web_ui_shared::ui::command::Command;
+        let workspace_command = |label: String, reason: Option<String>, on_select: EventHandler<()>| Command {
+            group: "Current Workspace",
+            label,
+            reason,
+            hint: None,
+            on_select,
+        };
+        const PROPERTIES_REASON: &str = "Select a matrix, row, column, key or part to open its current transform properties.";
         for kind in LayoutSelectionKind::ALL {
-            commands.push(Command {
-                group: "Current Workspace",
-                label: format!("Select {}", kind.label()),
-                reason: None,
-                hint: None,
-                on_select: EventHandler::new(move |()| {
+            commands.push(workspace_command(
+                format!("Select {}", kind.label()),
+                None,
+                EventHandler::new(move |()| {
                     on_selection_kind.call(kind);
                     let mut menu = open_menu;
                     menu.set(Some(LayoutCommandMenu::Select));
                 }),
-            });
+            ));
         }
         for (label, menu) in [
             ("Snap settings", LayoutCommandMenu::Snap),
             ("Align", LayoutCommandMenu::Align),
             ("Transform", LayoutCommandMenu::Transform),
         ] {
-            commands.push(Command {
-                group: "Current Workspace",
-                label: label.into(),
-                reason: None,
-                hint: None,
-                on_select: EventHandler::new(move |()| {
+            commands.push(workspace_command(
+                label.into(),
+                None,
+                EventHandler::new(move |()| {
                     let mut open = open_menu;
                     open.set(Some(menu));
                     if menu == LayoutCommandMenu::Snap {
                         restore_layout_command_focus(menu);
                     }
                 }),
-            });
+            ));
         }
-        commands.push(Command {
-            group: "Current Workspace",
-            label: "Geometry snap".into(),
-            reason: None,
-            hint: None,
-            on_select: EventHandler::new(move |()| {
+        commands.push(workspace_command(
+            "Geometry snap".into(),
+            None,
+            EventHandler::new(move |()| {
                 on_snap_intent.call(LayoutSnapIntent::GeometrySnap(!geometry_snap_enabled))
             }),
-        });
+        ));
         let properties = transform.on_show_properties;
-        commands.push(Command { group: "Current Workspace", label: "Position & rotation".into(),
-            reason: (!transform.properties_available).then(|| "Select a matrix, row, column, key or part to open its current transform properties.".into()), hint: None, on_select: properties });
+        commands.push(workspace_command(
+            "Position & rotation".into(),
+            (!transform.properties_available).then(|| PROPERTIES_REASON.into()),
+            properties,
+        ));
         for (kind, label, available) in [
             (
                 LayoutSelectionKind::Column,
@@ -222,9 +227,11 @@ pub fn LayoutCommandPill(
                 transform.row_available,
             ),
         ] {
-            commands.push(Command { group: "Current Workspace", label: label.into(),
-                reason: (!available).then(|| "Select a matrix, row, column, key or part to open its current transform properties.".into()), hint: None,
-                on_select: EventHandler::new(move |()| on_selection_kind.call(kind)) });
+            commands.push(workspace_command(
+                label.into(),
+                (!available).then(|| PROPERTIES_REASON.into()),
+                EventHandler::new(move |()| on_selection_kind.call(kind)),
+            ));
         }
     }
     boardstudio_web_ui_shared::ui::command::use_commands(commands);

@@ -312,23 +312,11 @@ pub fn ProjectSetupGuide(
         }
     }));
     let stage_change = on_stage_change;
-    let footer = match stage {
-        SetupGuideStage::Project => "Continue to layout",
-        SetupGuideStage::Layout => "Continue to wiring",
-        SetupGuideStage::Wiring => "Continue to case",
-        SetupGuideStage::Case | SetupGuideStage::Review => "Continue to layout",
-    };
-    let next_stage = match stage {
-        SetupGuideStage::Project => Some(SetupGuideStage::Layout),
-        SetupGuideStage::Layout => Some(SetupGuideStage::Wiring),
-        SetupGuideStage::Wiring => Some(SetupGuideStage::Case),
-        SetupGuideStage::Case | SetupGuideStage::Review => None,
-    };
-    let previous_stage = match stage {
-        SetupGuideStage::Project => None,
-        SetupGuideStage::Layout => Some(SetupGuideStage::Project),
-        SetupGuideStage::Wiring => Some(SetupGuideStage::Layout),
-        SetupGuideStage::Case | SetupGuideStage::Review => Some(SetupGuideStage::Wiring),
+    let (footer, next_stage, previous_stage) = match stage {
+        SetupGuideStage::Project => ("Continue to layout", Some(SetupGuideStage::Layout), None),
+        SetupGuideStage::Layout => ("Continue to wiring", Some(SetupGuideStage::Wiring), Some(SetupGuideStage::Project)),
+        SetupGuideStage::Wiring => ("Continue to case", Some(SetupGuideStage::Case), Some(SetupGuideStage::Layout)),
+        SetupGuideStage::Case | SetupGuideStage::Review => ("Continue to layout", None, Some(SetupGuideStage::Wiring)),
     };
     let mut expanded_for_trigger = expanded;
     rsx! {

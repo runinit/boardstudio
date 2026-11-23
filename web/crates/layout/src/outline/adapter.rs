@@ -79,13 +79,23 @@ fn reviewed_source(snapshot: &AcceptedSnapshot, board_id: &str) -> Option<Vec<Co
 /// otherwise the Generated envelope that owns the field.
 fn settings_target(board_id: &str, active_version: Option<&str>) -> OutlineEditTarget {
     match active_version {
-        Some(version_id) => OutlineEditTarget::Version {
-            board_id: board_id.to_owned(),
-            version_id: version_id.to_owned(),
-        },
-        None => OutlineEditTarget::Board {
-            board_id: board_id.to_owned(),
-        },
+        Some(version_id) => version_target(&board_id, &version_id),
+        None => board_target(board_id),
+    }
+}
+
+/// The board-level edit target (Generated envelope scope).
+fn board_target(board_id: &str) -> OutlineEditTarget {
+    OutlineEditTarget::Board {
+        board_id: board_id.to_owned(),
+    }
+}
+
+/// The target of one persisted outline version.
+fn version_target(board_id: &str, version_id: &str) -> OutlineEditTarget {
+    OutlineEditTarget::Version {
+        board_id: board_id.to_owned(),
+        version_id: version_id.to_owned(),
     }
 }
 
@@ -104,9 +114,7 @@ fn update(
             return None;
         }
         Some((
-            OutlineEditTarget::Board {
-                board_id: board_id.to_owned(),
-            },
+            board_target(board_id),
             change,
             None,
         ))
@@ -133,10 +141,7 @@ fn update(
     };
     match edit {
         OutlineSettingEdit::RenameVersion { version_id, name } => Some((
-            OutlineEditTarget::Version {
-                board_id: board_id.to_owned(),
-                version_id: version_id.clone(),
-            },
+            version_target(&board_id, &version_id),
             OutlineChange::Rename {
                 name: name.trim().to_owned(),
             },
@@ -148,9 +153,7 @@ fn update(
         OutlineSettingEdit::CreateAutomatic => {
             let board = board(document, board_id)?;
             Some((
-                OutlineEditTarget::Board {
-                    board_id: board_id.to_owned(),
-                },
+                board_target(board_id),
                 OutlineChange::CreateGenerated {
                     margin: 4.0,
                     settings: crate::outline_settings::reference_outline_settings(),
@@ -223,9 +226,7 @@ fn update(
                 )
             };
             Some((
-                OutlineEditTarget::Board {
-                    board_id: board_id.to_owned(),
-                },
+                board_target(board_id),
                 change,
                 reviewed,
             ))
@@ -255,21 +256,11 @@ pub fn outline_edit(
     let active_version = state.and_then(|state| state.active_version_id.clone());
     let (target, change, reviewed) = match &action.kind {
         OutlineActionKind::Activate { version_id, .. } => {
-            let target = match version_id {
-                Some(version_id) => OutlineEditTarget::Version {
-                    board_id: board_id.clone(),
-                    version_id: version_id.clone(),
-                },
-                None => OutlineEditTarget::Board {
-                    board_id: board_id.clone(),
-                },
-            };
+            let target = settings_target(&board_id, version_id.as_deref());
             (target, OutlineChange::Activate, None)
         }
         OutlineActionKind::Copy => (
-            OutlineEditTarget::Board {
-                board_id: board_id.clone(),
-            },
+            board_target(&board_id),
             OutlineChange::Copy {
                 version_id: super::planner::unique_outline_version_id(
                     seed,
@@ -280,10 +271,7 @@ pub fn outline_edit(
             None,
         ),
         OutlineActionKind::Delete { version_id, .. } => (
-            OutlineEditTarget::Version {
-                board_id: board_id.clone(),
-                version_id: version_id.clone(),
-            },
+            version_target(&board_id, &version_id),
             OutlineChange::Delete,
             None,
         ),
@@ -298,9 +286,7 @@ pub fn outline_edit(
         // Core seeds it from the board's current generated projections, so it follows the
         // components and its settings stay editable while linked.
         OutlineActionKind::Refine => (
-            OutlineEditTarget::Board {
-                board_id: board_id.clone(),
-            },
+            board_target(&board_id),
             OutlineChange::CreateLinkedRefinement {
                 version_id: super::planner::unique_outline_version_id(
                     seed,
@@ -311,10 +297,7 @@ pub fn outline_edit(
             None,
         ),
         OutlineActionKind::Freeze { version_id, .. } => (
-            OutlineEditTarget::Version {
-                board_id: board_id.clone(),
-                version_id: version_id.clone(),
-            },
+            version_target(&board_id, &version_id),
             OutlineChange::Freeze {
                 name: next_edited_outline_name(state),
             },
@@ -324,9 +307,7 @@ pub fn outline_edit(
             let reviewed = Some(reviewed_source(snapshot, &board_id)?);
             match target {
                 OutlinePointTarget::Generated { contour } => (
-                    OutlineEditTarget::Board {
-                        board_id: board_id.clone(),
-                    },
+                    board_target(&board_id),
                     OutlineChange::EditGeneratedPerimeter {
                         contour: *contour,
                         points: points.clone(),
@@ -338,10 +319,7 @@ pub fn outline_edit(
                     feature_id,
                     ..
                 } => (
-                    OutlineEditTarget::Version {
-                        board_id: board_id.clone(),
-                        version_id: version_id.clone(),
-                    },
+                    version_target(&board_id, &version_id),
                     OutlineChange::EditFeaturePerimeter {
                         feature_id: feature_id.clone(),
                         points: points.clone(),
@@ -357,13 +335,8 @@ pub fn outline_edit(
                 TreeContext::OutlineVersion {
                     version_id: Some(version_id),
                     ..
-                } => OutlineEditTarget::Version {
-                    board_id: board_id.clone(),
-                    version_id: version_id.clone(),
-                },
-                _ => OutlineEditTarget::Board {
-                    board_id: board_id.clone(),
-                },
+                } => version_target(&board_id, &version_id),
+                _ => board_target(&board_id),
             };
             (
                 target,
@@ -422,9 +395,7 @@ pub fn outline_edit(
                     .collect(),
             };
             (
-                OutlineEditTarget::Board {
-                    board_id: board_id.clone(),
-                },
+                board_target(&board_id),
                 OutlineChange::AddConnection { connection },
                 None,
             )
@@ -438,15 +409,7 @@ pub fn outline_edit(
             if before.id() != after.id() {
                 return None;
             }
-            let target = match version_id {
-                Some(version_id) => OutlineEditTarget::Version {
-                    board_id: board_id.clone(),
-                    version_id: version_id.clone(),
-                },
-                None => OutlineEditTarget::Board {
-                    board_id: board_id.clone(),
-                },
-            };
+            let target = settings_target(&board_id, version_id.as_deref());
             (
                 target,
                 OutlineChange::SetFeature {
@@ -460,10 +423,7 @@ pub fn outline_edit(
             feature_id,
             ..
         } => (
-            OutlineEditTarget::Version {
-                board_id: board_id.clone(),
-                version_id: version_id.clone(),
-            },
+            version_target(&board_id, &version_id),
             OutlineChange::RemoveFeature {
                 feature_id: feature_id.clone(),
             },
