@@ -43,10 +43,10 @@ impl CatalogEntry {
 
     fn library_search_text(&self) -> String {
         format!(
-            "{} {} {:?} {} {}",
+            "{} {} {} {} {}",
             preferred_label(&self.definition),
             self.definition.name,
-            self.definition.kind,
+            kind_search_label(&self.definition.kind),
             self.definition
                 .generator
                 .as_ref()
@@ -54,6 +54,18 @@ impl CatalogEntry {
                 .unwrap_or_default(),
             search_aliases(&self.definition),
         )
+    }
+}
+
+fn kind_search_label(kind: &PartKind) -> &'static str {
+    match kind {
+        PartKind::Switch => "switch",
+        PartKind::Controller => "controller",
+        PartKind::Connector => "connector",
+        PartKind::Encoder => "encoder",
+        PartKind::Passive => "passive",
+        PartKind::Utility => "utility",
+        PartKind::Custom => "custom",
     }
 }
 

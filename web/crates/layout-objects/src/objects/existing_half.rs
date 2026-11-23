@@ -332,29 +332,10 @@ pub fn use_existing_half(
 }
 
 fn eligible_options(document: &ProjectDoc, board_id: &str) -> Vec<ExistingHalfOption> {
-    let mut options = Vec::new();
-    for matrix in document
-        .matrices
-        .iter()
-        .filter(|matrix| super::matrix_visible_on_board(document, board_id, &matrix.id))
-    {
-        let layout =
-            super::mirror_links::layout_for_matrix(&document.layouts, board_id, &matrix.id);
-        if layout
-            .is_some_and(|layout| !super::mirror_links::layout_is_linked(&document.layouts, layout))
-        {
-            options.push(ExistingHalfOption {
-                matrix_id: matrix.id.clone(),
-                label: matrix
-                    .name
-                    .as_deref()
-                    .filter(|name| !name.is_empty())
-                    .map(str::to_owned)
-                    .unwrap_or_else(|| format!("Matrix {}", options.len() + 1)),
-            });
-        }
-    }
-    options
+    super::mirror_links::unlinked_board_matrices(document, board_id)
+        .into_iter()
+        .map(|(matrix_id, label)| ExistingHalfOption { matrix_id, label })
+        .collect()
 }
 
 fn default_axis_x(snapshot: &AcceptedSnapshot, board_id: &str) -> f64 {

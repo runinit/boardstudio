@@ -333,6 +333,10 @@ def package_route(output: Path, public: Path, route: str, *, fast=False) -> None
         stamp.write_text(json.dumps({"inputs": current, "site": snapshot([site])}))
 
 
+def fast_provider_stamp(name):
+    return WEB / "target/providers" / ("." + name + ".bindgen.sha256")
+
+
 def fast_provider(name, output, package, feature, target, bindgen):
     """Build the Rust library every time, but bind only changed WASM bytes."""
     env = dict(os.environ, CARGO_TARGET_DIR=str(target))
@@ -346,18 +350,26 @@ def fast_provider(name, output, package, feature, target, bindgen):
     digest = hashlib.sha256(artifact.read_bytes())
     digest.update(bindgen.read_bytes())
     digest.update(json.dumps(args).encode())
-    stamp = output.parent / ("." + name + ".bindgen.sha256")
+    stamp = fast_provider_stamp(name)
     key = digest.hexdigest()
     products = (output / (name + ".js"), output / (name + "_bg.wasm"))
-    if stamp.is_file() and stamp.read_text() == key and all(path.is_file() for path in products):
-        return
+
+    def product_hashes():
+        return {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in products}
+
+    if stamp.is_file() and all(path.is_file() for path in products):
+        try:
+            if json.loads(stamp.read_text()) == {"key": key, "outputs": product_hashes()}:
+                return
+        except (OSError, ValueError):
+            pass
     stamp.unlink(missing_ok=True)
     output.mkdir(parents=True, exist_ok=True)
     run([str(bindgen), *args, str(artifact)])
     if not all(path.is_file() for path in products):
         raise FileNotFoundError(f"wasm-bindgen did not generate {products}")
     stamp.parent.mkdir(parents=True, exist_ok=True)
-    stamp.write_text(key)
+    stamp.write_text(json.dumps({"key": key, "outputs": product_hashes()}))
 
 
 def bake_bundled_step():
@@ -411,14 +423,16 @@ def prepare_runtime_providers(fast=False):
         else:
             build_workers()
             build_renderer()
-        commands = commands[3:]
+        handled = {name for name, _, _ in workers} | {"boardstudio_renderer_wasm"}
+        commands = [
+            command for command in commands
+            if not (command[:2] == ["wasm-pack", "build"]
+                    and "--out-name" in command
+                    and command[command.index("--out-name") + 1] in handled)
+        ]
     for command in commands:
         if command[:2] == ["wasm-pack", "build"]:
-            output = Path(command[command.index("--out-dir") + 1])
-            if not output.is_absolute():
-                output = ROOT / command[2] / output
-            name = command[command.index("--out-name") + 1]
-            (output.parent / ("." + name + ".bindgen.sha256")).unlink(missing_ok=True)
+            fast_provider_stamp(command[command.index("--out-name") + 1]).unlink(missing_ok=True)
         if command[:3] == ["wasm-pack", "build", str(WEB)]:
             run(command, env=dict(os.environ, CARGO_TARGET_DIR=str(ROOT / "target/wasm-workers")))
         else:

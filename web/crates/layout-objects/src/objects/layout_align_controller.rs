@@ -594,7 +594,8 @@ fn linked_selection(
 fn linked_partner(document: &ProjectDoc, scope: &Scope, matrix_id: &str) -> Option<String> {
     let layout =
         super::mirror_links::layout_for_matrix(&document.layouts, &scope.board_id, matrix_id)?;
-    let partner = super::mirror_links::partner_layout(&document.layouts, layout)?;
+    let partner = super::mirror_links::partner_layout(&document.layouts, layout)
+        .filter(|partner| partner.board_id == scope.board_id)?;
     layout
         .mirror_link
         .as_ref()

@@ -364,10 +364,20 @@ def run_commands(name, commands, environment, cwd=ROOT, *, state=None, keep_goin
         serial_passed = [run_serial(cmd, environment, cwd)[1] == 0 for cmd in serial]
         return time.monotonic() - started, passed and all(serial_passed)
     if (name == "build" and check_jobs() > 1 and commands == STEPS["build"][1]):
+        if not state.get("css") and environment.get(TEST_CSS_READY) != "1":
+            css = test_css_command()
+            _, code = run_serial(css, environment, cwd / "web")
+            if code:
+                print("check: command failed: " + shlex.join(css), file=sys.stderr)
+                return time.monotonic() - started, False
+            state["css"] = True
+            environment[TEST_CSS_READY] = "1"
+        web_env = dict(environment, **{TEST_CSS_READY: "1", IN_OVERLAP_ENV: "1"})
+        browser_env = dict(environment, **{TEST_CSS_READY: "1"})
         # The provider/page build and browser prebuilds use disjoint Cargo targets.
         with ThreadPoolExecutor(max_workers=2) as pool:
-            web = pool.submit(run_commands, name, commands[:1], environment.copy(), cwd, state=state)
-            browser = pool.submit(run_commands, name, commands[1:], environment.copy(), cwd, state=state)
+            web = pool.submit(run_commands, name, commands[:1], web_env, cwd, state=state)
+            browser = pool.submit(run_commands, name, commands[1:], browser_env, cwd, state=state)
             web_passed, browser_passed = web.result()[1], browser.result()[1]
             passed = web_passed and browser_passed
         if passed:

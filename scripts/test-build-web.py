@@ -58,6 +58,15 @@ class BuildWebTests(unittest.TestCase):
                 self.assertEqual(tools.find_bindgen(root), binary)
                 local.assert_called_once_with(root, root, "1")
                 validate.assert_called_once_with(binary, "1")
+            fallback = root / "fallback-bindgen"
+            fallback.touch()
+            with patch.dict(os.environ, {"XDG_CACHE_HOME": str(root)}, clear=True), \
+                 patch.object(tools, "locked_version", return_value="1"), \
+                 patch.object(tools, "local_patched_pair", side_effect=ValueError("bad cache key")), \
+                 patch.object(tools, "validate_binary") as validate, \
+                 patch.object(tools.shutil, "which", return_value=str(fallback)):
+                self.assertEqual(tools.find_bindgen(root), fallback)
+                validate.assert_called_once_with(fallback, "1")
 
     def test_plain_page_matches_the_dx_runtime_contract(self):
         bindgen_js = ("let wasmModule, wasmInstance, wasm;\nfunction __wbg_get_imports() {}\n"
@@ -211,19 +220,23 @@ class BuildWebTests(unittest.TestCase):
                     (output / "worker.js").write_text("js")
                     (output / "worker_bg.wasm").write_bytes(b"bound")
 
-            with patch.object(BUILD, "run", side_effect=run):
+            with patch.object(BUILD, "WEB", root / "web"), patch.object(BUILD, "run", side_effect=run):
                 def build():
                     BUILD.fast_provider("worker", output, "boardstudio-web", "cad-worker", root / "target", bindgen)
                 build()
                 build()
                 self.assertEqual(sum(call[0] == str(bindgen) for call in calls), 1)
+                self.assertFalse((output.parent / ".worker.bindgen.sha256").exists())
+                self.assertTrue((root / "web/target/providers/.worker.bindgen.sha256").is_file())
                 artifact.write_bytes(b"two")
                 build()
                 bindgen.write_bytes(b"new tool")
                 build()
+                (output / "worker.js").write_text("stale")
+                build()
                 (output / "worker.js").unlink()
                 build()
-                self.assertEqual(sum(call[0] == str(bindgen) for call in calls), 4)
+                self.assertEqual(sum(call[0] == str(bindgen) for call in calls), 5)
 
     def test_fast_packaging_reuses_unchanged_site_and_repairs_changes(self):
         with tempfile.TemporaryDirectory() as directory:

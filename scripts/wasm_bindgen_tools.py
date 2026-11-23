@@ -47,8 +47,12 @@ def find_bindgen(root, extra=()):
         candidates.append(Path(directory) / "wasm-bindgen")
     else:
         cache = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
-        if patched := local_patched_pair(cache, root, version):
-            candidates.append(patched / "wasm-bindgen")
+        try:
+            # Planning callers (`overlap_span`, `page_tools`) must fall back instead of raising.
+            if patched := local_patched_pair(cache, root, version):
+                candidates.append(patched / "wasm-bindgen")
+        except (OSError, subprocess.SubprocessError, ValueError):
+            pass
     if found := shutil.which("wasm-bindgen"):
         candidates.append(Path(found))
     candidates.extend(extra)
