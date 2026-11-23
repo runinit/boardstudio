@@ -7,6 +7,9 @@
 //! module functions.
 
 use crate::support::fixture;
+use crate::support::session::{
+    board_target, both_instance_inputs, instance_target, mechanical_doc, paired_instance,
+};
 use boardstudio_core::mechanical::change::{
     MechanicalChange, MechanicalDimension, MechanicalEdit, MechanicalFeatureCorrespondence,
     MechanicalMountCollection, MechanicalTarget,
@@ -42,24 +45,11 @@ fn hardware(instances: Vec<PhysicalBoardInstance>) -> HardwareConfiguration {
 }
 
 fn document() -> ProjectDoc {
-    let mut document = ProjectDoc::empty("doc", "Fixture");
-    document.boards.push(board("board"));
-    document.mechanical = Some(fixture::mechanical("board"));
-    document
-}
-
-fn board_target() -> MechanicalTarget {
-    MechanicalTarget::Board {
-        board_id: "board".into(),
-    }
+    mechanical_doc("doc", "Fixture")
 }
 
 fn edit(change: MechanicalChange) -> MechanicalEdit {
-    MechanicalEdit {
-        target: board_target(),
-        change,
-        mounting_hole: None,
-    }
+    crate::support::session::mechanical_edit(board_target(), change, false)
 }
 
 fn plate_thickness(value: f64) -> MechanicalEdit {
@@ -92,32 +82,13 @@ fn mirror_instance_on(id: &str, board_id: &str, mounts: Vec<Mount>) -> PhysicalB
     let mut mechanical = fixture::mechanical("board");
     mechanical.board_id = board_id.into();
     mechanical.mounts = mounts;
-    instance(
+    paired_instance(
         id,
         board_id,
+        "controller",
         Some(mechanical),
         MechanicalConstructionOwnership::Local,
     )
-}
-
-fn instance(
-    id: &str,
-    board_id: &str,
-    mechanical: Option<MechanicalConfiguration>,
-    construction_ownership: MechanicalConstructionOwnership,
-) -> PhysicalBoardInstance {
-    PhysicalBoardInstance {
-        id: id.into(),
-        name: id.into(),
-        board_id: board_id.into(),
-        half: id.into(),
-        role: "controller".into(),
-        flipped: false,
-        controller_part_id: None,
-        mechanical,
-        construction_ownership,
-        mechanical_identity_reservation: None,
-    }
 }
 
 /// Two physical halves on one board, each with its own local mount geometry.
@@ -130,18 +101,8 @@ fn pair_document() -> ProjectDoc {
     document
 }
 
-fn instance_target(id: &str) -> MechanicalTarget {
-    MechanicalTarget::Instance {
-        instance_id: id.into(),
-    }
-}
-
 fn with_template(target: MechanicalTarget, change: MechanicalChange) -> MechanicalEdit {
-    MechanicalEdit {
-        target,
-        change,
-        mounting_hole: Some(Box::new(fixture::mounting_hole())),
-    }
+    crate::support::session::mechanical_edit(target, change, true)
 }
 
 /// Links the two halves with an explicit zero-origin reflection (no guessing).
@@ -225,9 +186,10 @@ fn mount_at(configuration: &MechanicalConfiguration, id: &str) -> Vec2 {
 
 /// A legacy half with no stored configuration of its own, on its own board.
 fn unconfigured_legacy(id: &str) -> PhysicalBoardInstance {
-    instance(
+    paired_instance(
         id,
         &format!("board-{id}"),
+        "controller",
         None,
         MechanicalConstructionOwnership::Legacy,
     )
@@ -542,9 +504,10 @@ fn gasket_pair(
         configuration.board_id = board.into();
         configuration.mount = boardstudio_core::model::MechanicalMount::Gasket;
         configuration.gasket_layout = Some(boardstudio_core::mechanical::default_gasket_layout());
-        instance(
+        paired_instance(
             id,
             board,
+            "controller",
             Some(configuration),
             MechanicalConstructionOwnership::Local,
         )
@@ -643,9 +606,10 @@ fn legacy_configuration(marker: &str, plate_thickness: f64) -> MechanicalConfigu
 }
 
 fn legacy_instance(id: &str, marker: &str, plate_thickness: f64) -> PhysicalBoardInstance {
-    instance(
+    paired_instance(
         id,
         "board",
+        "controller",
         Some(legacy_configuration(marker, plate_thickness)),
         MechanicalConstructionOwnership::Legacy,
     )
@@ -737,7 +701,15 @@ fn legacy_halves_document() -> ProjectDoc {
     let mut shared = fixture::mechanical("board");
     shared.wall_thickness = 2.0;
     shared.internal_gasket = Some(boardstudio_core::mechanical::default_internal_gasket());
-    let half = |id| instance(id, "board", None, MechanicalConstructionOwnership::Legacy);
+    let half = |id| {
+        paired_instance(
+            id,
+            "board",
+            "controller",
+            None,
+            MechanicalConstructionOwnership::Legacy,
+        )
+    };
     document.hardware = Some(HardwareConfiguration {
         shared_construction: Some(shared),
         ..hardware(vec![half("left"), half("right"), half("third")])

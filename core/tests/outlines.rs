@@ -1,6 +1,9 @@
 use crate::support::fixture;
 use crate::support::query;
 use crate::support::session::Session;
+use crate::support::session::builders::{
+    anchored_polygon, move_key, rect, remove_parts, replace_document,
+};
 use boardstudio_core::model::*;
 use serde_json::json;
 
@@ -17,14 +20,15 @@ fn document() -> ProjectDoc {
     })).unwrap()
 }
 fn matrix_document() -> ProjectDoc {
-    let mut serialized = serde_json::to_string(&document()).unwrap();
-    for index in 0..9 {
-        serialized = serialized.replace(
-            &format!("\"k{index}\""),
-            &format!("\"matrix/main/r{}c{}\"", index / 3, index % 3),
-        );
+    let mut doc = document();
+    for (index, part) in doc.parts.iter_mut().enumerate() {
+        part.id = format!("matrix/main/r{}c{}", index / 3, index % 3);
     }
-    serde_json::from_str(&serialized).unwrap()
+    doc.boards[0].part_ids = doc.parts.iter().map(|part| part.id.clone()).collect();
+    if let OutlineFeature::PartEnvelope { part_ids, .. } = &mut doc.outline[0] {
+        *part_ids = doc.boards[0].part_ids.clone();
+    }
+    doc
 }
 
 fn scene(reply: CoreReply) -> SceneDelta {
@@ -38,18 +42,12 @@ fn deleting_corner_creates_notch_and_retains_neighbors() {
     let mut core = Session::default();
     let before = scene(core.open(document()));
     assert!(query::contains(&before.contours, 0.0, 0.0));
-    let after = scene(core.send(CoreRequest::Edit {
-        id: "delete".into(),
-        command: EditCommand {
-            base_revision: 0,
-            transaction_id: "delete-corner".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec!["k0".into()],
-            operation: EditOperation::RemoveParts {
-                ids: vec!["k0".into()],
-            },
+    let after = scene(core.commit(
+        0,
+        EditOperation::RemoveParts {
+            ids: vec!["k0".into()],
         },
-    }));
+    ));
     assert!(
         !query::contains(&after.contours, 0.0, 0.0),
         "deleted corner must be outside the contour"
@@ -125,22 +123,11 @@ fn automatic_envelope_reflects_asymmetric_back_side_footprints() {
     };
 
     let mut core = Session::default();
-    let resolved = scene(core.send(CoreRequest::Open {
-        id: "open-back".into(),
-        document: doc,
-    }));
+    let resolved = scene(core.open(doc));
     assert!(query::contains(&resolved.contours, -3.0, 1.0));
     assert!(!query::contains(&resolved.contours, 3.0, 1.0));
 }
 
-fn commit(core: &mut Session, revision: u64, operation: serde_json::Value) -> SceneDelta {
-    scene(core.send(fixture::commit(
-        "edit",
-        format!("edit-{revision}"),
-        revision,
-        serde_json::from_value(operation).unwrap(),
-    )))
-}
 #[test]
 fn deleted_matrix_cell_stays_disabled_when_resized() {
     let mut core = Session::default();
@@ -149,29 +136,19 @@ fn deleted_matrix_cell_stays_disabled_when_resized() {
     doc.outline.clear();
     doc.boards.clear();
     scene(core.open(doc));
-    commit(
-        &mut core,
+    core.commit(
         0,
-        json!({"kind":"set-matrix","matrix":{"id":"keys","rows":3,"columns":3,"pitch":{"x":19.05,"y":19.05},"origin":{"x":0,"y":0},"definitionId":"switch","partIds":[]}}),
+        fixture::set_matrix(Matrix {
+            pitch: Vec2 { x: 19.05, y: 19.05 },
+            ..fixture::matrix("keys", 3, 3)
+        }),
     );
-    commit(
-        &mut core,
-        1,
-        json!({"kind":"remove-parts","ids":["matrix/keys/r0c0"]}),
-    );
-    let CoreReply::Scene { document: doc, .. } =
-        core.send(CoreRequest::Snapshot { id: "snap".into() })
-    else {
-        panic!()
-    };
+    core.commit(1, remove_parts(&["matrix/keys/r0c0"]));
+    let doc = core.snapshot();
     let mut matrix = doc.matrices[0].clone();
     matrix.columns = 4;
-    commit(&mut core, 2, json!({"kind":"set-matrix","matrix":matrix}));
-    let CoreReply::Scene { document: doc, .. } =
-        core.send(CoreRequest::Snapshot { id: "snap".into() })
-    else {
-        panic!()
-    };
+    core.commit(2, fixture::set_matrix(matrix));
+    let doc = core.snapshot();
     assert!(!doc.parts.iter().any(|p| p.id == "matrix/keys/r0c0"));
 }
 #[test]
@@ -181,7 +158,12 @@ fn finishing_modes_and_holes_are_shared_with_board_contours() {
         let mut feature = serde_json::to_value(&doc.outline[0]).unwrap();
         feature["settings"] = json!({"corners":corners,"size":2,"bridgeWidth":10});
         doc.outline[0] = serde_json::from_value(feature).unwrap();
-        doc.outline.push(serde_json::from_value(json!({"id":"hole","kind":"rect","center":{"x":19.05,"y":19.05},"size":{"x":6,"y":6},"radius":0,"operation":"subtract"})).unwrap());
+        doc.outline.push(rect(
+            "hole",
+            Vec2 { x: 19.05, y: 19.05 },
+            Vec2 { x: 6.0, y: 6.0 },
+            Operation::Subtract,
+        ));
         doc.boards[0].outline_ids.push("hole".into());
         let mut core = Session::default();
         let result = scene(core.open(doc));
@@ -254,7 +236,7 @@ fn islands_bridge_interior_gaps_fill_and_undo_restores_corner() {
     let mut core = Session::default();
     let before = scene(core.open(doc));
     assert!(query::contains(&before.contours, 19.05, 19.05));
-    let after = commit(&mut core, 0, json!({"kind":"remove-parts","ids":["k0"]}));
+    let after = scene(core.commit(0, remove_parts(&["k0"])));
     assert!(!query::contains(&after.contours, 0.0, 0.0));
     let undone = scene(core.undo());
     assert_eq!(undone.contours, before.contours);
@@ -320,17 +302,18 @@ fn definition_edits_invalidate_geometry_and_preserve_manual_additions() {
     let mut doc = document();
     doc.parts.truncate(1);
     doc.definitions[0].keycap = Some(Vec2 { x: 18.0, y: 18.0 });
-    doc.outline.push(serde_json::from_value(json!({"id":"tab","kind":"rect","center":{"x":15,"y":0},"size":{"x":10,"y":6},"radius":0,"operation":"add"})).unwrap());
+    doc.outline.push(rect(
+        "tab",
+        Vec2 { x: 15.0, y: 0.0 },
+        Vec2 { x: 10.0, y: 6.0 },
+        Operation::Add,
+    ));
     doc.boards[0].outline_ids.push("tab".into());
     let mut core = Session::default();
     let before = scene(core.open(doc.clone()));
     assert!(query::contains(&before.contours, 19.0, 0.0));
     doc.definitions[0].keycap = Some(Vec2 { x: 50.0, y: 18.0 });
-    let after = commit(
-        &mut core,
-        0,
-        json!({"kind":"replace-document","document":doc}),
-    );
+    let after = scene(core.commit(0, replace_document(doc)));
     assert!(query::contains(&after.contours, 28.0, 0.0));
     let undone = scene(core.undo());
     assert_eq!(undone.contours, before.contours);
@@ -397,18 +380,18 @@ fn matrices_follow_stagger_rotation_growth_and_shrink() {
     doc.boards[0].part_ids.clear();
     let mut core = Session::default();
     scene(core.open(doc));
-    let mut matrix = json!({"id":"keys","boardId":"board","rows":3,"columns":3,"pitch":{"x":19.05,"y":19.05},"origin":{"x":0,"y":0},"definitionId":"switch","partIds":[],"rotation":30,"rowLayout": [{"offset": {"x": 0, "y": 0}}, {"offset": {"x": 5, "y": 0}}, {"offset": {"x": 10, "y": 0}}],
-"cells":[{"row":0,"column":0,"enabled":false}]});
-    let rotated = commit(&mut core, 0, json!({"kind":"set-matrix","matrix":matrix}));
+    let mut matrix: Matrix = serde_json::from_value(json!({"id":"keys","boardId":"board","rows":3,"columns":3,"pitch":{"x":19.05,"y":19.05},"origin":{"x":0,"y":0},"definitionId":"switch","partIds":[],"rotation":30,"rowLayout": [{"offset": {"x": 0, "y": 0}}, {"offset": {"x": 5, "y": 0}}, {"offset": {"x": 10, "y": 0}}],
+"cells":[{"row":0,"column":0,"enabled":false}]})).unwrap();
+    let rotated = scene(core.commit(0, fixture::set_matrix(matrix.clone())));
     assert!(!query::contains(&rotated.contours, 0.0, 0.0));
     assert!(query::contains(
         &rotated.contours,
         19.05 * 30f64.to_radians().cos(),
         19.05 * 30f64.to_radians().sin()
     ));
-    matrix["rows"] = json!(4);
-    matrix["columns"] = json!(4);
-    let grown = commit(&mut core, 1, json!({"kind":"set-matrix","matrix":matrix}));
+    matrix.rows = 4;
+    matrix.columns = 4;
+    let grown = scene(core.commit(1, fixture::set_matrix(matrix.clone())));
     assert!(!query::contains(&grown.contours, 0.0, 0.0));
     let p = 57.15;
     let (sin, cos) = 30f64.to_radians().sin_cos();
@@ -417,16 +400,16 @@ fn matrices_follow_stagger_rotation_growth_and_shrink() {
         p * cos - p * sin,
         p * sin + p * cos
     ));
-    matrix["rows"] = json!(2);
-    matrix["columns"] = json!(2);
-    let shrunk = commit(&mut core, 2, json!({"kind":"set-matrix","matrix":matrix}));
+    matrix.rows = 2;
+    matrix.columns = 2;
+    let shrunk = scene(core.commit(2, fixture::set_matrix(matrix.clone())));
     assert!(!query::contains(
         &shrunk.contours,
         p * cos - p * sin,
         p * sin + p * cos
     ));
-    let second = json!({"id":"right","boardId":"board","rows":1,"columns":1,"pitch":{"x":19.05,"y":19.05},"origin":{"x":120,"y":0},"definitionId":"switch","partIds":[]});
-    let joined = commit(&mut core, 3, json!({"kind":"set-matrix","matrix":second}));
+    let second: Matrix = serde_json::from_value(json!({"id":"right","boardId":"board","rows":1,"columns":1,"pitch":{"x":19.05,"y":19.05},"origin":{"x":120,"y":0},"definitionId":"switch","partIds":[]})).unwrap();
+    let joined = scene(core.commit(3, fixture::set_matrix(second)));
     assert_eq!(joined.board_contours[0].contours.len(), 1);
     assert!(query::contains(&joined.contours, 120.0, 0.0));
 }
@@ -453,7 +436,12 @@ fn finishing_cannot_leave_a_cutout_outside_its_exterior() {
         settings.corners = CornerStyle::Fillet;
         settings.size = 100.0;
     }
-    doc.outline.push(serde_json::from_value(json!({"id":"hole","kind":"rect","center":{"x":12,"y":12},"size":{"x":0.5,"y":0.5},"radius":0,"operation":"subtract"})).unwrap());
+    doc.outline.push(rect(
+        "hole",
+        Vec2 { x: 12.0, y: 12.0 },
+        Vec2 { x: 0.5, y: 0.5 },
+        Operation::Subtract,
+    ));
     doc.boards[0].outline_ids.push("hole".into());
     let result = scene(Session::default().open(doc));
     assert!(!result.board_readiness[0].outline, "{:?}", result.findings);
@@ -465,11 +453,7 @@ fn current_matrix_deletions_record_disabled_cells_before_resizing() {
     doc.matrices.push(serde_json::from_value(json!({"id":"main","rows":3,"columns":3,"pitch":{"x":19.05,"y":19.05},"origin":{"x":0,"y":0},"definitionId":"switch","partIds":doc.boards[0].part_ids})).unwrap());
     let mut core = Session::default();
     scene(core.open(doc));
-    let removed = commit(
-        &mut core,
-        0,
-        json!({"kind":"remove-parts","ids":["matrix/main/r0c0"]}),
-    );
+    let removed = scene(core.commit(0, remove_parts(&["matrix/main/r0c0"])));
     assert!(
         !removed
             .findings
@@ -478,16 +462,8 @@ fn current_matrix_deletions_record_disabled_cells_before_resizing() {
         "{:?}",
         removed.findings
     );
-    commit(
-        &mut core,
-        1,
-        json!({"kind":"remove-parts","ids":["matrix/main/r0c1"]}),
-    );
-    let CoreReply::Scene { document: doc, .. } =
-        core.send(CoreRequest::Snapshot { id: "snap".into() })
-    else {
-        panic!()
-    };
+    core.commit(1, remove_parts(&["matrix/main/r0c1"]));
+    let doc = core.snapshot();
     assert!(
         doc.matrices[0]
             .cells
@@ -502,7 +478,7 @@ fn current_matrix_deletions_record_disabled_cells_before_resizing() {
     );
     let mut matrix = doc.matrices[0].clone();
     matrix.columns = 4;
-    let grown = commit(&mut core, 2, json!({"kind":"set-matrix","matrix":matrix}));
+    let grown = scene(core.commit(2, fixture::set_matrix(matrix)));
     assert!(!query::contains(&grown.contours, 0.0, 0.0));
     assert!(!query::contains(&grown.contours, 19.05, 0.0));
 }
@@ -598,31 +574,24 @@ fn attached_addition_moves_and_detaches_on_anchor_deletion() {
     let mut core = Session::default();
     let mut doc = document();
     doc.parts[0].pose.at = Vec2 { x: 100.0, y: 0.0 };
-    doc.outline.push(
-        serde_json::from_value(
-            json!({"kind":"polygon","id":"tab","operation":"add","anchorPartId":"k0",
-        "points":[{"x":8,"y":-4},{"x":30,"y":-4},{"x":30,"y":4},{"x":8,"y":4}]}),
-        )
-        .unwrap(),
-    );
+    doc.outline.push(anchored_polygon(
+        "tab",
+        "k0",
+        &[(8.0, -4.0), (30.0, -4.0), (30.0, 4.0), (8.0, 4.0)],
+        Operation::Add,
+    ));
     doc.boards[0].outline_ids.push("tab".into());
     let opened = scene(core.open(doc));
     assert!(query::contains(&opened.contours, 125.0, 0.0));
-    let moved = scene(core.send(CoreRequest::Edit {
-        id: "move".into(),
-        command: EditCommand {
-            base_revision: 0,
-            transaction_id: "move".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec!["k0".into()],
-            operation: EditOperation::MoveParts {
-                positions: vec![Position {
-                    id: "k0".into(),
-                    at: Vec2 { x: 120.0, y: 0.0 },
-                }],
-            },
+    let moved = scene(core.commit(
+        0,
+        EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "k0".into(),
+                at: Vec2 { x: 120.0, y: 0.0 },
+            }],
         },
-    }));
+    ));
     assert!(query::contains(&moved.contours, 145.0, 0.0));
     let removed = core.send(CoreRequest::Edit {
         id: "remove".into(),
@@ -742,10 +711,7 @@ fn rotated_back_side_rectangle_detaches_with_radius_and_roundtrips_history() {
     let redone = scene(core.redo());
     assert_eq!(redone.contours, after.contours);
     let serialized = serde_json::to_string(&document).unwrap();
-    let reopened = scene(Session::default().send(CoreRequest::Open {
-        id: "reload".into(),
-        document: serde_json::from_str(&serialized).unwrap(),
-    }));
+    let reopened = Session::projected(serde_json::from_str(&serialized).unwrap());
     assert_eq!(reopened.contours, after.contours);
 }
 
@@ -753,31 +719,20 @@ fn rotated_back_side_rectangle_detaches_with_radius_and_roundtrips_history() {
 fn shrinking_matrix_preview_and_commit_detach_outline_at_the_same_position() {
     let mut doc = matrix_document();
     doc.matrices.push(serde_json::from_value(json!({"id":"main","rows":3,"columns":3,"pitch":{"x":19.05,"y":19.05},"origin":{"x":0,"y":0},"definitionId":"switch","partIds":doc.parts.iter().map(|part|part.id.clone()).collect::<Vec<_>>()})).unwrap());
-    doc.outline.push(serde_json::from_value(json!({"kind":"polygon","id":"tab","operation":"add","anchorPartId":"matrix/main/r2c2","points":[{"x":8,"y":-4},{"x":30,"y":-4},{"x":30,"y":4},{"x":8,"y":4}]})).unwrap());
+    doc.outline.push(anchored_polygon(
+        "tab",
+        "matrix/main/r2c2",
+        &[(8.0, -4.0), (30.0, -4.0), (30.0, 4.0), (8.0, 4.0)],
+        Operation::Add,
+    ));
     doc.boards[0].outline_ids.push("tab".into());
     let mut matrix = doc.matrices[0].clone();
     matrix.rows = 2;
     let mut core = Session::default();
-    core.open(doc);
-    let command = EditCommand {
-        base_revision: 0,
-        transaction_id: "shrink".into(),
-        phase: EditPhase::Preview,
-        target_ids: vec![],
-        operation: fixture::set_matrix(matrix),
-    };
-    let preview = scene(core.send(CoreRequest::Edit {
-        id: "preview".into(),
-        command: command.clone(),
-    }));
+    scene(core.open(doc));
+    let preview = scene(core.preview(0, fixture::set_matrix(matrix.clone())));
     assert!(query::contains(&preview.contours, 63.0, 38.1));
-    let committed = scene(core.send(CoreRequest::Edit {
-        id: "commit".into(),
-        command: EditCommand {
-            phase: EditPhase::Commit,
-            ..command
-        },
-    }));
+    let committed = scene(core.commit(0, fixture::set_matrix(matrix)));
     assert_eq!(preview.contours, committed.contours);
 }
 
@@ -800,11 +755,7 @@ fn connection_endpoints_follow_moves_and_detach_atomically() {
     }
     let mut core = Session::default();
     core.open(doc);
-    let moved = commit(
-        &mut core,
-        0,
-        json!({"kind":"move-parts","positions":[{"id":"k0","at":{"x":-20,"y":0}}]}),
-    );
+    let moved = scene(core.commit(0, move_key("k0", -20.0, 0.0)));
     assert!(query::contains(&moved.contours, -10.0, 22.5));
     let removed = core.send(fixture::commit(
         "delete",
