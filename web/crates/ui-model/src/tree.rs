@@ -264,21 +264,17 @@ pub fn build_tree(
         .map(|definition| (definition.id.as_str(), definition.name.as_str()))
         .collect();
     let mut matrices = visible_matrices(document, board_id, &board_parts);
+    let mut scene_order = HashMap::new();
+    for (index, scene) in matrix_scenes.iter().enumerate() {
+        scene_order
+            .entry(scene.matrix_id.as_str())
+            .or_insert((index, scene));
+    }
     matrices.sort_by_key(|matrix| {
-        matrix_scenes
-            .iter()
-            .position(|scene| scene.matrix_id == matrix.id)
-            .unwrap_or(usize::MAX)
+        scene_order
+            .get(matrix.id.as_str())
+            .map_or(usize::MAX, |&(index, _)| index)
     });
-    let scenes: HashMap<_, _> = matrices
-        .iter()
-        .filter_map(|matrix| {
-            matrix_scenes
-                .iter()
-                .find(|scene| scene.matrix_id == matrix.id)
-                .map(|scene| (matrix.id.as_str(), scene))
-        })
-        .collect();
     let layouts: Vec<_> = document
         .layouts
         .iter()
@@ -289,8 +285,6 @@ pub fn build_tree(
                     .any(|matrix| layout.matrix_ids.contains(&matrix.id))
         })
         .collect();
-    let mut tree = Vec::new();
-
     let board_key = format!("board:{board_id}");
     let board_open = expanded.contains(&board_key);
     let live_board_count = board
@@ -298,7 +292,7 @@ pub fn build_tree(
         .iter()
         .filter(|id| live_parts.contains_key(id.as_str()))
         .count();
-    tree.push(TreeItem {
+    let mut tree = vec![TreeItem {
         id: board_key,
         label: board.name.clone(),
         detail: Some(format!("{live_board_count} parts")),
@@ -310,11 +304,45 @@ pub fn build_tree(
         expanded: Some(board_open),
         primary_id: None,
         expandable: true,
-    });
+    }];
     if !board_open {
         return tree;
     }
 
+    append_outline(
+        &mut tree,
+        document,
+        board_id,
+        expanded,
+        outline_scenes,
+        &matrices,
+    );
+    let (components, standalone) =
+        layout_components(&document.parts, &board_parts, &matrices, &layouts);
+    let layout_tree = LayoutTree {
+        document,
+        grouping,
+        expanded,
+        outline_scenes,
+        board_id,
+        matrices,
+        scenes: scene_order,
+        live_parts,
+        definitions,
+    };
+    layout_tree.append_unowned(&mut tree, &layouts, &standalone);
+    layout_tree.append_layouts(&mut tree, &layouts, &components);
+    tree
+}
+
+fn append_outline(
+    tree: &mut Vec<TreeItem>,
+    document: &ProjectDoc,
+    board_id: &str,
+    expanded: &BTreeSet<String>,
+    outline_scenes: &[BoardOutlineScene],
+    matrices: &[&Matrix],
+) {
     let outline = document
         .board_outlines
         .iter()
@@ -343,103 +371,96 @@ pub fn build_tree(
         primary_id: None,
         expandable: true,
     });
-    if outline_open {
+    if !outline_open {
+        return;
+    }
+    let versions = outline.into_iter().flat_map(|state| &state.versions);
+    for version in std::iter::once(None).chain(versions.map(Some)) {
+        let version_id = version.map(|version| version.id.as_str());
+        let detail = match version_id {
+            id if id == active_version => "Active",
+            None => "Follows layout",
+            Some(_) => "Fixed",
+        };
         tree.push(TreeItem {
-            id: format!("outline:{board_id}:generated"),
-            label: "Generated".into(),
-            detail: Some(
-                if active_version.is_none() {
-                    "Active"
-                } else {
-                    "Follows layout"
-                }
-                .into(),
-            ),
+            id: match version_id {
+                Some(id) => format!("outline:{board_id}:version:{id}"),
+                None => format!("outline:{board_id}:generated"),
+            },
+            label: version.map_or_else(|| "Generated".into(), |version| version.name.clone()),
+            detail: Some(detail.into()),
             level: 2,
             kind: TreeKind::OutlineVersion,
             context: Some(TreeContext::OutlineVersion {
                 board_id: board_id.into(),
-                version_id: None,
+                version_id: version_id.map(str::to_owned),
             }),
             expanded: None,
             primary_id: None,
             expandable: false,
         });
-        if let Some(outline) = outline {
-            for version in &outline.versions {
-                tree.push(TreeItem {
-                    id: format!("outline:{board_id}:version:{}", version.id),
-                    label: version.name.clone(),
-                    detail: Some(
-                        if active_version == Some(version.id.as_str()) {
-                            "Active"
-                        } else {
-                            "Fixed"
-                        }
-                        .into(),
-                    ),
-                    level: 2,
-                    kind: TreeKind::OutlineVersion,
-                    context: Some(TreeContext::OutlineVersion {
-                        board_id: board_id.into(),
-                        version_id: Some(version.id.clone()),
-                    }),
-                    expanded: None,
-                    primary_id: None,
-                    expandable: false,
-                });
-            }
-        }
-        if let Some(scene) = outline_scenes
-            .iter()
-            .find(|scene| scene.board_id == board_id)
-        {
-            for (index, bridge) in scene.bridges.iter().enumerate() {
-                let mut occurrences = Vec::new();
-                for matrix_id in &bridge.matrix_ids {
-                    if let Some(matrix) = matrices.iter().find(|matrix| matrix.id == *matrix_id) {
-                        occurrences.push(
-                            matrix
-                                .name
-                                .as_deref()
-                                .filter(|name| !name.trim().is_empty())
-                                .unwrap_or(&matrix.id)
-                                .to_owned(),
-                        );
-                    }
-                }
-                occurrences.sort();
-                occurrences.dedup();
-                let detail = if occurrences.is_empty() {
-                    "Bridge".to_owned()
-                } else {
-                    occurrences.join(", ")
-                };
-                tree.push(TreeItem {
-                    id: format!("outline:{board_id}:bridge:{}", bridge.id),
-                    label: format!("Bridge {}", index + 1),
-                    detail: Some(format!("{} mm · {detail}", bridge.width)),
-                    level: 2,
-                    kind: TreeKind::Bridge,
-                    context: Some(TreeContext::Bridge {
-                        board_id: board_id.into(),
-                        bridge_id: bridge.id.clone(),
-                    }),
-                    expanded: None,
-                    primary_id: None,
-                    expandable: false,
-                });
-            }
-        }
     }
+    if let Some(scene) = outline_scenes
+        .iter()
+        .find(|scene| scene.board_id == board_id)
+    {
+        append_outline_bridges(tree, board_id, scene, matrices);
+    }
+}
 
+fn append_outline_bridges(
+    tree: &mut Vec<TreeItem>,
+    board_id: &str,
+    scene: &BoardOutlineScene,
+    matrices: &[&Matrix],
+) {
+    let parent = format!("outline:{board_id}");
+    for (index, bridge) in scene.bridges.iter().enumerate() {
+        let mut occurrences: Vec<_> = bridge
+            .matrix_ids
+            .iter()
+            .filter_map(|id| matrices.iter().find(|matrix| matrix.id == *id))
+            .map(|matrix| {
+                matrix
+                    .name
+                    .as_deref()
+                    .filter(|name| !name.trim().is_empty())
+                    .unwrap_or(&matrix.id)
+            })
+            .collect();
+        occurrences.sort_unstable();
+        occurrences.dedup();
+        let detail = if occurrences.is_empty() {
+            "Bridge".to_owned()
+        } else {
+            occurrences.join(", ")
+        };
+        tree.push(bridge_item(
+            board_id,
+            &parent,
+            &bridge.id,
+            index + 1,
+            2,
+            format!("{} mm · {detail}", bridge.width),
+        ));
+    }
+}
+
+type LayoutComponents<'a> = HashMap<&'a str, Vec<&'a Part>>;
+
+fn layout_components<'a>(
+    parts: &'a [Part],
+    board_parts: &HashSet<&str>,
+    matrices: &[&Matrix],
+    layouts: &[&'a Layout],
+) -> (LayoutComponents<'a>, Vec<&'a Part>) {
     let matrix_part_ids: HashSet<&str> = matrices
         .iter()
         .flat_map(|matrix| matrix.part_ids.iter().map(String::as_str))
         .collect();
-    let mut components_by_layout: HashMap<&str, Vec<&Part>> = HashMap::new();
+    let mut components_by_layout = HashMap::<_, Vec<_>>::new();
     let mut standalone = Vec::new();
-    for part in &document.parts {
+    for part in parts {
         if !board_parts.contains(part.id.as_str()) || matrix_part_ids.contains(part.id.as_str()) {
             continue;
         }
@@ -455,96 +476,94 @@ pub fn build_tree(
             standalone.push(part);
         }
     }
-    let owner_layout: HashMap<&str, &Layout> = layouts
+    (components_by_layout, standalone)
+}
+
+fn layout_halves<'a>(
+    document: &ProjectDoc,
+    layouts: &[&'a Layout],
+    matrices: &[&Matrix],
+) -> Vec<(&'static str, Vec<&'a Layout>)> {
+    let axis = layouts
         .iter()
-        .flat_map(|layout| {
-            layout
-                .matrix_ids
-                .iter()
-                .map(move |id| (id.as_str(), *layout))
-        })
-        .collect();
-    let same_board_pair = |layout: &Layout| {
-        document.mirrored_pairs.iter().find(|pair| {
-            matches!(
-                &pair.source,
-                boardstudio_model::mirrored_half::MirrorDestination::SameBoardLayout(id)
-                    if id == &layout.id
-            ) || matches!(
-                &pair.destination,
-                boardstudio_model::mirrored_half::MirrorDestination::SameBoardLayout(id)
-                    if id == &layout.id
-            )
-        })
-    };
-    let has_split = layouts
-        .iter()
-        .any(|layout| same_board_pair(layout).is_some())
-        || layouts.iter().any(|layout| layout.mirror_link.is_some())
-        || layouts.iter().any(|layout| {
-            layouts.iter().any(|other| {
-                other
-                    .mirror_link
-                    .as_ref()
-                    .is_some_and(|link| link.source_id == layout.id)
-            })
-        });
-    let split_x = layouts
-        .iter()
-        .find_map(|layout| same_board_pair(layout).map(|pair| pair.mapping.at.x / 2.0))
+        .find_map(|layout| same_board_pair_axis(document, layout))
         .or_else(|| {
             layouts
                 .iter()
                 .find_map(|layout| layout.mirror_link.as_ref().map(|link| link.axis_x))
         });
-    let halves: Vec<(&str, Vec<&Layout>)> = if has_split {
-        let axis = split_x.unwrap_or_default();
-        vec![
-            (
-                "Left half",
-                layouts
-                    .iter()
-                    .copied()
-                    .filter(|layout| {
-                        layout
-                            .matrix_ids
-                            .iter()
-                            .map(|id| matrix_origin_x(&matrices, id))
-                            .sum::<f64>()
-                            / (layout.matrix_ids.len().max(1) as f64)
-                            < axis
-                    })
-                    .collect(),
-            ),
-            (
-                "Right half",
-                layouts
-                    .iter()
-                    .copied()
-                    .filter(|layout| {
-                        layout
-                            .matrix_ids
-                            .iter()
-                            .map(|id| matrix_origin_x(&matrices, id))
-                            .sum::<f64>()
-                            / (layout.matrix_ids.len().max(1) as f64)
-                            >= axis
-                    })
-                    .collect(),
-            ),
-        ]
-    } else {
-        vec![("", layouts.clone())]
+    let Some(axis) = axis else {
+        return vec![("", layouts.to_vec())];
     };
+    let mut left = Vec::new();
+    let mut right = Vec::new();
+    for layout in layouts.iter().copied() {
+        let origin = layout
+            .matrix_ids
+            .iter()
+            .map(|id| matrix_origin_x(matrices, id))
+            .sum::<f64>()
+            / layout.matrix_ids.len().max(1) as f64;
+        if origin < axis {
+            left.push(layout);
+        } else if origin >= axis {
+            right.push(layout);
+        }
+    }
+    vec![("Left half", left), ("Right half", right)]
+}
 
-    let unowned: Vec<_> = matrices
-        .iter()
-        .copied()
-        .filter(|matrix| !owner_layout.contains_key(matrix.id.as_str()))
-        .collect();
-    if !unowned.is_empty() || !standalone.is_empty() || layouts.is_empty() {
-        let id = format!("layout:{board_id}");
-        let is_open = expanded.contains(&id);
+fn layout_is_linked(document: &ProjectDoc, layout: &Layout, layouts: &[&Layout]) -> bool {
+    layout.mirror_link.is_some()
+        || layouts.iter().any(|other| {
+            other
+                .mirror_link
+                .as_ref()
+                .is_some_and(|link| link.source_id == layout.id)
+        })
+        || same_board_pair_axis(document, layout).is_some()
+}
+
+fn same_board_pair_axis(document: &ProjectDoc, layout: &Layout) -> Option<f64> {
+    use boardstudio_model::mirrored_half::MirrorDestination::SameBoardLayout;
+
+    document.mirrored_pairs.iter().find_map(|pair| {
+        [&pair.source, &pair.destination]
+            .iter()
+            .any(|end| matches!(end, SameBoardLayout(id) if id == &layout.id))
+            .then_some(pair.mapping.at.x / 2.0)
+    })
+}
+
+struct LayoutTree<'a> {
+    document: &'a ProjectDoc,
+    grouping: Grouping,
+    expanded: &'a BTreeSet<String>,
+    outline_scenes: &'a [BoardOutlineScene],
+    board_id: &'a str,
+    matrices: Vec<&'a Matrix>,
+    scenes: HashMap<&'a str, (usize, &'a MatrixScene)>,
+    live_parts: HashMap<&'a str, &'a Part>,
+    definitions: HashMap<&'a str, &'a str>,
+}
+
+impl LayoutTree<'_> {
+    fn append_unowned(&self, tree: &mut Vec<TreeItem>, layouts: &[&Layout], standalone: &[&Part]) {
+        let owned: HashSet<_> = layouts
+            .iter()
+            .flat_map(|layout| &layout.matrix_ids)
+            .collect();
+        let unowned: Vec<_> = self
+            .matrices
+            .iter()
+            .copied()
+            .filter(|matrix| !owned.contains(&matrix.id))
+            .collect();
+        if unowned.is_empty() && standalone.is_empty() && !layouts.is_empty() {
+            return;
+        }
+        let id = format!("layout:{}", self.board_id);
+        let is_open = self.expanded.contains(&id);
         tree.push(TreeItem {
             id,
             label: "Layout".into(),
@@ -559,178 +578,150 @@ pub fn build_tree(
         if is_open {
             for matrix in unowned {
                 append_matrix(
-                    &mut tree,
-                    document,
+                    self,
+                    tree,
                     matrix,
-                    scenes.get(matrix.id.as_str()).copied(),
-                    &live_parts,
-                    &definitions,
-                    grouping,
-                    expanded,
                     2,
                     true,
-                    board_id,
-                    outline_scenes,
                     &format!("matrix:{}", matrix.id),
                 );
             }
-            for part in &standalone {
-                append_component(&mut tree, part, &definitions, 2);
+            for part in standalone {
+                append_component(tree, part, &self.definitions, 2);
             }
         }
     }
 
-    for (half_label, half_layouts) in halves {
-        let half_key = format!("half-group:{board_id}:{half_label}");
-        let half_open = half_label.is_empty() || !expanded.contains(&half_key);
-        if !half_label.is_empty() && !half_layouts.is_empty() {
-            tree.push(TreeItem {
-                id: half_key,
-                label: half_label.into(),
-                detail: None,
-                level: 1,
-                kind: TreeKind::HalfGroup,
-                context: Some(TreeContext::LayoutGroup {
-                    board_id: board_id.to_owned(),
-                    layout_ids: half_layouts
-                        .iter()
-                        .map(|layout| layout.id.clone())
-                        .collect(),
-                }),
-                expanded: Some(half_open),
-                primary_id: None,
-                expandable: true,
-            });
+    fn append_layouts(
+        &self,
+        tree: &mut Vec<TreeItem>,
+        layouts: &[&Layout],
+        components: &LayoutComponents<'_>,
+    ) {
+        for (label, half) in layout_halves(self.document, layouts, &self.matrices) {
+            let split = !label.is_empty();
+            if split && (half.is_empty() || !self.append_half(tree, label, &half, components)) {
+                continue;
+            }
+            for layout in half {
+                self.append_layout(tree, layout, layouts, components, split);
+            }
         }
-        if !half_open {
-            continue;
+    }
+
+    fn append_half(
+        &self,
+        tree: &mut Vec<TreeItem>,
+        label: &str,
+        layouts: &[&Layout],
+        components: &LayoutComponents<'_>,
+    ) -> bool {
+        let id = format!("half-group:{}:{label}", self.board_id);
+        let open = !self.expanded.contains(&id);
+        tree.push(TreeItem {
+            id,
+            label: label.into(),
+            detail: None,
+            level: 1,
+            kind: TreeKind::HalfGroup,
+            context: Some(TreeContext::LayoutGroup {
+                board_id: self.board_id.to_owned(),
+                layout_ids: layouts.iter().map(|layout| layout.id.clone()).collect(),
+            }),
+            expanded: Some(open),
+            primary_id: None,
+            expandable: true,
+        });
+        if open {
+            let parts: Vec<_> = layouts
+                .iter()
+                .filter_map(|layout| components.get(layout.id.as_str()))
+                .flatten()
+                .copied()
+                .collect();
+            self.append_components_group(tree, &parts, label);
         }
-        let half_level = usize::from(!half_label.is_empty());
-        let components: Vec<_> = half_layouts
+        open
+    }
+
+    fn append_components_group(&self, tree: &mut Vec<TreeItem>, parts: &[&Part], half: &str) {
+        if parts.is_empty() {
+            return;
+        }
+        let id = format!("components:{}:{half}", self.board_id);
+        let is_open = !self.expanded.contains(&id);
+        tree.push(TreeItem {
+            id,
+            label: "Components".into(),
+            detail: Some(format!("{} parts", parts.len())),
+            level: 2,
+            kind: TreeKind::Components,
+            context: None,
+            expanded: Some(is_open),
+            primary_id: None,
+            expandable: true,
+        });
+        if is_open {
+            for part in parts {
+                append_component(tree, part, &self.definitions, 3);
+            }
+        }
+    }
+
+    fn append_layout(
+        &self,
+        tree: &mut Vec<TreeItem>,
+        layout: &Layout,
+        layouts: &[&Layout],
+        components: &LayoutComponents<'_>,
+        split: bool,
+    ) {
+        let id = format!("half:{}", layout.id);
+        let open = self.expanded.contains(&id);
+        let level = 1 + usize::from(split);
+        let linked = layout_is_linked(self.document, layout, layouts);
+        tree.push(TreeItem {
+            id: id.clone(),
+            label: layout.name.clone(),
+            detail: Some(if linked { "Linked" } else { "Independent" }.into()),
+            level,
+            kind: TreeKind::Layout,
+            context: Some(if let [matrix_id] = layout.matrix_ids.as_slice() {
+                TreeContext::Matrix {
+                    matrix_id: matrix_id.clone(),
+                }
+            } else {
+                TreeContext::LayoutGroup {
+                    board_id: self.board_id.to_owned(),
+                    layout_ids: vec![layout.id.clone()],
+                }
+            }),
+            expanded: Some(open),
+            primary_id: None,
+            expandable: true,
+        });
+        if !open {
+            return;
+        }
+        for matrix in self
+            .matrices
             .iter()
-            .flat_map(|layout| {
-                components_by_layout
-                    .get(layout.id.as_str())
-                    .into_iter()
-                    .flatten()
-                    .copied()
-            })
-            .collect();
-        if has_split {
-            append_components_group(
-                &mut tree,
-                &components,
-                &definitions,
-                board_id,
-                half_label,
-                expanded,
-                if half_level == 0 { 1 } else { 2 },
+            .copied()
+            .filter(|matrix| layout.matrix_ids.contains(&matrix.id))
+        {
+            append_matrix(
+                self,
+                tree,
+                matrix,
+                level + 1,
+                layout.matrix_ids.len() > 1,
+                &id,
             );
         }
-        for layout in half_layouts {
-            let layout_key = format!("half:{}", layout.id);
-            let is_open = expanded.contains(&layout_key);
-            let linked = same_board_pair(layout).is_some()
-                || layout.mirror_link.is_some()
-                || layouts.iter().any(|other| {
-                    other
-                        .mirror_link
-                        .as_ref()
-                        .is_some_and(|link| link.source_id == layout.id)
-                });
-            tree.push(TreeItem {
-                id: layout_key.clone(),
-                label: layout.name.clone(),
-                detail: Some(if linked { "Linked" } else { "Independent" }.into()),
-                level: if half_level == 0 { 1 } else { 2 },
-                kind: TreeKind::Layout,
-                context: Some(if layout.matrix_ids.len() == 1 {
-                    TreeContext::Matrix {
-                        matrix_id: layout.matrix_ids[0].clone(),
-                    }
-                } else {
-                    TreeContext::LayoutGroup {
-                        board_id: board_id.to_owned(),
-                        layout_ids: vec![layout.id.clone()],
-                    }
-                }),
-                expanded: Some(is_open),
-                primary_id: None,
-                expandable: true,
-            });
-            if is_open {
-                let child_level = if half_level == 0 { 2 } else { 3 };
-                for matrix in matrices
-                    .iter()
-                    .copied()
-                    .filter(|matrix| layout.matrix_ids.contains(&matrix.id))
-                {
-                    append_matrix(
-                        &mut tree,
-                        document,
-                        matrix,
-                        scenes.get(matrix.id.as_str()).copied(),
-                        &live_parts,
-                        &definitions,
-                        grouping,
-                        expanded,
-                        child_level,
-                        layout.matrix_ids.len() > 1,
-                        board_id,
-                        outline_scenes,
-                        &layout_key,
-                    );
-                }
-                if !has_split {
-                    for part in components_by_layout
-                        .get(layout.id.as_str())
-                        .into_iter()
-                        .flatten()
-                    {
-                        append_component(&mut tree, part, &definitions, child_level);
-                    }
-                }
+        if !split && let Some(parts) = components.get(layout.id.as_str()) {
+            for part in parts {
+                append_component(tree, part, &self.definitions, level + 1);
             }
-        }
-    }
-    tree
-}
-
-fn append_components_group(
-    tree: &mut Vec<TreeItem>,
-    parts: &[&Part],
-    definitions: &HashMap<&str, &str>,
-    board_id: &str,
-    label_suffix: &str,
-    expanded: &BTreeSet<String>,
-    level: usize,
-) {
-    if parts.is_empty() {
-        return;
-    }
-    let id = format!(
-        "components:{board_id}:{}",
-        if label_suffix.is_empty() {
-            "layout"
-        } else {
-            label_suffix
-        }
-    );
-    let is_open = !expanded.contains(&id);
-    tree.push(TreeItem {
-        id,
-        label: "Components".into(),
-        detail: Some(format!("{} parts", parts.len())),
-        level,
-        kind: TreeKind::Components,
-        context: None,
-        expanded: Some(is_open),
-        primary_id: None,
-        expandable: true,
-    });
-    if is_open {
-        for part in parts {
-            append_component(tree, part, definitions, level + 1);
         }
     }
 }
@@ -774,53 +765,48 @@ fn matrix_origin_x(matrices: &[&Matrix], id: &str) -> f64 {
         .map_or(0.0, |matrix| matrix.origin.x)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn append_matrix(
+    layout: &LayoutTree<'_>,
     tree: &mut Vec<TreeItem>,
-    document: &ProjectDoc,
     matrix: &Matrix,
-    scene: Option<&MatrixScene>,
-    live_parts: &HashMap<&str, &Part>,
-    definitions: &HashMap<&str, &str>,
-    grouping: Grouping,
-    expanded: &BTreeSet<String>,
     level: usize,
     include_header: bool,
-    board_id: &str,
-    outline_scenes: &[BoardOutlineScene],
     occurrence_id: &str,
 ) {
-    let projected = scene
-        .map(|scene| scene.cells.as_slice())
+    let projected = layout
+        .scenes
+        .get(matrix.id.as_str())
+        .map(|(_, scene)| scene.cells.as_slice())
         .unwrap_or_default();
     let actual_member = |row: u32, column: u32| {
         projected
             .iter()
             .find(|cell| cell.row == row && cell.column == column && cell.enabled)
             .and_then(|cell| cell.member_id.as_deref())
-            .filter(|id| live_parts.contains_key(id))
+            .filter(|id| layout.live_parts.contains_key(id))
     };
     let assembly_member = |row: u32, column: u32, assembly_id: &str| {
         let primary = actual_member(row, column)?;
         let candidate = format!("{primary}/{assembly_id}");
-        (matrix.part_ids.contains(&candidate) && live_parts.contains_key(candidate.as_str()))
+        (matrix.part_ids.contains(&candidate) && layout.live_parts.contains_key(candidate.as_str()))
             .then_some(candidate)
     };
-    let primary_ids = projected
-        .iter()
-        .filter(|cell| cell.enabled)
-        .filter_map(|cell| cell.member_id.as_deref())
-        .filter(|id| live_parts.contains_key(id))
-        .collect::<Vec<_>>();
-    let index = document
+    let index = layout
+        .document
         .matrices
         .iter()
         .position(|candidate| candidate.id == matrix.id)
         .unwrap_or(0)
         + 1;
     let item_id = format!("matrix:{}", matrix.id);
-    let is_open = !include_header || expanded.contains(&item_id);
+    let is_open = !include_header || layout.expanded.contains(&item_id);
     if include_header {
+        let primary_count = projected
+            .iter()
+            .filter(|cell| cell.enabled)
+            .filter_map(|cell| cell.member_id.as_deref())
+            .filter(|id| layout.live_parts.contains_key(id))
+            .count();
         tree.push(TreeItem {
             id: item_id,
             label: matrix
@@ -831,13 +817,14 @@ fn append_matrix(
                 .map(str::to_owned)
                 .unwrap_or_else(|| format!("Matrix {index}")),
             detail: Some(if let Some(anchor) = &matrix.anchor {
-                let target = document
+                let target = layout
+                    .document
                     .matrices
                     .iter()
                     .find(|matrix| matrix.id == anchor.matrix_id);
                 format!(
                     "{} keys · Follows {} · row {}, column {}",
-                    primary_ids.len(),
+                    primary_count,
                     target
                         .and_then(|matrix| matrix.name.as_deref())
                         .unwrap_or(&anchor.matrix_id),
@@ -845,7 +832,7 @@ fn append_matrix(
                     anchor.column + 1
                 )
             } else {
-                format!("{} keys", primary_ids.len())
+                format!("{} keys", primary_count)
             }),
             level,
             kind: TreeKind::Matrix,
@@ -863,9 +850,9 @@ fn append_matrix(
     }
     append_matrix_bridge_occurrences(
         tree,
-        board_id,
+        layout.board_id,
         matrix,
-        outline_scenes,
+        layout.outline_scenes,
         occurrence_id,
         child_level,
     );
@@ -873,12 +860,12 @@ fn append_matrix(
         return;
     }
 
-    let (group_count, key_count) = match grouping {
+    let (group_count, key_count) = match layout.grouping {
         Grouping::Column => (matrix.columns, matrix.rows),
         Grouping::Row => (matrix.rows, matrix.columns),
     };
     for group in 0..group_count {
-        let (kind, label, context, prefix) = match grouping {
+        let (kind, label, context, prefix) = match layout.grouping {
             Grouping::Column => (
                 TreeKind::Column,
                 format!("Column {}", group + 1),
@@ -899,13 +886,14 @@ fn append_matrix(
             ),
         };
         let id = format!("{prefix}:{}:{group}", matrix.id);
-        let is_open = expanded.contains(&id);
+        let coordinates = |index| match layout.grouping {
+            Grouping::Column => (index, group),
+            Grouping::Row => (group, index),
+        };
+        let is_open = layout.expanded.contains(&id);
         let key_count_live = (0..key_count)
-            .filter(|index| {
-                let (row, column) = match grouping {
-                    Grouping::Column => (*index, group),
-                    Grouping::Row => (group, *index),
-                };
+            .filter(|&index| {
+                let (row, column) = coordinates(index);
                 actual_member(row, column).is_some()
             })
             .count();
@@ -924,10 +912,7 @@ fn append_matrix(
             continue;
         }
         for index in 0..key_count {
-            let (row, column) = match grouping {
-                Grouping::Column => (index, group),
-                Grouping::Row => (group, index),
-            };
+            let (row, column) = coordinates(index);
             let cell = matrix
                 .cells
                 .iter()
@@ -937,26 +922,15 @@ fn append_matrix(
             }
             let enabled = cell.is_none_or(|cell| cell.enabled);
             let primary = enabled.then(|| actual_member(row, column)).flatten();
-            let assemblies: Vec<_> = cell
-                .into_iter()
-                .flat_map(|cell| cell.assemblies.iter())
-                .map(|assembly| {
-                    (
-                        assembly,
-                        enabled
-                            .then(|| assembly_member(row, column, &assembly.id))
-                            .flatten(),
-                    )
-                })
-                .collect();
+            let assemblies = cell.map_or(&[][..], |cell| cell.assemblies.as_slice());
             let key_id = format!("key:{}:{row}:{column}", matrix.id);
-            let key_open = expanded.contains(&key_id);
+            let key_open = layout.expanded.contains(&key_id);
             tree.push(TreeItem {
                 id: key_id,
                 label: format!("Key {}.{}", column + 1, row + 1),
                 detail: Some(
                     primary
-                        .and_then(|id| live_parts.get(id).map(|part| part.reference.clone()))
+                        .and_then(|id| layout.live_parts.get(id).map(|part| part.reference.clone()))
                         .unwrap_or_else(|| "Empty slot".into()),
                 ),
                 level: child_level + 1,
@@ -971,12 +945,22 @@ fn append_matrix(
                 expandable: !assemblies.is_empty(),
             });
             if key_open {
-                for (assembly, actual) in assemblies {
+                for assembly in assemblies {
+                    let actual = enabled
+                        .then(|| assembly_member(row, column, &assembly.id))
+                        .flatten();
                     let definition = actual
                         .as_deref()
-                        .and_then(|id| live_parts.get(id))
-                        .and_then(|part| definitions.get(part.definition_id.as_str()).copied())
-                        .or_else(|| definitions.get(assembly.definition_id.as_str()).copied())
+                        .and_then(|id| layout.live_parts.get(id))
+                        .and_then(|part| {
+                            layout.definitions.get(part.definition_id.as_str()).copied()
+                        })
+                        .or_else(|| {
+                            layout
+                                .definitions
+                                .get(assembly.definition_id.as_str())
+                                .copied()
+                        })
                         .unwrap_or("Component");
                     tree.push(TreeItem {
                         id: format!(
@@ -1029,20 +1013,38 @@ fn append_matrix_bridge_occurrences(
         if !bridge.matrix_ids.iter().any(|id| id == &matrix.id) {
             continue;
         }
-        tree.push(TreeItem {
-            id: format!("{occurrence_id}:bridge:{}", bridge.id),
-            label: format!("Bridge {}", index + 1),
-            detail: Some(format!("{} mm", bridge.width)),
+        tree.push(bridge_item(
+            board_id,
+            occurrence_id,
+            &bridge.id,
+            index + 1,
             level,
-            kind: TreeKind::Bridge,
-            context: Some(TreeContext::Bridge {
-                board_id: board_id.into(),
-                bridge_id: bridge.id.clone(),
-            }),
-            expanded: None,
-            primary_id: None,
-            expandable: false,
-        });
+            format!("{} mm", bridge.width),
+        ));
+    }
+}
+
+fn bridge_item(
+    board_id: &str,
+    parent: &str,
+    bridge_id: &str,
+    number: usize,
+    level: usize,
+    detail: String,
+) -> TreeItem {
+    TreeItem {
+        id: format!("{parent}:bridge:{bridge_id}"),
+        label: format!("Bridge {number}"),
+        detail: Some(detail),
+        level,
+        kind: TreeKind::Bridge,
+        context: Some(TreeContext::Bridge {
+            board_id: board_id.into(),
+            bridge_id: bridge_id.into(),
+        }),
+        expanded: None,
+        primary_id: None,
+        expandable: false,
     }
 }
 

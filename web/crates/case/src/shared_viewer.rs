@@ -1,12 +1,12 @@
 //! Shared 3D viewport for immutable scene projections from each workspace.
 
 use boardstudio_web_ui_model::Workspace;
-mod canvas;
-mod case;
-pub use case::{
+pub(crate) mod canvas;
+pub use crate::case_handles::{CaseMountTarget, ViewerHandle, ViewerHandleTarget};
+pub use crate::case_viewport::{
     BodySelection, CaseBodyEditDispatch, CaseBodyEditPortal, CaseSelection, LayerSelection,
 };
-pub(crate) use case::{CaseViewport, CaseViewportSource};
+pub(crate) use crate::case_viewport::{CaseViewport, CaseViewportSource};
 mod interaction;
 mod scene;
 
@@ -17,7 +17,6 @@ use super::case_assembly_layers::{
     CaseAssemblyLayers, assembly_layers_with_stack, physical_component_layers,
 };
 use super::layout_viewer_source::LayoutPreviewSnapshot;
-use super::mechanical_settings::MechanicalSettingsPatchExt;
 use super::model_delivery::ModelDeliveryRows;
 use crate::case_preview::NativePreviewSnapshot;
 use crate::{runtime::CadScene, viewport_camera::ProjectionInputs};
@@ -28,12 +27,7 @@ use boardstudio_web_ui_shared::ui::{
     button::{Button as UiButton, ButtonSize as UiButtonSize, ButtonVariant as UiButtonVariant},
     checkbox::{Checkbox as UiCheckbox, CheckboxState},
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
-    field::Field,
-    input::InputType,
-    input_group::{InputGroup, InputGroupInput},
     label::Label,
-    select::{Select, SelectOption},
-    slider::Slider,
     toggle_group::{ToggleGroup, ToggleItem},
     tooltip::{Tooltip, TooltipContent, TooltipTrigger},
 };
@@ -48,7 +42,6 @@ use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{HtmlCanvasElement, PointerEvent};
 
 pub use super::case_display::CaseDisplay;
-use super::case_display::preference_ids;
 
 /// Reusable canvas header and view switch for the Keymap and Keycaps consumers.
 /// The page owner supplies guarded actions and the accepted shared view state.
@@ -305,8 +298,8 @@ pub fn Viewport3D(
     let Some(source) = scene
         .map(ViewerSource::Cad)
         .or_else(|| preview.clone().map(ViewerSource::Native))
-        .or_else(|| layout_preview.clone().map(ViewerSource::Layout))
-        .or_else(|| parts_preview.clone().map(ViewerSource::Parts))
+        .or_else(|| layout_preview.map(ViewerSource::Layout))
+        .or_else(|| parts_preview.map(ViewerSource::Parts))
     else {
         return rsx! { p { role: "alert", "3D preview source is unavailable." } };
     };
@@ -340,18 +333,10 @@ pub fn Viewport3D(
             .unwrap_or_default(),
         theme: theme.clone(),
     };
-    // Case supplies the accepted scene independently of its disposable display
-    // scene. Only a currently admitted preview may carry that gesture source.
     let handle_projection = handle_source
         .filter(|accepted| {
-            runtime
-                .cad_scene()
-                .as_ref()
-                .is_some_and(|current| Rc::ptr_eq(current, accepted))
-                && matches!(&source, ViewerSource::Cad(displayed)
-                    if Rc::ptr_eq(displayed, accepted)
-                        || runtime.case_gesture_preview_scene(accepted).as_ref()
-                            .is_some_and(|preview| Rc::ptr_eq(displayed, preview)))
+            matches!(&source, ViewerSource::Cad(displayed)
+            if crate::case_viewport::gesture_source_is_current(&runtime, accepted, displayed))
         })
         .map(|source| CaseHandleProjection {
             source,
@@ -535,33 +520,13 @@ impl ViewerCanvasContext {
         }
     }
 
-    fn camera_label(self) -> &'static str {
+    fn name(self) -> &'static str {
         match self {
-            Self::Parts => "Parts sample camera",
-            Self::Case => "Case camera",
-            Self::Layout => "Layout camera",
-            Self::Keymap => "Keymap camera",
-            Self::Keycaps => "Keycaps camera",
-        }
-    }
-
-    fn display_label(self) -> &'static str {
-        match self {
-            Self::Parts => "Parts sample display mode",
-            Self::Case => "Case display mode",
-            Self::Layout => "Layout display mode",
-            Self::Keymap => "Keymap display mode",
-            Self::Keycaps => "Keycaps display mode",
-        }
-    }
-
-    fn assembly_label(self) -> &'static str {
-        match self {
-            Self::Parts => "Parts sample view",
-            Self::Case => "Case assembly view",
-            Self::Layout => "Layout assembly view",
-            Self::Keymap => "Keymap assembly view",
-            Self::Keycaps => "Keycaps assembly view",
+            Self::Parts => "Parts sample",
+            Self::Case => "Case",
+            Self::Layout => "Layout",
+            Self::Keymap => "Keymap",
+            Self::Keycaps => "Keycaps",
         }
     }
 }
@@ -631,41 +596,9 @@ impl ViewerSource {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct ViewerHandle {
-    pub id: String,
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-    pub tangent_x: f32,
-    pub tangent_y: f32,
-    pub normal_x: f32,
-    pub normal_y: f32,
-    pub length: f32,
-    pub invalid: bool,
-    pub target: ViewerHandleTarget,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum ViewerHandleTarget {
-    Gasket {
-        support_id: String,
-    },
-    Mount {
-        owner: CaseMountTarget,
-        mount_id: String,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum CaseMountTarget {
-    Mechanical(super::mechanical_settings::MechanicalMountCollection),
-    Authored { body_id: String },
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
-enum AssemblyView {
+pub(crate) enum AssemblyView {
     Assembled,
     Exploded,
     Section,
@@ -680,14 +613,14 @@ enum RenderMode {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct TransientView {
-    assembly: AssemblyView,
+pub(crate) struct TransientView {
+    pub(crate) assembly: AssemblyView,
     mode: RenderMode,
-    explode_amount: f32,
-    section_plane: &'static str,
-    section_position: f32,
-    show_section_plane: bool,
-    show_hidden: bool,
+    pub(crate) explode_amount: f32,
+    pub(crate) section_plane: &'static str,
+    pub(crate) section_position: f32,
+    pub(crate) show_section_plane: bool,
+    pub(crate) show_hidden: bool,
 }
 
 impl Default for TransientView {
@@ -905,26 +838,6 @@ fn display_state(
         "colors": &display.colors,
     });
     js_sys::JSON::parse(&value.to_string()).map_err(js_error)
-}
-
-fn active_case_handles(
-    handles: &[ViewerHandle],
-    preview: Option<&[ViewerHandle]>,
-    edit_gaskets: bool,
-    edit_mounts: bool,
-) -> Vec<ViewerHandle> {
-    if !edit_gaskets && !edit_mounts {
-        return Vec::new();
-    }
-    preview
-        .unwrap_or(handles)
-        .iter()
-        .filter(|handle| {
-            matches!(&handle.target, ViewerHandleTarget::Gasket { .. }) && edit_gaskets
-                || matches!(&handle.target, ViewerHandleTarget::Mount { .. }) && edit_mounts
-        })
-        .cloned()
-        .collect()
 }
 
 fn handles_value(handles: &[ViewerHandle]) -> Result<JsValue, String> {
