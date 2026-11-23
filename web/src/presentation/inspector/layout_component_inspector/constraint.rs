@@ -66,7 +66,6 @@ pub(super) fn use_constraint_controls(
             .to_owned(),
         )
     });
-    let source_choice = use_memo(move || Some(source_part_id()));
     let axes_choice = use_memo(move || Some(offset_axes_value(offset_axes()).to_owned()));
     let axis_choice = use_memo(move || {
         Some(
@@ -313,289 +312,150 @@ pub(super) fn use_constraint_controls(
         .unwrap_or_else(|| projection.reference.clone());
 
     let controls = rsx! {
-        Collapsible {
-            class: "grid gap-2.5 [&>label]:grid [&>label]:gap-[5px]",
-            keep_mounted: true,
-            open: Some(constraint_open()),
+        InspectorSection {
+            title: "Layout constraint",
+            badge: if active_constraint.is_some() { "Active" } else { "Optional" },
+            open: constraint_open(),
             on_open_change: move |next| constraint_open.set(next),
-            CollapsibleTrigger {
-                class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold",
-                aria_label: "Layout constraint",
-                span { "Layout constraint" }
-                small {
-                    if active_constraint.is_some() {
-                        "Active"
-                    } else {
-                        "Optional"
-                    }
-                }
-                ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" }
-            }
-            CollapsibleContent {
-                class: "data-[open=true]:overflow-visible",
-                hidden: !constraint_open(),
-                inert: (!constraint_open()).then_some(""),
-
                 if board_parts.iter().filter(|part| part.id != owner.part_id).count() > 0 {
+                    SelectField::<String> {
+                        id: "layout-constraint-type",
+                        label: "Constraint type",
+                        aria_label: "Constraint type",
+                        value: kind_choice().unwrap_or_default(),
+                        options: vec![
+                            ("offset".into(), "Offset from part".into()),
+                            ("mirror".into(), "Mirror placement across axis".into()),
+                            ("mirror-line".into(), "Mirror line".into()),
+                        ],
+                        on_commit: move |choice: String| {
+                            constraint_kind
+                                .set(
+                                    match choice.as_str() {
+                                        "mirror" => ConstraintKind::Mirror,
+                                        "mirror-line" => ConstraintKind::MirrorLine,
+                                        _ => ConstraintKind::Offset,
+                                    },
+                                );
+                        },
+                    }
                     {
-                        let control_label = "Constraint type".to_owned();
-                        let control_aria_label = "Constraint type".to_owned();
-                        let control_id = format!(
-                            "layout-choice-{}-{}",
-                            dioxus::core::current_scope_id().0,
-                            control_aria_label.replace(' ', "-"),
-                        );
-
+                        let mut source_options: Vec<(String, String)> = Vec::new();
+                        if !board_parts.iter().any(|part| part.id == source_part_id()) {
+                            source_options
+                                .push((
+                                    source_part_id.to_string(),
+                                    constraint_source_reference.to_string(),
+                                ));
+                        }
+                        for part in board_parts.iter().filter(|part| part.id != owner.part_id) {
+                            source_options
+                                .push((part.id.to_string(), part.reference.to_string()));
+                        }
+                        let board_parts = board_parts.clone();
                         rsx! {
                             SelectField::<String> {
-                                id: control_id,
-                                label: control_label,
-                                aria_label: control_aria_label,
-                                value: kind_choice().unwrap_or_default(),
-                                options: vec![
-                                    ("offset".into(), "Offset from part".into()),
-                                    ("mirror".into(), "Mirror placement across axis".into()),
-                                    ("mirror-line".into(), "Mirror line".into()),
-                                ],
+                                id: "layout-constraint-source",
+                                label: "Source part",
+                                aria_label: "Constraint source part",
+                                value: source_part_id(),
+                                options: source_options,
                                 on_commit: move |choice: String| {
-                                    constraint_kind
-                                        .set(
-                                            match choice.as_str() {
-                                                "mirror" => ConstraintKind::Mirror,
-                                                "mirror-line" => ConstraintKind::MirrorLine,
-                                                _ => ConstraintKind::Offset,
-                                            },
-                                        );
+                                    if !has_active_constraint {
+                                        offset_axes.set(default_axes_for_source(&board_parts, &choice));
+                                    }
+                                    source_part_id.set(choice);
                                 },
                             }
                         }
                     }
-                    {
-                        let control_label = "Source part".to_owned();
-                        let control_aria_label = "Constraint source part".to_owned();
-                        let control_id = format!(
-                            "layout-choice-{}-{}",
-                            dioxus::core::current_scope_id().0,
-                            control_aria_label.replace(' ', "-"),
-                        );
-
-                        let mut control_choices: Vec<(String, String, bool)> = Vec::new();
-                        if !board_parts.iter().any(|part| part.id == source_part_id()) {
-                            control_choices
-                                .push((
-                                    source_part_id.to_string(),
-                                    constraint_source_reference.to_string(),
-                                    false,
-                                ));
-                        }
-                        for part in board_parts.iter().filter(|part| part.id != owner.part_id) {
-                            control_choices
-                                .push((part.id.to_string(), part.reference.to_string(), false));
-                        }
-                        let on_value_change = EventHandler::new({
-                            let board_parts = board_parts.clone();
-                            move |choice: Option<String>| {
-                                let Some(choice) = choice else {
-                                    return;
-                                };
-                                let value = choice;
-                                if !has_active_constraint {
-                                    offset_axes.set(default_axes_for_source(&board_parts, &value));
-                                }
-                                source_part_id.set(value);
-                            }
-                        });
-                        rsx! {
-
-                            Field { class: "",
-                                FieldLabel { html_for: control_id.clone(), "{control_label}" }
-                                Combobox::<String> {
-                                    id: control_id,
-                                    aria_label: control_aria_label.clone(),
-                                    list_aria_label: control_aria_label.clone(),
-                                    value: Some(source_choice.into()),
-                                    disabled: false,
-                                    on_value_change,
-                                    for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
-                                        ComboboxOption::<String> {
-                                            index,
-                                            value: value.clone(),
-                                            text_value: label.clone(),
-                                            disabled: *disabled,
-                                            "{label}"
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
                     if constraint_kind() == ConstraintKind::Offset {
-                        {
-                            let control_label = "Offset axes".to_owned();
-                            let control_aria_label = "Offset axes".to_owned();
-                            let control_id = format!(
-                                "layout-choice-{}-{}",
-                                dioxus::core::current_scope_id().0,
-                                control_aria_label.replace(' ', "-"),
-                            );
-
-                            rsx! {
-                                SelectField::<String> {
-                                    id: control_id,
-                                    label: control_label,
-                                    aria_label: control_aria_label,
-                                    value: axes_choice().unwrap_or_default(),
-                                    options: vec![
-                                        (offset_axes_value(OffsetAxes::Board).to_owned(), "Offset on board axes".into()),
-                                        (offset_axes_value(OffsetAxes::Part).to_owned(), "Offset along part axes".into()),
-                                    ],
-                                    on_commit: move |choice: String| choose_offset_axes(offset_axes_from_value(&choice)),
-                                }
-                            }
+                        SelectField::<String> {
+                            id: "layout-constraint-offset-axes",
+                            label: "Offset axes",
+                            aria_label: "Offset axes",
+                            value: axes_choice().unwrap_or_default(),
+                            options: vec![
+                                (offset_axes_value(OffsetAxes::Board).to_owned(), "Offset on board axes".into()),
+                                (offset_axes_value(OffsetAxes::Part).to_owned(), "Offset along part axes".into()),
+                            ],
+                            on_commit: move |choice: String| choose_offset_axes(offset_axes_from_value(&choice)),
                         }
                         div { class: "grid grid-cols-2 gap-2",
-                            {
-                                let control_input_id = format!(
-                                    "layout-input-{}-7",
-                                    dioxus::core::current_scope_id().0,
-                                );
-                                rsx! {
-                                    NumericField {
-                                        id: control_input_id,
-                                        label: "Offset X (mm)",
-                                        aria_label: "Offset X (mm)",
-                                        value: offset_x().parse::<f64>().unwrap_or_default(),
-                                        on_commit: move |value: f64| offset_x.set(value.to_string()),
-                                    }
-                                }
+                            NumericField {
+                                id: "layout-constraint-offset-x",
+                                label: "Offset X (mm)",
+                                aria_label: "Offset X (mm)",
+                                value: offset_x().parse::<f64>().unwrap_or_default(),
+                                on_commit: move |value: f64| offset_x.set(value.to_string()),
                             }
-                            {
-                                let control_input_id = format!(
-                                    "layout-input-{}-6",
-                                    dioxus::core::current_scope_id().0,
-                                );
-                                rsx! {
-                                    NumericField {
-                                        id: control_input_id,
-                                        label: "Offset Y (mm)",
-                                        aria_label: "Offset Y (mm)",
-                                        value: offset_y().parse::<f64>().unwrap_or_default(),
-                                        on_commit: move |value: f64| offset_y.set(value.to_string()),
-                                    }
-                                }
+                            NumericField {
+                                id: "layout-constraint-offset-y",
+                                label: "Offset Y (mm)",
+                                aria_label: "Offset Y (mm)",
+                                value: offset_y().parse::<f64>().unwrap_or_default(),
+                                on_commit: move |value: f64| offset_y.set(value.to_string()),
                             }
                         }
-                        {
-                            let control_input_id = format!(
-                                "layout-input-{}-5",
-                                dioxus::core::current_scope_id().0,
-                            );
-                            rsx! {
-                                NumericField {
-                                    id: control_input_id,
-                                    label: "Rotation (degrees)",
-                                    aria_label: "Rotation (degrees)",
-                                    value: rotation().parse::<f64>().unwrap_or_default(),
-                                    on_commit: move |value: f64| rotation.set(value.to_string()),
-                                }
-                            }
+                        NumericField {
+                            id: "layout-constraint-rotation",
+                            label: "Rotation (degrees)",
+                            aria_label: "Rotation (degrees)",
+                            value: rotation().parse::<f64>().unwrap_or_default(),
+                            on_commit: move |value: f64| rotation.set(value.to_string()),
                         }
                     } else if constraint_kind() == ConstraintKind::Mirror {
-                        {
-                            let control_label = "Axis".to_owned();
-                            let control_aria_label = "Mirror axis".to_owned();
-                            let control_id = format!(
-                                "layout-choice-{}-{}",
-                                dioxus::core::current_scope_id().0,
-                                control_aria_label.replace(' ', "-"),
-                            );
-
-                            rsx! {
-                                SelectField::<String> {
-                                    id: control_id,
-                                    label: control_label,
-                                    aria_label: control_aria_label,
-                                    value: axis_choice().unwrap_or_default(),
-                                    options: vec![
-                                        ("vertical".into(), "Vertical".into()),
-                                        ("horizontal".into(), "Horizontal".into()),
-                                    ],
-                                    on_commit: move |choice: String| {
-                                        mirror_axis
-                                            .set(
-                                                if choice == "horizontal" {
-                                                    MirrorAxis::Horizontal
-                                                } else {
-                                                    MirrorAxis::Vertical
-                                                },
-                                            );
-                                    },
-                                }
-                            }
+                        SelectField::<String> {
+                            id: "layout-constraint-mirror-axis",
+                            label: "Axis",
+                            aria_label: "Mirror axis",
+                            value: axis_choice().unwrap_or_default(),
+                            options: vec![
+                                ("vertical".into(), "Vertical".into()),
+                                ("horizontal".into(), "Horizontal".into()),
+                            ],
+                            on_commit: move |choice: String| {
+                                mirror_axis
+                                    .set(
+                                        if choice == "horizontal" {
+                                            MirrorAxis::Horizontal
+                                        } else {
+                                            MirrorAxis::Vertical
+                                        },
+                                    );
+                            },
                         }
-                        {
-                            let control_input_id = format!(
-                                "layout-input-{}-4",
-                                dioxus::core::current_scope_id().0,
-                            );
-                            rsx! {
-                                NumericField {
-                                    id: control_input_id,
-                                    label: "Axis coordinate (mm)",
-                                    aria_label: "Axis coordinate (mm)",
-                                    value: mirror_coordinate().parse::<f64>().unwrap_or_default(),
-                                    on_commit: move |value: f64| mirror_coordinate.set(value.to_string()),
-                                }
-                            }
+                        NumericField {
+                            id: "layout-constraint-axis-coordinate",
+                            label: "Axis coordinate (mm)",
+                            aria_label: "Axis coordinate (mm)",
+                            value: mirror_coordinate().parse::<f64>().unwrap_or_default(),
+                            on_commit: move |value: f64| mirror_coordinate.set(value.to_string()),
                         }
                         p { "Footprint geometry stays unchanged. Use a handed definition where needed." }
                     } else {
                         div { class: "grid grid-cols-2 gap-2",
-                            {
-                                let control_input_id = format!(
-                                    "layout-input-{}-3",
-                                    dioxus::core::current_scope_id().0,
-                                );
-                                rsx! {
-                                    NumericField {
-                                        id: control_input_id,
-                                        label: "Line anchor X (mm)",
-                                        aria_label: "Mirror line anchor X (mm)",
-                                        value: mirror_line_x().parse::<f64>().unwrap_or_default(),
-                                        on_commit: move |value: f64| mirror_line_x.set(value.to_string()),
-                                    }
-                                }
+                            NumericField {
+                                id: "layout-constraint-line-x",
+                                label: "Line anchor X (mm)",
+                                aria_label: "Mirror line anchor X (mm)",
+                                value: mirror_line_x().parse::<f64>().unwrap_or_default(),
+                                on_commit: move |value: f64| mirror_line_x.set(value.to_string()),
                             }
-                            {
-                                let control_input_id = format!(
-                                    "layout-input-{}-2",
-                                    dioxus::core::current_scope_id().0,
-                                );
-                                rsx! {
-                                    NumericField {
-                                        id: control_input_id,
-                                        label: "Line anchor Y (mm)",
-                                        aria_label: "Mirror line anchor Y (mm)",
-                                        value: mirror_line_y().parse::<f64>().unwrap_or_default(),
-                                        on_commit: move |value: f64| mirror_line_y.set(value.to_string()),
-                                    }
-                                }
+                            NumericField {
+                                id: "layout-constraint-line-y",
+                                label: "Line anchor Y (mm)",
+                                aria_label: "Mirror line anchor Y (mm)",
+                                value: mirror_line_y().parse::<f64>().unwrap_or_default(),
+                                on_commit: move |value: f64| mirror_line_y.set(value.to_string()),
                             }
                         }
-                        {
-                            let control_input_id = format!(
-                                "layout-input-{}-1",
-                                dioxus::core::current_scope_id().0,
-                            );
-                            rsx! {
-                                NumericField {
-                                    id: control_input_id,
-                                    label: "Line angle (degrees)",
-                                    aria_label: "Mirror line angle (degrees)",
-                                    value: mirror_line_angle().parse::<f64>().unwrap_or_default(),
-                                    on_commit: move |value: f64| mirror_line_angle.set(value.to_string()),
-                                }
-                            }
+                        NumericField {
+                            id: "layout-constraint-line-angle",
+                            label: "Line angle (degrees)",
+                            aria_label: "Mirror line angle (degrees)",
+                            value: mirror_line_angle().parse::<f64>().unwrap_or_default(),
+                            on_commit: move |value: f64| mirror_line_angle.set(value.to_string()),
                         }
                         p { "Footprint geometry stays unchanged. Use a handed definition where needed." }
                     }
@@ -627,7 +487,6 @@ pub(super) fn use_constraint_controls(
                 } else {
                     p { "Add another part on this board to create a layout constraint." }
                 }
-            }
         }
     };
     (controls, reset_properties_drafts)

@@ -11,21 +11,14 @@ use boardstudio_web_layout::component_offset::{
     offset_values,
 };
 use boardstudio_web_ui_model::Workspace;
-use boardstudio_web_ui_shared::inspector_fields::{CheckboxField, NumericField, SelectField};
+use boardstudio_web_ui_shared::inspector_fields::{
+    CheckboxField, InspectorSection, NumericField, SelectField,
+};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
 use boardstudio_web_ui_shared::ui::checkbox::CheckboxState;
-use boardstudio_web_ui_shared::ui::collapsible::{
-    Collapsible, CollapsibleContent, CollapsibleTrigger,
-};
+use boardstudio_web_ui_shared::ui::field::FieldError;
 use boardstudio_web_ui_shared::ui::tabs::{Tabs, TabsContent, TabsList, TabsTrigger};
-use boardstudio_web_ui_shared::ui::{
-    combobox::{Combobox, ComboboxOption},
-    field::{Field, FieldError, FieldLabel},
-    select::{Select, SelectOption},
-};
-
-use boardstudio_web_ui_shared::ui::icons::ChevronDown;
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -147,6 +140,26 @@ pub enum LayoutComponentInspectorAction {
     DetachPartAnchor {
         owner: LayoutComponentInspectorOwner,
     },
+}
+
+impl LayoutComponentInspectorAction {
+    pub fn owner(&self) -> &LayoutComponentInspectorOwner {
+        match self {
+            LayoutComponentInspectorAction::SetPosition { owner, .. }
+            | LayoutComponentInspectorAction::AssignLayout { owner, .. }
+            | LayoutComponentInspectorAction::SetOutline { owner, .. }
+            | LayoutComponentInspectorAction::SetConstraint { owner, .. }
+            | LayoutComponentInspectorAction::RemoveConstraint { owner, .. }
+            | LayoutComponentInspectorAction::ConvertOffsetAxes { owner, .. }
+            | LayoutComponentInspectorAction::NavigateElectrical { owner }
+            | LayoutComponentInspectorAction::SetMirroredHalfState { owner, .. }
+            | LayoutComponentInspectorAction::SetPartMirrored { owner, .. }
+            | LayoutComponentInspectorAction::SetPartAnchorValue { owner, .. }
+            | LayoutComponentInspectorAction::SetPartAnchorFollow { owner, .. }
+            | LayoutComponentInspectorAction::SetPartAnchor { owner, .. }
+            | LayoutComponentInspectorAction::DetachPartAnchor { owner } => owner,
+        }
+    }
 }
 
 #[derive(Props, Clone, PartialEq)]
