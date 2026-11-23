@@ -54,6 +54,30 @@ impl Session {
     }
 }
 
+/// Open a document on a fresh engine, returning the engine alongside the
+/// projected scene and document. Used by tests that drive `CoreEngine`
+/// directly instead of through [`Session`].
+pub(crate) fn open_engine(document: ProjectDoc) -> (CoreEngine, SceneDelta, ProjectDoc) {
+    let mut engine = CoreEngine::new();
+    let (scene, document) = fixture::scene_and_document(engine.handle(fixture::open(document)));
+    (engine, scene, document)
+}
+
+/// Commit an operation at the document revision, returning the new scene and
+/// document. Used by tests that drive `CoreEngine` directly.
+pub(crate) fn commit_edit(
+    engine: &mut CoreEngine,
+    doc: &ProjectDoc,
+    operation: EditOperation,
+) -> (SceneDelta, ProjectDoc) {
+    fixture::scene_and_document(engine.handle(fixture::commit(
+        "edit",
+        "edit",
+        doc.revision,
+        operation,
+    )))
+}
+
 #[track_caller]
 pub(crate) fn changed(reply: &CoreReply) -> &[String] {
     match reply {

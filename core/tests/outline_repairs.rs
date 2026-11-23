@@ -1,4 +1,5 @@
 use crate::support::fixture::{self, outline_document as synthetic_document};
+use crate::support::query;
 use boardstudio_core::{CoreEngine, model::*};
 
 fn open(document: ProjectDoc) -> SceneDelta {
@@ -9,25 +10,6 @@ fn open(document: ProjectDoc) -> SceneDelta {
         CoreReply::Scene { scene, .. } => scene,
         reply => panic!("{reply:?}"),
     }
-}
-
-// Independent oracle: deliberately not the production predicate it checks.
-fn contains(contours: &[Contour], at: Vec2) -> bool {
-    contours.iter().fold(false, |inside, contour| {
-        let mut hit = false;
-        for (a, b) in contour
-            .points
-            .iter()
-            .zip(contour.points.iter().cycle().skip(1))
-            .take(contour.points.len())
-        {
-            if (a.y > at.y) != (b.y > at.y) && at.x < (b.x - a.x) * (at.y - a.y) / (b.y - a.y) + a.x
-            {
-                hit = !hit;
-            }
-        }
-        inside != hit
-    })
 }
 
 fn world_point(document: &ProjectDoc, control: &OutlineControlPoint) -> Vec2 {
@@ -113,9 +95,10 @@ fn default_outline_uses_the_synthetic_component_envelopes() {
     let result = open(synthetic_document());
     assert!(!result.board_contours[0].contours.is_empty());
     // The fixture places a switch courtyard at the origin, so its centre belongs to the board.
-    assert!(contains(
+    assert!(query::contains(
         &result.board_contours[0].contours,
-        Vec2 { x: 0.0, y: 0.0 }
+        0.0,
+        0.0
     ));
 }
 
@@ -202,7 +185,11 @@ fn a_shallow_matrix_stagger_remains_an_open_outline_alternative() {
 fn a_kept_gap_follows_its_component_frame_when_the_board_moves() {
     let (mut document, probe, _) = protected_gap_document();
     let result = open(document.clone());
-    assert!(!contains(&result.board_contours[0].contours, probe));
+    assert!(!query::contains(
+        &result.board_contours[0].contours,
+        probe.x,
+        probe.y
+    ));
 
     for part in &mut document.parts {
         part.pose.at.x += 25.0;
@@ -211,12 +198,10 @@ fn a_kept_gap_follows_its_component_frame_when_the_board_moves() {
         matrix.origin.x += 25.0;
     }
     let moved = open(document);
-    assert!(!contains(
+    assert!(!query::contains(
         &moved.board_contours[0].contours,
-        Vec2 {
-            x: probe.x + 25.0,
-            y: probe.y
-        }
+        probe.x + 25.0,
+        probe.y
     ));
 }
 
@@ -307,21 +292,21 @@ fn removing_a_protected_gap_source_retains_last_valid_geometry() {
 #[test]
 fn an_authored_cutout_subtracts_material_at_its_declared_centre() {
     let mut document = synthetic_document();
-    document.outline.push(OutlineFeature::Rect {
-        id: "synthetic-cutout".into(),
-        anchor_part_id: None,
-        rotation: None,
-        center: Vec2 { x: 0.0, y: 0.0 },
-        size: Vec2 { x: 2.0, y: 2.0 },
-        radius: 0.0,
-        operation: Operation::Subtract,
-    });
+    document.outline.push(fixture::rect(
+        "synthetic-cutout",
+        0.0,
+        0.0,
+        2.0,
+        2.0,
+        Operation::Subtract,
+    ));
     document.boards[0]
         .outline_ids
         .push("synthetic-cutout".into());
     let result = open(document);
-    assert!(!contains(
+    assert!(!query::contains(
         &result.board_contours[0].contours,
-        Vec2 { x: 0.0, y: 0.0 }
+        0.0,
+        0.0
     ));
 }

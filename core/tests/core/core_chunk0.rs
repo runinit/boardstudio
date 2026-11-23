@@ -6,11 +6,17 @@ fn union_difference_make_one_hole() {
     let mut engine = CoreEngine::new();
     let mut doc = ProjectDoc::empty("p", "Project");
     doc.outline
-        .push(rect("left", -5.0, 0.0, 20.0, 20.0, Operation::Add));
+        .push(fixture::rect("left", -5.0, 0.0, 20.0, 20.0, Operation::Add));
     doc.outline
-        .push(rect("right", 5.0, 0.0, 20.0, 20.0, Operation::Add));
-    doc.outline
-        .push(rect("hole", 0.0, 0.0, 5.0, 5.0, Operation::Subtract));
+        .push(fixture::rect("right", 5.0, 0.0, 20.0, 20.0, Operation::Add));
+    doc.outline.push(fixture::rect(
+        "hole",
+        0.0,
+        0.0,
+        5.0,
+        5.0,
+        Operation::Subtract,
+    ));
     let (scene, _) = scene(engine.handle(fixture::open(doc)));
     assert_eq!(scene.contours.len(), 2);
     assert_eq!(scene.contours.iter().filter(|c| c.hole).count(), 1);
@@ -23,7 +29,7 @@ fn duplicate_pad_nets_and_invalid_case_block_readiness() {
     let mut engine = CoreEngine::new();
     let mut doc = ProjectDoc::empty("p", "Project");
     doc.outline
-        .push(rect("edge", 0.0, 0.0, 20.0, 20.0, Operation::Add));
+        .push(fixture::rect("edge", 0.0, 0.0, 20.0, 20.0, Operation::Add));
     doc.definitions.push(PartDefinition {
         pads: vec![Pad {
             id: "p".into(),
@@ -107,12 +113,30 @@ fn duplicate_pad_nets_and_invalid_case_block_readiness() {
 fn board_contours_follow_each_boards_authored_order() {
     let mut engine = CoreEngine::new();
     let mut doc = ProjectDoc::empty("p", "Project");
-    doc.outline
-        .push(rect("left", -20.0, 0.0, 10.0, 10.0, Operation::Add));
-    doc.outline
-        .push(rect("cut", -20.0, 0.0, 2.0, 2.0, Operation::Subtract));
-    doc.outline
-        .push(rect("right", 20.0, 0.0, 10.0, 10.0, Operation::Add));
+    doc.outline.push(fixture::rect(
+        "left",
+        -20.0,
+        0.0,
+        10.0,
+        10.0,
+        Operation::Add,
+    ));
+    doc.outline.push(fixture::rect(
+        "cut",
+        -20.0,
+        0.0,
+        2.0,
+        2.0,
+        Operation::Subtract,
+    ));
+    doc.outline.push(fixture::rect(
+        "right",
+        20.0,
+        0.0,
+        10.0,
+        10.0,
+        Operation::Add,
+    ));
     doc.boards.push(Board {
         outline_ids: vec!["left".into(), "cut".into()],
         ..fixture::board("left-board", "Left")

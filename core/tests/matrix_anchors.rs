@@ -2,6 +2,7 @@
 //! edits. All behavior runs through public Core routes (`Open` / `Edit`), never
 //! graph helpers alone.
 use crate::support::fixture::{self, key_part, part_pose as pose_of, scene_and_document as scene};
+use crate::support::session::{commit_edit, open_engine};
 use boardstudio_core::{CoreEngine, model::*};
 
 #[path = "matrix_anchors/anchor_chunk0.rs"]
@@ -10,20 +11,6 @@ mod anchor_chunk0;
 mod anchor_chunk1;
 #[path = "matrix_anchors/anchor_chunk2.rs"]
 mod anchor_chunk2;
-
-fn open(doc: ProjectDoc) -> (CoreEngine, SceneDelta, ProjectDoc) {
-    let mut engine = CoreEngine::new();
-    let (scene, doc) = scene(engine.handle(fixture::open(doc)));
-    (engine, scene, doc)
-}
-
-fn edit(
-    engine: &mut CoreEngine,
-    doc: &ProjectDoc,
-    operation: EditOperation,
-) -> (SceneDelta, ProjectDoc) {
-    scene(engine.handle(fixture::commit("edit", "edit", doc.revision, operation)))
-}
 
 fn preview(engine: &mut CoreEngine, doc: &ProjectDoc, operation: EditOperation) -> SceneDelta {
     match engine.handle(fixture::edit(
@@ -89,7 +76,7 @@ fn fixture() -> (CoreEngine, ProjectDoc) {
         part_ids: vec![],
         mirror_link: None,
     });
-    let (engine, _, doc) = open(doc);
+    let (engine, _, doc) = open_engine(doc);
     (engine, doc)
 }
 
@@ -195,7 +182,7 @@ fn snapshot(engine: &mut CoreEngine) -> ProjectDoc {
 }
 
 fn add_thumb(engine: &mut CoreEngine, doc: &ProjectDoc) -> ProjectDoc {
-    edit(engine, doc, add_anchored("thumb", key_anchor("main", 0, 2))).1
+    commit_edit(engine, doc, add_anchored("thumb", key_anchor("main", 0, 2))).1
 }
 
 fn near(actual: Vec2, x: f64, y: f64) {
@@ -266,7 +253,7 @@ fn rich_fixture() -> (CoreEngine, ProjectDoc) {
             mirror_link: None,
         });
     }
-    let (engine, _, doc) = open(doc);
+    let (engine, _, doc) = open_engine(doc);
     (engine, doc)
 }
 
@@ -283,7 +270,7 @@ fn set_follow(
     y: bool,
     rotation: bool,
 ) -> ProjectDoc {
-    edit(
+    commit_edit(
         engine,
         doc,
         EditOperation::SetMatrixAnchor {

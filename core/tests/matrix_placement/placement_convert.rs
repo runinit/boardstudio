@@ -31,7 +31,7 @@ fn convert_errors_on_a_splayed_default_origin_and_changes_nothing() {
             record.offset = value;
         }
     }
-    let (_, before) = edit(&mut engine, &doc, fixture::set_matrix(matrix));
+    let (_, before) = commit_edit(&mut engine, &doc, fixture::set_matrix(matrix));
     let reason = "Converting requires zero Splay, Column rotation and carried Bend";
     assert_eq!(
         convert_offset_available(&before.matrices[0], 1),
@@ -55,8 +55,8 @@ fn convert_errors_on_a_splayed_default_origin_and_changes_nothing() {
 #[test]
 fn placement_survives_save_and_reopen_unnormalized() {
     let mut doc = ProjectDoc::empty("roundtrip", "Roundtrip");
-    doc.definitions = definitions();
-    let (mut engine, _, doc) = open(doc);
+    doc.definitions = fixture::companion_definitions();
+    let (mut engine, _, doc) = open_engine(doc);
     let mut configured = companion_matrix();
     configured.rows = 2;
     configured.columns = 3;
@@ -103,11 +103,11 @@ fn placement_survives_save_and_reopen_unnormalized() {
     }
     configured.cells[0].offset = Some(Vec2 { x: 0.75, y: -0.5 });
     configured.cells[0].rotation = Some(5.0);
-    let (_, laid_out) = edit(&mut engine, &doc, fixture::set_matrix(configured));
+    let (_, laid_out) = commit_edit(&mut engine, &doc, fixture::set_matrix(configured));
 
     let saved = serde_json::to_string(&laid_out).unwrap();
     let reloaded: ProjectDoc = serde_json::from_str(&saved).unwrap();
-    let (mut reopened_engine, _, reopened) = open(reloaded);
+    let (mut reopened_engine, _, reopened) = open_engine(reloaded);
     let again = snapshot(&mut reopened_engine);
 
     assert_eq!(laid_out.matrices, reopened.matrices, "matrix values");
@@ -133,10 +133,10 @@ fn curved_key_world_move_changes_only_its_independent_offset() {
         bend: 90.0,
         ..Default::default()
     }];
-    let (_, before) = edit(&mut engine, &doc, fixture::set_matrix(matrix));
+    let (_, before) = commit_edit(&mut engine, &doc, fixture::set_matrix(matrix));
     let id = member("main", 1, 0);
     let start = at(&before, &id);
-    let (changed, after) = edit(
+    let (changed, after) = commit_edit(
         &mut engine,
         &before,
         EditOperation::MoveParts {
@@ -221,7 +221,7 @@ fn unchanged_splay_and_base_origin_do_not_write_or_create_history() {
         },
         MatrixSplayChange::Origin { world: None },
     ] {
-        let (changed, after) = edit(
+        let (changed, after) = commit_edit(
             &mut engine,
             &before,
             EditOperation::SetMatrixSplay {
@@ -248,7 +248,7 @@ fn unchanged_splay_and_base_origin_do_not_write_or_create_history() {
             },
         },
     ] {
-        let (changed, after) = edit(&mut engine, &before, operation);
+        let (changed, after) = commit_edit(&mut engine, &before, operation);
         assert_eq!(after, before);
         assert!(changed.changed_ids.is_empty());
     }
@@ -260,9 +260,9 @@ fn unchanged_splay_and_base_origin_do_not_write_or_create_history() {
     let (_, _, mut authored) = fixture(1, 1);
     authored.parts[0].properties =
         Some(serde_json::from_value(serde_json::json!({"layoutOverride":1})).unwrap());
-    let (mut engine, _, before) = open(authored);
+    let (mut engine, _, before) = open_engine(authored);
     let id = member("main", 0, 0);
-    let (_, after) = edit(
+    let (_, after) = commit_edit(
         &mut engine,
         &before,
         EditOperation::MoveParts {
@@ -350,13 +350,13 @@ fn named_spread_padding_and_bends_preserve_independent_values_and_identity() {
 
 #[test]
 fn hold_origin_solves_the_final_point_with_partial_follow_and_refuses_atomically() {
-    let (mut engine, _, doc) = open(matrix_doc());
-    let (_, doc) = edit(
+    let (mut engine, _, doc) = open_engine(matrix_doc());
+    let (_, doc) = commit_edit(
         &mut engine,
         &doc,
-        fixture::set_matrix(matrix("anchor", 1, 1)),
+        fixture::set_matrix(fixture::matrix("anchor", 1, 1)),
     );
-    let mut target = matrix("main", 3, 3);
+    let mut target = fixture::matrix("main", 3, 3);
     target.origin = Vec2 { x: 9.0, y: 3.0 };
     target.column_layout = vec![ColumnLayout {
         rotation: 90.0,
@@ -366,7 +366,7 @@ fn hold_origin_solves_the_final_point_with_partial_follow_and_refuses_atomically
         bend: 35.0,
         ..Default::default()
     }];
-    let (_, doc) = edit(&mut engine, &doc, fixture::set_matrix(target));
+    let (_, doc) = commit_edit(&mut engine, &doc, fixture::set_matrix(target));
     let mut doc = doc;
     doc.layouts.push(Layout {
         id: "layout".into(),
@@ -388,12 +388,12 @@ fn hold_origin_solves_the_final_point_with_partial_follow_and_refuses_atomically
         },
         aggregate: None,
     });
-    let (mut engine, before_scene, before) = open(doc);
+    let (mut engine, before_scene, before) = open_engine(doc);
     assert_eq!(
-        piece(&before_scene, "main").columns[0].splay_origin,
+        fixture::matrix_scene(&before_scene, "main").columns[0].splay_origin,
         Vec2 { x: 0.0, y: 3.0 }
     );
-    let (after_scene, after) = edit(
+    let (after_scene, after) = commit_edit(
         &mut engine,
         &before,
         EditOperation::SetMatrixSplay {
@@ -405,7 +405,7 @@ fn hold_origin_solves_the_final_point_with_partial_follow_and_refuses_atomically
         },
     );
     assert!(close(
-        piece(&after_scene, "main").columns[0].splay_origin,
+        fixture::matrix_scene(&after_scene, "main").columns[0].splay_origin,
         Vec2 { x: 2.0, y: 5.0 }
     ));
     assert_same_poses(&before, &after, "representable partial-Follow hold");

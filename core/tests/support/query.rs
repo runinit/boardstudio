@@ -1,6 +1,6 @@
 //! Queries on public JSON replies and intentionally untyped fixtures.
 
-use boardstudio_core::model::ProjectDoc;
+use boardstudio_core::model::{Contour, ProjectDoc};
 use serde_json::Value;
 
 #[track_caller]
@@ -25,4 +25,41 @@ pub(crate) fn any(value: &Value, key: &str, predicate: impl FnMut(&Value) -> boo
 
 pub(crate) fn empty_project(id: &str, name: &str) -> Value {
     serde_json::to_value(ProjectDoc::empty(id, name)).unwrap()
+}
+
+/// Independent ray-cast oracle: deliberately not the production predicate it checks.
+pub(crate) fn contains(contours: &[Contour], x: f64, y: f64) -> bool {
+    contours.iter().fold(false, |inside, contour| {
+        let mut hit = false;
+        for (a, b) in contour
+            .points
+            .iter()
+            .zip(contour.points.iter().cycle().skip(1))
+            .take(contour.points.len())
+        {
+            if (a.y > y) != (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x {
+                hit = !hit;
+            }
+        }
+        inside != hit
+    })
+}
+
+/// Host board plus 80x80 outline shared by the mounted-module scenario tests.
+pub(crate) fn module_host_document() -> Value {
+    let mut doc = empty_project("modules", "Modules");
+    doc["boards"] = serde_json::json!([{"id":"host","name":"Host","partIds":[],"netIds":[],"outlineIds":["outline"],"thickness":1.6}]);
+    doc["outline"] = serde_json::json!([{"kind":"rect","id":"outline","center":{"x":0,"y":0},"size":{"x":80,"y":80},"radius":0,"operation":"add"}]);
+    doc
+}
+
+/// Reference mounted-module definition with its `mh1` mount at (`x`, `y`).
+pub(crate) fn module_reference_definition(x: f64, y: f64) -> Value {
+    serde_json::json!([{
+        "id":"reference","name":"Mounted module","family":"test","variant":"support",
+        "source":{"repository":"https://example.invalid/module","revision":"test","path":"pcb","license":"CC0-1.0"},
+        "board":{"thickness":1.6,"contours":[{"hole":false,"points":[{"x":-12.5,"y":-12.5},{"x":12.5,"y":-12.5},{"x":12.5,"y":12.5},{"x":-12.5,"y":12.5}]}]},
+        "mounts":[{"sourceId":"mh1","at":{"x":x,"y":y},"diameter":2.2}],"volumes":[],"openings":[],"models":[],"gates":[],"interfaces":[],
+        "electrical":{"protocol":"pass-through","requiredSignals":[]},"constituents":[]
+    }])
 }

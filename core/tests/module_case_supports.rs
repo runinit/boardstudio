@@ -1,21 +1,11 @@
 use crate::support::fixture::request;
+use crate::support::query;
 use boardstudio_core::CoreEngine;
 use serde_json::{Value, json};
 
 fn document(supports: Value, above: bool) -> (Value, Value) {
-    let mut doc = serde_json::to_value(boardstudio_core::model::ProjectDoc::empty(
-        "modules", "Modules",
-    ))
-    .unwrap();
-    doc["boards"] = json!([{"id":"host","name":"Host","partIds":[],"netIds":[],"outlineIds":["outline"],"thickness":1.6}]);
-    doc["outline"] = json!([{"kind":"rect","id":"outline","center":{"x":0,"y":0},"size":{"x":80,"y":80},"radius":0,"operation":"add"}]);
-    doc["moduleDefinitions"] = json!([{
-        "id":"reference","name":"Mounted module","family":"test","variant":"support",
-        "source":{"repository":"https://example.invalid/module","revision":"test","path":"pcb","license":"CC0-1.0"},
-        "board":{"thickness":1.6,"contours":[{"hole":false,"points":[{"x":-12.5,"y":-12.5},{"x":12.5,"y":-12.5},{"x":12.5,"y":12.5},{"x":-12.5,"y":12.5}]}]},
-        "mounts":[{"sourceId":"mh1","at":{"x":0,"y":0},"diameter":2.2}],"volumes":[],"openings":[],"models":[],"gates":[],"interfaces":[],
-        "electrical":{"protocol":"pass-through","requiredSignals":[]},"constituents":[]
-    }]);
+    let mut doc = query::module_host_document();
+    doc["moduleDefinitions"] = query::module_reference_definition(0.0, 0.0);
     doc["modules"] = json!([{
         "id":"module-1","definitionId":"reference","hostBoardId":"host","hostFace":if above {"front"} else {"back"},"facingFace":"front",
         "at":{"x":0,"y":0},"rotation":0,"gap":3,"attachment":"case","mountSupports":supports

@@ -6,7 +6,7 @@ fn pcb_readiness_checks_pads_outlines_and_thickness() {
     let mut engine = CoreEngine::new();
     let mut doc = ProjectDoc::empty("p", "Project");
     doc.outline
-        .push(rect("edge", 0.0, 0.0, 20.0, 20.0, Operation::Add));
+        .push(fixture::rect("edge", 0.0, 0.0, 20.0, 20.0, Operation::Add));
     doc.definitions.push(PartDefinition {
         pads: vec![Pad {
             id: "pad1".into(),
@@ -72,9 +72,15 @@ fn empty_board_subset_blocks_pcb() {
     let mut engine = CoreEngine::new();
     let mut doc = ProjectDoc::empty("p", "Project");
     doc.outline
-        .push(rect("outer", 0.0, 0.0, 20.0, 20.0, Operation::Add));
-    doc.outline
-        .push(rect("cut", 0.0, 0.0, 2.0, 2.0, Operation::Subtract));
+        .push(fixture::rect("outer", 0.0, 0.0, 20.0, 20.0, Operation::Add));
+    doc.outline.push(fixture::rect(
+        "cut",
+        0.0,
+        0.0,
+        2.0,
+        2.0,
+        Operation::Subtract,
+    ));
     doc.boards.push(Board {
         outline_ids: vec!["cut".into()],
         ..fixture::board("board", "Board")
@@ -95,7 +101,7 @@ fn empty_board_subset_blocks_pcb() {
 fn authored_case_geometry_ignores_missing_material_metadata() {
     let mut doc = ProjectDoc::empty("authored-case", "Authored Case");
     doc.outline
-        .push(rect("edge", 0.0, 0.0, 30.0, 20.0, Operation::Add));
+        .push(fixture::rect("edge", 0.0, 0.0, 30.0, 20.0, Operation::Add));
     doc.boards.push(Board {
         outline_ids: vec!["edge".into()],
         ..fixture::board("left", "Left PCB")

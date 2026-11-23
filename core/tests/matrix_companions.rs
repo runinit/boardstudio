@@ -1,38 +1,9 @@
 //! Core publishes each generated companion's placement mode so presentation reads
 //! the same precedence the solver uses: explicit constraint, authored pose, then
 //! follow the key.
-use crate::support::fixture::{
-    self, part_at as at, part_pose as pose, scene_and_document as scene,
-};
+use crate::support::fixture::{self, part_at as at, part_pose as pose};
+use crate::support::session::{commit_edit, open_engine};
 use boardstudio_core::{CoreEngine, model::*};
-
-fn open(doc: ProjectDoc) -> (CoreEngine, SceneDelta, ProjectDoc) {
-    let mut engine = CoreEngine::new();
-    let (scene, doc) = scene(engine.handle(fixture::open(doc)));
-    (engine, scene, doc)
-}
-
-fn edit(
-    engine: &mut CoreEngine,
-    doc: &ProjectDoc,
-    operation: EditOperation,
-) -> (SceneDelta, ProjectDoc) {
-    scene(engine.handle(fixture::commit("edit", "edit", doc.revision, operation)))
-}
-
-fn definitions() -> Vec<PartDefinition> {
-    serde_json::from_value(serde_json::json!([
-        {"id":"switch","name":"Switch","kind":"switch","courtyard":[],"pads":[]},
-        {"id":"diode","name":"Diode","kind":"passive","courtyard":[],"pads":[]},
-        {"id":"led","name":"LED","kind":"passive","courtyard":[],"pads":[]},
-        {"id":"sensor","name":"Sensor","kind":"passive","courtyard":[],"pads":[]}
-    ]))
-    .unwrap()
-}
-
-fn matrix(id: &str, rows: u32, columns: u32) -> Matrix {
-    fixture::matrix(id, rows, columns)
-}
 
 fn cell(assemblies: Vec<MatrixAssembly>) -> MatrixCell {
     MatrixCell {
@@ -57,16 +28,16 @@ fn companion_part() -> Part {
 
 fn companion_fixture() -> (CoreEngine, SceneDelta, ProjectDoc) {
     let mut doc = ProjectDoc::empty("companions", "Companions");
-    doc.definitions = definitions();
+    doc.definitions = fixture::companion_definitions();
     doc.parts.push(companion_part());
-    let (mut engine, _, doc) = open(doc);
-    let mut matrix = matrix("main", 1, 1);
+    let (mut engine, _, doc) = open_engine(doc);
+    let mut matrix = fixture::matrix("main", 1, 1);
     matrix.cells = vec![cell(vec![
         assembly("diode", "diode", 2.0, 5.0),
         assembly("led", "led", -3.0, 6.0),
         assembly("sensor", "sensor", 1.0, -4.0),
     ])];
-    let (_, mut doc) = edit(&mut engine, &doc, fixture::set_matrix(matrix));
+    let (_, mut doc) = commit_edit(&mut engine, &doc, fixture::set_matrix(matrix));
     doc.constraints.push(Constraint::Offset {
         id: "sensor-anchor".into(),
         source_part_id: "anchor".into(),
@@ -74,9 +45,9 @@ fn companion_fixture() -> (CoreEngine, SceneDelta, ProjectDoc) {
         offset: Vec2 { x: 1.0, y: -4.0 },
         rotation: 0.0,
     });
-    let (mut engine, _, doc) = open(doc);
+    let (mut engine, _, doc) = open_engine(doc);
     // Author the LED away from its generated offset.
-    let (scene, doc) = edit(
+    let (scene, doc) = commit_edit(
         &mut engine,
         &doc,
         EditOperation::MoveParts {
@@ -101,16 +72,8 @@ fn close(a: Vec2, b: Vec2) -> bool {
     (a.x - b.x).abs() < 1e-9 && (a.y - b.y).abs() < 1e-9
 }
 
-fn piece<'a>(scene: &'a SceneDelta, id: &str) -> &'a MatrixScene {
-    scene
-        .matrix_scenes
-        .iter()
-        .find(|item| item.matrix_id == id)
-        .unwrap_or_else(|| panic!("missing matrix scene {id}"))
-}
-
 fn entry<'a>(scene: &'a SceneDelta, part_id: &str) -> &'a MatrixCompanionPlacement {
-    piece(scene, "main")
+    fixture::matrix_scene(scene, "main")
         .companions
         .iter()
         .find(|item| item.part_id == part_id)
@@ -120,7 +83,7 @@ fn entry<'a>(scene: &'a SceneDelta, part_id: &str) -> &'a MatrixCompanionPlaceme
 #[test]
 fn scene_lists_each_companion_mode() {
     let (_, scene, _) = companion_fixture();
-    let companions = &piece(&scene, "main").companions;
+    let companions = &fixture::matrix_scene(&scene, "main").companions;
     assert_eq!(companions.len(), 3);
     for entry in companions {
         assert_eq!(entry.key_id, member("main", 0, 0));
@@ -153,7 +116,7 @@ fn scene_modes_match_the_solver() {
         .map(|assembly| (assembly.id.clone(), assembly.offset))
         .collect();
     let key_delta = Vec2 { x: 5.0, y: 7.0 };
-    let (scene, after) = edit(
+    let (scene, after) = commit_edit(
         &mut engine,
         &before,
         EditOperation::MoveParts {
@@ -168,7 +131,7 @@ fn scene_modes_match_the_solver() {
     );
     let key_after = pose(&after, &member("main", 0, 0));
     let (sin, cos) = key_after.rotation.to_radians().sin_cos();
-    for entry in &piece(&scene, "main").companions {
+    for entry in &fixture::matrix_scene(&scene, "main").companions {
         let name = entry.part_id.rsplit('/').next().unwrap();
         let offset = offsets
             .iter()
@@ -209,7 +172,7 @@ fn set_matrix_origin_and_rotation_carry_an_authored_companion_with_its_key() {
     changed.origin = Vec2 { x: 11.0, y: -7.0 };
     changed.rotation = Some(90.0);
 
-    let (scene, after) = edit(&mut engine, &before, fixture::set_matrix(changed));
+    let (scene, after) = commit_edit(&mut engine, &before, fixture::set_matrix(changed));
 
     // The authored offset (-10, 8) rotates by 90 degrees with its key.
     assert_eq!(pose(&after, &key).at, Vec2 { x: 11.0, y: -7.0 });
@@ -244,7 +207,7 @@ fn set_matrix_translation_carries_an_authored_companion_bit_exactly() {
     let mut changed = before.matrices[0].clone();
     changed.origin = Vec2 { x: 13.2, y: -4.1 };
 
-    let (_, after) = edit(&mut engine, &before, fixture::set_matrix(changed));
+    let (_, after) = commit_edit(&mut engine, &before, fixture::set_matrix(changed));
 
     let (was_key, now_key) = (pose(&before, &key), pose(&after, &key));
     let (was, now) = (pose(&before, &authored), pose(&after, &authored));
@@ -261,7 +224,7 @@ fn set_matrix_mirror_reflects_an_authored_companions_key_relative_pose() {
     let mut changed = before.matrices[0].clone();
     changed.mirror = Some(Mirror::X);
 
-    let (_, after) = edit(&mut engine, &before, fixture::set_matrix(changed));
+    let (_, after) = commit_edit(&mut engine, &before, fixture::set_matrix(changed));
 
     assert_eq!(pose(&after, &key).at, pose(&before, &key).at);
     assert_eq!(
@@ -282,12 +245,12 @@ fn set_matrix_carries_a_locked_authored_companion_with_its_key() {
         .find(|part| part.id == companion("main", 0, 0, "led"))
         .unwrap()
         .locked = Some(true);
-    let (mut engine, _, before) = open(before);
+    let (mut engine, _, before) = open_engine(before);
     let authored = companion("main", 0, 0, "led");
     let mut changed = before.matrices[0].clone();
     changed.origin = Vec2 { x: 4.0, y: 6.0 };
 
-    let (_, after) = edit(&mut engine, &before, fixture::set_matrix(changed));
+    let (_, after) = commit_edit(&mut engine, &before, fixture::set_matrix(changed));
 
     assert_eq!(pose(&after, &authored).at, Vec2 { x: -6.0, y: 14.0 });
     assert_eq!(
@@ -312,7 +275,7 @@ fn disabled_or_deleted_cells_do_not_leave_companions_for_set_matrix_to_carry() {
         changed.cells[0].deleted = deleted;
         changed.origin = Vec2 { x: 7.0, y: -2.0 };
 
-        let (_, after) = edit(&mut engine, &before, fixture::set_matrix(changed));
+        let (_, after) = commit_edit(&mut engine, &before, fixture::set_matrix(changed));
 
         assert!(!after.parts.iter().any(|part| part.id == key));
         assert!(!after.parts.iter().any(|part| part.id == authored));
@@ -326,16 +289,16 @@ fn disabled_deleted_cells_and_removed_constraints() {
         let mut matrix = doc.matrices[0].clone();
         matrix.cells[0].enabled = false;
         matrix.cells[0].deleted = deleted;
-        let (scene, _) = edit(&mut engine, &doc, fixture::set_matrix(matrix));
+        let (scene, _) = commit_edit(&mut engine, &doc, fixture::set_matrix(matrix));
         assert!(
-            piece(&scene, "main").companions.is_empty(),
+            fixture::matrix_scene(&scene, "main").companions.is_empty(),
             "{} cell must list no companions",
             if deleted { "deleted" } else { "disabled" }
         );
     }
 
     let (mut engine, _, doc) = companion_fixture();
-    let (scene, after) = edit(
+    let (scene, after) = commit_edit(
         &mut engine,
         &doc,
         EditOperation::RemoveConstraint {

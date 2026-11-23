@@ -37,27 +37,7 @@ fn matrix() -> Matrix {
     }
 }
 
-fn part<'a>(doc: &'a ProjectDoc, id: &str) -> &'a Part {
-    doc.parts
-        .iter()
-        .find(|part| part.id == id)
-        .unwrap_or_else(|| panic!("missing part {id}"))
-}
-
 /// The companion's pose in its key's frame: where the key's own turn leaves it.
-fn relative(doc: &ProjectDoc, key: &str, companion: &str) -> (Vec2, f64) {
-    let key = part(doc, key).pose;
-    let companion = part(doc, companion).pose;
-    let (sin, cos) = (-key.rotation).to_radians().sin_cos();
-    let (dx, dy) = (companion.at.x - key.at.x, companion.at.y - key.at.y);
-    (
-        Vec2 {
-            x: dx * cos - dy * sin,
-            y: dx * sin + dy * cos,
-        },
-        companion.rotation - key.rotation,
-    )
-}
 
 /// A three-key matrix whose second key holds a diode through `constraint`.
 fn fixture(constraint: impl FnOnce() -> Constraint) -> (CoreEngine, ProjectDoc) {
@@ -92,8 +72,8 @@ fn held_by_part_axes() -> Constraint {
 }
 
 fn assert_key_frame_pose_kept(before: &ProjectDoc, after: &ProjectDoc) {
-    let (was_at, was_turn) = relative(before, KEY, HELD);
-    let (now_at, now_turn) = relative(after, KEY, HELD);
+    let (was_at, was_turn) = fixture::relative_pose(before, KEY, HELD);
+    let (now_at, now_turn) = fixture::relative_pose(after, KEY, HELD);
     assert!(
         (was_at.x - now_at.x).abs() < 1e-9
             && (was_at.y - now_at.y).abs() < 1e-9
@@ -117,7 +97,8 @@ fn a_part_offset_companion_keeps_its_key_frame_pose_through_a_column_splay() {
             },
         },
     );
-    let turned = part(&after, KEY).pose.rotation - part(&before, KEY).pose.rotation;
+    let turned = fixture::part_by_id(&after, KEY).pose.rotation
+        - fixture::part_by_id(&before, KEY).pose.rotation;
     assert!((turned - 30.0).abs() < 1e-9, "key turned {turned}");
     assert_key_frame_pose_kept(&before, &after);
 }
@@ -147,7 +128,10 @@ fn a_part_offset_companion_keeps_its_key_frame_pose_through_a_matrix_rotation() 
     turned.rotation = Some(25.0);
     let (_, after) = edit(&mut engine, &before, fixture::set_matrix(turned));
     assert!(
-        (part(&after, KEY).pose.rotation - part(&before, KEY).pose.rotation).abs() > 1e-6,
+        (fixture::part_by_id(&after, KEY).pose.rotation
+            - fixture::part_by_id(&before, KEY).pose.rotation)
+            .abs()
+            > 1e-6,
         "the matrix rotation must turn the key"
     );
     assert_key_frame_pose_kept(&before, &after);
@@ -156,7 +140,7 @@ fn a_part_offset_companion_keeps_its_key_frame_pose_through_a_matrix_rotation() 
 #[test]
 fn a_part_offset_companion_keeps_its_key_frame_pose_when_its_key_moves() {
     let (mut engine, before) = fixture(held_by_part_axes);
-    let key_at = part(&before, KEY).pose.at;
+    let key_at = fixture::part_by_id(&before, KEY).pose.at;
     let (_, after) = edit(
         &mut engine,
         &before,
@@ -171,7 +155,7 @@ fn a_part_offset_companion_keeps_its_key_frame_pose_when_its_key_moves() {
         },
     );
     assert!(
-        (part(&after, KEY).pose.at.x - (key_at.x + 5.0)).abs() < 1e-9,
+        (fixture::part_by_id(&after, KEY).pose.at.x - (key_at.x + 5.0)).abs() < 1e-9,
         "the key did not move"
     );
     assert_key_frame_pose_kept(&before, &after);
@@ -195,7 +179,7 @@ fn dragging_a_part_offset_companion_retunes_its_offset_along_the_source_axes() {
     // Drag the companion 3 mm along the board's X axis. The key is turned 30 degrees, so
     // the stored offset must move by that drag rotated back into the key's frame:
     // (3 cos 30, -3 sin 30) on top of (1, -4).
-    let start = part(&splayed, HELD).pose.at;
+    let start = fixture::part_by_id(&splayed, HELD).pose.at;
     let target = Vec2 {
         x: start.x + 3.0,
         y: start.y,
@@ -211,10 +195,10 @@ fn dragging_a_part_offset_companion_retunes_its_offset_along_the_source_axes() {
         },
     );
     assert!(
-        (part(&after, HELD).pose.at.x - target.x).abs() < 1e-9
-            && (part(&after, HELD).pose.at.y - target.y).abs() < 1e-9,
+        (fixture::part_by_id(&after, HELD).pose.at.x - target.x).abs() < 1e-9
+            && (fixture::part_by_id(&after, HELD).pose.at.y - target.y).abs() < 1e-9,
         "companion did not land on the drag: {:?}",
-        part(&after, HELD).pose.at
+        fixture::part_by_id(&after, HELD).pose.at
     );
     let Some(Constraint::PartOffset { offset, .. }) = after
         .constraints
@@ -429,7 +413,7 @@ fn previewing_a_drag_of_a_constrained_companion_leaves_its_stored_offset_untouch
         ("part-offset", held_by_part_axes as fn() -> Constraint),
     ] {
         let (mut engine, before) = splayed(constraint);
-        let start = part(&before, HELD).pose.at;
+        let start = fixture::part_by_id(&before, HELD).pose.at;
         let _ = engine.handle(fixture::edit(
             "preview",
             "drag",
@@ -451,8 +435,8 @@ fn previewing_a_drag_of_a_constrained_companion_leaves_its_stored_offset_untouch
             "{kind} was changed by a preview"
         );
         assert_eq!(
-            part(&now, HELD).pose,
-            part(&before, HELD).pose,
+            fixture::part_by_id(&now, HELD).pose,
+            fixture::part_by_id(&before, HELD).pose,
             "{kind} moved"
         );
     }
@@ -480,12 +464,12 @@ fn held_by(
 #[test]
 fn dragging_a_board_axes_companion_retunes_its_offset_on_the_board_axes() {
     let (mut engine, splayed) = splayed(held_by_board_axes);
-    let turn = part(&splayed, KEY).pose.rotation;
+    let turn = fixture::part_by_id(&splayed, KEY).pose.rotation;
     assert!(
         (turn - 30.0).abs() < 1e-9,
         "the key must be turned, found {turn}"
     );
-    let start = part(&splayed, HELD).pose.at;
+    let start = fixture::part_by_id(&splayed, HELD).pose.at;
     let target = Vec2 {
         x: start.x + 3.0,
         y: start.y,
@@ -500,7 +484,7 @@ fn dragging_a_board_axes_companion_retunes_its_offset_on_the_board_axes() {
             }],
         },
     );
-    let landed = part(&after, HELD).pose.at;
+    let landed = fixture::part_by_id(&after, HELD).pose.at;
     assert!(
         (landed.x - target.x).abs() < 1e-9 && (landed.y - target.y).abs() < 1e-9,
         "companion did not land on the drag: {landed:?}"
@@ -546,7 +530,7 @@ fn dragging_a_held_companion_keeps_the_exact_stored_rotation_of_either_kind() {
                 }
             };
             assert_eq!(kept(&before), stored.to_bits(), "{axes:?} precondition");
-            let start = part(&before, HELD).pose.at;
+            let start = fixture::part_by_id(&before, HELD).pose.at;
             let (_, after) = edit(
                 &mut engine,
                 &before,
@@ -616,7 +600,10 @@ fn dragging_the_authority_retunes_a_saved_linked_target() {
     })).unwrap();
     let mut engine = CoreEngine::new();
     let (_, opened) = fixture::scene_and_document(engine.handle(fixture::open(document)));
-    assert_eq!(part(&opened, "alpha/T").pose.at, Vec2 { x: 16.0, y: 4.0 });
+    assert_eq!(
+        fixture::part_by_id(&opened, "alpha/T").pose.at,
+        Vec2 { x: 16.0, y: 4.0 }
+    );
     let at = Vec2 { x: 13.0, y: 8.0 };
     let operation = EditOperation::MoveParts {
         positions: vec![Position {
@@ -645,7 +632,7 @@ fn dragging_the_authority_retunes_a_saved_linked_target() {
         opened.revision,
         operation,
     )));
-    assert_eq!(part(&committed, "alpha/T").pose.at, at);
+    assert_eq!(fixture::part_by_id(&committed, "alpha/T").pose.at, at);
     let Constraint::Framed {
         relation: ConstraintRelation::Offset { offset, rotation },
         ..

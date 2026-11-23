@@ -11,23 +11,15 @@ fn fixture() -> ProjectDoc {
     })).unwrap());
     doc.parts.push(serde_json::from_value(json!({"id":"part","definitionId":"device","reference":"U1","side":"front","pose":{"at":{"x":0,"y":0},"rotation":0}})).unwrap());
     doc.boards.push(serde_json::from_value(json!({"id":"board","name":"Board","outlineIds":["perimeter"],"partIds":["part"],"netIds":[],"thickness":1.6})).unwrap());
-    doc.outline
-        .push(rect("perimeter", 0.0, 0.0, 20.0, 20.0, Operation::Add));
+    doc.outline.push(fixture::rect(
+        "perimeter",
+        0.0,
+        0.0,
+        20.0,
+        20.0,
+        Operation::Add,
+    ));
     doc
-}
-fn rect(id: &str, x: f64, y: f64, width: f64, height: f64, operation: Operation) -> OutlineFeature {
-    OutlineFeature::Rect {
-        id: id.into(),
-        anchor_part_id: None,
-        rotation: None,
-        center: Vec2 { x, y },
-        size: Vec2 {
-            x: width,
-            y: height,
-        },
-        radius: 0.0,
-        operation,
-    }
 }
 fn open(doc: ProjectDoc) -> SceneDelta {
     match CoreEngine::new().handle(fixture::open(doc)) {
@@ -45,8 +37,14 @@ fn has(scene: &SceneDelta, suffix: &str) -> bool {
 #[test]
 fn a_hole_inside_a_pad_is_detected_even_when_every_pad_vertex_is_in_material() {
     let mut doc = fixture();
-    doc.outline
-        .push(rect("hole", 0.0, 0.0, 0.2, 0.2, Operation::Subtract));
+    doc.outline.push(fixture::rect(
+        "hole",
+        0.0,
+        0.0,
+        0.2,
+        0.2,
+        Operation::Subtract,
+    ));
     doc.boards[0].outline_ids.push("hole".into());
     let scene = open(doc);
     assert!(has(&scene, ":support:"));
@@ -131,12 +129,18 @@ fn another_boards_invalid_support_and_layout_do_not_block_valid_output() {
 #[test]
 fn unintended_islands_and_an_authored_thin_neck_are_export_blockers() {
     let mut doc = fixture();
-    doc.outline
-        .push(rect("island", 30.0, 0.0, 10.0, 10.0, Operation::Add));
+    doc.outline.push(fixture::rect(
+        "island",
+        30.0,
+        0.0,
+        10.0,
+        10.0,
+        Operation::Add,
+    ));
     doc.boards[0].outline_ids.push("island".into());
     assert!(has(&open(doc.clone()), ":disconnected"));
     doc.outline
-        .push(rect("neck", 17.5, 0.0, 20.0, 0.5, Operation::Add));
+        .push(fixture::rect("neck", 17.5, 0.0, 20.0, 0.5, Operation::Add));
     doc.boards[0].outline_ids.push("neck".into());
     let scene = open(doc);
     assert!(!has(&scene, ":disconnected"));

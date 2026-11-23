@@ -23,7 +23,7 @@ fn change_anchor_retargets_dependants_with_preview_cancel_and_undo() {
     // Preview leaves accepted state, revision and history unchanged: the whole
     // document (not just the matrix list) is byte-identical.
     assert_eq!(snapshot(&mut engine), doc);
-    let (_, committed) = edit(&mut engine, &doc, operation);
+    let (_, committed) = commit_edit(&mut engine, &doc, operation);
     assert_eq!(anchor_of(&committed, "thumb"), Some(moved));
     assert_at(&committed, &member("thumb", 0, 0), 0.0, -19.0);
     let undone_doc = undone(&mut engine);
@@ -42,7 +42,7 @@ fn reordered_matrix_lists_evaluate_to_the_same_poses() {
         .collect();
     let mut reordered = doc.clone();
     reordered.matrices.reverse();
-    let (_, _, opened) = open(reordered);
+    let (_, _, opened) = open_engine(reordered);
     let backward: Vec<(String, Vec2)> = opened
         .parts
         .iter()
@@ -55,12 +55,12 @@ fn reordered_matrix_lists_evaluate_to_the_same_poses() {
 fn detach_keeps_world_frame_and_clears_the_anchor() {
     let (mut engine, doc) = anchored_fixture();
     // Turn the whole group so the kept frame carries a nonzero rotation.
-    let (_, doc) = edit(
+    let (_, doc) = commit_edit(
         &mut engine,
         &doc,
         change_matrix(&doc, "main", |matrix| matrix.rotation = Some(30.0)),
     );
-    let (_, detached) = edit(
+    let (_, detached) = commit_edit(
         &mut engine,
         &doc,
         EditOperation::DetachMatrixAnchor {
@@ -82,7 +82,7 @@ fn detach_keeps_world_frame_and_clears_the_anchor() {
     );
     assert_eq!(thumb.rotation, Some(30.0));
     // Moving the old anchor key no longer moves the detached members.
-    let (_, moved) = edit(
+    let (_, moved) = commit_edit(
         &mut engine,
         &detached,
         move_part(member("main", 0, 2), Vec2 { x: 100.0, y: 100.0 }),
@@ -105,7 +105,7 @@ fn detach_keeps_world_frame_and_clears_the_anchor() {
 fn anchor_follow_applies_origin_and_rotation_before_filtering() {
     let (mut engine, doc) = anchored_fixture();
     // Widen the relative origin so the order is observable.
-    let (_, doc) = edit(
+    let (_, doc) = commit_edit(
         &mut engine,
         &doc,
         change_matrix(&doc, "thumb", |matrix| {
@@ -139,7 +139,7 @@ fn removing_an_anchor_key_detaches_dependants_without_moving_them() {
             },
             Removal::Matrix => EditOperation::RemoveMatrix { id: "main".into() },
         };
-        let (_, detached) = edit(&mut engine, &doc, operation);
+        let (_, detached) = commit_edit(&mut engine, &doc, operation);
         assert_eq!(anchor_of(&detached, "thumb"), None, "{case:?}");
         assert_eq!(
             matrix(&detached, "thumb").origin,

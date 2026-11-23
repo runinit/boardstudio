@@ -2,18 +2,6 @@ use crate::support::fixture;
 use boardstudio_core::CoreEngine;
 use boardstudio_core::model::*;
 
-fn outline(id: &str) -> OutlineFeature {
-    OutlineFeature::Rect {
-        rotation: None,
-        anchor_part_id: None,
-        id: id.into(),
-        center: Vec2 { x: 0.0, y: 0.0 },
-        size: Vec2 { x: 20.0, y: 10.0 },
-        radius: 0.0,
-        operation: Operation::Add,
-    }
-}
-
 fn commit_case(base_revision: u64, id: &str) -> CoreRequest {
     // Ticket 37: raw SetOutline is deleted; the history setup below uses the live
     // typed case write instead.
@@ -91,7 +79,14 @@ fn snapshot(engine: &mut CoreEngine) -> ProjectDoc {
 fn case_preparation_uses_request_revision_and_preserves_document_and_history() {
     let mut engine = CoreEngine::new();
     let mut doc = ProjectDoc::empty("project", "Project");
-    doc.outline.push(outline("initial"));
+    doc.outline.push(fixture::rect(
+        "initial",
+        0.0,
+        0.0,
+        20.0,
+        10.0,
+        Operation::Add,
+    ));
     assert!(matches!(
         engine.handle(CoreRequest::Open {
             id: "open".into(),

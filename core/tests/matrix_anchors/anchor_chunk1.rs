@@ -7,7 +7,7 @@ fn reanchoring_a_matrix_moves_it_and_keeps_its_stored_frame() {
     let anchor_before = anchor_of(&doc, "thumb");
     let key_before = at(&doc, &member("thumb", 0, 0));
     let moved = key_anchor("main", 0, 0);
-    let (_, committed) = edit(&mut engine, &doc, reanchor("thumb", moved.clone()));
+    let (_, committed) = commit_edit(&mut engine, &doc, reanchor("thumb", moved.clone()));
     // Re-anchoring moves the matrix onto the new anchor but keeps its stored
     // frame: Origin is untouched.
     assert_eq!(anchor_of(&committed, "thumb"), Some(moved));
@@ -33,7 +33,7 @@ fn add_anchored_matrix_previews_without_mutation_and_undoes_in_one_entry() {
         "preview must evaluate the added matrix"
     );
     assert_eq!(snapshot(&mut engine), doc);
-    let (_, committed) = edit(&mut engine, &doc, operation);
+    let (_, committed) = commit_edit(&mut engine, &doc, operation);
     assert!(committed.matrices.iter().any(|matrix| matrix.id == "thumb"));
     assert!(
         committed
@@ -155,7 +155,7 @@ fn anchor_follow_covers_every_subset_with_zeroing() {
     ] {
         let (mut engine, doc) = anchored_fixture();
         let doc = set_follow(&mut engine, &doc, x, y, rotation);
-        let (_, moved) = edit(
+        let (_, moved) = commit_edit(
             &mut engine,
             &doc,
             move_part(member("main", 0, 2), Vec2 { x: 43.0, y: 7.0 }),
@@ -180,7 +180,7 @@ fn anchor_follow_covers_every_subset_with_zeroing() {
 #[test]
 fn compaction_remaps_anchors_onto_the_surviving_key() {
     let (mut engine, doc) = anchored_fixture();
-    let (_, compacted) = edit(
+    let (_, compacted) = commit_edit(
         &mut engine,
         &doc,
         EditOperation::RemoveMatrixColumn {
@@ -217,7 +217,7 @@ fn disabled_and_deleted_anchor_keys_keep_anchoring() {
         ),
     ] {
         let (mut engine, doc) = anchored_fixture();
-        let (_, edited) = edit(&mut engine, &doc, operation);
+        let (_, edited) = commit_edit(&mut engine, &doc, operation);
         assert!(
             anchor_of(&edited, "thumb").is_some(),
             "{name}: anchor was dropped"
@@ -240,7 +240,7 @@ fn disabled_and_deleted_anchor_keys_keep_anchoring() {
 #[test]
 fn column_align_moves_through_the_actual_anchor_frame() {
     let (mut engine, doc) = anchored_fixture();
-    let (_, moved) = edit(
+    let (_, moved) = commit_edit(
         &mut engine,
         &doc,
         EditOperation::SetMatrixPlacement {
