@@ -1,4 +1,7 @@
-use crate::{ProfileInput, ProfileKind, ProfileRegion, build_profile, mesh_profile};
+use crate::{
+    ProfileInput, ProfileKind, ProfileRegion, build_profile, mesh_profile,
+    test_support::{assert_rejected, bounds_of},
+};
 use boardstudio_contracts::Vec2;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -144,15 +147,15 @@ fn signed_mesh_volume(mesh: &crate::MeshBuffers) -> f64 {
 }
 
 fn mesh_bounds(mesh: &crate::MeshBuffers) -> [[f64; 3]; 2] {
-    let mut bounds = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
-    for point in mesh.positions.as_chunks::<3>().0 {
-        for axis in 0..3 {
-            let coordinate = f64::from(point[axis]);
-            bounds[0][axis] = bounds[0][axis].min(coordinate);
-            bounds[1][axis] = bounds[1][axis].max(coordinate);
-        }
-    }
-    bounds
+    bounds_of(
+        mesh.positions.as_chunks::<3>().0.iter().map(|point| {
+            [
+                f64::from(point[0]),
+                f64::from(point[1]),
+                f64::from(point[2]),
+            ]
+        }),
+    )
 }
 
 #[test]
@@ -243,56 +246,54 @@ fn separated_regions_remain_separate_exact_solids() {
 
 #[test]
 fn self_crossing_profiles_are_rejected_as_invalid_contours() {
-    let crossed_with_nonzero_area = build_profile(input(
-        ProfileKind::Plate,
-        vec![region(
-            vec![
-                point(0.0, 0.0),
-                point(4.0, 4.0),
-                point(1.0, 3.0),
-                point(4.0, 0.0),
-            ],
-            vec![],
-        )],
-    ));
-    let error = match crossed_with_nonzero_area {
-        Ok(_) => panic!("crossing contour must not create a solid"),
-        Err(error) => error,
-    };
-    assert!(error.contains("self-intersecting"), "{error}");
+    assert_rejected(
+        build_profile(input(
+            ProfileKind::Plate,
+            vec![region(
+                vec![
+                    point(0.0, 0.0),
+                    point(4.0, 4.0),
+                    point(1.0, 3.0),
+                    point(4.0, 0.0),
+                ],
+                vec![],
+            )],
+        )),
+        "self-intersecting",
+        "crossing contour must not create a solid",
+    );
 
-    let zero_area_bow_tie = build_profile(input(
-        ProfileKind::Plate,
-        vec![region(
-            vec![
-                point(0.0, 0.0),
-                point(4.0, 4.0),
-                point(0.0, 4.0),
-                point(4.0, 0.0),
-            ],
-            vec![],
-        )],
-    ));
-    let error = match zero_area_bow_tie {
-        Ok(_) => panic!("zero-area bow-tie must not create a solid"),
-        Err(error) => error,
-    };
-    assert!(error.contains("zero-area ring"), "{error}");
+    assert_rejected(
+        build_profile(input(
+            ProfileKind::Plate,
+            vec![region(
+                vec![
+                    point(0.0, 0.0),
+                    point(4.0, 4.0),
+                    point(0.0, 4.0),
+                    point(4.0, 0.0),
+                ],
+                vec![],
+            )],
+        )),
+        "zero-area ring",
+        "zero-area bow-tie must not create a solid",
+    );
 }
 
 #[test]
 fn non_finite_contours_are_rejected() {
-    let error = match build_profile(input(
-        ProfileKind::Plate,
-        vec![region(
-            vec![point(0.0, 0.0), point(f64::NAN, 1.0), point(0.0, 2.0)],
-            vec![],
-        )],
-    )) {
-        Ok(_) => panic!("non-finite contour must not create a solid"),
-        Err(error) => error,
-    };
-    assert!(error.contains("not finite"), "{error}");
+    assert_rejected(
+        build_profile(input(
+            ProfileKind::Plate,
+            vec![region(
+                vec![point(0.0, 0.0), point(f64::NAN, 1.0), point(0.0, 2.0)],
+                vec![],
+            )],
+        )),
+        "not finite",
+        "non-finite contour must not create a solid",
+    );
 }
 
 #[test]
@@ -309,14 +310,14 @@ fn holes_must_be_strictly_inside_and_disjoint() {
         point(12.0, 2.0),
         point(11.0, 2.0),
     ];
-    let outside_error = match build_profile(input(
-        ProfileKind::Plate,
-        vec![region(outer.clone(), vec![outside])],
-    )) {
-        Ok(_) => panic!("outside hole must be rejected"),
-        Err(error) => error,
-    };
-    assert!(outside_error.contains("strictly inside"), "{outside_error}");
+    assert_rejected(
+        build_profile(input(
+            ProfileKind::Plate,
+            vec![region(outer.clone(), vec![outside])],
+        )),
+        "strictly inside",
+        "outside hole must be rejected",
+    );
 
     let first = vec![
         point(1.0, 1.0),
@@ -330,16 +331,13 @@ fn holes_must_be_strictly_inside_and_disjoint() {
         point(3.0, 3.0),
         point(2.0, 3.0),
     ];
-    let nested_error = match build_profile(input(
-        ProfileKind::Plate,
-        vec![region(outer, vec![first, nested])],
-    )) {
-        Ok(_) => panic!("nested holes must be rejected"),
-        Err(error) => error,
-    };
-    assert!(
-        nested_error.contains("must not be nested"),
-        "{nested_error}"
+    assert_rejected(
+        build_profile(input(
+            ProfileKind::Plate,
+            vec![region(outer, vec![first, nested])],
+        )),
+        "must not be nested",
+        "nested holes must be rejected",
     );
 }
 
