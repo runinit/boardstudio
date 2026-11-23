@@ -187,23 +187,23 @@ def list_wasm_tests(env, root):
 
 
 def cached_wasm_tests(env, root, custom):
+    if custom:
+        return list_wasm_tests(env, root)
     cache = root / "target/wasm-tests/page-test-list.json"
-    digest = hashlib.sha256(Path(env[PAGE_ARTIFACT]).read_bytes()).hexdigest() if not custom else None
-    names = None
-    if digest and cache.is_file():
+    with Path(env[PAGE_ARTIFACT]).open("rb") as artifact:
+        digest = hashlib.file_digest(artifact, "sha256").hexdigest()
+    if cache.is_file():
         try:
             saved = json.loads(cache.read_text())
             if (saved.get("sha256") == digest and isinstance(saved.get("names"), list)
                     and saved["names"] and all(isinstance(name, str) and name for name in saved["names"])
                     and saved["names"] == sorted(set(saved["names"]))):
-                names = saved["names"]
+                return saved["names"]
         except (ValueError, OSError, AttributeError):
             pass
-    if names is None:
-        names = list_wasm_tests(env, root)
-        if digest:
-            cache.parent.mkdir(parents=True, exist_ok=True)
-            cache.write_text(json.dumps({"sha256": digest, "names": names}))
+    names = list_wasm_tests(env, root)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(json.dumps({"sha256": digest, "names": names}))
     return names
 
 
