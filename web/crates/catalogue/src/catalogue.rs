@@ -103,13 +103,17 @@ pub async fn load_bundled(reversible: bool) -> Result<Rc<Vec<CatalogEntry>>, Str
         .into_iter()
         .map(|part| part.definition)
         .collect::<Vec<_>>();
-    let generated = generators::catalogue()?
+    let generated = generators::catalogue()?;
+    let supported = |definition| {
+        construction_definition_with_support(definition, reversible).map(|(definition, _)| definition)
+    };
+    let generated = generated
         .into_iter()
-        .map(|definition| construction_definition(definition, reversible))
+        .map(supported)
         .collect::<Result<Vec<_>, _>>()?;
     let imported = imported
         .into_iter()
-        .map(|definition| construction_definition(definition, reversible))
+        .map(supported)
         .collect::<Result<Vec<_>, _>>()?;
     let entries = Rc::new(merge_bundled_sources(&generated, &imported));
     BUNDLED_CACHE.with(|cache| {
@@ -280,13 +284,6 @@ pub async fn normalize_generator_definition(
     Ok(normalized)
 }
 
-fn construction_definition(
-    definition: PartDefinition,
-    reversible: bool,
-) -> Result<PartDefinition, String> {
-    construction_definition_with_support(definition, reversible).map(|(definition, _)| definition)
-}
-
 fn construction_definition_with_support(
     mut definition: PartDefinition,
     reversible: bool,
@@ -318,24 +315,28 @@ fn construction_definition_with_support(
     Ok((normalized, true))
 }
 
+/// The generator normalizer for an intent: reversible layouts re-normalize
+/// through the generators, everything else passes definitions through.
+fn normalize_for_intent(
+    intent: &crate::physical_setup::SetupIntent,
+) -> fn(&PartDefinition, bool) -> Result<(PartDefinition, bool), String> {
+    use crate::physical_setup::SetupIntent;
+    match intent {
+        SetupIntent::ReversibleLayout(_) => |definition, enabled| {
+            construction_definition_with_support(definition.clone(), enabled)
+        },
+        _ => |definition, _| Ok((definition.clone(), false)),
+    }
+}
+
 /// Prepare a project setup proposal through catalogue-owned helpers; callers receive
 /// proposals, not access to the generators.
 pub fn prepare_physical_setup_proposal(
     accepted: &ProjectDoc,
     intent: crate::physical_setup::SetupIntent,
 ) -> Result<ProjectDoc, String> {
-    use crate::physical_setup::SetupIntent;
-
-    match intent {
-        SetupIntent::ReversibleLayout(enabled) => crate::physical_setup::propose(
-            accepted,
-            SetupIntent::ReversibleLayout(enabled),
-            |definition, enabled| construction_definition_with_support(definition.clone(), enabled),
-        ),
-        intent => crate::physical_setup::propose(accepted, intent, |definition, _| {
-            Ok((definition.clone(), false))
-        }),
-    }
+    let normalize = normalize_for_intent(&intent);
+    crate::physical_setup::propose(accepted, intent, normalize)
 }
 
 pub async fn prepare_physical_setup_proposal_from_package(
@@ -355,20 +356,8 @@ pub fn prepare_physical_setup_proposal_with_pair(
     accepted: &ProjectDoc,
     intent: crate::physical_setup::SetupIntent,
 ) -> Result<crate::physical_setup::PhysicalSetupProposal, String> {
-    use crate::physical_setup::SetupIntent;
-
-    match intent {
-        SetupIntent::ReversibleLayout(enabled) => crate::physical_setup::propose_with_mirror_pair(
-            accepted,
-            SetupIntent::ReversibleLayout(enabled),
-            |definition, enabled| construction_definition_with_support(definition.clone(), enabled),
-        ),
-        intent => {
-            crate::physical_setup::propose_with_mirror_pair(accepted, intent, |definition, _| {
-                Ok((definition.clone(), false))
-            })
-        }
-    }
+    let normalize = normalize_for_intent(&intent);
+    crate::physical_setup::propose_with_mirror_pair(accepted, intent, normalize)
 }
 
 #[cfg(test)]
