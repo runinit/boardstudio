@@ -39,8 +39,6 @@ fn matrix() -> Matrix {
     }
 }
 
-/// The companion's pose in its key's frame: where the key's own turn leaves it.
-
 fn fixture() -> (CoreEngine, ProjectDoc) {
     let mut doc = ProjectDoc::empty("splay-companions", "Splay companions");
     doc.definitions = serde_json::from_value(serde_json::json!([

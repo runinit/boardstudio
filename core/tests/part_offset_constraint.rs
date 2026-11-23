@@ -37,8 +37,6 @@ fn matrix() -> Matrix {
     }
 }
 
-/// The companion's pose in its key's frame: where the key's own turn leaves it.
-
 /// A three-key matrix whose second key holds a diode through `constraint`.
 fn fixture(constraint: impl FnOnce() -> Constraint) -> (CoreEngine, ProjectDoc) {
     let mut doc = ProjectDoc::empty("part-offset", "Part offset");
