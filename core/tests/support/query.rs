@@ -45,6 +45,14 @@ pub(crate) fn contains(contours: &[Contour], x: f64, y: f64) -> bool {
     })
 }
 
+/// Rigid printed-case mechanical configuration shared by the mounted-module scenario tests.
+/// `plate_to_pcb` varies per scenario (6 for standoff stacks, 3.5 for shells).
+pub(crate) fn rigid_mechanical(board_id: &str, plate_to_pcb: f64) -> Value {
+    serde_json::json!({"boardId":board_id,"method":"printed","mount":"rigid","integratedPlateFrame":false,"bottomStyle":"shell",
+        "plateThickness":1.5,"plateFoamThickness":0,"pcbThickness":1.6,"bottomFoamThickness":0,"batteryHeight":0,"bottomThickness":2,
+        "plateToPcb":plate_to_pcb,"wallThickness":2,"clearance":0.2,"profiles":[],"mounts":[]})
+}
+
 /// Host board plus 80x80 outline shared by the mounted-module scenario tests.
 pub(crate) fn module_host_document() -> Value {
     let mut doc = empty_project("modules", "Modules");

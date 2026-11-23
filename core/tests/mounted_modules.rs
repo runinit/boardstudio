@@ -1,8 +1,8 @@
 use crate::support::fixture::{self, request};
-use crate::support::query::{any, arr, module_host_document};
+use crate::support::query::{self, any, arr, module_host_document};
 use crate::support::session::{
     builders::{import_module_board, resolve_modules},
-    module_engine, wire_commit_to,
+    module_engine, resolve_case, wire_commit_to,
 };
 use boardstudio_core::CoreEngine;
 use serde_json::{Value, json};
@@ -20,6 +20,14 @@ fn definition() -> Value {
 fn placement(face: &str, facing: &str, gap: f64) -> Value {
     json!({"id":"module-1","definitionId":"reference","hostBoardId":"host","hostFace":face,"facingFace":facing,
         "at":{"x":15,"y":7},"rotation":30,"gap":gap,"attachment":"board"})
+}
+
+/// A host document carrying one module definition and its instances.
+fn mounted_doc(definition: Value, modules: Value) -> Value {
+    let mut doc = module_host_document();
+    doc["moduleDefinitions"] = json!([definition]);
+    doc["modules"] = modules;
+    doc
 }
 
 fn haptic() -> Value {
@@ -165,14 +173,12 @@ fn project_module_profiles_are_editable_and_undoable_without_rewriting_provenanc
 
 #[test]
 fn module_preview_uses_the_resolved_frame_and_preserves_board_holes() {
-    let mut doc = module_host_document();
     let mut def = definition();
     def["mounts"] = json!([{"sourceId":"MH1","at":{"x":0,"y":0},"diameter":2.2}]);
     def["models"] = json!([{"assetId":"model","offset":{"x":2,"y":3,"z":4},"rotation":{"x":0,"y":0,"z":0},"scale":{"x":1,"y":1,"z":1}}]);
-    doc["moduleDefinitions"] = json!([def]);
     let mut instance = placement("back", "back", 3.0);
     instance["rotation"] = json!(0);
-    doc["modules"] = json!([instance]);
+    let doc = mounted_doc(def, json!([instance]));
     let mut engine = CoreEngine::new();
     let reply = request(
         &mut engine,
@@ -332,10 +338,8 @@ fn catalogue_retains_all_twenty_nine_rows_and_real_source_variants() {
 
 #[test]
 fn modules_on_the_same_physical_i2c_contacts_report_address_conflicts_with_local_markers() {
-    let mut doc = module_host_document();
     let mut def = definition();
     def["electrical"] = json!({"protocol":"i2c","requiredSignals":["gnd","v3v3","scl","sda"],"logicVoltage":3.3,"i2cAddress":90,"pullupOhms":4700});
-    doc["moduleDefinitions"] = json!([def]);
     let mut a = placement("front", "back", 3.0);
     let mut b = a.clone();
     a["at"] = json!({"x":-20,"y":0});
@@ -344,7 +348,7 @@ fn modules_on_the_same_physical_i2c_contacts_report_address_conflicts_with_local
     a["connection"] = json!({"hostConnectorPartId":"connector","modulePortId":"input","busId":"bus-a","assignments":{"scl":"P1","sda":"P0","v3v3":"VCC","gnd":"GND"},"cableType":"type-a-12-0.5"});
     b["connection"] = a["connection"].clone();
     b["connection"]["busId"] = json!("different-label-same-wires");
-    doc["modules"] = json!([a, b]);
+    let doc = mounted_doc(def, json!([a, b]));
     let mut engine = CoreEngine::new();
     let reply = fixture::wire_open(&mut engine, "open", &doc);
     assert_eq!(reply["kind"], "scene", "{reply}");
@@ -400,10 +404,9 @@ fn modules_on_the_same_physical_i2c_contacts_report_address_conflicts_with_local
 
 #[test]
 fn private_module_contacts_use_actual_wires_across_mounted_and_embedded_devices() {
-    let mut doc = module_host_document();
     let mut mounted = definition();
     mounted["electrical"] = json!({"protocol":"spi","requiredSignals":["cs"],"logicVoltage":3.3});
-    doc["moduleDefinitions"] = json!([mounted]);
+    let mut doc = mounted_doc(mounted, json!([]));
     doc["definitions"] = json!([{"id":"mcu","name":"Controller","kind":"controller","courtyard":[],"pads":[],"terminals":{"P1":["first"],"P0":["second"]}}]);
     doc["parts"] = json!([{"id":"mcu","definitionId":"mcu","reference":"U1","pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front"}]);
     doc["boards"][0]["partIds"] = json!(["mcu"]);
@@ -458,18 +461,16 @@ fn private_module_contacts_use_actual_wires_across_mounted_and_embedded_devices(
 
 #[test]
 fn mounted_and_embedded_fixed_addresses_share_the_actual_wire_ledger() {
-    let mut doc = module_host_document();
     let mut mounted = definition();
     mounted["electrical"] = json!({"protocol":"i2c","requiredSignals":["scl","sda"],"logicVoltage":3.3,"i2cAddress":90});
-    doc["moduleDefinitions"] = json!([mounted]);
+    let mut module = placement("front", "back", 3.0);
+    module["connection"] = json!({"hostConnectorPartId":"connector","modulePortId":"input","busId":"local","assignments":{"scl":"P1","sda":"P0"},"cableType":"type-a-12-0.5"});
+    let mut doc = mounted_doc(mounted, json!([module]));
     doc["definitions"] = json!([{"id":"mcu","name":"Controller","kind":"controller","courtyard":[],"pads":[],"terminals":{"P1":["clock"],"P0":["data"]}}]);
     doc["parts"] = json!([{"id":"mcu","definitionId":"mcu","reference":"U1","pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front"}]);
     doc["boards"][0]["partIds"] = json!(["mcu"]);
     doc["boards"][0]["netIds"] = json!(["clock-net", "data-net"]);
     doc["nets"] = json!([{"id":"clock-net","name":"SCL","pins":[{"partId":"mcu","padId":"clock"}]},{"id":"data-net","name":"SDA","pins":[{"partId":"mcu","padId":"data"}]}]);
-    let mut module = placement("front", "back", 3.0);
-    module["connection"] = json!({"hostConnectorPartId":"connector","modulePortId":"input","busId":"local","assignments":{"scl":"P1","sda":"P0"},"cableType":"type-a-12-0.5"});
-    doc["modules"] = json!([module]);
     let mut engine = CoreEngine::new();
     fixture::wire_open(&mut engine, "open", &doc);
     let mut driver = haptic();
@@ -492,11 +493,6 @@ fn mounted_and_embedded_fixed_addresses_share_the_actual_wire_ledger() {
 
 #[test]
 fn local_firmware_export_rejects_an_unqualified_module_function() {
-    let mut doc = module_host_document();
-    let mut def = definition();
-    def["electrical"]["protocol"] = json!("spi");
-    doc["moduleDefinitions"] = json!([def]);
-    doc["modules"] = json!([placement("front", "back", 3.0)]);
     let mut engine = CoreEngine::new();
     let mut payload = json!({"id":"firmware","kind":"generate-firmware","request":{
         "controller_profile":"ceoloide/mcu_nice_nano","board_name":"Module keyboard","rows":[{"terminal":"P1","gpio":"P0.06"}],"columns":[{"terminal":"P0","gpio":"P0.08"}],
@@ -532,25 +528,17 @@ fn local_firmware_export_rejects_an_unqualified_module_function() {
 
 #[test]
 fn case_preparation_accounts_for_the_same_below_module_extent_and_function_opening() {
-    let mut doc = module_host_document();
     let mut def = definition();
     def["openings"] = json!([{"id":"access","geometry":{"points":[{"x":-3,"y":-3},{"x":3,"y":-3},{"x":3,"y":3},{"x":-3,"y":3}],"z":-8,"height":20},"purpose":"service","source":"fixture","qualified":true}]);
-    doc["moduleDefinitions"] = json!([def]);
     let mut instance = placement("back", "front", 3.0);
     instance["at"] = json!({"x":0,"y":0});
     instance["rotation"] = json!(0);
     instance["serviceClearance"] = json!(1.0);
-    doc["modules"] = json!([instance]);
-    doc["mechanical"] = json!({"boardId":"host","method":"printed","mount":"rigid","integratedPlateFrame":false,"bottomStyle":"shell",
-        "plateThickness":1.5,"plateFoamThickness":0,"pcbThickness":1.6,"bottomFoamThickness":0,"batteryHeight":0,"bottomThickness":2,
-        "plateToPcb":3.5,"wallThickness":2,"clearance":0.2,"profiles":[],"mounts":[]});
+    let mut doc = mounted_doc(def, json!([instance]));
+    doc["mechanical"] = query::rigid_mechanical("host", 3.5);
     let contours = json!([{"hole":false,"points":[{"x":-40,"y":-40},{"x":40,"y":-40},{"x":40,"y":40},{"x":-40,"y":40}]}]);
     let mut engine = CoreEngine::new();
-    let resolved = request(
-        &mut engine,
-        json!({"id":"case","kind":"resolve-mechanical","document":doc,"contours":contours}),
-    );
-    assert_eq!(resolved["kind"], "mechanical-resolved", "{resolved}");
+    let resolved = resolve_case(&mut engine, "case", &doc, contours);
     let bottom = arr(&resolved["assembly"]["case"]["bodies"])
         .iter()
         .find(|b| b["body"]["id"] == "bottom")
@@ -597,28 +585,20 @@ fn module_clearance_cannot_pass_through_solid_case_material() {
         ("back", 27.0, 1.0, false, false, true),
         ("back", 0.0, 0.0, false, true, true),
     ] {
-        let mut doc = module_host_document();
         let mut def = definition();
         if aperture {
             def["openings"] = json!([{"id":"plate-access","purpose":"opening","source":"Measured test aperture","qualified":true,"geometry":{"points":[{"x":-14,"y":-14},{"x":14,"y":-14},{"x":14,"y":14},{"x":-14,"y":14}],"z":-2,"height":6}}]);
         }
-        doc["moduleDefinitions"] = json!([def]);
         let mut instance = placement(face, "back", 3.0);
         instance["at"] = json!({"x":x,"y":0});
         instance["rotation"] = json!(0);
         instance["serviceClearance"] = json!(clearance);
-        doc["modules"] = json!([instance]);
-        doc["mechanical"] = json!({"boardId":"host","method":"printed","mount":"rigid","integratedPlateFrame":false,"bottomStyle":"shell",
-            "plateThickness":1.5,"plateFoamThickness":0,"pcbThickness":1.6,"bottomFoamThickness":0,"batteryHeight":0,"bottomThickness":2,
-            "plateToPcb":3.5,"wallThickness":2,"clearance":0.2,"profiles":[],"mounts":[]});
+        let mut doc = mounted_doc(def, json!([instance]));
+        doc["mechanical"] = query::rigid_mechanical("host", 3.5);
         if boss {
             doc["mechanical"]["mounts"] = json!([{"id":"user-boss","at":{"x":0,"y":0},"kind":"boss","holeDiameter":2.2,"bossDiameter":6,"height":8}]);
         }
-        let reply = request(
-            &mut CoreEngine::new(),
-            json!({"id":"case","kind":"resolve-mechanical","document":doc,"contours":contours}),
-        );
-        assert_eq!(reply["kind"], "mechanical-resolved", "{reply}");
+        let reply = resolve_case(&mut CoreEngine::new(), "case", &doc, contours.clone());
         let collisions = arr(&reply["assembly"]["diagnostics"])
             .iter()
             .filter(|finding| finding["id"].as_str().unwrap().contains("case-material"))
@@ -659,11 +639,9 @@ fn module_clearance_cannot_pass_through_solid_case_material() {
 
 #[test]
 fn a_module_follows_only_its_selected_host_instance_and_physical_flip_once() {
-    let mut doc = module_host_document();
-    doc["moduleDefinitions"] = json!([definition()]);
     let mut m = placement("front", "back", 3.0);
     m["hostInstanceId"] = json!("right");
-    doc["modules"] = json!([m]);
+    let mut doc = mounted_doc(definition(), json!([m]));
     doc["hardware"] = json!({"topology":"split","transport":"wireless","boards":[],"instances":[{"id":"right","name":"Right","boardId":"host","half":"right","role":"peripheral","flipped":true,"constructionLinked":false},{"id":"left","name":"Left","boardId":"host","half":"left","role":"central","flipped":false,"constructionLinked":false}]});
     doc["physicalInstanceId"] = json!("right");
     let mut engine = CoreEngine::new();
@@ -681,8 +659,7 @@ fn a_module_follows_only_its_selected_host_instance_and_physical_flip_once() {
 
 #[test]
 fn module_service_clearance_checks_both_axes_and_host_pcb_material() {
-    let mut doc = module_host_document();
-    doc["moduleDefinitions"] = json!([definition()]);
+    let mut doc = mounted_doc(definition(), json!([]));
     let mut a = placement("front", "back", 3.0);
     a["at"] = json!({"x":0,"y":0});
     a["rotation"] = json!(0);
@@ -727,12 +704,10 @@ fn module_service_clearance_checks_both_axes_and_host_pcb_material() {
 
 #[test]
 fn module_collision_checks_include_z_and_focus_the_intersection() {
-    let mut doc = module_host_document();
-    doc["moduleDefinitions"] = json!([definition()]);
     let a = placement("front", "back", 3.0);
     let mut b = placement("back", "front", 3.0);
     b["id"] = json!("module-2");
-    doc["modules"] = json!([a, b]);
+    let mut doc = mounted_doc(definition(), json!([a, b]));
     let mut engine = CoreEngine::new();
     let clear = resolve_modules(&mut engine, "clear", &doc);
     assert_eq!(clear["kind"], "modules-resolved", "{clear}");
@@ -761,12 +736,10 @@ fn module_collision_checks_include_z_and_focus_the_intersection() {
 
 #[test]
 fn case_fixed_modules_check_relative_gasket_travel_against_host_components() {
-    let mut doc = module_host_document();
-    doc["moduleDefinitions"] = json!([definition()]);
     let mut instance = placement("front", "back", 2.5);
     instance["rotation"] = json!(0);
     instance["attachment"] = json!("case");
-    doc["modules"] = json!([instance]);
+    let mut doc = mounted_doc(definition(), json!([instance]));
     doc["definitions"] = json!([{"id":"component","name":"Measured component","kind":"custom","pads":[],"courtyard":[{"x":-3,"y":-3},{"x":3,"y":-3},{"x":3,"y":3},{"x":-3,"y":3}],"mechanicalProfile":{"definitionId":"component","source":"Measured drawing A","plateToPcb":0,"cutouts":[],"clearanceVolumes":[{"points":[{"x":-3,"y":-3},{"x":3,"y":-3},{"x":3,"y":3},{"x":-3,"y":3}],"z":0,"height":2}]}}]);
     doc["parts"] = json!([{"id":"body","definitionId":"component","reference":"U1","pose":{"at":{"x":15,"y":7},"rotation":0},"side":"front"}]);
     doc["boards"][0]["partIds"] = json!(["body"]);

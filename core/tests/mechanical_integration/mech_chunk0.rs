@@ -553,7 +553,7 @@ fn a_generic_addition_on_a_paired_half_joins_the_pair() {
     assert_eq!(added.author, "right");
     assert_eq!(added.kind, MechanicalFeatureKind::Mount);
     assert_eq!(
-        features_member_state(pair, "left", &added_id),
+        boardstudio_core::mechanical::features::member_state(pair, "left", &added_id),
         Some(boardstudio_core::model::MechanicalFeatureState::Linked)
     );
 

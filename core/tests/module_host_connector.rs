@@ -1,7 +1,8 @@
 use crate::support::fixture::{self, request};
+use crate::support::query;
 use boardstudio_core::CoreEngine;
 use boardstudio_core::model::{
-    ExportTarget, FinishExportRequest, PrepareExportRequest, ProjectDoc,
+    Contour, ExportTarget, FinishExportRequest, PrepareExportRequest, ProjectDoc, Vec2,
 };
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
@@ -59,21 +60,40 @@ fn exported_footprint<'a>(board: &'a str, reference: &str) -> &'a str {
     &board[start..end]
 }
 
-fn contains(points: &[Value], point: (f64, f64)) -> bool {
-    let mut inside = false;
-    let mut previous = points.len() - 1;
-    for current in 0..points.len() {
-        let x1 = points[current]["x"].as_f64().unwrap();
-        let y1 = points[current]["y"].as_f64().unwrap();
-        let x2 = points[previous]["x"].as_f64().unwrap();
-        let y2 = points[previous]["y"].as_f64().unwrap();
-        if (y1 > point.1) != (y2 > point.1) && point.0 < (x2 - x1) * (point.1 - y1) / (y2 - y1) + x1
-        {
-            inside = !inside;
-        }
-        previous = current;
+/// An 80 mm host document is the default; `half` selects the outline half-extent.
+fn host_document(half: f64) -> Value {
+    let mut document = serde_json::to_value(ProjectDoc::empty("host", "Host")).unwrap();
+    document["boards"] = json!([{"id":"pcb","name":"PCB","partIds":[],"netIds":[],"outlineIds":["outline"],"thickness":1.6}]);
+    document["outline"] = json!([{"kind":"rect","id":"outline","center":{"x":0,"y":0},"size":{"x":half * 2.0,"y":half * 2.0},"radius":0,"operation":"add"}]);
+    document
+}
+
+fn module_definition(id: &str, name: &str, half_w: f64, half_h: f64) -> Value {
+    json!({"id":id,"name":name,"family":"test","variant":"source",
+        "source":{"repository":"https://github.com/sadekbaroudi/vik","revision":"cd5d16e4cd9137a229fc673412a89d75f4e64553","path":"pcb/test","license":"CERN-OHL-S-2.0"},
+        "board":{"contours":[{"hole":false,"points":[{"x":-half_w,"y":-half_h},{"x":half_w,"y":-half_h},{"x":half_w,"y":half_h},{"x":-half_w,"y":half_h}]}]},
+        "mounts":[],"volumes":[],"openings":[],"models":[],"gates":[],"interfaces":[{"id":"input","role":"module","signals":["sclk","miso","cs","gpio2","mosi","gpio1","v5","rgb","scl","sda","gnd","v3v3"]}],
+        "electrical":{"protocol":"pass-through","requiredSignals":[],"logicVoltage":3.3},"constituents":[]})
+}
+
+fn attach(
+    engine: &mut CoreEngine,
+    id: &str,
+    target: &str,
+    instance: Value,
+    definition: Value,
+    host: Option<Value>,
+) -> Value {
+    let mut operation =
+        json!({"kind":"set-mounted-module","instance":instance,"definition":definition});
+    if let Some(host) = host {
+        operation["hostConnectorDefinition"] = host;
     }
-    inside
+    request(
+        engine,
+        json!({"id":id,"kind":"edit","command":{"baseRevision":0,"transactionId":id,"phase":"commit","targetIds":[target],
+        "operation":operation}}),
+    )
 }
 
 fn host_connector() -> Value {
@@ -94,10 +114,7 @@ fn host_connector() -> Value {
 
 #[test]
 fn attaching_a_module_adds_and_links_a_source_host_footprint_in_one_undoable_edit() {
-    let mut document =
-        serde_json::to_value(boardstudio_core::model::ProjectDoc::empty("host", "Host")).unwrap();
-    document["boards"] = json!([{"id":"pcb","name":"PCB","partIds":[],"netIds":[],"outlineIds":["outline"],"thickness":1.6}]);
-    document["outline"] = json!([{"kind":"rect","id":"outline","center":{"x":0,"y":0},"size":{"x":80,"y":80},"radius":0,"operation":"add"}]);
+    let mut document = host_document(40.0);
     document["boardOutlines"] = json!([{"boardId":"pcb","activeVersionId":"reviewed","versions":[{"id":"reviewed","name":"Reviewed board edge","source":{"revision":4,"versionId":"source-v4"},
         "geometry":{"features":[{"kind":"rect","id":"fixed-outline","center":{"x":0,"y":0},"size":{"x":80,"y":80},"radius":0,"operation":"add"}],
         "settings":{"corners":"sharp","size":2,"bridgeWidth":10},"expectedRegions":1}}]}]);
@@ -108,18 +125,17 @@ fn attaching_a_module_adds_and_links_a_source_host_footprint_in_one_undoable_edi
     let reviewed_contours = opened["scene"]["boardContours"].clone();
 
     let host_connector_id = "module/test/vik-host-connector";
-    let definition = json!({"id":"module-test","name":"Test module","family":"test","variant":"source",
-        "source":{"repository":"https://github.com/sadekbaroudi/vik","revision":"cd5d16e4cd9137a229fc673412a89d75f4e64553","path":"pcb/test","license":"CERN-OHL-S-2.0"},
-        "board":{"contours":[{"hole":false,"points":[{"x":-10,"y":-8},{"x":10,"y":-8},{"x":10,"y":8},{"x":-10,"y":8}]}]},
-        "mounts":[],"volumes":[],"openings":[],"models":[],"gates":[],"interfaces":[{"id":"input","role":"module","signals":["sclk","miso","cs","gpio2","mosi","gpio1","v5","rgb","scl","sda","gnd","v3v3"]}],
-        "electrical":{"protocol":"pass-through","requiredSignals":[],"logicVoltage":3.3},"constituents":[]});
+    let definition = module_definition("module-test", "Test module", 10.0, 8.0);
     let instance = json!({"id":"module/test","definitionId":"module-test","hostBoardId":"pcb","hostFace":"front","facingFace":"back",
         "at":{"x":0,"y":0},"rotation":0,"gap":3,"attachment":"board","serviceClearance":0,
         "connection":{"hostConnectorPartId":host_connector_id,"modulePortId":"input","busId":"","assignments":{},"cableType":"type-a-12-0.5","railVoltages":{}}});
-    let added = request(
+    let added = attach(
         &mut engine,
-        json!({"id":"attach","kind":"edit","command":{"baseRevision":0,"transactionId":"attach","phase":"commit","targetIds":["module/test"],
-        "operation":{"kind":"set-mounted-module","instance":instance,"definition":definition,"hostConnectorDefinition":host_connector()}}}),
+        "attach",
+        "module/test",
+        instance,
+        definition,
+        Some(host_connector()),
     );
     assert_eq!(added["kind"], "scene", "{added}");
     assert_eq!(
@@ -193,15 +209,17 @@ fn attaching_a_module_adds_and_links_a_source_host_footprint_in_one_undoable_edi
         .unwrap()["points"]
         .as_array()
         .unwrap();
+    let outer: Contour =
+        serde_json::from_value(json!({"hole": false, "points": outer_contour})).unwrap();
     for point in connector_definition["courtyard"].as_array().unwrap() {
         let x = point["x"].as_f64().unwrap();
         let y = point["y"].as_f64().unwrap();
-        let world = (
-            pose["at"]["x"].as_f64().unwrap() + x * cos - y * sin,
-            pose["at"]["y"].as_f64().unwrap() + x * sin + y * cos,
-        );
+        let world = Vec2 {
+            x: pose["at"]["x"].as_f64().unwrap() + x * cos - y * sin,
+            y: pose["at"]["y"].as_f64().unwrap() + x * sin + y * cos,
+        };
         assert!(
-            contains(outer_contour, world),
+            query::contains(std::slice::from_ref(&outer), world.x, world.y),
             "source courtyard point {world:?} must lie within the resolved host PCB contour"
         );
     }
@@ -228,12 +246,10 @@ fn attaching_a_module_adds_and_links_a_source_host_footprint_in_one_undoable_edi
 
 #[test]
 fn reusing_a_host_connector_preserves_its_manual_pose_and_board_ownership() {
-    let mut document =
-        serde_json::to_value(boardstudio_core::model::ProjectDoc::empty("host", "Host")).unwrap();
+    let mut document = host_document(40.0);
     let mut host = host_connector();
     host["id"] = json!("vik:source:horizontal-host-connector");
     document["boards"] = json!([{"id":"pcb","name":"PCB","partIds":["manual-host"],"netIds":[],"outlineIds":["outline"],"thickness":1.6}]);
-    document["outline"] = json!([{"kind":"rect","id":"outline","center":{"x":0,"y":0},"size":{"x":80,"y":80},"radius":0,"operation":"add"}]);
     document["definitions"] = json!([host]);
     document["parts"] = json!([{"id":"manual-host","definitionId":host["id"],"reference":"J9","pose":{"at":{"x":-17.5,"y":6.25},"rotation":90},"side":"back"}]);
     let mut engine = CoreEngine::new();
@@ -241,15 +257,14 @@ fn reusing_a_host_connector_preserves_its_manual_pose_and_board_ownership() {
     let module = json!({"id":"module/reuse","definitionId":"module-reuse","hostBoardId":"pcb","hostFace":"back","facingFace":"front",
         "at":{"x":10,"y":8},"rotation":15,"gap":3,"attachment":"board","serviceClearance":0,
         "connection":{"hostConnectorPartId":"manual-host","modulePortId":"input","busId":"manual-bus","assignments":{},"cableType":"type-a-12-0.5","railVoltages":{}}});
-    let definition = json!({"id":"module-reuse","name":"Reuse module","family":"test","variant":"source",
-        "source":{"repository":"https://github.com/sadekbaroudi/vik","revision":"cd5d16e4cd9137a229fc673412a89d75f4e64553","path":"pcb/test","license":"CERN-OHL-S-2.0"},
-        "board":{"contours":[{"hole":false,"points":[{"x":-8,"y":-6},{"x":8,"y":-6},{"x":8,"y":6},{"x":-8,"y":6}]}]},
-        "mounts":[],"volumes":[],"openings":[],"models":[],"gates":[],"interfaces":[{"id":"input","role":"module","signals":["sclk","miso","cs","gpio2","mosi","gpio1","v5","rgb","scl","sda","gnd","v3v3"]}],
-        "electrical":{"protocol":"pass-through","requiredSignals":[],"logicVoltage":3.3},"constituents":[]});
-    let added = request(
+    let definition = module_definition("module-reuse", "Reuse module", 8.0, 6.0);
+    let added = attach(
         &mut engine,
-        json!({"id":"attach","kind":"edit","command":{"baseRevision":0,"transactionId":"attach","phase":"commit","targetIds":["module/reuse"],
-        "operation":{"kind":"set-mounted-module","instance":module,"definition":definition}}}),
+        "attach",
+        "module/reuse",
+        module,
+        definition,
+        None,
     );
     assert_eq!(added["kind"], "scene", "{added}");
     assert_eq!(added["document"]["parts"].as_array().unwrap().len(), 1);
@@ -277,24 +292,20 @@ fn reusing_a_host_connector_preserves_its_manual_pose_and_board_ownership() {
 
 #[test]
 fn automatic_placement_rejects_a_host_connector_that_would_fall_outside_the_board() {
-    let mut document =
-        serde_json::to_value(boardstudio_core::model::ProjectDoc::empty("host", "Host")).unwrap();
-    document["boards"] = json!([{"id":"pcb","name":"PCB","partIds":[],"netIds":[],"outlineIds":["outline"],"thickness":1.6}]);
-    document["outline"] = json!([{"kind":"rect","id":"outline","center":{"x":0,"y":0},"size":{"x":20,"y":20},"radius":0,"operation":"add"}]);
+    let document = host_document(10.0);
     let mut engine = CoreEngine::new();
     fixture::wire_open(&mut engine, "open", &document);
-    let definition = json!({"id":"module-tight","name":"Tight board module","family":"test","variant":"source",
-        "source":{"repository":"https://github.com/sadekbaroudi/vik","revision":"cd5d16e4cd9137a229fc673412a89d75f4e64553","path":"pcb/test","license":"CERN-OHL-S-2.0"},
-        "board":{"contours":[{"hole":false,"points":[{"x":-8,"y":-6},{"x":8,"y":-6},{"x":8,"y":6},{"x":-8,"y":6}]}]},
-        "mounts":[],"volumes":[],"openings":[],"models":[],"gates":[],"interfaces":[{"id":"input","role":"module","signals":["sclk","miso","cs","gpio2","mosi","gpio1","v5","rgb","scl","sda","gnd","v3v3"]}],
-        "electrical":{"protocol":"pass-through","requiredSignals":[],"logicVoltage":3.3},"constituents":[]});
+    let definition = module_definition("module-tight", "Tight board module", 8.0, 6.0);
     let mut instance = json!({"id":"module/tight","definitionId":"module-tight","hostBoardId":"pcb","hostFace":"front","facingFace":"back",
         "at":{"x":0,"y":0},"rotation":0,"gap":3,"attachment":"board","serviceClearance":0,
         "connection":{"hostConnectorPartId":"module/tight/vik-host-connector","modulePortId":"input","busId":"tight","assignments":{},"cableType":"type-a-12-0.5","railVoltages":{}}});
-    let rejected = request(
+    let rejected = attach(
         &mut engine,
-        json!({"id":"rejected","kind":"edit","command":{"baseRevision":0,"transactionId":"rejected","phase":"commit","targetIds":["module/tight"],
-        "operation":{"kind":"set-mounted-module","instance":instance,"definition":definition.clone(),"hostConnectorDefinition":host_connector()}}}),
+        "rejected",
+        "module/tight",
+        instance.clone(),
+        definition.clone(),
+        Some(host_connector()),
     );
     assert_eq!(rejected["kind"], "error", "{rejected}");
     assert!(
@@ -303,12 +314,14 @@ fn automatic_placement_rejects_a_host_connector_that_would_fall_outside_the_boar
             .unwrap()
             .contains("No clear nearby host-PCB position")
     );
-    instance["connection"] = Value::Null;
     instance.as_object_mut().unwrap().remove("connection");
-    let no_connector = request(
+    let no_connector = attach(
         &mut engine,
-        json!({"id":"plain","kind":"edit","command":{"baseRevision":0,"transactionId":"plain","phase":"commit","targetIds":["module/tight"],
-        "operation":{"kind":"set-mounted-module","instance":instance,"definition":definition}}}),
+        "plain",
+        "module/tight",
+        instance,
+        definition,
+        None,
     );
     assert_eq!(no_connector["kind"], "scene", "{no_connector}");
     assert!(

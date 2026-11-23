@@ -699,60 +699,53 @@ fn matrix_choices_fixture() -> serde_json::Value {
 /// Case 3 across removal paths: deleting a matrix key removes a component through a path
 /// other than `remove-parts`, and a linked refinement still drops exactly the choices that
 /// required it, in the same accepted edit, rather than detaching them to world points.
-#[test]
-fn deleting_a_matrix_key_cleans_linked_choices_in_the_same_edit() {
-    let mut engine = CoreEngine::new();
-    let opened = open(&mut engine, matrix_choices_fixture());
-
-    let removed = edit(
-        &mut engine,
-        opened.revision,
-        serde_json::json!({ "kind": "remove-matrix-cells", "matrixId": "main", "cells": [[0, 1]] }),
-    );
-    for cleaned in ["link-ab", "gap-b", CUTOUT] {
-        assert!(
-            removed.changed_ids.iter().any(|id| id == cleaned),
-            "{cleaned} changed in the deletion edit: {:?}",
-            removed.changed_ids
-        );
-    }
-    let after = saved(&mut engine);
-    let geometry = &after["boardOutlines"][0]["versions"][0]["geometry"];
-    let connection_ids: Vec<&str> = geometry["features"][0]["connections"]
-        .as_array()
-        .expect("connections")
-        .iter()
-        .map(|connection| connection["id"].as_str().unwrap())
-        .collect();
-    assert_eq!(connection_ids, vec!["link-a"]);
-    assert_eq!(geometry["features"].as_array().unwrap().len(), 1);
-    assert!(
-        !serde_json::to_string(&after["boardOutlines"][0]["versions"][0])
-            .unwrap()
-            .contains("matrix/main/r0c1"),
-        "no linked choice still names the deleted key"
-    );
-}
-
 /// The same cleanup holds for a removal that does not go through key deletion: removing
 /// the whole matrix removes both keys, and no linked choice keeps naming them.
 #[test]
-fn removing_a_matrix_cleans_linked_choices_in_the_same_edit() {
-    let mut engine = CoreEngine::new();
-    let opened = open(&mut engine, matrix_choices_fixture());
-    let removed = edit(
-        &mut engine,
-        opened.revision,
-        serde_json::json!({ "kind": "remove-matrix", "id": "main" }),
-    );
-    for cleaned in ["link-ab", "link-a", "gap-a", "gap-b", CUTOUT] {
-        assert!(
-            removed.changed_ids.iter().any(|id| id == cleaned),
-            "{cleaned} changed in the removal edit: {:?}",
-            removed.changed_ids
-        );
+fn removing_matrix_content_cleans_linked_choices_in_the_same_edit() {
+    for whole_matrix in [false, true] {
+        let label = if whole_matrix { "matrix" } else { "key" };
+        let mut engine = CoreEngine::new();
+        let opened = open(&mut engine, matrix_choices_fixture());
+        let operation = if whole_matrix {
+            serde_json::json!({ "kind": "remove-matrix", "id": "main" })
+        } else {
+            serde_json::json!({ "kind": "remove-matrix-cells", "matrixId": "main", "cells": [[0, 1]] })
+        };
+        let removed = edit(&mut engine, opened.revision, operation);
+        let cleaned: &[&str] = if whole_matrix {
+            &["link-ab", "link-a", "gap-a", "gap-b", CUTOUT]
+        } else {
+            &["link-ab", "gap-b", CUTOUT]
+        };
+        for cleaned in cleaned {
+            assert!(
+                removed.changed_ids.iter().any(|id| id == cleaned),
+                "{label}: {cleaned} changed in the removal edit: {:?}",
+                removed.changed_ids
+            );
+        }
+        let after = saved(&mut engine);
+        let version = &after["boardOutlines"][0]["versions"][0];
+        if whole_matrix {
+            let version = serde_json::to_string(version).unwrap();
+            assert!(!version.contains("matrix/main/"), "{label}: {version}");
+        } else {
+            let geometry = &version["geometry"];
+            let connection_ids: Vec<&str> = geometry["features"][0]["connections"]
+                .as_array()
+                .expect("connections")
+                .iter()
+                .map(|connection| connection["id"].as_str().unwrap())
+                .collect();
+            assert_eq!(connection_ids, vec!["link-a"], "{label}");
+            assert_eq!(geometry["features"].as_array().unwrap().len(), 1, "{label}");
+            assert!(
+                !serde_json::to_string(version)
+                    .unwrap()
+                    .contains("matrix/main/r0c1"),
+                "{label}: no linked choice still names the deleted key"
+            );
+        }
     }
-    let after = saved(&mut engine);
-    let version = serde_json::to_string(&after["boardOutlines"][0]["versions"][0]).unwrap();
-    assert!(!version.contains("matrix/main/"), "{version}");
 }

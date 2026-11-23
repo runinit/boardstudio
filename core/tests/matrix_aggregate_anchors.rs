@@ -189,12 +189,7 @@ fn aggregate_average_follows_part_moves_through_the_mean() {
 
 #[test]
 fn aggregate_evaluation_ignores_document_list_order() {
-    let thumb = Matrix {
-        origin: Vec2 { x: 0.0, y: -19.0 },
-        board_id: Some("board".into()),
-        anchor: Some(average_anchor(vec![part("main", 0, 0), part("main", 0, 2)])),
-        ..fixture::matrix("thumb", 1, 3)
-    };
+    let thumb = thumb_matrix(average_anchor(vec![part("main", 0, 0), part("main", 0, 2)]));
     let (_, ordered_scene, _) = Session::opened(typed_doc(
         typed_main(vec![]),
         vec![thumb.clone()],
@@ -595,97 +590,69 @@ fn aggregate_compaction_remaps_every_part_onto_surviving_keys() {
 }
 
 #[test]
-fn aggregate_removing_a_part_slot_detaches_keeping_the_world_frame() {
-    let (mut engine, _, doc) = Session::opened(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
-    let (_, doc) = added_thumb(&mut engine, &doc);
-    let poses_before: Vec<(String, Pose2)> = doc
-        .parts
-        .iter()
-        .map(|part| (part.id.clone(), part.pose))
-        .collect();
+fn aggregate_removal_past_a_part_detaches_keeping_the_world_frame() {
     // Column 2 carries part (0,2): removal past any part detaches the whole
     // dependent, keeping its world frame like the single-key slot removal.
-    let (_, detached) = typed_edit(
-        &mut engine,
-        &doc,
-        EditOperation::RemoveMatrixColumn {
-            matrix_id: "main".into(),
-            column: 2,
-        },
-    );
-    assert_eq!(anchor_of(&detached, "thumb"), None);
-    let thumb = detached
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "thumb")
-        .expect("thumb matrix");
-    assert_eq!(thumb.origin, Vec2 { x: 19.0, y: -19.0 });
-    for (id, pose) in &poses_before {
-        if id.starts_with("matrix/thumb/") {
-            assert_eq!(
-                detached
-                    .parts
-                    .iter()
-                    .find(|part| &part.id == id)
-                    .unwrap()
-                    .pose,
-                *pose,
-                "{id}"
-            );
-        }
-    }
-    // The detach rides the same edit: one Undo restores the aggregate anchor.
-    assert_eq!(
-        anchor_of(&fixture::document(engine.undo()), "thumb"),
-        anchor_of(&doc, "thumb")
-    );
-}
-
-#[test]
-fn aggregate_shrink_past_a_part_detaches_keeping_the_world_frame() {
-    let (mut engine, _, doc) = Session::opened(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
-    let (_, doc) = added_thumb(&mut engine, &doc);
-    let poses_before: Vec<(String, Pose2)> = doc
-        .parts
-        .iter()
-        .map(|part| (part.id.clone(), part.pose))
-        .collect();
-    let mut shrunk = doc
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "main")
-        .expect("main matrix")
-        .clone();
-    shrunk.columns = 2;
-    let (_, detached) = typed_edit(&mut engine, &doc, fixture::set_matrix(shrunk));
-    // Part (0,2) leaves the grid, so the dependent detaches with its frame:
+    // A shrink that drops part (0,2) from the grid detaches the same way:
     // the (19,0) mean with the (0,-19) relative origin below it.
-    assert_eq!(anchor_of(&detached, "thumb"), None);
-    let thumb = detached
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "thumb")
-        .expect("thumb matrix");
-    assert_eq!(thumb.origin, Vec2 { x: 19.0, y: -19.0 });
-    for (id, pose) in &poses_before {
-        if id.starts_with("matrix/thumb/") {
-            assert_eq!(
-                detached
-                    .parts
-                    .iter()
-                    .find(|part| &part.id == id)
-                    .unwrap()
-                    .pose,
-                *pose,
-                "{id}"
-            );
+    for via_shrink in [false, true] {
+        let label = if via_shrink {
+            "shrink"
+        } else {
+            "remove-column"
+        };
+        let (mut engine, _, doc) =
+            Session::opened(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
+        let (_, doc) = added_thumb(&mut engine, &doc);
+        let poses_before: Vec<(String, Pose2)> = doc
+            .parts
+            .iter()
+            .map(|part| (part.id.clone(), part.pose))
+            .collect();
+        let operation = if via_shrink {
+            let mut shrunk = doc
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == "main")
+                .expect("main matrix")
+                .clone();
+            shrunk.columns = 2;
+            fixture::set_matrix(shrunk)
+        } else {
+            EditOperation::RemoveMatrixColumn {
+                matrix_id: "main".into(),
+                column: 2,
+            }
+        };
+        let (_, detached) = typed_edit(&mut engine, &doc, operation);
+        assert_eq!(anchor_of(&detached, "thumb"), None, "{label}");
+        let thumb = detached
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "thumb")
+            .expect("thumb matrix");
+        assert_eq!(thumb.origin, Vec2 { x: 19.0, y: -19.0 }, "{label}");
+        for (id, pose) in &poses_before {
+            if id.starts_with("matrix/thumb/") {
+                assert_eq!(
+                    detached
+                        .parts
+                        .iter()
+                        .find(|part| &part.id == id)
+                        .unwrap()
+                        .pose,
+                    *pose,
+                    "{label} {id}"
+                );
+            }
         }
+        // The detach rides the same edit: one Undo restores the aggregate anchor.
+        assert_eq!(
+            anchor_of(&fixture::document(engine.undo()), "thumb"),
+            anchor_of(&doc, "thumb"),
+            "{label}"
+        );
     }
-    // The detach rides the same edit: one Undo restores the aggregate anchor.
-    assert_eq!(
-        anchor_of(&fixture::document(engine.undo()), "thumb"),
-        anchor_of(&doc, "thumb")
-    );
 }
 
 #[test]
@@ -705,11 +672,13 @@ fn aggregate_union_keeps_saved_single_key_anchors_byte_identical() {
 
     // And end to end: a document carrying that saved anchor opens, and the
     // stored anchor still serializes back to the saved bytes.
-    let thumb = Matrix {
-        origin: Vec2 { x: 0.0, y: -19.0 },
-        board_id: Some("board".into()),
-        ..fixture::matrix("thumb", 1, 3)
-    };
+    let thumb = thumb_matrix(MatrixAnchor {
+        matrix_id: String::new(),
+        row: 0,
+        column: 0,
+        follow: all(),
+        aggregate: None,
+    });
     let mut document = serde_json::to_value(typed_doc(
         typed_main(vec![]),
         vec![thumb],

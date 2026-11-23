@@ -10,6 +10,7 @@
 //! the switch family.
 
 use crate::support::fixture;
+use crate::support::session;
 use boardstudio_core::mechanical::change::{
     MechanicalChange, MechanicalCriticalFitTextField, MechanicalDimension, MechanicalEdit,
     MechanicalHardwareTextField, MechanicalMountCollection, MechanicalTarget,
@@ -68,27 +69,11 @@ fn document_with_outline() -> ProjectDoc {
     document
 }
 
-fn board_target() -> MechanicalTarget {
-    MechanicalTarget::Board {
-        board_id: "board".into(),
-    }
-}
-
-fn instance_target() -> MechanicalTarget {
-    MechanicalTarget::Instance {
-        instance_id: "left".into(),
-    }
-}
-
 fn apply_change(doc: &mut ProjectDoc, change: MechanicalChange) -> Result<Vec<String>, String> {
     apply(
         doc,
         &[],
-        &MechanicalEdit {
-            target: board_target(),
-            change,
-            mounting_hole: Some(Box::new(fixture::mounting_hole())),
-        },
+        &session::mechanical_edit(session::board_target(), change, true),
     )
 }
 
@@ -96,11 +81,7 @@ fn apply_instance(doc: &mut ProjectDoc, change: MechanicalChange) -> Result<Vec<
     apply(
         doc,
         &[],
-        &MechanicalEdit {
-            target: instance_target(),
-            change,
-            mounting_hole: Some(Box::new(fixture::mounting_hole())),
-        },
+        &session::mechanical_edit(session::instance_target("left"), change, true),
     )
 }
 
