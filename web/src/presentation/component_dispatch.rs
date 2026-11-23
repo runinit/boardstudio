@@ -137,21 +137,7 @@ pub(super) fn dispatch_layout_component_inspector_action(
 ) {
     use inspector::LayoutComponentInspectorAction as A;
     use layout_component_edits::{self as edits, InspectorField as F};
-    let action_owner = match &action {
-        A::SetPosition { owner, .. }
-        | A::AssignLayout { owner, .. }
-        | A::SetOutline { owner, .. }
-        | A::SetConstraint { owner, .. }
-        | A::RemoveConstraint { owner, .. }
-        | A::ConvertOffsetAxes { owner, .. }
-        | A::NavigateElectrical { owner }
-        | A::SetMirroredHalfState { owner, .. }
-        | A::SetPartMirrored { owner, .. }
-        | A::SetPartAnchorValue { owner, .. }
-        | A::SetPartAnchorFollow { owner, .. }
-        | A::SetPartAnchor { owner, .. }
-        | A::DetachPartAnchor { owner } => owner,
-    };
+    let action_owner = action.owner();
     if !layout_component_inspector_owner_is_current(
         runtime,
         workspace,
@@ -231,10 +217,12 @@ pub(super) fn dispatch_layout_component_inspector_action(
             error.set(res.err());
         }
     };
-    match action {
+    // Each action maps to one inspector field plus its edit resolver; the single
+    // `submit` call below applies whichever pair the guards below accept.
+    let submitted = match action {
         A::SetPosition {
             owner, axis, value, ..
-        } if value.is_finite() => submit(
+        } if value.is_finite() => Some((
             match axis {
                 inspector::ComponentPositionAxis::X => F::X,
                 inspector::ComponentPositionAxis::Y => F::Y,
@@ -246,105 +234,105 @@ pub(super) fn dispatch_layout_component_inspector_action(
                 axis,
                 value,
             ),
-        ),
+        )),
         A::AssignLayout { owner, layout_id } => {
-            if layout_id.as_ref().is_some_and(|lid| {
-                !snapshot
+            let known = layout_id.as_ref().is_none_or(|lid| {
+                snapshot
                     .document
                     .layouts
                     .iter()
                     .any(|l| l.id == *lid && l.board_id == board.id)
-            }) {
-                return;
-            }
+            });
             let cur = snapshot
                 .document
                 .layouts
                 .iter()
                 .find(|l| l.board_id == board.id && l.part_ids.contains(&owner.part_id));
-            if cur.map(|l| l.id.as_str()) != layout_id.as_deref() {
-                submit(
+            (known && cur.map(|l| l.id.as_str()) != layout_id.as_deref()).then(|| {
+                (
                     F::Layout,
                     edits::assign_layout_resolver(owner.part_id, owner.scope.board_id, layout_id),
-                );
-            }
+                )
+            })
         }
         A::SetOutline { owner, outline, .. } => {
-            submit(F::Margin, edits::outline_resolver(owner.part_id, outline))
+            Some((F::Margin, edits::outline_resolver(owner.part_id, outline)))
         }
         A::SetConstraint {
             owner,
             source_part_id,
             values,
-        } if source_part_id != owner.part_id && board.part_ids.contains(&source_part_id) => {
-            submit(
-                F::Constraint,
-                edits::constraint_resolver(
-                    owner.part_id,
-                    owner.scope.board_id,
-                    source_part_id,
-                    values,
-                    runtime.operation().0,
-                ),
-            );
-        }
+        } if source_part_id != owner.part_id && board.part_ids.contains(&source_part_id) => Some((
+            F::Constraint,
+            edits::constraint_resolver(
+                owner.part_id,
+                owner.scope.board_id,
+                source_part_id,
+                values,
+                runtime.operation().0,
+            ),
+        )),
         A::ConvertOffsetAxes {
             owner,
             constraint_id,
             to,
-        } => submit(
+        } => Some((
             F::Constraint,
             edits::offset_axes_resolver(owner.part_id, constraint_id, to),
-        ),
+        )),
         A::RemoveConstraint {
             owner,
             constraint_id,
-        } => submit(
+        } => Some((
             F::RemoveConstraint,
             edits::remove_constraint_resolver(owner.part_id, constraint_id),
-        ),
+        )),
         A::NavigateElectrical { .. } => {
             workspace.set(Workspace::Pcb);
             inspect_open.set(true);
+            None
         }
         A::SetMirroredHalfState {
             pair_id,
             mirror_id,
             state,
             ..
-        } => submit(
+        } => Some((
             F::MirroredHalfState,
             edits::mirrored_half_state_resolver(pair_id, mirror_id, state),
-        ),
+        )),
         A::SetPartMirrored {
             part_id, mirrored, ..
-        } => submit(
+        } => Some((
             F::PartMirror,
             edits::part_mirror_resolver(part_id, mirrored),
-        ),
-        A::SetPartAnchorValue { owner, change } if part_anchor_value_finite(&change) => submit(
+        )),
+        A::SetPartAnchorValue { owner, change } if part_anchor_value_finite(&change) => Some((
             F::PartAnchorValue,
             edits::part_anchor_value_resolver(owner.part_id, change),
-        ),
-        A::SetPartAnchorFollow { owner, follow } => submit(
+        )),
+        A::SetPartAnchorFollow { owner, follow } => Some((
             F::PartAnchorFollow,
             edits::part_anchor_follow_resolver(owner.part_id, follow),
-        ),
+        )),
         A::SetPartAnchor {
             owner,
             matrix_id,
             row,
             column,
             follow,
-        } => submit(
+        } => Some((
             F::PartAnchorPick,
             edits::part_anchor_pick_resolver(owner.part_id, matrix_id, row, column, follow),
-        ),
-        A::DetachPartAnchor { owner } => submit(
+        )),
+        A::DetachPartAnchor { owner } => Some((
             F::PartAnchorDetach,
             edits::part_anchor_detach_resolver(owner.part_id),
-        ),
-        _ => {}
+        )),
+        _ => None,
+    };
+    if let Some((field, resolver)) = submitted {
+        submit(field, resolver);
     }
 }
 
