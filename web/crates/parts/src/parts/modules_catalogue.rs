@@ -1,17 +1,14 @@
 //! Lazy, read-only projection of the packaged VIK module catalogue.
 use super::module_profile_editor::ModuleProfileEditor;
-use super::modules_catalogue_logic::{
-    ModuleCatalogueRequest, ModuleCatalogueResult, catalogue_view, merge_project_overrides,
-    normalize_host_connector_definition,
-};
-use boardstudio_web_ui_shared::inspector_fields::TOUCH_CLS;
-// Host-compatible catalogue projection lives in `modules_catalogue_logic` so the same
-// merge/selection predicates run under `cargo test` without a browser.
 pub use super::modules_catalogue_logic::{
-    EntrySource, ModuleCatalogueView, ModuleEntry, selected_id, variants,
+    EntrySource, ModuleCatalogueView, ModuleEntry, selected_id,
+};
+use super::modules_catalogue_logic::{
+    ModuleIndex, ModuleVariantChoice, catalogue_view, normalize_host_connector_definition,
 };
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
-use boardstudio_model::model::{HardwareOutput, ModuleDefinition, PartDefinition, Side, VikRole};
+use boardstudio_model::model::{HardwareOutput, ModuleDefinition, PartDefinition, Side};
+use boardstudio_web_ui_shared::inspector_fields::TOUCH_CLS;
 use boardstudio_web_ui_shared::ui::{
     button::{Button, ButtonVariant},
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
@@ -20,20 +17,11 @@ use boardstudio_web_ui_shared::ui::{
 use dioxus::prelude::*;
 use js_sys::Uint8Array;
 use serde::Deserialize;
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use wasm_bindgen::{JsCast, JsValue};
-use wasm_bindgen_futures::JsFuture;
+use wasm_bindgen_futures::{JsFuture, future_to_promise};
 
 pub mod module_attachment;
-
-const MODULES_ASSET: &str = "assets/imported-modules.json";
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ModulePackage {
-    format_version: u32,
-    modules: Vec<ModuleRecord>,
-}
 
 #[derive(Deserialize)]
 struct ModuleRecord {
@@ -42,122 +30,173 @@ struct ModuleRecord {
 }
 
 thread_local! {
-    static BUNDLED_MODULES: RefCell<Option<Rc<Vec<ModuleEntry>>>> = const { RefCell::new(None) };
+    static BUNDLED_INDEX: std::cell::OnceCell<Rc<ModuleIndex>> = const { std::cell::OnceCell::new() };
+    static BUNDLED_MODULES: RefCell<HashMap<String, ModuleEntry>> = RefCell::default();
+    static PENDING_ASSETS: RefCell<HashMap<String, js_sys::Promise>> = RefCell::default();
+    static HOST_CONNECTOR: std::cell::OnceCell<PartDefinition> = const { std::cell::OnceCell::new() };
 }
 
 pub fn use_catalogue(
-    active: bool,
+    selected_id: Option<String>,
     token: SnapshotToken,
     project: Vec<ModuleDefinition>,
 ) -> ModuleCatalogueView {
-    let request = ModuleCatalogueRequest {
-        active,
-        token,
-        project,
-    };
-    let resource = use_resource(use_reactive(&request, |request| async move {
-        if !request.active {
-            return ModuleCatalogueResult {
-                request,
-                entries: None,
-                error: None,
-            };
-        }
-        match load_bundled().await {
-            Ok(bundled) => ModuleCatalogueResult {
-                request: request.clone(),
-                entries: Some(Rc::new(merge_project_overrides(&bundled, &request.project))),
-                error: None,
-            },
-            Err(error) => ModuleCatalogueResult {
-                request,
-                entries: None,
-                error: Some(error),
-            },
-        }
+    let overridden = selected_id
+        .as_ref()
+        .is_some_and(|id| project.iter().any(|entry| &entry.id == id));
+    let request = (selected_id, token, overridden);
+    let load = use_resource(use_reactive(&request, |request| async move {
+        let error = match &request {
+            (Some(id), _, overridden) => load_selection(id, *overridden).await.err(),
+            _ => None,
+        };
+        (request, error)
     }));
-    let result = resource.read().clone();
-    let bundled = BUNDLED_MODULES.with(|cache| cache.borrow().clone());
-    catalogue_view(&request, result, bundled)
+    let error = load
+        .read()
+        .as_ref()
+        .filter(|(owner, _)| owner == &request)
+        .and_then(|(_, error)| error.clone());
+    let Some(id) = request.0 else {
+        return ModuleCatalogueView::default();
+    };
+    let index = BUNDLED_INDEX.with(|cache| cache.get().cloned());
+    let bundled = cached_module(&id);
+    catalogue_view(
+        &id,
+        &project,
+        index.as_ref().map_or(&[], |index| index.modules.as_slice()),
+        bundled,
+        error,
+    )
 }
 
-async fn load_bundled() -> Result<Rc<Vec<ModuleEntry>>, String> {
-    if let Some(entries) = BUNDLED_MODULES.with(|cache| cache.borrow().clone()) {
-        return Ok(entries);
+fn cached_module(id: &str) -> Option<ModuleEntry> {
+    BUNDLED_MODULES.with(|cache| cache.borrow().get(id).cloned())
+}
+
+async fn load_selection(id: &str, overridden: bool) -> Result<(), String> {
+    let index = load_index().await?;
+    if !overridden && cached_module(id).is_none() {
+        let entry = index
+            .modules
+            .iter()
+            .find(|entry| entry.id == id)
+            .ok_or_else(|| format!("Module catalogue has no source for {id}."))?;
+        let record: ModuleRecord = fetch_json(&entry.asset).await?;
+        if record.definition.id != id || record.row != entry.row {
+            return Err(format!(
+                "Module source does not match its catalogue entry: {id}"
+            ));
+        }
+        BUNDLED_MODULES.with_borrow_mut(|modules| {
+            modules.insert(
+                id.to_owned(),
+                ModuleEntry {
+                    row: record.row,
+                    definition: Rc::new(record.definition),
+                    source: EntrySource::Bundled,
+                },
+            )
+        });
     }
-    let window = web_sys::window().ok_or_else(|| "Browser window is unavailable.".to_string())?;
-    let url = crate::runtime::resource_url(MODULES_ASSET)?;
-    let response = JsFuture::from(window.fetch_with_str(&url))
-        .await
-        .map_err(js_error)?
-        .dyn_into::<web_sys::Response>()
-        .map_err(js_error)?;
-    if !response.ok() {
-        return Err(format!(
-            "Required module catalogue unavailable ({})",
-            response.status()
-        ));
+    Ok(())
+}
+
+async fn load_index() -> Result<Rc<ModuleIndex>, String> {
+    if let Some(index) = BUNDLED_INDEX.with(|cache| cache.get().cloned()) {
+        return Ok(index);
     }
-    let buffer = JsFuture::from(response.array_buffer().map_err(js_error)?)
-        .await
-        .map_err(js_error)?;
-    let bytes = Uint8Array::new(&buffer).to_vec();
-    let package: ModulePackage = serde_json::from_slice(&bytes)
-        .map_err(|error| format!("Bundled VIK module catalogue is invalid: {error}"))?;
-    if package.format_version != 1 {
+    let index: ModuleIndex = fetch_json("assets/modules-index.json").await?;
+    if index.format_version != 1 {
         return Err(format!(
             "Unsupported VIK module catalogue format version: {}",
-            package.format_version
+            index.format_version
         ));
     }
-    let entries: Rc<Vec<ModuleEntry>> = Rc::new(
-        package
-            .modules
-            .into_iter()
-            .map(|record| ModuleEntry {
-                row: record.row,
-                definition: Rc::new(record.definition),
-                source: EntrySource::Bundled,
+    Ok(BUNDLED_INDEX.with(|cache| cache.get_or_init(|| Rc::new(index)).clone()))
+}
+
+async fn fetch_json<T: serde::de::DeserializeOwned>(asset: &str) -> Result<T, String> {
+    let url = crate::runtime::resource_url(asset)?;
+    let promise = PENDING_ASSETS.with_borrow_mut(|pending| {
+        pending
+            .entry(url.clone())
+            .or_insert_with(|| {
+                future_to_promise(async move {
+                    let result = fetch_buffer(&url).await;
+                    PENDING_ASSETS.with_borrow_mut(|pending| pending.remove(&url));
+                    result
+                })
             })
-            .collect(),
-    );
-    BUNDLED_MODULES.with(|cache| *cache.borrow_mut() = Some(entries.clone()));
-    Ok(entries)
+            .clone()
+    });
+    let buffer = JsFuture::from(promise).await.map_err(js_error)?;
+    serde_json::from_slice(&Uint8Array::new(&buffer).to_vec())
+        .map_err(|error| format!("Module asset {asset} is invalid: {error}"))
+}
+
+// The inspector and source preview can request the same asset in one render.
+async fn fetch_buffer(url: &str) -> Result<JsValue, JsValue> {
+    let window = web_sys::window().ok_or("Browser window is unavailable.")?;
+    let response: web_sys::Response = JsFuture::from(window.fetch_with_str(url))
+        .await?
+        .dyn_into()?;
+    if !response.ok() {
+        return Err(JsValue::from_str(&format!(
+            "Module asset {url} unavailable ({})",
+            response.status()
+        )));
+    }
+    JsFuture::from(response.array_buffer()?).await
 }
 
 pub async fn load_horizontal_host_connector_definition() -> Result<PartDefinition, String> {
-    let entries = load_bundled().await?;
-    let source = entries
-        .iter()
-        .flat_map(|entry| {
-            entry
-                .definition
-                .circuit
-                .iter()
-                .flat_map(|circuit| circuit.definitions.iter())
-        })
-        .find(|definition| {
-            definition
-                .hardware_profile
-                .as_ref()
-                .is_some_and(|profile| profile.vik_role == Some(VikRole::Host))
-                && definition.name.to_ascii_lowercase().contains("horizontal")
-        })
-        .cloned()
-        .ok_or_else(|| {
-            "The source catalogue has no horizontal VIK host connector footprint.".to_string()
-        })?;
-
-    normalize_host_connector_definition(source)
+    if let Some(definition) = HOST_CONNECTOR.with(|cache| cache.get().cloned()) {
+        return Ok(definition);
+    }
+    let index = load_index().await?;
+    let definition =
+        normalize_host_connector_definition(fetch_json(&index.host_connector_asset).await?)?;
+    Ok(HOST_CONNECTOR.with(|cache| cache.get_or_init(|| definition).clone()))
 }
 
-struct CircuitPartPreview {
-    id: String,
-    reference: String,
-    source_name: String,
-    transform: String,
-    courtyard: String,
-    drills: Vec<(String, f64, f64, f64)>,
+#[component]
+pub fn ModuleBrowser(scope: Option<Scope>, mut selected: super::PartsSelection) -> Element {
+    let index = use_resource(load_index);
+    let mut generation = use_context::<super::PartsSelectionGeneration>().0;
+    let mut activation = use_context::<super::PartsPreviewActivation>().0;
+    let mut assembly = use_context::<super::PartsAssemblySelection>().0;
+    let selection = selected_id(selected(), &scope).unwrap_or_default();
+    match &*index.read() {
+        Some(Ok(index)) => rsx! {
+            super::SelectField::<String> {
+                label: "Module", placeholder: "Choose a module", aria_label: "Browse modules", value: selection,
+                options: index.modules.iter().map(|entry| (entry.id.clone(), format!("{} · {}", entry.name, entry.variant))).collect(),
+                on_commit: move |id: String| {
+                    assembly.set(None);
+                    selected.set(Some((scope.clone(), format!("module:{id}"))));
+                    generation.with_mut(|value| *value = value.wrapping_add(1));
+                    activation.with_mut(|value| *value = value.wrapping_add(1));
+                },
+            }
+        },
+        result => super::catalogue_status(
+            result
+                .as_ref()
+                .and_then(|result| result.as_ref().err().cloned()),
+            "Module catalogue",
+            "Loading module catalogue…",
+        ),
+    }
+}
+
+fn svg_points(points: &[boardstudio_model::model::Vec2], separator: &str) -> String {
+    points
+        .iter()
+        .map(|point| format!("{},{}", point.x, point.y))
+        .collect::<Vec<_>>()
+        .join(separator)
 }
 
 /// Read-only rendering of the selected module snapshot's own board and circuit source geometry.
@@ -181,17 +220,7 @@ pub fn ModuleSourcePreview(module: ModuleEntry) -> Element {
         .contours
         .iter()
         .filter(|contour| !contour.points.is_empty())
-        .map(|contour| {
-            format!(
-                "M{}Z",
-                contour
-                    .points
-                    .iter()
-                    .map(|point| format!("{},{}", point.x, point.y))
-                    .collect::<Vec<_>>()
-                    .join("L")
-            )
-        })
+        .map(|contour| format!("M{}Z", svg_points(&contour.points, "L")))
         .collect::<Vec<_>>()
         .join(" ");
     let view_box = format!(
@@ -201,64 +230,15 @@ pub fn ModuleSourcePreview(module: ModuleEntry) -> Element {
         (max_x - min_x + 10.0).max(10.0),
         (max_y - min_y + 10.0).max(10.0)
     );
-    let holes = definition
-        .board
-        .holes
-        .iter()
-        .enumerate()
-        .map(|(index, points)| {
-            (
-                index,
-                points
-                    .iter()
-                    .map(|point| format!("{},{}", point.x, point.y))
-                    .collect::<Vec<_>>()
-                    .join(" "),
-            )
-        })
-        .collect::<Vec<_>>();
-    let circuit_parts = definition
-        .circuit
-        .as_ref()
-        .into_iter()
-        .flat_map(|circuit| circuit.parts.iter().map(move |part| (circuit, part)))
-        .filter_map(|(circuit, part)| {
+    let circuit_parts = definition.circuit.iter().flat_map(|circuit| {
+        circuit.parts.iter().filter_map(|part| {
             let source = circuit
                 .definitions
                 .iter()
                 .find(|source| source.id == part.definition_id)?;
-            let courtyard = source
-                .courtyard
-                .iter()
-                .map(|point| format!("{},{}", point.x, point.y))
-                .collect::<Vec<_>>()
-                .join(" ");
-            let drills = source
-                .pads
-                .iter()
-                .filter_map(|pad| {
-                    pad.drill
-                        .map(|drill| (pad.id.clone(), pad.at.x, pad.at.y, drill / 2.0))
-                })
-                .collect();
-            let mirror = if matches!(&part.side, Side::Back) {
-                -1
-            } else {
-                1
-            };
-            Some(CircuitPartPreview {
-                id: part.id.clone(),
-                reference: part.reference.clone(),
-                source_name: source.name.clone(),
-                transform: format!(
-                    "translate({} {}) rotate({}) scale({mirror},1)",
-                    part.pose.at.x, part.pose.at.y, part.pose.rotation
-                ),
-                courtyard,
-                drills,
-            })
+            Some((part, source))
         })
-        .collect::<Vec<_>>();
+    });
     let thickness = definition
         .board
         .thickness
@@ -281,18 +261,23 @@ pub fn ModuleSourcePreview(module: ModuleEntry) -> Element {
                 svg { role: "img", "aria-label": "{definition.name} source board and components", view_box: "{view_box}", style: "flex: 1; width: 100%; min-height: 0;",
                     g { transform: "scale(1,-1)",
                         path { d: "{board_path}", fill: "rgba(52,124,99,.2)", fill_rule: "evenodd", stroke: "var(--primary)", stroke_width: "0.35" }
-                        for (index, points) in &holes {
-                            polygon { key: "source-hole-{index}", points: "{points}", fill: "var(--canvas)", stroke: "var(--muted-foreground)", stroke_width: "0.2" }
+                        for (index, points) in definition.board.holes.iter().enumerate() {
+                            polygon { key: "source-hole-{index}", points: svg_points(points, " "), fill: "var(--canvas)", stroke: "var(--muted-foreground)", stroke_width: "0.2" }
                         }
-                        for part in &circuit_parts {
-                            g { key: "{part.id}", transform: "{part.transform}",
-                                title { "{part.reference} · {part.source_name}" }
-                                if !part.courtyard.is_empty() {
-                                    polygon { points: "{part.courtyard}", fill: "none", stroke: "var(--muted-foreground)", stroke_width: "0.2" }
-                                }
-                                for (pad_id, x, y, radius) in &part.drills {
-                                    circle { key: "{pad_id}", cx: "{x}", cy: "{y}", r: "{radius}", fill: "var(--canvas)", stroke: "var(--muted-foreground)", stroke_width: "0.2" }
-                                }
+                        for (part, source) in circuit_parts {
+                            { let mirror = if part.side == Side::Back { -1 } else { 1 };
+                              let transform = format!("translate({} {}) rotate({}) scale({mirror},1)", part.pose.at.x, part.pose.at.y, part.pose.rotation);
+                              rsx! { g { key: "{part.id}", transform,
+                                  title { "{part.reference} · {source.name}" }
+                                  if !source.courtyard.is_empty() {
+                                      polygon { points: svg_points(&source.courtyard, " "), fill: "none", stroke: "var(--muted-foreground)", stroke_width: "0.2" }
+                                  }
+                                  for pad in &source.pads {
+                                      if let Some(drill) = pad.drill {
+                                          circle { key: "{pad.id}", cx: "{pad.at.x}", cy: "{pad.at.y}", r: "{drill / 2.0}", fill: "var(--canvas)", stroke: "var(--muted-foreground)", stroke_width: "0.2" }
+                                      }
+                                  }
+                              } }
                             }
                         }
                     }
@@ -307,7 +292,7 @@ pub fn ModuleSourcePreview(module: ModuleEntry) -> Element {
 pub fn ModuleInspector(
     snapshot: AcceptedSnapshot,
     module: ModuleEntry,
-    variants: Vec<ModuleEntry>,
+    variants: Vec<ModuleVariantChoice>,
     scope: Option<Scope>,
     mut selected: super::PartsSelection,
     placement_id: Option<String>,
@@ -359,7 +344,7 @@ pub fn ModuleInspector(
         if !variants.is_empty() {
             super::SelectField::<String> {
                 label: "Variant", aria_label: "Module variant", value: definition.id.clone(),
-                options: variants.iter().map(|variant| (variant.definition.id.clone(), variant.definition.variant.clone())).collect(),
+                options: variants.iter().map(|variant| (variant.id.clone(), variant.variant.clone())).collect(),
                 on_commit: move |value: String| {
                     selected.set(Some((variant_scope.clone(), format!("module:{value}"))));
                     selection_generation.with_mut(|value| *value = value.wrapping_add(1));
@@ -419,5 +404,3 @@ pub fn ModuleInspector(
 fn js_error(error: JsValue) -> String {
     error.as_string().unwrap_or_else(|| format!("{error:?}"))
 }
-
-// Catalogue merge/selection projection runs natively via `modules_catalogue_logic` tests.

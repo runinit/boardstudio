@@ -1,7 +1,8 @@
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct OfflineManifest {
     pub version: String,
-    pub assets: Vec<String>,
+    pub shell_assets: Vec<String>,
+    pub runtime_cache_prefixes: Vec<String>,
 }
 
 impl OfflineManifest {
@@ -14,22 +15,34 @@ impl OfflineManifest {
         {
             return Err("offline manifest version must contain only letters, digits, dot, dash or underscore".into());
         }
-        if self.assets.is_empty() {
-            return Err("offline manifest must contain at least one required asset".into());
-        }
-        if !self.assets.iter().any(|asset| asset == "index.html") {
+        if !self.shell_assets.iter().any(|asset| asset == "index.html") {
             return Err("offline manifest must include the application shell index.html".into());
         }
         let mut unique = std::collections::BTreeSet::new();
-        for asset in &self.assets {
-            validate_asset_path(asset)?;
-            if !unique.insert(asset) {
+        for prefix in &self.runtime_cache_prefixes {
+            if !prefix.ends_with('/') || !unique.insert(prefix) {
                 return Err(format!(
-                    "offline manifest contains duplicate asset path: {asset}"
+                    "invalid or duplicate runtime cache prefix: {prefix}"
                 ));
+            }
+            validate_asset_path(prefix.trim_end_matches('/'))?;
+        }
+        unique.clear();
+        for asset in &self.shell_assets {
+            validate_asset_path(asset)?;
+            if !unique.insert(asset) || self.is_runtime_cacheable(asset) {
+                return Err(format!("duplicate or runtime-only shell asset: {asset}"));
             }
         }
         Ok(())
+    }
+
+    pub fn is_runtime_cacheable(&self, relative_path: &str) -> bool {
+        validate_asset_path(relative_path).is_ok()
+            && self
+                .runtime_cache_prefixes
+                .iter()
+                .any(|prefix| relative_path.starts_with(prefix))
     }
 }
 
@@ -91,45 +104,56 @@ mod tests {
     fn validates_complete_normalized_manifest() {
         let valid = OfflineManifest {
             version: "20261001-a1".into(),
-            assets: vec!["index.html".into(), "assets/app.js".into()],
+            shell_assets: vec!["index.html".into(), "assets/app.js".into()],
+            runtime_cache_prefixes: vec!["assets/modules/".into()],
         };
         assert!(valid.validate().is_ok());
-        for invalid in [
+        assert!(valid.is_runtime_cacheable("assets/modules/keyboard.json"));
+        for path in [
             "/root",
             "../escape",
             "assets/../escape",
             "app.js?x",
             "assets/%2e%2e/escape",
             "https://host/a",
+            "assets/modules/a?x",
+            "assets/modules/../escape",
         ] {
-            let manifest = OfflineManifest {
-                version: "v1".into(),
-                assets: vec!["index.html".into(), invalid.into()],
-            };
-            assert!(manifest.validate().is_err(), "accepted {invalid}");
+            let mut manifest = valid.clone();
+            manifest.shell_assets.push(path.into());
+            assert!(manifest.validate().is_err(), "accepted {path}");
+            assert!(!valid.is_runtime_cacheable(path));
         }
+        for path in ["assets/modules/a", "index.html"] {
+            let mut duplicate_or_runtime = valid.clone();
+            duplicate_or_runtime.shell_assets.push(path.into());
+            assert!(duplicate_or_runtime.validate().is_err());
+        }
+        for prefix in ["", "/", "assets", "assets/../", "assets/modules/"] {
+            let mut invalid = valid.clone();
+            invalid.runtime_cache_prefixes.push(prefix.into());
+            assert!(invalid.validate().is_err(), "accepted {prefix}");
+        }
+        assert!(!valid.is_runtime_cacheable("assets/modules-index.json"));
         for manifest in [
             OfflineManifest {
                 version: String::new(),
-                assets: vec!["index.html".into()],
-            },
-            OfflineManifest {
-                version: "v1".into(),
-                assets: Vec::new(),
-            },
-            OfflineManifest {
-                version: "v1".into(),
-                assets: vec!["assets/app.js".into()],
+                ..valid.clone()
             },
             OfflineManifest {
                 version: "v1/slash".into(),
-                assets: vec!["index.html".into()],
+                ..valid.clone()
+            },
+            OfflineManifest {
+                shell_assets: vec![],
+                ..valid.clone()
+            },
+            OfflineManifest {
+                shell_assets: vec!["assets/app.js".into()],
+                ..valid
             },
         ] {
-            assert!(
-                manifest.validate().is_err(),
-                "accepted invalid manifest {manifest:?}"
-            );
+            assert!(manifest.validate().is_err(), "accepted {manifest:?}");
         }
     }
 }
