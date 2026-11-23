@@ -2,7 +2,6 @@
 use super::*;
 mod motion;
 mod placement;
-
 const MAX_SUPPORTS: usize = 64;
 const CLOSURE_SPACING_MM: f64 = 120.;
 const MAX_AUTOMATIC_CLOSURES: usize = 64;
@@ -11,7 +10,6 @@ const TAB_MARGIN: f64 = 0.5;
 const ROOT_OVERLAP: f64 = 0.6;
 // The preparer quantizes both boundaries to 0.001 mm; reserve both roundings.
 const OFFSET_GRID_ALLOWANCE: f64 = 0.002;
-
 fn contained(points: &[Vec2], outline: &[Contour]) -> bool {
     let polygon: FloatPath = points.iter().map(|p| [p.x, p.y]).collect();
     crate::geometry::overlay(
@@ -21,7 +19,6 @@ fn contained(points: &[Vec2], outline: &[Contour]) -> bool {
     )
     .is_empty()
 }
-
 fn remaining_wall(pocket: &[Vec2], outer: &[Contour]) -> f64 {
     let point_segment = |p: Vec2, a: Vec2, b: Vec2| {
         let dx = b.x - a.x;
@@ -58,7 +55,6 @@ fn remaining_wall(pocket: &[Vec2], outer: &[Contour]) -> f64 {
     }
     minimum
 }
-
 fn validate(
     config: &MechanicalConfiguration,
     settings: &InternalGasketConfiguration,
@@ -177,7 +173,6 @@ fn validate(
     }
     Ok(())
 }
-
 fn candidates(ring: &Contour, margin: f64) -> Vec<Candidate> {
     let lengths: Vec<_> = ring
         .points
@@ -212,7 +207,6 @@ fn candidates(ring: &Contour, margin: f64) -> Vec<Candidate> {
     }
     candidates
 }
-
 fn reflect(candidate: &Candidate, axis: f64) -> Candidate {
     Candidate {
         at: Vec2 {
@@ -230,7 +224,6 @@ fn reflect(candidate: &Candidate, axis: f64) -> Candidate {
         anchor: candidate.anchor,
     }
 }
-
 fn nearest(candidates: &[Candidate], ideal: f64) -> Option<Candidate> {
     let difference = |anchor: f64| {
         let d = (anchor - ideal).abs();
@@ -241,7 +234,6 @@ fn nearest(candidates: &[Candidate], ideal: f64) -> Option<Candidate> {
         .min_by(|a, b| difference(a.anchor).total_cmp(&difference(b.anchor)))
         .cloned()
 }
-
 fn keycap_envelopes(
     document: &ProjectDoc,
     config: &MechanicalConfiguration,
@@ -297,7 +289,6 @@ fn keycap_envelopes(
     }
     Ok(caps)
 }
-
 fn required_offset(
     rings: &[Contour],
     envelopes: &[Vec<Vec2>],
@@ -330,7 +321,6 @@ fn required_offset(
     }
     Ok((upper * 1000.).ceil() / 1000.)
 }
-
 pub(super) fn generate(
     document: &ProjectDoc,
     config: &MechanicalConfiguration,
@@ -916,10 +906,9 @@ pub(super) fn generate(
                 };
             let master_support = result.gasket_supports[master].clone();
             let follower_support = result.gasket_supports[follower].clone();
-            let reflected = Vec2 {
-                x: 2. * link.axis_x - master_support.at.x,
-                y: master_support.at.y,
-            };
+            // Internal tabs require a bounded capture fraction and resolve toward
+            // the user-pinned master; outer shells clamp and snap to nearest instead.
+            let reflected = reflect_x(master_support.at, link.axis_x);
             if follower_support.placement == Some(GasketPlacement::User)
                 && distance(reflected, follower_support.at) > 0.001
             {
@@ -939,13 +928,18 @@ pub(super) fn generate(
                 candidates: vec![],
                 tracks,
             };
-            let candidate=region.tracks.iter().filter_map(|track|{
-                let dx=track.end.x-track.start.x;let dy=track.end.y-track.start.y;
-                let fraction=((reflected.x-track.start.x)*dx+(reflected.y-track.start.y)*dy)/(dx*dx+dy*dy);
-                if !(0. ..=1.).contains(&fraction) {return None;}
-                on_track(&region,track.start_anchor+fraction*(track.end_anchor-track.start_anchor))
-                    .filter(|c|distance(c.at,reflected)<0.001)
-            }).next().ok_or_else(||format!("Linked support {} does not fit its reflected capture track; move or unlink it.",follower_support.id))?;
+            let candidate = region
+                .tracks
+                .iter()
+                .filter_map(|track| {
+                    let fraction = track_fraction(track, reflected);
+                    if !(0. ..=1.).contains(&fraction) {
+                        return None;
+                    }
+                    mirrored_candidate(&region, track, reflected, fraction)
+                })
+                .next()
+                .ok_or_else(||format!("Linked support {} does not fit its reflected capture track; move or unlink it.",follower_support.id))?;
             let conflict = !valid_support(&candidate, master_support.length, master_support.width);
             let support = &mut result.gasket_supports[follower];
             support.length = master_support.length;
@@ -955,15 +949,9 @@ pub(super) fn generate(
             } else {
                 master_support.fit_error.clone()
             };
-            support.at = candidate.at;
-            support.anchor = candidate.anchor;
-            support.tangent = candidate.tangent;
-            support.normal = candidate.normal;
+            apply_mirrored_placement(support, &candidate);
             support.placement = master_support.placement.clone();
-            support.pair_id = Some(master_support.id.clone());
-            support.mirror_axis = Some(link.axis_x);
-            result.gasket_supports[master].pair_id = Some(follower_support.id.clone());
-            result.gasket_supports[master].mirror_axis = Some(link.axis_x);
+            link_mirror_pair(&mut result.gasket_supports, master, follower, link.axis_x);
             *chosen
                 .iter_mut()
                 .find(|(id, _, _, _)| *id == follower_support.id)

@@ -1,9 +1,7 @@
 use super::*;
-
 fn fixture() -> ProjectDoc {
     let mut doc = synthetic_outline();
-    // Stagger accumulates across columns. Edit the last column so one
-    // cutout moves while the cutout attached to the first key is reusable.
+    // Stagger accumulates across columns: edit the last column so one cutout moves while the first stays reusable.
     for (column, id) in ["stationary-cutout", "moved-cutout"]
         .into_iter()
         .enumerate()
@@ -21,20 +19,14 @@ fn fixture() -> ProjectDoc {
     }
     doc
 }
-
 fn synthetic_outline() -> ProjectDoc {
     serde_json::from_str(include_str!(
         "../../../../tests/fixtures/synthetic-outline.json"
     ))
     .unwrap()
 }
-
-// Match the release Chrome profile's authored 5 × 12 fixture.
-fn stagger_profile_document(large: bool) -> ProjectDoc {
-    stagger_document(large.then_some(12))
-}
-
 fn stagger_document(columns: Option<u32>) -> ProjectDoc {
+    // Matches the release Chrome profile's authored 5 × 12 fixture.
     let mut document = synthetic_outline();
     if let Some(columns) = columns {
         let mut matrix = document.matrices[0].clone();
@@ -49,10 +41,7 @@ fn stagger_document(columns: Option<u32>) -> ProjectDoc {
         ];
         let mut engine = CoreEngine::new();
         assert!(matches!(
-            engine.handle(CoreRequest::Open {
-                id: "fixture-open".into(),
-                document
-            }),
+            engine.handle(open_req(document)),
             CoreReply::Scene { .. }
         ));
         let CoreReply::Scene {
@@ -78,32 +67,53 @@ fn stagger_document(columns: Option<u32>) -> ProjectDoc {
     }
     document
 }
-
 fn stagger(column: u32, value: f64) -> EditOperation {
     EditOperation::SetMatrixPlacement {
         matrix_id: "matrix".into(),
         change: MatrixPlacementChange::ColumnStagger { column, value },
     }
 }
-
+fn open_req(document: ProjectDoc) -> CoreRequest {
+    CoreRequest::Open {
+        id: "open".into(),
+        document,
+    }
+}
+fn preview_edit(req: &mut CoreRequest) {
+    let CoreRequest::Edit { command, .. } = req else {
+        unreachable!()
+    };
+    command.phase = EditPhase::Preview;
+}
+fn preview_op(revision: u64, operation: EditOperation) -> CoreRequest {
+    let mut req = edit(revision, operation);
+    preview_edit(&mut req);
+    req
+}
+fn assert_warm_matches_cold(
+    engine: &mut CoreEngine,
+    cold: &mut CoreEngine,
+    request: CoreRequest,
+) -> CoreReply {
+    let reply = compare(engine, cold, request);
+    assert_eq!(engine.document, cold.document);
+    assert_eq!(
+        serde_json::to_vec(&engine.document).unwrap(),
+        serde_json::to_vec(&cold.document).unwrap()
+    );
+    reply
+}
 #[test]
 fn settled_stagger_matches_cold_wire_and_history() {
     let mut engine = CoreEngine::new();
     let mut cold = CoreEngine::new();
-    let mut document = stagger_profile_document(true);
+    let mut document = stagger_document(Some(12));
     document.matrices[0].column_layout = vec![ColumnLayout {
         splay: 9.0,
         ..Default::default()
     }];
     document.matrices[0].mirror = Some(Mirror::X);
-    compare(
-        &mut engine,
-        &mut cold,
-        CoreRequest::Open {
-            id: "open".into(),
-            document,
-        },
-    );
+    assert_warm_matches_cold(&mut engine, &mut cold, open_req(document));
     let before = serde_json::to_vec(&engine.document).unwrap();
     for operation in [stagger(11, -0.0), stagger(12, 4.0), stagger(11, f64::NAN)] {
         compare(&mut engine, &mut cold, edit(0, operation));
@@ -120,11 +130,7 @@ fn settled_stagger_matches_cold_wire_and_history() {
         engine.apply_layout_edit(&mut draft, &[], &last).unwrap(),
         (expected.clone(), true),
     );
-    let mut preview = edit(0, last.clone());
-    let CoreRequest::Edit { command, .. } = &mut preview else {
-        unreachable!()
-    };
-    command.phase = EditPhase::Preview;
+    let preview = preview_op(0, last.clone());
     assert!(matches!(
         compare(&mut engine, &mut cold, preview),
         CoreReply::Preview { scene, .. } if scene.changed_ids == expected
@@ -153,7 +159,6 @@ fn settled_stagger_matches_cold_wire_and_history() {
         (-0.0f64).to_bits()
     );
 }
-
 #[test]
 fn stagger_uses_full_writeback_to_repair_saved_envelope_membership() {
     let mut engine = CoreEngine::new();
@@ -163,14 +168,7 @@ fn stagger_uses_full_writeback_to_repair_saved_envelope_membership() {
         panic!("expected a part envelope");
     };
     let missing = part_ids.pop().unwrap();
-    compare(
-        &mut engine,
-        &mut cold,
-        CoreRequest::Open {
-            id: "open".into(),
-            document,
-        },
-    );
+    assert_warm_matches_cold(&mut engine, &mut cold, open_req(document));
     let operation = stagger(1, 4.0);
     let mut draft = engine.document.clone();
     assert!(
@@ -185,7 +183,6 @@ fn stagger_uses_full_writeback_to_repair_saved_envelope_membership() {
     };
     assert_eq!(part_ids.last(), Some(&missing));
 }
-
 fn edit(revision: u64, operation: EditOperation) -> CoreRequest {
     CoreRequest::Edit {
         id: "edit".into(),
@@ -198,7 +195,6 @@ fn edit(revision: u64, operation: EditOperation) -> CoreRequest {
         },
     }
 }
-
 fn compare(engine: &mut CoreEngine, cold: &mut CoreEngine, request: CoreRequest) -> CoreReply {
     cold.reusable_scene = None;
     let expected = cold.handle(request.clone());
@@ -241,25 +237,16 @@ fn compare(engine: &mut CoreEngine, cold: &mut CoreEngine, request: CoreRequest)
     }
     actual
 }
-
 fn open_preview_fixture(document: ProjectDoc) -> (CoreEngine, CoreEngine) {
     let mut engine = CoreEngine::new();
     let mut cold = CoreEngine::new();
     assert!(matches!(
-        compare(
-            &mut engine,
-            &mut cold,
-            CoreRequest::Open {
-                id: "open".into(),
-                document,
-            },
-        ),
+        assert_warm_matches_cold(&mut engine, &mut cold, open_req(document)),
         CoreReply::Scene { .. }
     ));
     assert!(engine.reusable_scene.is_some());
     (engine, cold)
 }
-
 fn preview_move(positions: Vec<Position>) -> CoreRequest {
     CoreRequest::Edit {
         id: "preview move".into(),
@@ -272,7 +259,6 @@ fn preview_move(positions: Vec<Position>) -> CoreRequest {
         },
     }
 }
-
 #[test]
 fn plain_move_commit_reuses_only_a_matching_preview() {
     for mismatch in [
@@ -339,11 +325,9 @@ fn plain_move_commit_reuses_only_a_matching_preview() {
         assert!(engine.move_preview.is_none());
     }
 }
-
 #[test]
 fn matched_preview_of_a_mirrored_move_reprojects_the_commit() {
     use mirrored_half::{MirrorDestination, MirroredPair};
-
     let mut document = fixture();
     let source = document.boards[0].id.clone();
     document.boards.push(Board {
@@ -366,10 +350,7 @@ fn matched_preview_of_a_mirrored_move_reprojects_the_commit() {
         },
         overrides: vec![],
     });
-    let open = CoreRequest::Open {
-        id: "open".into(),
-        document,
-    };
+    let open = open_req(document);
     let mut engine = CoreEngine::new();
     let mut cold = CoreEngine::new();
     for session in [&mut engine, &mut cold] {
@@ -429,13 +410,8 @@ fn matched_preview_of_a_mirrored_move_reprojects_the_commit() {
         }
     );
 }
-
 fn assert_preview_preserves_snapshot(engine: &mut CoreEngine, cold: &mut CoreEngine) {
     assert_eq!(engine.document, cold.document);
-    assert_eq!(
-        serde_json::to_vec(&engine.document).unwrap(),
-        serde_json::to_vec(&cold.document).unwrap(),
-    );
     assert!(engine.undo.is_empty() && engine.redo.is_empty());
     assert!(matches!(
         compare(
@@ -448,7 +424,6 @@ fn assert_preview_preserves_snapshot(engine: &mut CoreEngine, cold: &mut CoreEng
                 && scene.changed_ids.is_empty()
     ));
 }
-
 #[test]
 fn anchored_drag_preview_does_not_rewrite_accepted_spread() {
     let mut document = fixture();
@@ -512,7 +487,6 @@ fn anchored_drag_preview_does_not_rewrite_accepted_spread() {
         Some(18.0),
     );
     assert_preview_preserves_snapshot(&mut engine, &mut cold);
-
     // The first position already writes the draft when the second one fails.
     assert!(matches!(
         engine.handle(preview_move(vec![
@@ -522,7 +496,6 @@ fn anchored_drag_preview_does_not_rewrite_accepted_spread() {
         CoreReply::Error { message, revision: 0, .. } if message == "Unknown part missing"
     ));
     assert_preview_preserves_snapshot(&mut engine, &mut cold);
-
     // Drag the anchor key: the cutout must follow U1's evaluated pose.
     let positions = vec![Position {
         id: "matrix/matrix/r0c0".into(),
@@ -536,7 +509,6 @@ fn anchored_drag_preview_does_not_rewrite_accepted_spread() {
         transform.id == "main/U1" && transform.pose.at == Vec2 { x: 18.0, y: 37.0 }
     }));
     assert_preview_preserves_snapshot(&mut engine, &mut cold);
-
     let CoreReply::Scene {
         scene: committed,
         document,
@@ -550,12 +522,11 @@ fn anchored_drag_preview_does_not_rewrite_accepted_spread() {
     assert_eq!(preview.board_contours, fresh.contours);
     assert_eq!(committed.board_contours, fresh.contours);
 }
-
 #[test]
 fn stagger_shares_only_the_same_ordered_outline_composition() {
     for (mut document, shares_composition) in [
         (fixture(), true),
-        (stagger_profile_document(true), true),
+        (stagger_document(Some(12)), true),
         (fixture(), false),
     ] {
         if !shares_composition {
@@ -567,11 +538,7 @@ fn stagger_shares_only_the_same_ordered_outline_composition() {
         let before = serde_json::to_vec(&engine.document).unwrap();
         let accepted = engine.reusable_scene.as_ref().unwrap().clone();
         let column = engine.document.matrices[0].columns - 1;
-        let mut preview = edit(0, stagger(column, 4.0));
-        let CoreRequest::Edit { command, .. } = &mut preview else {
-            unreachable!()
-        };
-        command.phase = EditPhase::Preview;
+        let preview = preview_op(0, stagger(column, 4.0));
         let board_projections = engine.independent_board_projections.get();
         let CoreReply::Preview { scene, .. } = compare(&mut engine, &mut cold, preview) else {
             panic!("expected a stagger preview");
@@ -589,7 +556,6 @@ fn stagger_shares_only_the_same_ordered_outline_composition() {
         assert_eq!(serde_json::to_vec(&engine.document).unwrap(), before);
         assert_eq!(engine.reusable_scene.as_ref(), Some(&accepted));
         assert!(engine.undo.is_empty() && engine.redo.is_empty());
-
         let cold_projections = cold.independent_board_projections.get();
         let full_projections = engine.full_scene_projections.get();
         assert!(matches!(
@@ -616,10 +582,9 @@ fn stagger_shares_only_the_same_ordered_outline_composition() {
         );
     }
 }
-
 #[test]
 fn matching_part_poses_do_not_reuse_a_different_stagger_draft() {
-    let mut document = stagger_profile_document(true);
+    let mut document = stagger_document(Some(12));
     for part in &mut document.parts {
         if document.matrices[0].part_ids.contains(&part.id) {
             part.properties
@@ -629,14 +594,9 @@ fn matching_part_poses_do_not_reuse_a_different_stagger_draft() {
     }
     let (mut engine, mut cold) = open_preview_fixture(document);
     let initial_poses = engine.document.parts.clone();
-    let mut preview = edit(0, stagger(0, 2.0));
-    let CoreRequest::Edit { command, .. } = &mut preview else {
-        unreachable!()
-    };
-    command.phase = EditPhase::Preview;
+    let preview = preview_op(0, stagger(0, 2.0));
     compare(&mut engine, &mut cold, preview);
     assert!(engine.stagger_preview.as_ref().unwrap().settled.is_some());
-
     let CoreReply::Scene { document, .. } =
         compare(&mut engine, &mut cold, edit(0, stagger(0, 4.0)))
     else {
@@ -645,7 +605,6 @@ fn matching_part_poses_do_not_reuse_a_different_stagger_draft() {
     assert_eq!(document.parts, initial_poses);
     assert_eq!(document.matrices[0].column_layout[0].stagger, 4.0);
 }
-
 #[test]
 fn stagger_preview_commit_and_invalidation_match_cold_projection() {
     let mut engine = CoreEngine::new();
@@ -655,35 +614,12 @@ fn stagger_preview_commit_and_invalidation_match_cold_projection() {
         splay: -17.125,
         ..Default::default()
     }];
-    compare(
-        &mut engine,
-        &mut cold,
-        CoreRequest::Open {
-            id: "open".into(),
-            document,
-        },
-    );
-    let stagger = |base, phase, value| {
-        let mut request = edit(
-            base,
-            EditOperation::SetMatrixPlacement {
-                matrix_id: "matrix".into(),
-                change: MatrixPlacementChange::ColumnStagger { column: 1, value },
-            },
-        );
-        let CoreRequest::Edit { command, .. } = &mut request else {
-            unreachable!()
-        };
-        command.phase = phase;
-        request
-    };
+    assert_warm_matches_cold(&mut engine, &mut cold, open_req(document));
     let value = -3.125_000_000_000_001;
     let initial = serde_json::to_vec(&engine.document).unwrap();
-    let CoreReply::Preview { scene: preview, .. } = compare(
-        &mut engine,
-        &mut cold,
-        stagger(0, EditPhase::Preview, value),
-    ) else {
+    let CoreReply::Preview { scene: preview, .. } =
+        compare(&mut engine, &mut cold, preview_op(0, stagger(1, value)))
+    else {
         panic!("stagger should preview");
     };
     assert_eq!(serde_json::to_vec(&engine.document).unwrap(), initial);
@@ -692,7 +628,7 @@ fn stagger_preview_commit_and_invalidation_match_cold_projection() {
         mut scene,
         document,
         ..
-    } = compare(&mut engine, &mut cold, stagger(0, EditPhase::Commit, value))
+    } = compare(&mut engine, &mut cold, edit(0, stagger(1, value)))
     else {
         panic!("stagger should commit");
     };
@@ -703,13 +639,12 @@ fn stagger_preview_commit_and_invalidation_match_cold_projection() {
     assert_eq!(scene.revision, 1);
     scene.revision = preview.revision;
     assert_eq!(scene, preview);
-
     assert!(matches!(
-        compare(&mut engine, &mut cold, stagger(0, EditPhase::Preview, 2.0)),
+        compare(&mut engine, &mut cold, preview_op(0, stagger(1, 2.0))),
         CoreReply::Error { revision: 1, .. }
     ));
     assert!(matches!(
-        compare(&mut engine, &mut cold, stagger(1, EditPhase::Commit, value)),
+        compare(&mut engine, &mut cold, edit(1, stagger(1, value))),
         CoreReply::Scene { scene, .. } if scene.revision == 1 && scene.changed_ids.is_empty()
     ));
     assert_eq!(engine.undo.len(), 1);
@@ -723,7 +658,6 @@ fn stagger_preview_commit_and_invalidation_match_cold_projection() {
         &mut cold,
         CoreRequest::Redo { id: "redo".into() },
     );
-
     let position = Position {
         id: "main/U1".into(),
         at: Vec2 { x: 19.0, y: 32.0 },
@@ -746,8 +680,8 @@ fn stagger_preview_commit_and_invalidation_match_cold_projection() {
             id: "snapshot after move".into(),
         },
     );
-    compare(&mut engine, &mut cold, stagger(4, EditPhase::Preview, 1.5));
-    compare(&mut engine, &mut cold, stagger(4, EditPhase::Commit, 1.5));
+    compare(&mut engine, &mut cold, preview_op(4, stagger(1, 1.5)));
+    compare(&mut engine, &mut cold, edit(4, stagger(1, 1.5)));
     let CoreReply::Scene { document, .. } = compare(
         &mut engine,
         &mut cold,
@@ -759,7 +693,6 @@ fn stagger_preview_commit_and_invalidation_match_cold_projection() {
     };
     assert_eq!(document.revision, 5);
     assert_eq!(document.matrices[0].column_layout[1].stagger, 1.5);
-
     let copy: EditOperation = serde_json::from_value(serde_json::json!({
         "kind": "apply-outline-edit", "edit": {
             "target": {"kind": "board", "boardId": "main"},
@@ -779,7 +712,7 @@ fn stagger_preview_commit_and_invalidation_match_cold_projection() {
     assert!(engine.reusable_scene.is_none());
     let board_projections = engine.independent_board_projections.get();
     let CoreReply::Preview { scene: preview, .. } =
-        compare(&mut engine, &mut cold, stagger(6, EditPhase::Preview, 7.25))
+        compare(&mut engine, &mut cold, preview_op(6, stagger(1, 7.25)))
     else {
         panic!("expected a preview with a fixed outline");
     };
@@ -800,25 +733,18 @@ fn stagger_preview_commit_and_invalidation_match_cold_projection() {
         },
     );
 }
-
 #[test]
 fn rename_and_stagger_match_full_scene_recomputation_through_history() {
     let mut engine = CoreEngine::new();
     let mut cold = CoreEngine::new();
-    let CoreReply::Scene { scene: initial, .. } = compare(
-        &mut engine,
-        &mut cold,
-        CoreRequest::Open {
-            id: "open".into(),
-            document: fixture(),
-        },
-    ) else {
+    let CoreReply::Scene { scene: initial, .. } =
+        assert_warm_matches_cold(&mut engine, &mut cold, open_req(fixture()))
+    else {
         panic!("open should publish a scene");
     };
     assert!(!initial.findings.is_empty());
     assert!(!initial.finding_markers.is_empty());
     assert!(engine.reusable_scene.is_some());
-
     let mut document = engine.document.clone();
     document.name = "Renamed".into();
     assert!(replacement_keeps_scene(&engine.document, &mut document));
@@ -837,7 +763,6 @@ fn rename_and_stagger_match_full_scene_recomputation_through_history() {
         compare(&mut engine, &mut cold, edit(0, rename)),
         CoreReply::Error { revision: 1, .. }
     ));
-
     let stagger = |column| EditOperation::SetMatrixPlacement {
         matrix_id: "matrix".into(),
         change: MatrixPlacementChange::ColumnStagger { column, value: 4.0 },
@@ -864,7 +789,6 @@ fn rename_and_stagger_match_full_scene_recomputation_through_history() {
             .any(|id| id == "matrix/matrix/r0c1")
     );
     assert_ne!(scene.board_contours, initial.board_contours);
-
     // A replacement with a new name can also carry a real geometry change.
     let mut document = *document;
     document.name = "Renamed again".into();
@@ -900,7 +824,6 @@ fn rename_and_stagger_match_full_scene_recomputation_through_history() {
     assert_eq!(engine.document.name, "Renamed");
     assert_eq!(engine.document.revision, 7);
 }
-
 #[test]
 fn replacement_keeps_scene_checks_signed_zero_in_geometry() {
     let accepted = fixture();
@@ -911,11 +834,9 @@ fn replacement_keeps_scene_checks_signed_zero_in_geometry() {
     assert!(!replacement_keeps_scene(&accepted, &mut next));
     assert_eq!(next.name, "Renamed");
 }
-
 fn rename(name: &str) -> EditOperation {
     EditOperation::RenameProject { name: name.into() }
 }
-
 #[test]
 fn typed_snapshot_reuses_the_accepted_scene_and_refreshes_its_receipt() {
     let mut engine = CoreEngine::new();
@@ -923,23 +844,17 @@ fn typed_snapshot_reuses_the_accepted_scene_and_refreshes_its_receipt() {
     let snapshot = |id: &str| CoreRequest::Snapshot { id: id.into() };
     compare(&mut engine, &mut cold, snapshot("before open"));
     assert!(engine.reusable_scene.is_none());
-
-    let open = |document| CoreRequest::Open {
-        id: "open".into(),
-        document,
-    };
-    compare(&mut engine, &mut cold, open(fixture()));
+    compare(&mut engine, &mut cold, open_req(fixture()));
     compare(&mut engine, &mut cold, edit(0, rename("Renamed")));
     assert!(matches!(
         compare(&mut engine, &mut cold, edit(1, rename("Renamed"))),
         CoreReply::Scene { scene, .. } if scene.changed_ids.is_empty() && scene.revision == 1
     ));
     assert_eq!(engine.undo.len(), 1);
-
     let mut invalid = fixture();
     invalid.format.clear();
     assert!(matches!(
-        compare(&mut engine, &mut cold, open(invalid)),
+        compare(&mut engine, &mut cold, open_req(invalid)),
         CoreReply::Error { revision: 1, .. }
     ));
     let projections = engine.full_scene_projections.get();
@@ -953,7 +868,6 @@ fn typed_snapshot_reuses_the_accepted_scene_and_refreshes_its_receipt() {
         ));
     }
     assert_eq!(engine.full_scene_projections.get(), projections);
-
     for request in [
         CoreRequest::Undo { id: "undo".into() },
         snapshot("after undo"),
@@ -962,13 +876,12 @@ fn typed_snapshot_reuses_the_accepted_scene_and_refreshes_its_receipt() {
     ] {
         compare(&mut engine, &mut cold, request);
     }
-
     // An explicit Open can reuse the former session's revision number.
     let mut reopened = fixture();
     reopened.revision = engine.document.revision;
     reopened.outline.clear();
     reopened.boards[0].outline_ids.clear();
-    compare(&mut engine, &mut cold, open(reopened));
+    compare(&mut engine, &mut cold, open_req(reopened));
     assert!(matches!(
         compare(&mut engine, &mut cold, snapshot("after reopen")),
         CoreReply::Scene { scene, document, .. }
@@ -976,7 +889,6 @@ fn typed_snapshot_reuses_the_accepted_scene_and_refreshes_its_receipt() {
     ));
     assert!(engine.undo.is_empty() && engine.redo.is_empty());
 }
-
 #[test]
 fn shared_courtyard_findings_keep_part_order_and_follow_staggered_poses() {
     let mut engine = CoreEngine::new();
@@ -1016,40 +928,18 @@ fn shared_courtyard_findings_keep_part_order_and_follow_staggered_poses() {
             .unwrap();
         marker.contours[0].points[0]
     };
-    let CoreReply::Scene { scene: open, .. } = compare(
-        &mut engine,
-        &mut cold,
-        CoreRequest::Open {
-            id: "open".into(),
-            document,
-        },
-    ) else {
+    let CoreReply::Scene { scene: open, .. } =
+        assert_warm_matches_cold(&mut engine, &mut cold, open_req(document))
+    else {
         panic!("open should publish its fabrication findings");
     };
-    let stagger = |phase| {
-        let mut request = edit(
-            0,
-            EditOperation::SetMatrixPlacement {
-                matrix_id: "matrix".into(),
-                change: MatrixPlacementChange::ColumnStagger {
-                    column: 0,
-                    value: 4.0,
-                },
-            },
-        );
-        let CoreRequest::Edit { command, .. } = &mut request else {
-            unreachable!()
-        };
-        command.phase = phase;
-        request
-    };
     let CoreReply::Preview { scene: preview, .. } =
-        compare(&mut engine, &mut cold, stagger(EditPhase::Preview))
+        compare(&mut engine, &mut cold, preview_op(0, stagger(0, 4.0)))
     else {
         panic!("stagger should preview its fabrication findings");
     };
     let CoreReply::Scene { scene: commit, .. } =
-        compare(&mut engine, &mut cold, stagger(EditPhase::Commit))
+        compare(&mut engine, &mut cold, edit(0, stagger(0, 4.0)))
     else {
         panic!("stagger should publish its fabrication findings");
     };
@@ -1061,19 +951,13 @@ fn shared_courtyard_findings_keep_part_order_and_follow_staggered_poses() {
     assert_eq!(check(&preview), after);
     assert_eq!(check(&commit), after);
 }
-
 #[test]
 fn typed_rename_matches_legacy_preview_commit_and_history() {
     let mut typed = CoreEngine::new();
     let mut legacy = CoreEngine::new();
-    let CoreReply::Scene { document, .. } = compare(
-        &mut typed,
-        &mut legacy,
-        CoreRequest::Open {
-            id: "open".into(),
-            document: fixture(),
-        },
-    ) else {
+    let CoreReply::Scene { document, .. } =
+        assert_warm_matches_cold(&mut typed, &mut legacy, open_req(fixture()))
+    else {
         panic!("open should publish a scene");
     };
     let mut replacement = *document;
@@ -1101,7 +985,6 @@ fn typed_rename_matches_legacy_preview_commit_and_history() {
             u64::from(phase == EditPhase::Commit)
         );
     }
-
     for request in [
         edit(
             1,
@@ -1134,21 +1017,13 @@ fn typed_rename_matches_legacy_preview_commit_and_history() {
     assert_eq!(typed.document.name, replacement.name);
     assert_eq!(typed.document.revision, 6);
 }
-
 #[test]
 fn typed_rename_validates_and_preserves_scene_without_a_reusable_projection() {
     let mut engine = CoreEngine::new();
     let mut fresh = CoreEngine::new();
     let mut document = fixture();
     document.revision = u64::MAX - 1;
-    compare(
-        &mut engine,
-        &mut fresh,
-        CoreRequest::Open {
-            id: "open".into(),
-            document,
-        },
-    );
+    assert_warm_matches_cold(&mut engine, &mut fresh, open_req(document));
     engine.reusable_scene = None;
     let revision = u64::MAX - 1;
     for (base, name, expected) in [
@@ -1181,9 +1056,8 @@ fn typed_rename_validates_and_preserves_scene_without_a_reusable_projection() {
     assert_eq!(engine.document.name, "  Renamed  ");
     assert_eq!(engine.undo.len(), 1);
 }
-
 fn stagger_diagnostics_document(large: bool) -> ProjectDoc {
-    let mut doc = stagger_profile_document(large);
+    let mut doc = stagger_document(large.then_some(12));
     doc.definitions[0].pads.push(Pad {
         id: "switch-pin".into(),
         number: "1".into(),
@@ -1233,7 +1107,6 @@ fn stagger_diagnostics_document(large: bool) -> ProjectDoc {
     doc.boards[0].outline_ids.push("switch-cutout".into());
     doc
 }
-
 #[test]
 fn stagger_diagnostics_match_cold_wire_and_history() {
     for large in [false, true] {
@@ -1243,12 +1116,7 @@ fn stagger_diagnostics_match_cold_wire_and_history() {
             let accepted = engine.document.clone();
             let mut requests = Vec::new();
             for value in [1.25, 2.75, 4.0] {
-                let mut request = edit(0, stagger(column, value));
-                let CoreRequest::Edit { command, .. } = &mut request else {
-                    unreachable!()
-                };
-                command.phase = EditPhase::Preview;
-                requests.push(request);
+                requests.push(preview_op(0, stagger(column, value)));
             }
             requests.extend([
                 edit(0, stagger(column, 4.0)),
