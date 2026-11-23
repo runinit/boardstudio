@@ -14,7 +14,7 @@ fn intersect_contours(a: &[Contour], b: &[Contour]) -> Vec<Contour> {
             })
             .collect::<Vec<_>>()
     };
-    geometry::overlay_contours(&paths(a), &paths(b), BooleanOverlayRule::Intersect)
+    geometry::overlay(&paths(a), &paths(b), BooleanOverlayRule::Intersect)
         .into_iter()
         .flat_map(|shape| {
             shape
@@ -667,7 +667,7 @@ fn subtract(contours: &[Contour], cutter: &[Vec2]) -> Vec<Contour> {
         })
         .collect::<Vec<_>>();
     let cutter = cutter.iter().map(|p| [p.x, p.y]).collect::<Vec<_>>();
-    geometry::overlay_contours(&paths, &vec![cutter], BooleanOverlayRule::Difference)
+    geometry::overlay(&paths, &vec![cutter], BooleanOverlayRule::Difference)
         .into_iter()
         .flat_map(|shape| {
             shape
@@ -839,7 +839,6 @@ pub(super) fn collisions(doc: &ProjectDoc, board_id: &str, result: &mut ModuleRe
             // Ticket 12: collision solids follow the evaluated board pose of
             // half-frame parts.
             let pose = crate::matrix::layout::evaluated_part_pose(doc, part);
-            let (sin, cos) = pose.rotation.to_radians().sin_cos();
             let surface_frame = definition.is_some_and(|definition| {
                 definition
                     .hardware_profile
@@ -855,15 +854,11 @@ pub(super) fn collisions(doc: &ProjectDoc, board_id: &str, result: &mut ModuleRe
                             .points
                             .iter()
                             .map(|point| {
-                                let x = if part.side == Side::Back {
-                                    -point.x
-                                } else {
-                                    point.x
-                                };
-                                Vec2 {
-                                    x: pose.at.x + x * cos - point.y * sin,
-                                    y: pose.at.y + x * sin + point.y * cos,
-                                }
+                                crate::geometry::part_to_world(
+                                    *point,
+                                    &pose,
+                                    part.side.clone(),
+                                )
                             })
                             .collect(),
                     }],

@@ -36,28 +36,6 @@ pub struct JumperRecipe {
     pub diagnostics: Vec<JumperDiagnostic>,
 }
 
-fn parameter<'a>(
-    part: &'a Part,
-    definition: &'a PartDefinition,
-    name: &str,
-) -> Option<&'a serde_json::Value> {
-    let value = part
-        .generator_parameters
-        .as_ref()
-        .and_then(|values| values.get(name))
-        .or_else(|| {
-            definition
-                .generator
-                .as_ref()
-                .and_then(|generator| generator.parameters.get(name))
-        })?;
-    Some(value.get("value").unwrap_or(value))
-}
-fn option(part: &Part, definition: &PartDefinition, name: &str, default: bool) -> bool {
-    parameter(part, definition, name)
-        .and_then(serde_json::Value::as_bool)
-        .unwrap_or(default)
-}
 fn local_net(part: &str, suffix: usize) -> String {
     // Matches encodeURIComponent in the footprint renderer; references are editable.
     let encoded: String = part
@@ -90,8 +68,7 @@ const MCU_ROWS: [[&str; 2]; 12] = [
 pub fn describe(part: &Part, definition: &PartDefinition) -> Option<JumperRecipe> {
     let source = definition.generator.as_ref()?.source.as_str();
     let infused_kim_display = source == "infused-kim/nice_view";
-    if !option(
-        part,
+    if !part.generator_flag(
         definition,
         if infused_kim_display {
             "reverse"
@@ -102,7 +79,7 @@ pub fn describe(part: &Part, definition: &PartDefinition) -> Option<JumperRecipe
     ) {
         return None;
     }
-    let installed_front = parameter(part, definition, "side")
+    let installed_front = part.generator_parameter(definition, "side")
         .and_then(serde_json::Value::as_str)
         .map(|side| side == "F")
         .unwrap_or(part.side == Side::Front);
@@ -113,7 +90,7 @@ pub fn describe(part: &Part, definition: &PartDefinition) -> Option<JumperRecipe
     } else {
         "back"
     };
-    let traces = !infused_kim_display && option(part, definition, "include_traces", true);
+    let traces = !infused_kim_display && part.generator_flag(definition, "include_traces", true);
     let mut recipe = JumperRecipe {
         part_id: part.id.clone(),
         source: source.into(),
@@ -135,9 +112,9 @@ pub fn describe(part: &Part, definition: &PartDefinition) -> Option<JumperRecipe
     };
     match source {
         "ceoloide/mcu_nice_nano" | "ceoloide/mcu_supermini_nrf52840" => {
-            let reverse = option(part, definition, "reverse_mount", false);
-            let reduced = option(part, definition, "only_required_jumpers", false);
-            let rectangular = option(part, definition, "use_rectangular_jumpers", false);
+            let reverse = part.generator_flag(definition, "reverse_mount", false);
+            let reduced = part.generator_flag(definition, "only_required_jumpers", false);
+            let rectangular = part.generator_flag(definition, "use_rectangular_jumpers", false);
             for (row, terminals) in MCU_ROWS.iter().enumerate() {
                 let left = terminals[usize::from(!reverse)];
                 let right = terminals[usize::from(reverse)];
@@ -159,7 +136,7 @@ pub fn describe(part: &Part, definition: &PartDefinition) -> Option<JumperRecipe
                 site("back", 24 - row, right, -x, y);
                 site("back", 1 + row, left, x, y);
             }
-            if option(part, definition, "invert_jumpers_position", false) {
+            if part.generator_flag(definition, "invert_jumpers_position", false) {
                 recipe.diagnostics.push(JumperDiagnostic {
                     code: "unsupported-jumper-variant".into(),
                     severity: "error".into(),
@@ -175,7 +152,7 @@ pub fn describe(part: &Part, definition: &PartDefinition) -> Option<JumperRecipe
                 &["SDA", "SCL", "VCC", "GND"]
             };
             let count = original.len();
-            let offset = if option(part, definition, "invert_jumpers_position", false) {
+            let offset = if part.generator_flag(definition, "invert_jumpers_position", false) {
                 4.4
             } else {
                 0.0
@@ -210,7 +187,7 @@ pub fn describe(part: &Part, definition: &PartDefinition) -> Option<JumperRecipe
         }
         "infused-kim/nice_view" => {
             let signals = ["MOSI", "SCK", "VCC", "GND", "CS"];
-            let y = if option(part, definition, "jumpers_at_bottom", false) {
+            let y = if part.generator_flag(definition, "jumpers_at_bottom", false) {
                 19.6
             } else {
                 13.9

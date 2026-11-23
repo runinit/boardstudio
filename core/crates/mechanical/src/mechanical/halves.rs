@@ -702,9 +702,10 @@ fn item_exists(
             .any(|module| module.id == id && module.host_board_id == board_id),
         MirroredItemKind::ElectricalBoard => {
             id == board_id
-                && document.hardware.as_ref().is_some_and(|hardware| {
-                    hardware.boards.iter().any(|entry| entry.board_id == id)
-                })
+                && document
+                    .hardware
+                    .as_ref()
+                    .is_some_and(|hardware| hardware.board(id).is_some())
         }
         MirroredItemKind::OutlineVersion => document.board_outlines.iter().any(|outline| {
             outline.board_id == board_id && outline.versions.iter().any(|version| version.id == id)

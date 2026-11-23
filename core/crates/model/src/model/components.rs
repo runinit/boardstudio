@@ -1194,3 +1194,77 @@ impl LayoutMirrorLink {
         })
     }
 }
+
+impl PartDefinition {
+    /// The effective generator parameter: a part-level override wins, else the
+    /// definition's default. Unwraps the `{value: ...}` envelope footprints use.
+    /// This is the single shared generator-parameter read; every caller passes
+    /// the part's own map (or `None` when no part is in scope).
+    pub fn generator_parameter<'a>(
+        &'a self,
+        part_parameters: Option<&'a BTreeMap<String, serde_json::Value>>,
+        name: &str,
+    ) -> Option<&'a serde_json::Value> {
+        let value = part_parameters
+            .and_then(|values| values.get(name))
+            .or_else(|| {
+                self.generator
+                    .as_ref()
+                    .and_then(|generator| generator.parameters.get(name))
+            })?;
+        Some(value.get("value").unwrap_or(value))
+    }
+
+    /// Boolean generator parameter with a fallback default.
+    pub fn generator_flag(
+        &self,
+        part_parameters: Option<&BTreeMap<String, serde_json::Value>>,
+        name: &str,
+        default: bool,
+    ) -> bool {
+        self.generator_parameter(part_parameters, name)
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(default)
+    }
+}
+
+impl Part {
+    /// The effective generator parameter for this part: its own override wins,
+    /// else the definition's default. See [`PartDefinition::generator_parameter`].
+    pub fn generator_parameter<'a>(
+        &'a self,
+        definition: &'a PartDefinition,
+        name: &str,
+    ) -> Option<&'a serde_json::Value> {
+        definition.generator_parameter(self.generator_parameters.as_ref(), name)
+    }
+
+    /// Boolean generator parameter with a fallback default.
+    pub fn generator_flag(&self, definition: &PartDefinition, name: &str, default: bool) -> bool {
+        definition.generator_flag(self.generator_parameters.as_ref(), name, default)
+    }
+}
+
+impl HardwareConfiguration {
+    /// The stored per-board electrical configuration, if any.
+    pub fn board(&self, board_id: &str) -> Option<&ElectricalBoardConfiguration> {
+        self.boards.iter().find(|entry| entry.board_id == board_id)
+    }
+
+    /// The stored per-board electrical configuration, inserting a default entry.
+    pub fn board_mut_or_insert(&mut self, board_id: &str) -> &mut ElectricalBoardConfiguration {
+        if let Some(index) = self
+            .boards
+            .iter()
+            .position(|entry| entry.board_id == board_id)
+        {
+            &mut self.boards[index]
+        } else {
+            self.boards.push(ElectricalBoardConfiguration {
+                board_id: board_id.into(),
+                ..Default::default()
+            });
+            self.boards.last_mut().expect("just pushed")
+        }
+    }
+}

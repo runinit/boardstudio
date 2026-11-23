@@ -377,12 +377,8 @@ fn xy(instance: &MountedModule, flipped: bool, p: Vec2) -> Vec2 {
 }
 
 fn placed_point(placement: Pose2, flipped: bool, p: Vec2) -> Vec2 {
-    let (sin, cos) = placement.rotation.to_radians().sin_cos();
-    let x = if flipped { -p.x } else { p.x };
-    Vec2 {
-        x: placement.at.x + x * cos - p.y * sin,
-        y: placement.at.y + x * sin + p.y * cos,
-    }
+    let side = if flipped { Side::Back } else { Side::Front };
+    crate::geometry::part_to_world(p, &placement, side)
 }
 
 fn xy_vector(placement: Pose2, flipped: bool, vector: Vec2) -> Vec2 {
@@ -1056,17 +1052,16 @@ pub fn finding_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<FindingMar
                         // Ticket 12: markers draw half-frame parts at their
                         // evaluated board pose.
                         let pose = crate::matrix::layout::evaluated_part_pose(doc, part);
-                        let (sin, cos) = pose.rotation.to_radians().sin_cos();
                         contours.push(Contour {
                             points: def
                                 .courtyard
                                 .iter()
                                 .map(|p| {
-                                    let x = if part.side == Side::Back { -p.x } else { p.x };
-                                    Vec2 {
-                                        x: pose.at.x + x * cos - p.y * sin,
-                                        y: pose.at.y + x * sin + p.y * cos,
-                                    }
+                                    crate::geometry::part_to_world(
+                                        *p,
+                                        &pose,
+                                        part.side.clone(),
+                                    )
                                 })
                                 .collect(),
                             hole: false,

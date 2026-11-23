@@ -68,21 +68,8 @@ pub fn generator_switch_family(
     if !source.ends_with("/switch_choc_v1_v2") {
         return None;
     }
-    let flag = |key: &str| {
-        part_parameters
-            .and_then(|values| values.get(key))
-            .or_else(|| definition.generator.as_ref()?.parameters.get(key))
-            .and_then(|value| {
-                value.as_bool().or_else(|| {
-                    value
-                        .as_object()
-                        .and_then(|object| object.get("value"))
-                        .and_then(serde_json::Value::as_bool)
-                })
-            })
-    };
-    let v1 = flag("choc_v1_support").unwrap_or(true);
-    let v2 = flag("choc_v2_support").unwrap_or(true);
+    let v1 = definition.generator_flag(part_parameters, "choc_v1_support", true);
+    let v2 = definition.generator_flag(part_parameters, "choc_v2_support", true);
     match (v1, v2) {
         (true, false) => Some(MechanicalSwitchFamily::ChocV1),
         (false, true) => Some(MechanicalSwitchFamily::ChocV2),
@@ -295,20 +282,9 @@ fn normalized_processes(config: &MechanicalConfiguration) -> Vec<MechanicalPartP
 }
 
 fn transform_part_points(part: &Part, points: &[Vec2]) -> Vec<Vec2> {
-    let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
     points
         .iter()
-        .map(|point| {
-            let x = if part.side == Side::Back {
-                -point.x
-            } else {
-                point.x
-            };
-            Vec2 {
-                x: part.pose.at.x + x * cos - point.y * sin,
-                y: part.pose.at.y + x * sin + point.y * cos,
-            }
-        })
+        .map(|point| crate::geometry::part_to_world(*point, &part.pose, part.side.clone()))
         .collect()
 }
 

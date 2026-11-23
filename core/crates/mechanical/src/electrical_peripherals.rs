@@ -4,26 +4,6 @@
 //! pad numbers are never treated as semantic electrical roles.
 use crate::model::ProjectDoc;
 pub use boardstudio_model::electrical_peripherals::*;
-fn bool_parameter(
-    part: &crate::model::Part,
-    definition: &crate::model::PartDefinition,
-    name: &str,
-) -> Option<bool> {
-    part.generator_parameters
-        .as_ref()
-        .and_then(|parameters| parameters.get(name))
-        .or_else(|| {
-            definition
-                .generator
-                .as_ref()
-                .and_then(|generator| generator.parameters.get(name))
-        })
-        .and_then(|value| {
-            value
-                .as_bool()
-                .or_else(|| value.get("value").and_then(|v| v.as_bool()))
-        })
-}
 
 /// Resolve known peripheral roles populated on a board. Unknown sources are
 /// omitted so callers can present an explicit "needs reviewed profile" state.
@@ -49,8 +29,11 @@ pub fn describe(document: &ProjectDoc, board_id: &str) -> Vec<PeripheralRequirem
             let input = crate::inputs::profile(definition);
             if let Some(rotary) = input.rotary {
                 let enabled = definition.input_profile.is_some()
-                    || bool_parameter(part, definition, "include_momentary_switch_pads")
-                        != Some(false);
+                    || part.generator_flag(
+                        definition,
+                        "include_momentary_switch_pads",
+                        true,
+                    );
                 let press_key_id = input.press.as_ref().filter(|_| enabled).map(|_| {
                     if crate::inputs::matrix_member(document, part) {
                         part.id.clone()

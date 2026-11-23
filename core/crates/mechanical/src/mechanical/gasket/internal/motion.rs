@@ -6,7 +6,7 @@ fn combine(
     b: &Vec<FloatPath>,
     rule: crate::geometry::BooleanOverlayRule,
 ) -> Vec<FloatPath> {
-    crate::geometry::overlay_contours(a, b, rule)
+    crate::geometry::overlay(a, b, rule)
         .into_iter()
         .flatten()
         .collect()

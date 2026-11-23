@@ -1,6 +1,6 @@
 use crate::model::{
     Board, BoardContours, BoardOutlineScene, Contour, Finding, FindingMarker, Operation,
-    OutlineFeature, OutlineSettings, Part, ProjectDoc, Scope, Severity, Vec2,
+    OutlineFeature, OutlineSettings, Part, Pose2, ProjectDoc, Scope, Severity, Side, Vec2,
 };
 use i_overlay::core::fill_rule::FillRule;
 use i_overlay::core::overlay_rule::OverlayRule;
@@ -43,49 +43,31 @@ impl From<BooleanOverlayRule> for OverlayRule {
     }
 }
 
-/// Even-odd boolean overlay of one contour against a contour collection.
-pub fn overlay_contour(
-    subject: &Vec<[f64; 2]>,
-    clip: &Vec<Vec<[f64; 2]>>,
+/// Even-odd boolean overlay between any two geometric resources: single
+/// contours, contour collections or shape collections.
+pub fn overlay(
+    subject: &impl ShapeResource<[f64; 2]>,
+    clip: &impl ShapeResource<[f64; 2]>,
     rule: BooleanOverlayRule,
 ) -> Vec<Vec<Vec<[f64; 2]>>> {
     subject.overlay(clip, rule.into(), FillRule::EvenOdd)
 }
 
-/// Even-odd boolean overlay between two single contours.
-pub fn overlay_contour_pair(
-    subject: &Vec<[f64; 2]>,
-    clip: &Vec<[f64; 2]>,
-    rule: BooleanOverlayRule,
-) -> Vec<Vec<Vec<[f64; 2]>>> {
-    subject.overlay(clip, rule.into(), FillRule::EvenOdd)
-}
-
-/// Even-odd boolean overlay of a contour collection against one contour.
-pub fn overlay_contours_with_contour(
-    subject: &Vec<Vec<[f64; 2]>>,
-    clip: &Vec<[f64; 2]>,
-    rule: BooleanOverlayRule,
-) -> Vec<Vec<Vec<[f64; 2]>>> {
-    subject.overlay(clip, rule.into(), FillRule::EvenOdd)
-}
-
-/// Even-odd boolean overlay between two contour collections.
-pub fn overlay_contours(
-    subject: &Vec<Vec<[f64; 2]>>,
-    clip: &Vec<Vec<[f64; 2]>>,
-    rule: BooleanOverlayRule,
-) -> Vec<Vec<Vec<[f64; 2]>>> {
-    subject.overlay(clip, rule.into(), FillRule::EvenOdd)
-}
-
-/// Even-odd boolean overlay between two shape collections.
-pub fn overlay_shapes(
-    subject: &Vec<Vec<Vec<[f64; 2]>>>,
-    clip: &Vec<Vec<Vec<[f64; 2]>>>,
-    rule: BooleanOverlayRule,
-) -> Vec<Vec<Vec<[f64; 2]>>> {
-    subject.overlay(clip, rule.into(), FillRule::EvenOdd)
+/// Place one part-local point in board space: mirror X on the back face, then
+/// rotate and translate by the pose.
+///
+/// This is the single shared part-to-world 2D transform. Its floating-point
+/// evaluation order is pinned (poses are persisted and hashed): keep
+/// `pose.at.x + x * cos - point.y * sin` /
+/// `pose.at.y + x * sin + point.y * cos` with
+/// `(pose.rotation.to_radians()).sin_cos()`, as `part_to_world_bit_order` pins.
+pub fn part_to_world(point: Vec2, pose: &Pose2, side: Side) -> Vec2 {
+    let x = if side == Side::Back { -point.x } else { point.x };
+    let (sin, cos) = pose.rotation.to_radians().sin_cos();
+    Vec2 {
+        x: pose.at.x + x * cos - point.y * sin,
+        y: pose.at.y + x * sin + point.y * cos,
+    }
 }
 
 /// Working buffers for a sequence of outline operations.
@@ -1486,5 +1468,36 @@ mod tests {
             assert_eq!(envelopes.prefixes[&0].0, prefix_len);
             doc.parts[index].pose.at.y = 0.0;
         }
+    }
+
+    #[test]
+    fn part_to_world_bit_order() {
+        // Pinned bitwise: poses are persisted and hashed, so even a 1-ULP
+        // drift from reordering the transform breaks saved geometry.
+        let pose = Pose2 {
+            at: Vec2 { x: 10.5, y: -3.75 },
+            rotation: 30.0,
+        };
+        // These inputs are order-sensitive: reassociating either axis
+        // changes the last bit, so the pins below catch any reordering.
+        let point = Vec2 {
+            x: 3.14159,
+            y: 2.71828,
+        };
+        let front = part_to_world(point, &pose, Side::Front);
+        assert_eq!(front.x.to_bits(), 0x4027b91df752fad3);
+        assert_eq!(front.y.to_bits(), 0x3fc662f1b12d2050);
+        let back = part_to_world(point, &pose, Side::Back);
+        assert_eq!(back.x.to_bits(), 0x4019ae3f46848e92);
+        assert_eq!(back.y.to_bits(), 0xc007bbcad508b467);
+        // The outline-controls entry point delegates bit-identically.
+        assert_eq!(
+            crate::outline_controls::world(point, &pose, Side::Front),
+            front
+        );
+        assert_eq!(
+            crate::outline_controls::world(point, &pose, Side::Back),
+            back
+        );
     }
 }

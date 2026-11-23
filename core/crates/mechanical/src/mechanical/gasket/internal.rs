@@ -14,7 +14,7 @@ const OFFSET_GRID_ALLOWANCE: f64 = 0.002;
 
 fn contained(points: &[Vec2], outline: &[Contour]) -> bool {
     let polygon: FloatPath = points.iter().map(|p| [p.x, p.y]).collect();
-    crate::geometry::overlay_contour(
+    crate::geometry::overlay(
         &polygon,
         &paths(outline),
         crate::geometry::BooleanOverlayRule::Difference,
