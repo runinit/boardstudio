@@ -59,12 +59,9 @@ impl Runtime {
 
         // Physical contours come from the real accepted scene. Its projection performs the
         // required X reflection and winding reversal for flipped instances; never reflect twice.
-        let contours = boardstudio_web_host::cad_jobs::captured_case_scene(&accepted, &scope)
+        let contours = captured_board_contours(&accepted, &scope)
             .map_err(|error| format!("Could not project accepted case contours: {error:?}"))?
-            .board_contours
-            .into_iter()
-            .find(|board| board.board_id == scope.board_id)
-            .map_or_else(Vec::new, |board| board.contours);
+            .unwrap_or_default();
 
         let assembly = boardstudio_core::mechanical::resolve(&effective_document, &contours);
         Ok((assembly, configuration))

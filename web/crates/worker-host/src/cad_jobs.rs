@@ -419,29 +419,58 @@ fn completed_reply(
     reply: CadReply,
     current: &CadSnapshotIdentity,
 ) -> Result<CadResult, CadJobError> {
-    if reply.request_id != request.request_id
-        || reply.job_id != request.job_id
-        || reply.operation != request.operation
-        || reply.identity != request.identity
-        || reply.identity != *current
+    use CadReplyError::*;
+    let stale =
+        || CadJobError::Stale("CAD result belongs to another job or accepted snapshot".into());
+    if request.identity != *current {
+        return Err(stale());
+    }
+    validate_completed_reply(
+        reply,
+        &request.request_id,
+        &request.job_id,
+        current,
+        request.operation,
+    )
+    .map_err(|error| match error {
+        WrongEnvelope => stale(),
+        WrongRevision => CadJobError::Stale("CAD result has another document revision".into()),
+        Cancelled => CadJobError::Cancelled,
+        Failed(reason) => CadJobError::Failed(reason.unwrap_or_else(|| "CAD job failed".into())),
+        MissingResult => CadJobError::Failed("CAD worker returned no result".into()),
+    })
+}
+
+pub(crate) enum CadReplyError {
+    WrongEnvelope,
+    WrongRevision,
+    Cancelled,
+    Failed(Option<String>),
+    MissingResult,
+}
+
+pub(crate) fn validate_completed_reply(
+    reply: CadReply,
+    request_id: &str,
+    job_id: &str,
+    identity: &CadSnapshotIdentity,
+    operation: CadOperation,
+) -> Result<CadResult, CadReplyError> {
+    use CadReplyError::*;
+    if reply.request_id != request_id
+        || reply.job_id != job_id
+        || reply.operation != operation
+        || reply.identity != *identity
     {
-        return Err(CadJobError::Stale(
-            "CAD result belongs to another job or accepted snapshot".into(),
-        ));
+        return Err(WrongEnvelope);
     }
     match reply.outcome {
-        CadReplyOutcome::Cancelled => Err(CadJobError::Cancelled),
-        CadReplyOutcome::Failed => Err(CadJobError::Failed(
-            reply.error.unwrap_or_else(|| "CAD job failed".into()),
-        )),
+        CadReplyOutcome::Cancelled => Err(Cancelled),
+        CadReplyOutcome::Failed => Err(Failed(reply.error)),
         CadReplyOutcome::Completed => {
-            let result = reply
-                .result
-                .ok_or_else(|| CadJobError::Failed("CAD worker returned no result".into()))?;
-            if result.revision != request.identity.revision {
-                return Err(CadJobError::Stale(
-                    "CAD result has another document revision".into(),
-                ));
+            let result = reply.result.ok_or(MissingResult)?;
+            if result.revision != identity.revision {
+                return Err(WrongRevision);
             }
             Ok(result)
         }
@@ -460,6 +489,17 @@ pub(crate) fn valid_mesh_parts(positions: &[f32], normals: &[f32], stride: usize
             .iter()
             .chain(normals)
             .all(|value| value.is_finite())
+}
+
+pub(crate) fn valid_body_meshes<'a>(
+    bodies: &[CadBodyMesh],
+    expected_ids: impl ExactSizeIterator<Item = &'a str>,
+    stride: usize,
+) -> bool {
+    bodies.len() == expected_ids.len()
+        && bodies.iter().zip(expected_ids).all(|(body, id)| {
+            body.id == id && valid_mesh_parts(&body.positions, &body.normals, stride)
+        })
 }
 
 fn validate_result_payload(request: &CadRequest, result: &CadResult) -> Result<(), CadJobError> {
@@ -496,22 +536,12 @@ fn validate_result_payload(request: &CadRequest, result: &CadResult) -> Result<(
             return Err(bad("printable keycaps require the keycap request adapter"));
         }
         CadOperation::Preview => {
-            let expected = request
+            let prepared = request
                 .prepared
                 .as_ref()
-                .map(|prepared| {
-                    prepared
-                        .bodies
-                        .iter()
-                        .map(|body| body.body.id.as_str())
-                        .collect::<Vec<_>>()
-                })
                 .ok_or_else(|| bad("preview has no prepared bodies"))?;
-            if result.bodies.len() != expected.len()
-                || result.bodies.iter().zip(expected).any(|(body, id)| {
-                    body.id != id || !valid_mesh_parts(&body.positions, &body.normals, 3)
-                })
-            {
+            let expected_ids = prepared.bodies.iter().map(|body| body.body.id.as_str());
+            if !valid_body_meshes(&result.bodies, expected_ids, 3) {
                 return Err(bad(
                     "preview body meshes are missing, malformed, or out of order",
                 ));
@@ -624,6 +654,16 @@ fn valid_triangle_face_indices(positions: &[f64], tags: &[u32], occurrences: usi
     tags.len() == positions.len() / 9 && tags.iter().all(|&index| (index as usize) < occurrences)
 }
 
+pub(crate) fn validate_triangle_tag_buffers(positions: usize, tags: usize) -> bool {
+    positions != 0 && positions.is_multiple_of(9) && tags == positions / 9
+}
+
+fn triangle_tag_buffer_bytes(positions: usize, tags: usize) -> usize {
+    positions
+        .saturating_mul(size_of::<f64>())
+        .saturating_add(tags.saturating_mul(size_of::<u32>()))
+}
+
 pub fn validate_generated_analysis(
     metadata: &CadGeneratedAnalysisRequest,
     revision: u64,
@@ -679,20 +719,11 @@ pub fn validate_generated_analysis(
         return Err("generated analysis has invalid or insufficient accuracy settings".into());
     }
     let positions = &analysis.surface_positions_mm_f64;
-    if positions.is_empty()
-        || !positions.len().is_multiple_of(9)
-        || positions.len().saturating_mul(8).saturating_add(
-            analysis
-                .triangle_face_occurrence_indices
-                .len()
-                .saturating_mul(4),
-        ) > MAX_COLLISION_QUERY_BYTES
+    let tags = &analysis.triangle_face_occurrence_indices;
+    if !validate_triangle_tag_buffers(positions.len(), tags.len())
+        || triangle_tag_buffer_bytes(positions.len(), tags.len()) > MAX_COLLISION_QUERY_BYTES
         || positions.iter().any(|value| !value.is_finite())
-        || !valid_triangle_face_indices(
-            positions,
-            &analysis.triangle_face_occurrence_indices,
-            analysis.face_occurrences.len(),
-        )
+        || !valid_triangle_face_indices(positions, tags, analysis.face_occurrences.len())
         || analysis
             .face_occurrences
             .iter()
@@ -961,27 +992,7 @@ pub fn validate_collision_query(query: &CadCollisionQuery) -> Result<(), String>
 }
 
 pub fn validate_collision_mesh_pair(meshes: &CadCollisionMeshPair) -> Result<(), String> {
-    let total_bytes = meshes
-        .left_positions_mm_f64
-        .len()
-        .saturating_mul(8)
-        .saturating_add(
-            meshes
-                .left_triangle_face_occurrence_indices
-                .len()
-                .saturating_mul(4),
-        )
-        .saturating_add(meshes.right_positions_mm_f64.len().saturating_mul(8))
-        .saturating_add(
-            meshes
-                .right_triangle_face_occurrence_indices
-                .len()
-                .saturating_mul(4),
-        );
-    if total_bytes > MAX_COLLISION_QUERY_BYTES {
-        return Err("collision mesh buffers exceed the 64 MiB limit".into());
-    }
-    for (positions, tags) in [
+    validate_collision_mesh_pair_buffers([
         (
             &meshes.left_positions_mm_f64,
             &meshes.left_triangle_face_occurrence_indices,
@@ -990,10 +1001,20 @@ pub fn validate_collision_mesh_pair(meshes: &CadCollisionMeshPair) -> Result<(),
             &meshes.right_positions_mm_f64,
             &meshes.right_triangle_face_occurrence_indices,
         ),
-    ] {
-        if positions.is_empty()
-            || !positions.len().is_multiple_of(9)
-            || tags.len() != positions.len() / 9
+    ])
+}
+
+/// Validate both sides before callers copy or transfer the buffers.
+pub fn validate_collision_mesh_pair_buffers(pair: [(&[f64], &[u32]); 2]) -> Result<(), String> {
+    let total_bytes = pair
+        .iter()
+        .map(|(positions, tags)| triangle_tag_buffer_bytes(positions.len(), tags.len()))
+        .fold(0usize, usize::saturating_add);
+    if total_bytes > MAX_COLLISION_QUERY_BYTES {
+        return Err("collision mesh buffers exceed the 64 MiB limit".into());
+    }
+    for (positions, tags) in pair {
+        if !validate_triangle_tag_buffers(positions.len(), tags.len())
             || positions.len() / 3 > u32::MAX as usize
             || positions.iter().any(|value| !value.is_finite())
         {

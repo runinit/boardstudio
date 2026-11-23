@@ -77,7 +77,7 @@ pub fn request(json: &str) -> String {
     boardstudio_model::wire::encode_artifact_reply(&reply)
 }
 
-fn handle(request: ArtifactRequest) -> ArtifactReply {
+pub fn handle(request: ArtifactRequest) -> ArtifactReply {
     match request {
         ArtifactRequest::ReadBoardSource {
             id,

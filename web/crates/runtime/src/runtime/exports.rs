@@ -2,6 +2,16 @@
 use super::*;
 
 impl Runtime {
+    fn require_accepted_scope(&self, alert: Option<&str>) -> Option<(AcceptedSnapshot, Scope)> {
+        let source = self.accepted_snapshot().zip(self.scope());
+        if source.is_none()
+            && let Some(alert) = alert
+        {
+            self.apply_report(RuntimeReport::alert(alert));
+        }
+        source
+    }
+
     /// An existing resolved stack with suggested mounts must finish its saved initialization
     /// before a dependent generation or STEP capture. Archive saving remains independent.
     pub(super) fn mechanical_mount_initialization_pending(&self) -> bool {
@@ -56,10 +66,9 @@ impl Runtime {
     }
 
     pub fn export_step(self: &Rc<Self>) {
-        let Some((snapshot, scope)) = self.accepted_snapshot().zip(self.scope()) else {
-            self.apply_report(RuntimeReport::alert(
-                "Select a board before exporting authored case geometry.",
-            ));
+        let Some((snapshot, scope)) = self.require_accepted_scope(Some(
+            "Select a board before exporting authored case geometry.",
+        )) else {
             return;
         };
         if !boardstudio_model::case_readiness::authored_case_geometry_ready(
@@ -76,10 +85,9 @@ impl Runtime {
     }
 
     pub fn export_keycaps_stl(self: &Rc<Self>) {
-        let Some((snapshot, scope)) = self.accepted_snapshot().zip(self.scope()) else {
-            self.apply_report(RuntimeReport::alert(
-                "Select a board before exporting keycaps.",
-            ));
+        let Some((snapshot, scope)) =
+            self.require_accepted_scope(Some("Select a board before exporting keycaps."))
+        else {
             return;
         };
         if let Err(error) = self.ensure_keycaps_source_current(&snapshot, &scope) {
@@ -96,11 +104,9 @@ impl Runtime {
             ));
             return;
         }
-        let model = self.model();
-        let Some((snapshot, scope)) = model.accepted.as_ref().zip(self.scope()) else {
-            self.apply_report(RuntimeReport::alert(
-                "Select a physical board before exporting the mechanical assembly.",
-            ));
+        let Some((snapshot, scope)) = self.require_accepted_scope(Some(
+            "Select a physical board before exporting the mechanical assembly.",
+        )) else {
             return;
         };
         if snapshot.scene.revision != snapshot.document.revision {
@@ -109,10 +115,12 @@ impl Runtime {
             ));
             return;
         }
-        let exact_generation = matches!(
-            model.generation,
-            boardstudio_application::GenerationStatus::Ready { exact: true, .. }
-        );
+        let exact_generation = self.with_model(|model| {
+            matches!(
+                model.generation,
+                boardstudio_application::GenerationStatus::Ready { exact: true, .. }
+            )
+        });
         let exact_scene_ready = self.cad_scene().is_some_and(|cad| {
             cad.scope == scope
                 && cad.token == snapshot.token
@@ -155,13 +163,13 @@ impl Runtime {
                     snapshot.document.name, instance_suffix
                 ),
             },
-            snapshot,
+            &snapshot,
             scope,
         );
     }
 
     pub fn export_firmware(self: &Rc<Self>) {
-        let Some((snapshot, scope)) = self.accepted_snapshot().zip(self.scope()) else {
+        let Some((snapshot, scope)) = self.require_accepted_scope(None) else {
             self.report("Select a board before exporting ZMK source.");
             return;
         };
@@ -169,10 +177,9 @@ impl Runtime {
     }
 
     pub fn export_footprints(self: &Rc<Self>) {
-        let Some((snapshot, scope)) = self.accepted_snapshot().zip(self.scope()) else {
-            self.apply_report(RuntimeReport::alert(
-                "Open a project before exporting its footprint library.",
-            ));
+        let Some((snapshot, scope)) = self.require_accepted_scope(Some(
+            "Open a project before exporting its footprint library.",
+        )) else {
             return;
         };
         if snapshot.document.definitions.is_empty() {
@@ -185,8 +192,9 @@ impl Runtime {
     }
 
     pub fn export_kicad_board(self: &Rc<Self>, draft: bool) {
-        let Some((snapshot, scope)) = self.accepted_snapshot().zip(self.scope()) else {
-            self.apply_report(RuntimeReport::alert("Select a board before KiCad export."));
+        let Some((snapshot, scope)) =
+            self.require_accepted_scope(Some("Select a board before KiCad export."))
+        else {
             return;
         };
         let board_exists = snapshot
@@ -210,7 +218,7 @@ impl Runtime {
     }
 
     pub fn export_project_copy(self: &Rc<Self>) {
-        let Some((snapshot, scope)) = self.accepted_snapshot().zip(self.scope()) else {
+        let Some((snapshot, scope)) = self.require_accepted_scope(None) else {
             return;
         };
         self.start_export(
@@ -226,10 +234,9 @@ impl Runtime {
         self: &Rc<Self>,
         format: boardstudio_model::model::OutlineExportFormat,
     ) {
-        let Some((snapshot, scope)) = self.accepted_snapshot().zip(self.scope()) else {
-            self.apply_report(RuntimeReport::alert(
-                "Select a board before outline export.",
-            ));
+        let Some((snapshot, scope)) =
+            self.require_accepted_scope(Some("Select a board before outline export."))
+        else {
             return;
         };
         if let Err(error) = outline_geometry(&snapshot, &scope) {
@@ -360,12 +367,8 @@ impl Runtime {
             .await
             .map_err(|error| CadJobError::Failed(error.to_string()))?;
         guard()?;
-        let contours = captured_case_scene(snapshot, scope)?
-            .board_contours
-            .into_iter()
-            .find(|board| board.board_id == scope.board_id)
-            .ok_or_else(|| CadJobError::Blocked("Case contours unavailable".into()))?
-            .contours;
+        let contours = captured_board_contours(snapshot, scope)?
+            .ok_or_else(|| CadJobError::Blocked("Case contours unavailable".into()))?;
         let physical_fingerprint =
             crate::case_generation_lifecycle::physical_case_fingerprint(snapshot, scope);
         for operation in [CadOperation::Preview, CadOperation::Exact] {

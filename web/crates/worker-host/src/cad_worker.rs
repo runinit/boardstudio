@@ -10,9 +10,10 @@ use protocol::*;
 
 use crate::cad_jobs::{
     CadBodyMesh, CadCollisionMeshPair, CadCollisionQuery, CadMesh, CadOperation, CadReply,
-    CadReplyOutcome, CadRequest, CadResult, CadSnapshotIdentity, CadStepAccuracy,
+    CadReplyError, CadReplyOutcome, CadRequest, CadResult, CadSnapshotIdentity, CadStepAccuracy,
     CadStepImportOptions, CadStepLineOccurrence, CadVendorStep, MAX_COLLISION_QUERY_BYTES,
-    valid_mesh_parts, validate_collision_mesh_pair, validate_collision_query,
+    valid_body_meshes, validate_collision_mesh_pair, validate_collision_query,
+    validate_completed_reply, validate_triangle_tag_buffers,
 };
 use crate::cad_qualification::{
     self as qualification, AnalysisMesh, AnalysisRef, Source, SourceQualification,
@@ -353,48 +354,30 @@ impl CadWorker {
         let reply = self
             .request_frame_with_payloads(&request_id, &frame, &[], None)
             .await?;
-        if reply.request_id != request_id
-            || reply.job_id != job_id
-            || reply.identity != identity
-            || reply.operation != operation
-        {
-            return Err(CadWorkerError(format!(
-                "CAD {kind} result belongs to another keycap request"
-            )));
-        }
-        match reply.outcome {
-            CadReplyOutcome::Cancelled => {
-                return Err(CadWorkerError(format!("Keycap CAD {kind} was cancelled")));
-            }
-            CadReplyOutcome::Failed => {
-                return Err(CadWorkerError(
-                    reply
-                        .error
-                        .unwrap_or_else(|| format!("Keycap CAD {kind} failed")),
-                ));
-            }
-            CadReplyOutcome::Completed => {}
-        }
-        let result = reply
-            .result
-            .ok_or_else(|| CadWorkerError("CAD worker returned no keycap meshes".into()))?;
-        let stride = if printable { 9 } else { 3 };
-        if result.revision != identity.revision
-            || (printable && !result.step.is_empty())
-            || result.bodies.len() != expected.len()
-            || result
-                .bodies
-                .iter()
-                .zip(expected)
-                .any(|(body, expected_id)| {
-                    body.id != expected_id
-                        || body.name.is_empty()
-                        || !valid_mesh_parts(&body.positions, &body.normals, stride)
+        let malformed = || format!("Keycap CAD {kind} meshes are missing, malformed, or stale");
+        let result = validate_completed_reply(reply, &request_id, &job_id, &identity, operation)
+            .map_err(|error| {
+                CadWorkerError(match error {
+                    CadReplyError::WrongEnvelope => {
+                        format!("CAD {kind} result belongs to another keycap request")
+                    }
+                    CadReplyError::WrongRevision => malformed(),
+                    CadReplyError::Cancelled => format!("Keycap CAD {kind} was cancelled"),
+                    CadReplyError::Failed(reason) => {
+                        reason.unwrap_or_else(|| format!("Keycap CAD {kind} failed"))
+                    }
+                    CadReplyError::MissingResult => "CAD worker returned no keycap meshes".into(),
                 })
+            })?;
+        if (printable && !result.step.is_empty())
+            || !valid_body_meshes(
+                &result.bodies,
+                expected.iter().map(String::as_str),
+                if printable { 9 } else { 3 },
+            )
+            || result.bodies.iter().any(|body| body.name.is_empty())
         {
-            return Err(CadWorkerError(format!(
-                "Keycap CAD {kind} meshes are missing, malformed, or stale"
-            )));
+            return Err(CadWorkerError(malformed()));
         }
         Ok(result)
     }
@@ -737,11 +720,7 @@ fn fail_all(state: &Rc<RefCell<ClientState>>, error: CadWorkerError) {
 mod keycaps_worker_tests;
 
 fn js_error(error: JsValue) -> CadWorkerError {
-    CadWorkerError(
-        error
-            .as_string()
-            .unwrap_or_else(|| "JavaScript CAD worker failure".into()),
-    )
+    CadWorkerError(js_message_or(error, "JavaScript CAD worker failure"))
 }
 
 #[wasm_bindgen]
@@ -1337,9 +1316,11 @@ fn worker_message(kind: &str, message: &str) -> JsValue {
     value.into()
 }
 fn js_message(value: JsValue) -> String {
-    value
-        .as_string()
-        .unwrap_or_else(|| "JavaScript CAD provider failed".into())
+    js_message_or(value, "JavaScript CAD provider failed")
+}
+
+fn js_message_or(value: JsValue, fallback: &str) -> String {
+    value.as_string().unwrap_or_else(|| fallback.into())
 }
 
 #[cfg(test)]
