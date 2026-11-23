@@ -213,10 +213,12 @@ fn invalid_feature_dimensions_are_rejected_before_cad() {
     assert!(error.contains("insert:bad"), "{error}");
 }
 
+fn internal_input() -> Value {
+    serde_json::from_str(include_str!("fixtures/internal-gasket-v1/rectangle.json")).unwrap()
+}
+
 fn internal_document() -> Value {
-    serde_json::from_str::<Value>(include_str!("fixtures/internal-gasket-v1/rectangle.json"))
-        .unwrap()["document"]
-        .clone()
+    internal_input()["document"].clone()
 }
 
 fn auto_sized_gaskets() -> Value {
@@ -548,8 +550,7 @@ fn adopted_closures_survive_support_count_changes() {
 
 #[test]
 fn split_case_preserves_one_regions_closures_and_generates_the_other() {
-    let mut input: Value =
-        serde_json::from_str(include_str!("fixtures/internal-gasket-v1/rectangle.json")).unwrap();
+    let mut input = internal_input();
     let mut second = input["contours"][0].clone();
     for point in second["points"].as_array_mut().unwrap() {
         point["x"] = json!(point["x"].as_f64().unwrap() + 200.);
@@ -623,8 +624,7 @@ fn zero_pcb_gap_cannot_bypass_rigid_contact_validation() {
 
 #[test]
 fn rotated_and_concave_regions_keep_internal_features_within_the_wall_budget() {
-    let mut input: Value =
-        serde_json::from_str(include_str!("fixtures/internal-gasket-v1/rectangle.json")).unwrap();
+    let mut input = internal_input();
     let concave = [
         (0., 0.),
         (180., 0.),
@@ -689,8 +689,7 @@ fn generated_anchors_repair_but_user_positions_stay_protected() {
 
 #[test]
 fn linked_split_supports_use_mirrored_tracks() {
-    let mut input: Value =
-        serde_json::from_str(include_str!("fixtures/internal-gasket-v1/rectangle.json")).unwrap();
+    let mut input = internal_input();
     let mut right = input["contours"][0].clone();
     for point in right["points"].as_array_mut().unwrap() {
         point["x"] = json!(300. - point["x"].as_f64().unwrap());
@@ -809,9 +808,7 @@ fn every_supplied_foam_size_keeps_free_material_dimensions() {
         ("F4", 80., 4., 4.),
         ("F5", 80., 4., 5.),
     ] {
-        let mut input: Value =
-            serde_json::from_str(include_str!("fixtures/internal-gasket-v1/rectangle.json"))
-                .unwrap();
+        let mut input = internal_input();
         input["contours"][0]["points"] =
             json!([{"x":0,"y":0},{"x":420,"y":0},{"x":420,"y":280},{"x":0,"y":280}]);
         let foam = &mut input["document"]["mechanical"]["gasketLayout"];

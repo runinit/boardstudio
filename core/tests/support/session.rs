@@ -1,7 +1,53 @@
 //! Typed Core requests and reply assertions used by integration tests.
 
 use super::fixture;
+use boardstudio_core::mechanical::change::{MechanicalChange, MechanicalEdit, MechanicalTarget};
 use boardstudio_core::{CoreEngine, model::*};
+
+#[path = "fixture.rs"]
+pub(crate) mod builders;
+
+pub(crate) fn board_target() -> MechanicalTarget {
+    MechanicalTarget::Board {
+        board_id: "board".into(),
+    }
+}
+
+pub(crate) fn instance_target(id: &str) -> MechanicalTarget {
+    MechanicalTarget::Instance {
+        instance_id: id.into(),
+    }
+}
+
+pub(crate) fn wire_commit_to(
+    engine: &mut CoreEngine,
+    id: &str,
+    revision: u64,
+    target_ids: &[&str],
+    operation: serde_json::Value,
+) -> serde_json::Value {
+    fixture::request(
+        engine,
+        serde_json::json!({
+            "kind": "edit", "id": id, "command": {
+                "baseRevision": revision, "transactionId": id, "phase": "commit",
+                "targetIds": target_ids, "operation": operation
+            }
+        }),
+    )
+}
+
+pub(crate) fn mechanical_edit(
+    target: MechanicalTarget,
+    change: MechanicalChange,
+    with_template: bool,
+) -> MechanicalEdit {
+    MechanicalEdit {
+        target,
+        change,
+        mounting_hole: with_template.then(|| Box::new(fixture::mounting_hole())),
+    }
+}
 
 pub(crate) fn temp_dir(label: &str) -> std::path::PathBuf {
     static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);

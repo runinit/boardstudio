@@ -12,30 +12,6 @@ use std::collections::BTreeMap;
 
 #[derive(Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
-struct FixtureColumnLayout {
-    spread: Option<f64>,
-    stagger: f64,
-    splay: f64,
-    rotation: f64,
-    splay_origin: Vec2,
-    offset: Vec2,
-}
-
-impl From<FixtureColumnLayout> for ColumnLayout {
-    fn from(value: FixtureColumnLayout) -> Self {
-        Self {
-            spread: value.spread,
-            stagger: value.stagger,
-            splay: value.splay,
-            rotation: value.rotation,
-            splay_origin: value.splay_origin,
-            offset: value.offset,
-        }
-    }
-}
-
-#[derive(Default, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
 struct FixtureKeyLayout {
     row: usize,
     column: usize,
@@ -54,26 +30,6 @@ impl From<FixtureKeyLayout> for KeyLayout {
             bend: value.bend,
             offset: value.offset,
             rotation: value.rotation,
-        }
-    }
-}
-
-#[derive(Default, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-struct FixtureRowLayout {
-    padding: Option<f64>,
-    shift: Vec2,
-    bend: f64,
-    offset: Vec2,
-}
-
-impl From<FixtureRowLayout> for RowLayout {
-    fn from(value: FixtureRowLayout) -> Self {
-        Self {
-            padding: value.padding,
-            shift: value.shift,
-            bend: value.bend,
-            offset: value.offset,
         }
     }
 }
@@ -109,18 +65,10 @@ fn fixture_layouts(case: &Value, matrices: &Value) -> BTreeMap<String, MatrixLay
             input.mirror = serde_json::from_value(v.clone()).unwrap();
         }
         if let Some(v) = matrix.get("columnLayout") {
-            input.column_layout = serde_json::from_value::<Vec<FixtureColumnLayout>>(v.clone())
-                .unwrap()
-                .into_iter()
-                .map(Into::into)
-                .collect();
+            input.column_layout = serde_json::from_value(v.clone()).unwrap();
         }
         if let Some(v) = matrix.get("rowLayout") {
-            input.row_layout = serde_json::from_value::<Vec<FixtureRowLayout>>(v.clone())
-                .unwrap()
-                .into_iter()
-                .map(Into::into)
-                .collect();
+            input.row_layout = serde_json::from_value(v.clone()).unwrap();
         }
         if let Some(v) = matrix.get("cells") {
             input.cells = serde_json::from_value::<Vec<FixtureKeyLayout>>(v.clone())

@@ -1,6 +1,7 @@
 use crate::support::fixture;
 use crate::support::query;
 use crate::support::session::Session;
+use crate::support::session::builders::rect;
 use boardstudio_core::model::*;
 use serde_json::json;
 
@@ -159,19 +160,11 @@ fn deleted_matrix_cell_stays_disabled_when_resized() {
         1,
         json!({"kind":"remove-parts","ids":["matrix/keys/r0c0"]}),
     );
-    let CoreReply::Scene { document: doc, .. } =
-        core.send(CoreRequest::Snapshot { id: "snap".into() })
-    else {
-        panic!()
-    };
+    let doc = core.snapshot();
     let mut matrix = doc.matrices[0].clone();
     matrix.columns = 4;
     commit(&mut core, 2, json!({"kind":"set-matrix","matrix":matrix}));
-    let CoreReply::Scene { document: doc, .. } =
-        core.send(CoreRequest::Snapshot { id: "snap".into() })
-    else {
-        panic!()
-    };
+    let doc = core.snapshot();
     assert!(!doc.parts.iter().any(|p| p.id == "matrix/keys/r0c0"));
 }
 #[test]
@@ -181,7 +174,12 @@ fn finishing_modes_and_holes_are_shared_with_board_contours() {
         let mut feature = serde_json::to_value(&doc.outline[0]).unwrap();
         feature["settings"] = json!({"corners":corners,"size":2,"bridgeWidth":10});
         doc.outline[0] = serde_json::from_value(feature).unwrap();
-        doc.outline.push(serde_json::from_value(json!({"id":"hole","kind":"rect","center":{"x":19.05,"y":19.05},"size":{"x":6,"y":6},"radius":0,"operation":"subtract"})).unwrap());
+        doc.outline.push(rect(
+            "hole",
+            Vec2 { x: 19.05, y: 19.05 },
+            Vec2 { x: 6.0, y: 6.0 },
+            Operation::Subtract,
+        ));
         doc.boards[0].outline_ids.push("hole".into());
         let mut core = Session::default();
         let result = scene(core.open(doc));
@@ -320,7 +318,12 @@ fn definition_edits_invalidate_geometry_and_preserve_manual_additions() {
     let mut doc = document();
     doc.parts.truncate(1);
     doc.definitions[0].keycap = Some(Vec2 { x: 18.0, y: 18.0 });
-    doc.outline.push(serde_json::from_value(json!({"id":"tab","kind":"rect","center":{"x":15,"y":0},"size":{"x":10,"y":6},"radius":0,"operation":"add"})).unwrap());
+    doc.outline.push(rect(
+        "tab",
+        Vec2 { x: 15.0, y: 0.0 },
+        Vec2 { x: 10.0, y: 6.0 },
+        Operation::Add,
+    ));
     doc.boards[0].outline_ids.push("tab".into());
     let mut core = Session::default();
     let before = scene(core.open(doc.clone()));
@@ -453,7 +456,12 @@ fn finishing_cannot_leave_a_cutout_outside_its_exterior() {
         settings.corners = CornerStyle::Fillet;
         settings.size = 100.0;
     }
-    doc.outline.push(serde_json::from_value(json!({"id":"hole","kind":"rect","center":{"x":12,"y":12},"size":{"x":0.5,"y":0.5},"radius":0,"operation":"subtract"})).unwrap());
+    doc.outline.push(rect(
+        "hole",
+        Vec2 { x: 12.0, y: 12.0 },
+        Vec2 { x: 0.5, y: 0.5 },
+        Operation::Subtract,
+    ));
     doc.boards[0].outline_ids.push("hole".into());
     let result = scene(Session::default().open(doc));
     assert!(!result.board_readiness[0].outline, "{:?}", result.findings);
@@ -483,11 +491,7 @@ fn current_matrix_deletions_record_disabled_cells_before_resizing() {
         1,
         json!({"kind":"remove-parts","ids":["matrix/main/r0c1"]}),
     );
-    let CoreReply::Scene { document: doc, .. } =
-        core.send(CoreRequest::Snapshot { id: "snap".into() })
-    else {
-        panic!()
-    };
+    let doc = core.snapshot();
     assert!(
         doc.matrices[0]
             .cells

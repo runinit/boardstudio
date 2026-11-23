@@ -1,9 +1,9 @@
 //! Ticket 02: mechanical identities are monotonic within one Core document session,
 //! including removal, Undo, owner lifecycle and exhausted namespaces.
 use crate::support::fixture;
-use crate::support::session::{Session, collect_ids, error, one_id};
+use crate::support::session::{Session, board_target, collect_ids, error, instance_target, one_id};
 use boardstudio_core::mechanical::change::{
-    MechanicalChange, MechanicalCriticalFitTextField, MechanicalDimension, MechanicalEdit,
+    MechanicalChange, MechanicalCriticalFitTextField, MechanicalDimension,
     MechanicalHardwareTextField, MechanicalMountCollection, MechanicalTarget,
 };
 use boardstudio_core::model::*;
@@ -55,28 +55,16 @@ fn paired_owners() -> ProjectDoc {
     document
 }
 
-fn board_target() -> MechanicalTarget {
-    MechanicalTarget::Board {
-        board_id: "board".into(),
-    }
-}
-
-fn instance_target(id: &str) -> MechanicalTarget {
-    MechanicalTarget::Instance {
-        instance_id: id.into(),
-    }
-}
-
 fn commit(engine: &mut Session, target: &MechanicalTarget, change: MechanicalChange) -> CoreReply {
     let base_revision = engine.rev();
     engine.commit(
         base_revision,
         EditOperation::ApplyMechanicalEdit {
-            edit: Box::new(MechanicalEdit {
-                target: target.clone(),
+            edit: Box::new(crate::support::session::mechanical_edit(
+                target.clone(),
                 change,
-                mounting_hole: Some(Box::new(fixture::mounting_hole())),
-            }),
+                true,
+            )),
         },
     )
 }

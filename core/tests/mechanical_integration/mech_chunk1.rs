@@ -593,23 +593,23 @@ fn legacy_local_fields_stay_per_instance_and_errors_do_not_mutate() {
     boardstudio_core::mechanical::edit::apply(
         &mut document,
         &[],
-        &MechanicalEdit {
-            target: instance_target("left"),
-            change: MechanicalChange::SetBatteryEnabled(true),
-            mounting_hole: None,
-        },
+        &crate::support::session::mechanical_edit(
+            instance_target("left"),
+            MechanicalChange::SetBatteryEnabled(true),
+            false,
+        ),
     )
     .unwrap();
     boardstudio_core::mechanical::edit::apply(
         &mut document,
         &[],
-        &MechanicalEdit {
-            target: instance_target("left"),
-            change: MechanicalChange::AddMount {
+        &crate::support::session::mechanical_edit(
+            instance_target("left"),
+            MechanicalChange::AddMount {
                 collection: MechanicalMountCollection::Suspension,
             },
-            mounting_hole: None,
-        },
+            false,
+        ),
     )
     .unwrap();
 

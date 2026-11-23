@@ -2,6 +2,7 @@
 //! exhaustion before any accepted state or history changes.
 use crate::support::fixture::{self, request, wire_open as open};
 use crate::support::query::{arr, empty_project};
+use crate::support::session::wire_commit_to;
 use boardstudio_core::CoreEngine;
 use serde_json::{Value, json};
 
@@ -36,12 +37,14 @@ fn snapshot(engine: &mut CoreEngine) -> Value {
 }
 
 fn set_wiring(engine: &mut CoreEngine, id: &str, revision: u64, mode: &str) -> Value {
-    request(
+    wire_commit_to(
         engine,
-        json!({"kind":"edit","id":id,"command":{
-            "baseRevision":revision,"transactionId":id,"phase":"commit","targetIds":["board"],
-            "operation":{"kind":"set-wiring-mode","boardId":"board","mode":mode}
-        }}),
+        id,
+        revision,
+        &["board"],
+        json!({
+            "kind":"set-wiring-mode","boardId":"board","mode":mode
+        }),
     )
 }
 
@@ -500,15 +503,15 @@ fn unique_identities_still_open_and_move_parts() {
     let mut document = baseline();
     document["constraints"] = json!([]);
     assert_eq!(open(&mut engine, "open", &document)["kind"], "scene");
-    let moved = request(
+    let moved = wire_commit_to(
         &mut engine,
+        "move",
+        0,
+        &["b"],
         json!({
-            "kind":"edit","id":"move","command":{
-                "baseRevision":0,"transactionId":"move","phase":"commit","targetIds":["b"],
-                "operation":{"kind":"move-parts","positions":[
-                    {"id":"a","at":{"x":5,"y":6}},{"id":"b","at":{"x":24,"y":6}}
-                ]}
-            }
+            "kind":"move-parts","positions":[
+                {"id":"a","at":{"x":5,"y":6}},{"id":"b","at":{"x":24,"y":6}}
+            ]
         }),
     );
     assert_eq!(moved["kind"], "scene");

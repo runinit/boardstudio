@@ -7,6 +7,7 @@
 //! module functions.
 
 use crate::support::fixture;
+use crate::support::session::{board_target, instance_target};
 use boardstudio_core::mechanical::change::{
     MechanicalChange, MechanicalDimension, MechanicalEdit, MechanicalFeatureCorrespondence,
     MechanicalMountCollection, MechanicalTarget,
@@ -48,18 +49,8 @@ fn document() -> ProjectDoc {
     document
 }
 
-fn board_target() -> MechanicalTarget {
-    MechanicalTarget::Board {
-        board_id: "board".into(),
-    }
-}
-
 fn edit(change: MechanicalChange) -> MechanicalEdit {
-    MechanicalEdit {
-        target: board_target(),
-        change,
-        mounting_hole: None,
-    }
+    crate::support::session::mechanical_edit(board_target(), change, false)
 }
 
 fn plate_thickness(value: f64) -> MechanicalEdit {
@@ -130,18 +121,8 @@ fn pair_document() -> ProjectDoc {
     document
 }
 
-fn instance_target(id: &str) -> MechanicalTarget {
-    MechanicalTarget::Instance {
-        instance_id: id.into(),
-    }
-}
-
 fn with_template(target: MechanicalTarget, change: MechanicalChange) -> MechanicalEdit {
-    MechanicalEdit {
-        target,
-        change,
-        mounting_hole: Some(Box::new(fixture::mounting_hole())),
-    }
+    crate::support::session::mechanical_edit(target, change, true)
 }
 
 /// Links the two halves with an explicit zero-origin reflection (no guessing).

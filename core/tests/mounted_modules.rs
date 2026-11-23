@@ -1,5 +1,6 @@
 use crate::support::fixture::{self, request};
 use crate::support::query::{any, arr, module_host_document};
+use crate::support::session::wire_commit_to;
 use boardstudio_core::CoreEngine;
 use serde_json::{Value, json};
 
@@ -132,9 +133,12 @@ fn project_module_profiles_are_editable_and_undoable_without_rewriting_provenanc
     );
     let mut changed = before["document"]["moduleDefinitions"][0].clone();
     changed["volumes"] = json!([{"id":"body","purpose":"occupied","source":"Measured actuator drawing, revision A","qualified":true,"geometry":{"points":[{"x":-5,"y":-3},{"x":5,"y":-3},{"x":5,"y":3},{"x":-5,"y":3}],"z":0.8,"height":2.0}}]);
-    let edited = request(
+    let edited = wire_commit_to(
         &mut engine,
-        json!({"id":"profile","kind":"edit","command":{"baseRevision":1,"transactionId":"profile","phase":"commit","targetIds":["reference"],"operation":{"kind":"set-module-definition","definition":changed}}}),
+        "profile",
+        1,
+        &["reference"],
+        json!({"kind":"set-module-definition","definition":changed}),
     );
     assert_eq!(edited["kind"], "scene", "{edited}");
     assert_eq!(arr(&edited["scene"]["moduleScenes"][0]["volumes"]).len(), 1);
@@ -190,16 +194,20 @@ fn two_embedded_circuits_own_their_definitions_and_internal_nets_and_undo_atomic
     let mut engine = CoreEngine::new();
     fixture::wire_open(&mut engine, "open", &document());
     let circuit = haptic();
-    let first = request(
+    let first = wire_commit_to(
         &mut engine,
-        json!({"id":"first","kind":"edit","command":{"baseRevision":0,"transactionId":"first","phase":"commit","targetIds":["first"],
-        "operation":{"kind":"embed-module-circuit","id":"first","definition":circuit,"hostBoardId":"host","pose":{"at":{"x":-20,"y":0},"rotation":90},"side":"front","joins":{}}}}),
+        "first",
+        0,
+        &["first"],
+        json!({"kind":"embed-module-circuit","id":"first","definition":circuit,"hostBoardId":"host","pose":{"at":{"x":-20,"y":0},"rotation":90},"side":"front","joins":{}}),
     );
     assert_eq!(first["kind"], "scene", "{first}");
-    let second = request(
+    let second = wire_commit_to(
         &mut engine,
-        json!({"id":"second","kind":"edit","command":{"baseRevision":1,"transactionId":"second","phase":"commit","targetIds":["second"],
-        "operation":{"kind":"embed-module-circuit","id":"second","definition":circuit,"hostBoardId":"host","pose":{"at":{"x":20,"y":0},"rotation":0},"side":"back","joins":{}}}}),
+        "second",
+        1,
+        &["second"],
+        json!({"kind":"embed-module-circuit","id":"second","definition":circuit,"hostBoardId":"host","pose":{"at":{"x":20,"y":0},"rotation":0},"side":"back","joins":{}}),
     );
     assert_eq!(second["kind"], "scene", "{second}");
     let doc = &second["document"];
@@ -818,12 +826,12 @@ fn module_attachment_is_atomic_and_resolves_facing_surface_gap_above_and_below()
         )["kind"],
         "scene"
     );
-    let reply = request(
+    let reply = wire_commit_to(
         &mut engine,
-        json!({"id":"attach","kind":"edit","command":{
-            "baseRevision":0,"transactionId":"attach","phase":"commit","targetIds":["module-1"],
-            "operation":{"kind":"set-mounted-module","instance":placement("front","back",3.0),"definition":definition()}
-        }}),
+        "attach",
+        0,
+        &["module-1"],
+        json!({"kind":"set-mounted-module","instance":placement("front","back",3.0),"definition":definition()}),
     );
     assert_eq!(reply["kind"], "scene", "{reply}");
     let above = reply["document"].clone();
@@ -844,24 +852,24 @@ fn module_attachment_is_atomic_and_resolves_facing_surface_gap_above_and_below()
         resolved["result"]["modules"][0]["board"][0]["z"],
         json!(3.0)
     );
-    let bad = request(
+    let bad = wire_commit_to(
         &mut engine,
-        json!({"id":"bad","kind":"edit","command":{
-            "baseRevision":1,"transactionId":"bad","phase":"commit","targetIds":["module-1"],
-            "operation":{"kind":"set-mounted-module","instance":placement("back","front",-1.0)}
-        }}),
+        "bad",
+        1,
+        &["module-1"],
+        json!({"kind":"set-mounted-module","instance":placement("back","front",-1.0)}),
     );
     assert_eq!(bad["kind"], "error", "{bad}");
     assert_eq!(
         request(&mut engine, json!({"id":"snapshot","kind":"snapshot"}))["document"],
         above
     );
-    let below = request(
+    let below = wire_commit_to(
         &mut engine,
-        json!({"id":"below","kind":"edit","command":{
-            "baseRevision":1,"transactionId":"below","phase":"commit","targetIds":["module-1"],
-            "operation":{"kind":"set-mounted-module","instance":placement("back","front",3.0)}
-        }}),
+        "below",
+        1,
+        &["module-1"],
+        json!({"kind":"set-mounted-module","instance":placement("back","front",3.0)}),
     );
     let resolved = request(
         &mut engine,
