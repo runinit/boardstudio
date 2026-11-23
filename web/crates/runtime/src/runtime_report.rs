@@ -85,11 +85,14 @@ pub(crate) fn persist_report(
         Durability::Saved { .. } if snapshot_changed || next != previous => {
             Some(RuntimeReport::status("Saved locally.").transient())
         }
-        Durability::Failed { reason, .. } if next != previous => Some(RuntimeReport::status(reason)),
+        Durability::Failed { reason, .. } if next != previous => {
+            Some(RuntimeReport::status(reason))
+        }
         _ => effects.iter().find_map(|effect| match effect {
-            Effect::Settled { outcome: TerminalOutcome::PersistenceFailed(reason), .. } => {
-                Some(RuntimeReport::status(reason))
-            }
+            Effect::Settled {
+                outcome: TerminalOutcome::PersistenceFailed(reason),
+                ..
+            } => Some(RuntimeReport::status(reason)),
             _ => None,
         }),
     }

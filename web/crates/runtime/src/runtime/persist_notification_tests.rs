@@ -1,16 +1,11 @@
-//! Native coverage for the persist-completion notification contract.
+//! Native persist-completion notification contract (see [`super::persist_report`]).
 //!
-//! The browser `Runtime` (`runtime.rs`) is `wasm32`-only, so a
-//! `#[wasm_bindgen_test]` here never executes in CI (`scripts/check.py`
-//! launches only `host`, `worker-host` and packaged-page tests). This test
-//! drives the real `boardstudio_application::Session` through Open, rename and
-//! persist completions and feeds the resulting durability transitions through
-//! the extracted [`super::persist_report`] plus
-//! [`super::publish`]/[`super::take_notifications`], preserving the original
-//! browser-test assertions: the general subscriber fires only on the refresh
-//! path, the durability subscriber fires on save-only completions, the status
-//! reads `"Saved locally."` after a commit and `"disk full"` after a failure,
-//! and exactly one transient notification survives a commit (zero on failure).
+//! `runtime.rs` is `wasm32`-only so no `#[wasm_bindgen_test]` here runs in CI.
+//! This drives the real [`Session`] through Open/rename/persist completions and
+//! dispatches through [`super::persist_report`] + [`super::publish`] exactly as
+//! `Runtime::complete` does, keeping the original assertions: general fires only
+//! on refresh, durability on save-only movement, `"Saved locally."` on commit,
+//! `"disk full"` on failure, one transient notification on commit, none after.
 
 use super::{RuntimeNotification, RuntimeReport, persist_report, publish, take_notifications};
 use boardstudio_application::{
@@ -29,28 +24,12 @@ struct Harness {
 }
 
 impl Harness {
-    fn new() -> Self {
-        Self {
-            session: Session::new(),
-            next_operation: 1,
-            general: 0,
-            durability: 0,
-            status: RefCell::new(RuntimeReport::default()),
-            notifications: RefCell::new(Vec::new()),
-        }
-    }
-
     fn operation(&mut self) -> OperationId {
         let operation = OperationId(self.next_operation);
         self.next_operation += 1;
         operation
     }
 
-    /// Submit `event`, complete its persist with `result`, and dispatch the
-    /// resulting notification exactly as `Runtime::complete` does: record the
-    /// decision report, ping the durability subscriber on save-only movement,
-    /// stay silent when nothing observable changed, and otherwise count a
-    /// general refresh.
     fn persist(&mut self, event: Event, result: SaveResult) {
         let effects = self.session.submit(event);
         let Effect::Persist {
@@ -59,28 +38,22 @@ impl Harness {
         else {
             panic!("{effects:?}")
         };
-        let save_attempt_id = *save_attempt_id;
         let previous = self.session.read_model().clone();
         let previous_scope = self.session.scope();
         let effects = self.session.complete(Completion::Persist {
-            save_attempt_id,
+            save_attempt_id: *save_attempt_id,
             result,
         });
         let next = self.session.read_model().clone();
-        let snapshot_changed = next.accepted.as_ref().map(|snapshot| snapshot.token)
+        let changed = next.accepted.as_ref().map(|snapshot| snapshot.token)
             != previous.accepted.as_ref().map(|snapshot| snapshot.token);
-        let report = persist_report(
-            &previous.durability,
-            &next.durability,
-            snapshot_changed,
-            &effects,
-        );
+        let report = persist_report(&previous.durability, &next.durability, changed, &effects);
         let has_report = report.is_some();
         if let Some(report) = report {
             publish(&self.status, &self.notifications, report, || {});
         }
         if next.lifecycle == previous.lifecycle
-            && !snapshot_changed
+            && !changed
             && self.session.scope() == previous_scope
         {
             if next.durability != previous.durability {
@@ -92,39 +65,45 @@ impl Harness {
         }
         self.general += 1;
     }
-
-    fn status(&self) -> String {
-        self.status.borrow().message.clone()
-    }
-
-    fn take_notifications(&self) -> Vec<RuntimeNotification> {
-        take_notifications(&self.notifications)
-    }
 }
 
 #[test]
 fn a_save_completion_notifies_only_the_durability_subscriber() {
-    let mut harness = Harness::new();
-    let open = Event::Open {
-        operation_id: harness.operation(),
-        document: ProjectDoc::empty("project", "Original"),
+    let mut harness = Harness {
+        session: Session::new(),
+        next_operation: 1,
+        general: 0,
+        durability: 0,
+        status: RefCell::new(RuntimeReport::default()),
+        notifications: RefCell::new(Vec::new()),
     };
-    harness.persist(open, SaveResult::Committed);
+    let operation_id = harness.operation();
+    harness.persist(
+        Event::Open {
+            operation_id,
+            document: ProjectDoc::empty("project", "Original"),
+        },
+        SaveResult::Committed,
+    );
     assert_eq!([harness.general, harness.durability], [1, 0]);
-    harness.take_notifications();
-
+    take_notifications(&harness.notifications);
     for (name, error) in [("Edited", None), ("Unsaved", Some("disk full"))] {
-        let edit = Event::ResolveEdit {
-            operation_id: harness.operation(),
-            label: "rename".into(),
-            resolver: EditResolver::rename_project("rename", name.into()),
-        };
-        let result = error.map_or(SaveResult::Committed, |error| {
-            SaveResult::Aborted(error.into())
-        });
-        harness.persist(edit, result);
-        assert_eq!(harness.status(), error.unwrap_or("Saved locally."));
+        let operation_id = harness.operation();
+        harness.persist(
+            Event::ResolveEdit {
+                operation_id,
+                label: "rename".into(),
+                resolver: EditResolver::rename_project("rename", name.into()),
+            },
+            error.map_or(SaveResult::Committed, |error| {
+                SaveResult::Aborted(error.into())
+            }),
+        );
+        assert_eq!(
+            harness.status.borrow().message,
+            error.unwrap_or("Saved locally.")
+        );
     }
     assert_eq!([harness.general, harness.durability], [1, 2]);
-    assert_eq!(harness.take_notifications().len(), 1);
+    assert_eq!(take_notifications(&harness.notifications).len(), 1);
 }

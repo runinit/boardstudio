@@ -155,22 +155,17 @@ fn reversible_split_shares_its_board_without_projecting_extra_parts() {
     assert_ne!(instances[0].flipped, instances[1].flipped);
 }
 
-// Deterministic seeded operation-sequence fuzzer over mirrored-pair workflows.
-// 32 seeds x 40 steps across both two-board and same-board layouts exercise
-// CreatePair (via create_half and pair creation), EditSource, refused linked
-// edits (with document atomicity), MakeLocal/Omit/Rejoin, Unlink and an exact
-// snapshot-history Undo/Redo stack, with format-8 JSON round-trip determinism
-// checked after every step.
-use crate::model::{
-    EditOperation, HalfExceptionState, Layout, MirroredHalfMode, Position,
-};
-use crate::{
-    MirrorEditRefused, admit_edit, create_half, create_pair, set_exception, unlink_pair,
-    validate_pairs,
-};
+// Deterministic seeded operation-sequence fuzzer over mirrored-pair
+// workflows: 32 seeds x 40 steps across two-board and same-board layouts,
+// covering CreatePair (via create_half and pair creation), EditSource,
+// refused linked edits (with document atomicity), MakeLocal/Omit/Rejoin,
+// Unlink and an exact snapshot-history Undo/Redo stack, with format-8 JSON
+// round-trip determinism checked after every step.
+use crate::MirrorEditRefused;
+use crate::model::{EditOperation, HalfExceptionState, Layout, MirroredHalfMode, Position};
+use crate::{admit_edit, create_half, create_pair, set_exception, unlink_pair, validate_pairs};
 
 struct Rng(u64);
-
 impl Rng {
     fn next(&mut self) -> u64 {
         self.0 = self.0.wrapping_add(0x9E3779B97F4A7C15);
@@ -179,11 +174,9 @@ impl Rng {
         z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
         z ^ (z >> 31)
     }
-
     fn below(&mut self, n: usize) -> usize {
         (self.next() % n as u64) as usize
     }
-
     fn range(&mut self, lo: f64, hi: f64) -> f64 {
         lo + (hi - lo) * ((self.next() >> 11) as f64 / (1u64 << 53) as f64)
     }
@@ -253,7 +246,10 @@ fn linked_target(doc: &ProjectDoc) -> Option<(String, String, String)> {
     let pair = doc.mirrored_pairs.first()?;
     for source in &doc.parts {
         if !crate::project::owns_part(doc, &pair.source, &source.id)
-            || pair.overrides.iter().any(|item| item.source_id == source.id)
+            || pair
+                .overrides
+                .iter()
+                .any(|item| item.source_id == source.id)
         {
             continue;
         }
@@ -267,16 +263,19 @@ fn linked_target(doc: &ProjectDoc) -> Option<(String, String, String)> {
 }
 
 fn hardware_ready(doc: &ProjectDoc, fresh: u64) -> bool {
-    let board = format!("destination{fresh}");
-    let instance = format!("right{fresh}");
-    !doc.boards.iter().any(|board_id| board_id.id == board)
-        && doc.hardware.as_ref().is_some_and(|hardware| {
-            !hardware.instances.iter().any(|item| item.id == instance)
-                && hardware.instances.iter().any(|item| {
-                    item.id == "left"
-                        && doc.boards.iter().any(|board_id| board_id.id == item.board_id)
-                })
-        })
+    doc.hardware.as_ref().is_some_and(|hardware| {
+        !hardware
+            .instances
+            .iter()
+            .any(|item| item.id == format!("right{fresh}"))
+            && !doc
+                .boards
+                .iter()
+                .any(|board| board.id == format!("destination{fresh}"))
+            && hardware.instances.iter().any(|item| {
+                item.id == "left" && doc.boards.iter().any(|board| board.id == item.board_id)
+            })
+    })
 }
 
 #[derive(Clone, Copy)]
@@ -308,16 +307,16 @@ impl Fuzz {
         self.redo.clear();
         self.undone.clear();
     }
-
     fn create_pair(&mut self) {
         assert!(self.doc.mirrored_pairs.is_empty());
         let snapshot = self.doc.clone();
         let n = self.fresh;
         self.fresh += 1;
-        let result = if self.two_board && self.rng.below(2) == 0 && hardware_ready(&self.doc, n) {
+        let id = format!("split{n}");
+        let ok = if self.two_board && self.rng.below(2) == 0 && hardware_ready(&self.doc, n) {
             create_half(
                 &mut self.doc,
-                &format!("split{n}"),
+                &id,
                 "left",
                 &MirroredHalfMode::NewBoard {
                     board_id: format!("destination{n}"),
@@ -327,40 +326,42 @@ impl Fuzz {
                 None,
                 fuzz_mapping(),
             )
-        } else if self.two_board {
-            create_pair(
-                &mut self.doc,
-                MirroredPair {
-                    id: format!("split{n}"),
-                    source: MirrorDestination::SecondBoard("source".into()),
-                    destination: MirrorDestination::SecondBoard("destination".into()),
-                    mapping: fuzz_mapping(),
-                    overrides: vec![],
-                },
-            )
         } else {
+            let (source, destination) = if self.two_board {
+                (
+                    MirrorDestination::SecondBoard("source".into()),
+                    MirrorDestination::SecondBoard("destination".into()),
+                )
+            } else {
+                (
+                    MirrorDestination::SameBoardLayout("left".into()),
+                    MirrorDestination::SameBoardLayout("right".into()),
+                )
+            };
             create_pair(
                 &mut self.doc,
                 MirroredPair {
-                    id: format!("split{n}"),
-                    source: MirrorDestination::SameBoardLayout("left".into()),
-                    destination: MirrorDestination::SameBoardLayout("right".into()),
+                    id,
+                    source,
+                    destination,
                     mapping: fuzz_mapping(),
                     overrides: vec![],
                 },
             )
         };
-        if result.is_ok() {
+        if ok.is_ok() {
             assert_eq!(self.doc.mirrored_pairs.len(), 1);
             self.push_history(snapshot);
         }
     }
-
     fn edit_source(&mut self) {
-        let (id, at) = {
-            let part = self.doc.parts.iter().find(|part| part.id == "authored").unwrap();
-            (part.id.clone(), part.pose.at)
-        };
+        let (id, at) = self
+            .doc
+            .parts
+            .iter()
+            .find(|part| part.id == "authored")
+            .map(|part| (part.id.clone(), part.pose.at))
+            .unwrap();
         admit_edit(
             &self.doc,
             &EditOperation::MoveParts {
@@ -369,25 +370,34 @@ impl Fuzz {
         )
         .unwrap();
         let snapshot = self.doc.clone();
-        let part = self.doc.parts.iter_mut().find(|part| part.id == id).unwrap();
+        let part = self
+            .doc
+            .parts
+            .iter_mut()
+            .find(|part| part.id == id)
+            .unwrap();
         part.pose.at.x += self.rng.range(-8.0, 8.0);
         part.pose.at.y += self.rng.range(-8.0, 8.0);
         part.pose.rotation = (part.pose.rotation + self.rng.range(-10.0, 10.0)).rem_euclid(360.0);
-        part.properties
-            .get_or_insert_default()
-            .insert(format!("fuzz{}", self.rng.below(4)), serde_json::Value::from(self.rng.next() as i64));
+        part.properties.get_or_insert_default().insert(
+            format!("fuzz{}", self.rng.below(4)),
+            serde_json::Value::from(self.rng.next() as i64),
+        );
         if self.rng.below(4) == 0 {
             part.reference = format!("SW{}", self.rng.below(64));
         }
-        let pose = part.pose;
-        let properties = part.properties.clone();
+        let (pose, properties) = (part.pose, part.properties.clone());
         self.push_history(snapshot);
-        let resolved = project_document(&self.doc);
-        let projected = resolved.geometry().parts.iter().find(|part| part.id == id).unwrap();
+        let projected = project_document(&self.doc)
+            .geometry()
+            .parts
+            .iter()
+            .find(|part| part.id == id)
+            .unwrap()
+            .clone();
         assert_eq!(projected.pose, pose);
         assert_eq!(projected.properties, properties);
     }
-
     fn refuse_linked_edit(&mut self, pair_id: &str, target: &str, source: &str) {
         let before = self.doc.clone();
         let refused = admit_edit(
@@ -405,25 +415,37 @@ impl Fuzz {
         );
         assert_eq!(self.doc, before);
     }
-
     fn set_state(&mut self, pair_id: &str, target: &str, state: HalfExceptionState) {
         let snapshot = self.doc.clone();
         if set_exception(&mut self.doc, pair_id, target, state).is_ok() {
             self.push_history(snapshot);
-            let present = project_document(&self.doc).geometry().parts.iter().any(|part| part.id == target);
+            let present = project_document(&self.doc)
+                .geometry()
+                .parts
+                .iter()
+                .any(|part| part.id == target);
             assert_eq!(present, state != HalfExceptionState::Omitted);
         }
     }
-
     fn rejoin(&mut self, pair_id: &str, target: &str) {
         let snapshot = self.doc.clone();
         if set_exception(&mut self.doc, pair_id, target, HalfExceptionState::Linked).is_ok() {
             self.push_history(snapshot);
-            assert!(self.doc.mirrored_pairs.iter().all(|pair| pair.overrides.is_empty()));
-            assert!(project_document(&self.doc).geometry().parts.iter().any(|part| part.id == target));
+            assert!(
+                self.doc
+                    .mirrored_pairs
+                    .iter()
+                    .all(|pair| pair.overrides.is_empty())
+            );
+            assert!(
+                project_document(&self.doc)
+                    .geometry()
+                    .parts
+                    .iter()
+                    .any(|part| part.id == target)
+            );
         }
     }
-
     fn unlink(&mut self) {
         let pair_id = self.doc.mirrored_pairs.first().unwrap().id.clone();
         let snapshot = self.doc.clone();
@@ -431,7 +453,6 @@ impl Fuzz {
         assert!(self.doc.mirrored_pairs.is_empty());
         self.push_history(snapshot);
     }
-
     fn undo(&mut self) {
         if let Some(restored) = self.history.pop() {
             let current = std::mem::replace(&mut self.doc, restored);
@@ -439,7 +460,6 @@ impl Fuzz {
             self.redo.push(current);
         }
     }
-
     fn redo(&mut self) {
         if let Some(restored) = self.redo.pop() {
             let json = self.undone.pop().unwrap();
@@ -448,20 +468,22 @@ impl Fuzz {
             assert_eq!(serde_json::to_vec(&self.doc).unwrap(), json);
         }
     }
-
     fn step(&mut self) {
         let linked = linked_target(&self.doc);
         let overridden = self.doc.mirrored_pairs.first().and_then(|pair| {
             pair.overrides.first().map(|item| {
-                (pair.id.clone(), crate::project::part_id(&self.doc, pair, &item.source_id))
+                (
+                    pair.id.clone(),
+                    crate::project::part_id(&self.doc, pair, &item.source_id),
+                )
             })
         });
         let mut ops = vec![Op::Edit];
-        if self.doc.mirrored_pairs.is_empty() {
-            ops.push(Op::Create);
+        ops.push(if self.doc.mirrored_pairs.is_empty() {
+            Op::Create
         } else {
-            ops.push(Op::Unlink);
-        }
+            Op::Unlink
+        });
         if linked.is_some() {
             ops.extend([Op::Refuse, Op::Local, Op::Omit]);
         }
@@ -507,7 +529,11 @@ fn seeded_operation_sequence_keeps_mirror_invariants() {
         let mut fuzz = Fuzz {
             rng: Rng(seed.wrapping_mul(0x9E3779B97F4A7C15).wrapping_add(1)),
             two_board: seed % 2 == 0,
-            doc: if seed % 2 == 0 { two_board_fixture() } else { same_board_fixture() },
+            doc: if seed % 2 == 0 {
+                two_board_fixture()
+            } else {
+                same_board_fixture()
+            },
             history: Vec::new(),
             redo: Vec::new(),
             undone: Vec::new(),
