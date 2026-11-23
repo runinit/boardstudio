@@ -8,9 +8,9 @@ The user's direct requests take precedence over these defaults. Select from the 
 
 | Work | Preferred route |
 | --- | --- |
-| Deep architectural cutovers & complex multi-stage planning | **Codex** Sol 6.2 (`medium`/`high`) or **pi** `meta/muse-wonder-full-1.0-contributor` (`thinking: "xhigh"`); **Antigravity** Hydrogen (`gemini-4-hydrogen`, `medium`/`high`) as implementation fallback if Codex usage runs out. |
-| Standard multi-file refactors & native test conversions | **Codex** Terra 6.1 (`medium`), Sol 6.2 (`medium`), or **pi** `meta/muse-spark-1.3-contributor` (`thinking: "high"`); **Antigravity** Hydrogen (`gemini-4-hydrogen`, `medium`) as implementation fallback if Codex usage runs out (or Spark 1.3 Contributor via Muse/Pi if enabled). |
-| Mechanical cleanups, dead-code/vendor deletion & research collection | **Codex** Terra 6.1 (`low`) first; **Antigravity** Hydrogen (`gemini-4-hydrogen`, `low`/`medium`) or Neon (`low`) as fallback. |
+| Deep architectural cutovers & complex multi-stage planning | **Muse** Spark 1.3 (`muse-spark-1.3`, `reasoningEffort: "max"`/`"xhigh"`) or **pi** `meta/muse-spark-1.3-contributor` (`thinking: "xhigh"`); **Codex** Sol 6.2 (`medium`/`high`) or **pi** `meta/muse-wonder-full-1.0-contributor` (`thinking: "xhigh"`) as secondary; **Antigravity** Hydrogen (`gemini-4-hydrogen`, `medium`/`high`) as implementation fallback if primary usage runs out. |
+| Standard multi-file refactors & native test conversions | **Muse** Spark 1.3 (`muse-spark-1.3`, `reasoningEffort: "xhigh"`) or **pi** `meta/muse-spark-1.3-contributor` (`thinking: "xhigh"`); **Codex** Terra 6.1 (`medium`) / Sol 6.2 (`medium`) as secondary; **Antigravity** Hydrogen (`gemini-4-hydrogen`, `medium`) as implementation fallback if usage runs out. |
+| Mechanical cleanups, dead-code/vendor deletion & research collection | **Muse** Spark 1.3 (`muse-spark-1.3`, `reasoningEffort: "medium"`/`"high"`) or **Codex** Terra 6.1 (`low`); **Antigravity** Hydrogen (`gemini-4-hydrogen`, `low`/`medium`) or Neon (`low`) as fallback. |
 | Read-only architectural, diff, and invariant reviews *(reviews only — reserve Claude here)* | **Claude** Opus 5.5 (`medium`/`high`) or Sonnet 5.5 (`medium`) for read-only reviews only; **Antigravity** Neon (`high`) for wave-end gate audits. |
 
 Collect research at low effort, then route synthesis according to its complexity. A long command alone does not justify an expensive model; route diagnosis by the complexity of the problem.
