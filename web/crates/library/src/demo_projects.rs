@@ -1,10 +1,10 @@
+use boardstudio_application::CoreEngine;
 use boardstudio_model::mirrored_half::{MirrorDestination, MirroredPair};
 use boardstudio_model::model::{
-    Board, ColumnLayout, CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, Follow,
-    Layout, Material, Matrix, MatrixAnchor, Mirror, Operation, OutlineFeature, OutlineSettings,
-    PartDefinition, PartKind, Pose2, ProjectDoc, RowLayout, Vec2,
+    Board, ColumnLayout, EditCommand, EditOperation, EditPhase, Follow, Layout, Material, Matrix,
+    MatrixAnchor, Mirror, Operation, OutlineFeature, OutlineSettings, PartDefinition, PartKind,
+    Pose2, ProjectDoc, RowLayout, Vec2,
 };
-use boardstudio_web_runtime::core_services::{OpenScratchCore, ScratchCore};
 
 #[derive(Clone, Copy)]
 pub(crate) struct DemoProject {
@@ -40,57 +40,35 @@ pub(crate) const DEMO_PROJECTS: [DemoProject; 3] = [
 ];
 
 struct DemoBuilder {
-    engine: ScratchCore,
+    engine: CoreEngine,
     revision: u64,
 }
 
 impl DemoBuilder {
-    fn open(document: ProjectDoc, open_scratch: OpenScratchCore) -> Result<Self, String> {
-        let mut engine = open_scratch();
-        match engine(CoreRequest::Open {
-            id: "demo-open".into(),
-            document,
-        }) {
-            CoreReply::Scene { scene, .. } => Ok(Self {
-                engine,
-                revision: scene.revision,
-            }),
-            CoreReply::Error { message, .. } => Err(message),
-            reply => Err(format!("demo Open failed: {reply:?}")),
-        }
+    fn open(document: ProjectDoc) -> Result<Self, String> {
+        let mut engine = CoreEngine::new();
+        let opened = engine.open(document)?;
+        Ok(Self {
+            engine,
+            revision: opened.document.revision,
+        })
     }
 
     fn commit(&mut self, operation: EditOperation) -> Result<ProjectDoc, String> {
         let rev = self.revision;
-        match (self.engine)(CoreRequest::Edit {
-            id: "demo-edit".into(),
-            command: EditCommand {
-                base_revision: rev,
-                transaction_id: format!("demo-{rev}"),
-                phase: EditPhase::Commit,
-                target_ids: vec![],
-                operation,
-            },
-        }) {
-            CoreReply::Scene {
-                scene, document, ..
-            } => {
-                self.revision = scene.revision;
-                Ok(*document)
-            }
-            CoreReply::Error { message, .. } => Err(message),
-            reply => Err(format!("demo edit failed: {reply:?}")),
-        }
+        let committed = self.engine.commit_edit(EditCommand {
+            base_revision: rev,
+            transaction_id: format!("demo-{rev}"),
+            phase: EditPhase::Commit,
+            target_ids: vec![],
+            operation,
+        })?;
+        self.revision = committed.document.revision;
+        Ok(committed.document)
     }
 
-    fn snapshot(&mut self) -> Result<ProjectDoc, String> {
-        match (self.engine)(CoreRequest::Snapshot {
-            id: "demo-snapshot".into(),
-        }) {
-            CoreReply::Scene { document, .. } => Ok(*document),
-            CoreReply::Error { message, .. } => Err(message),
-            reply => Err(format!("demo snapshot failed: {reply:?}")),
-        }
+    fn snapshot(&self) -> Result<ProjectDoc, String> {
+        self.engine.snapshot().map(|snapshot| snapshot.document)
     }
 }
 
@@ -165,14 +143,8 @@ fn demo_matrix(id: &str, name: Option<&str>, rows: u32, columns: u32, origin: Ve
     }
 }
 
-fn single_matrix(
-    name: &str,
-    rows: u32,
-    cols: u32,
-    origin: Vec2,
-    open_scratch: OpenScratchCore,
-) -> ProjectDoc {
-    let mut b = DemoBuilder::open(demo_shell(name), open_scratch).expect("open demo");
+fn single_matrix(name: &str, rows: u32, cols: u32, origin: Vec2) -> ProjectDoc {
+    let mut b = DemoBuilder::open(demo_shell(name)).expect("open demo");
     let mut m = demo_matrix("main", Some("Main"), rows, cols, origin);
     m.row_layout = vec![
         RowLayout::default(),
@@ -204,8 +176,8 @@ fn single_matrix(
     doc
 }
 
-fn split42(name: &str, open_scratch: OpenScratchCore) -> ProjectDoc {
-    let mut b = DemoBuilder::open(demo_shell(name), open_scratch).expect("open split42");
+fn split42(name: &str) -> ProjectDoc {
+    let mut b = DemoBuilder::open(demo_shell(name)).expect("open split42");
     let mut lm = demo_matrix(
         "left-main",
         Some("Left main"),
@@ -305,7 +277,7 @@ fn split42(name: &str, open_scratch: OpenScratchCore) -> ProjectDoc {
 }
 
 impl DemoProject {
-    pub(crate) fn document(self, open_scratch: OpenScratchCore) -> ProjectDoc {
+    pub(crate) fn document(self) -> ProjectDoc {
         match self.layout {
             DemoLayout::Studio60 => single_matrix(
                 self.name,
@@ -315,7 +287,6 @@ impl DemoProject {
                     x: -104.775,
                     y: -38.1,
                 },
-                open_scratch,
             ),
             DemoLayout::Macro12 => single_matrix(
                 self.name,
@@ -325,9 +296,8 @@ impl DemoProject {
                     x: -28.575,
                     y: -19.05,
                 },
-                open_scratch,
             ),
-            DemoLayout::Split42 => split42(self.name, open_scratch),
+            DemoLayout::Split42 => split42(self.name),
         }
     }
 }
@@ -342,7 +312,7 @@ mod demo_rebuild_tests {
             .iter()
             .find(|d| d.name == name)
             .expect("demo")
-            .document(boardstudio_web_test_runtime::engine_core_services().open_scratch)
+            .document()
     }
 
     #[test]

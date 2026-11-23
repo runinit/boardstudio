@@ -318,16 +318,10 @@ fn linkable_halves() -> ProjectDoc {
 #[test]
 fn the_reviewed_choices_become_the_link_payload_the_review_shows() {
     let doc = linkable_halves();
-    let option = pair_link_options(
-        &doc,
-        &[],
-        "left",
-        None,
-        boardstudio_web_test_runtime::engine_core_services().open_scratch,
-    )
-    .into_iter()
-    .next()
-    .expect("one candidate");
+    let option = pair_link_options(&doc, &[], "left", None)
+        .into_iter()
+        .next()
+        .expect("one candidate");
     let mut sources = std::collections::BTreeMap::new();
 
     // No map, no payload: a translated frame must supply one.
@@ -393,13 +387,7 @@ fn the_reviewed_choices_become_the_link_payload_the_review_shows() {
 #[test]
 fn link_options_offer_each_other_half_with_its_map_and_durable_matches() {
     let doc = independent_halves();
-    let options = pair_link_options(
-        &doc,
-        &[],
-        "left",
-        None,
-        boardstudio_web_test_runtime::engine_core_services().open_scratch,
-    );
+    let options = pair_link_options(&doc, &[], "left", None);
     assert_eq!(options.len(), 1, "the other half is the one candidate");
     let option = &options[0];
     assert_eq!(option.instance_id, "left");
@@ -449,29 +437,14 @@ fn link_options_offer_each_other_half_with_its_map_and_durable_matches() {
         Some("left"),
         "the reviewed payload names a source per feature explicitly"
     );
-    assert!(
-        pair_link_options(
-            &doc,
-            &[],
-            "missing",
-            None,
-            boardstudio_web_test_runtime::engine_core_services().open_scratch
-        )
-        .is_empty()
-    );
+    assert!(pair_link_options(&doc, &[], "missing", None,).is_empty());
 }
 
 #[test]
 fn link_options_need_an_explicit_map_for_translated_frames_and_are_absent_when_paired() {
     let mut doc = independent_halves();
     doc.hardware.as_mut().unwrap().instances[1].flipped = false;
-    let options = pair_link_options(
-        &doc,
-        &[],
-        "left",
-        None,
-        boardstudio_web_test_runtime::engine_core_services().open_scratch,
-    );
+    let options = pair_link_options(&doc, &[], "left", None);
     assert_eq!(
         options[0].derived_mapping, None,
         "equal declared transforms need the review to supply the map"
@@ -496,26 +469,10 @@ fn link_options_need_an_explicit_map_for_translated_frames_and_are_absent_when_p
         features: vec![],
     }];
     assert!(
-        pair_link_options(
-            &paired,
-            &[],
-            "left",
-            None,
-            boardstudio_web_test_runtime::engine_core_services().open_scratch
-        )
-        .is_empty(),
+        pair_link_options(&paired, &[], "left", None,).is_empty(),
         "a paired half is linked through its pair actions instead"
     );
-    assert!(
-        pair_link_options(
-            &paired,
-            &[],
-            "right",
-            None,
-            boardstudio_web_test_runtime::engine_core_services().open_scratch
-        )
-        .is_empty()
-    );
+    assert!(pair_link_options(&paired, &[], "right", None,).is_empty());
 }
 
 fn rejoin(instance_id: &str, feature_id: &str, source: &str) -> MechanicalChange {

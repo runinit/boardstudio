@@ -124,14 +124,8 @@ impl Runtime {
                 .ok_or("Physical PCB preparation was cancelled or became stale.")
         };
         ensure_current()?;
-        let mut prepared = prepare_captured_case(
-            (self.core_services.open_scratch)(),
-            request_prefix,
-            snapshot,
-            scope,
-            true,
-        )
-        .map_err(|error| format!("Mechanical assembly resolution failed: {error:?}"))?;
+        let mut prepared = prepare_captured_case(snapshot, scope, true)
+            .map_err(|error| format!("Mechanical assembly resolution failed: {error:?}"))?;
         ensure_current()?;
         let pcb_source = captured_pcb_source(snapshot, scope)
             .map_err(|error| format!("Could not capture imported PCB source: {error:?}"))?;
@@ -141,13 +135,8 @@ impl Runtime {
                 .load_preview_document_asset(&source.asset, is_current.clone())
                 .await?;
             ensure_current()?;
-            pcb_source_thickness = install_source_pcb(
-                self.core_services.open_scratch,
-                request_prefix,
-                source,
-                bytes,
-                &mut prepared,
-            )?;
+            pcb_source_thickness =
+                install_source_pcb(request_prefix, source, bytes, &mut prepared)?;
         }
         Ok(PhysicalStepAssembly {
             prepared,

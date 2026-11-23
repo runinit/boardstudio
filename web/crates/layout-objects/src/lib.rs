@@ -57,7 +57,6 @@ mod objects {
         use super::super::runtime::Runtime;
         use boardstudio_application::Event;
         use boardstudio_core::model::{Board, PartDefinition, PartGenerator, PartKind, ProjectDoc};
-        use boardstudio_web_runtime::core_services::CoreServices;
         use std::collections::BTreeMap;
 
         pub fn definition(id: &str, source: &str, kind: PartKind) -> PartDefinition {
@@ -108,18 +107,6 @@ mod objects {
                     PartKind::Passive,
                 ),
             ]
-        }
-
-        /// Headless Core services for native lifecycle tests: validation plus a
-        /// scratch engine per open, mirroring production's CoreServices shape.
-        pub fn test_services() -> CoreServices {
-            CoreServices {
-                validate_open: boardstudio_core::CoreEngine::validate_open,
-                open_scratch: || {
-                    let mut engine = boardstudio_core::CoreEngine::new();
-                    Box::new(move |request| engine.handle(request))
-                },
-            }
         }
 
         /// An empty saved document with one board, optionally carrying the

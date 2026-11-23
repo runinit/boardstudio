@@ -2,7 +2,7 @@ use boardstudio_application::{
     Completion, Durability, EditResolver, Effect, Event, GenerationStatus, OperationId, Resolution,
     SaveAttemptId, SaveResult, Session, TerminalOutcome,
 };
-use boardstudio_core::{CoreEngine, model::ProjectDoc};
+use boardstudio_core::model::ProjectDoc;
 use boardstudio_model::model::EditOperation;
 use std::collections::VecDeque;
 
@@ -72,7 +72,7 @@ fn committed(save_attempt_id: SaveAttemptId) -> Completion {
 
 #[test]
 fn rename_refusal_save_retry_and_history() {
-    let mut session = Session::new(CoreEngine::validate_open);
+    let mut session = Session::new();
     open(&mut session, 1, ProjectDoc::empty("project", "Original"));
 
     let refusal = drive(
@@ -141,7 +141,7 @@ fn rename_refusal_save_retry_and_history() {
 
 #[test]
 fn commits_publish_while_saving_and_only_save_the_latest_waiting_revision() {
-    let mut session = Session::new(CoreEngine::validate_open);
+    let mut session = Session::new();
     open(&mut session, 1, ProjectDoc::empty("project", "Original"));
 
     let first = session.submit(rename(2, "First"));
@@ -176,7 +176,7 @@ fn commits_publish_while_saving_and_only_save_the_latest_waiting_revision() {
 
 #[test]
 fn open_after_save_failure_stale_resolver_refusal_and_generation_cancel() {
-    let mut session = Session::new(CoreEngine::validate_open);
+    let mut session = Session::new();
     open(&mut session, 1, ProjectDoc::empty("project", "First"));
     assert_eq!(
         drive(
@@ -242,7 +242,7 @@ fn open_after_save_failure_stale_resolver_refusal_and_generation_cancel() {
 
 #[test]
 fn open_commit_supersedes_pending_retry_save_operation() {
-    let mut session = Session::new(CoreEngine::validate_open);
+    let mut session = Session::new();
     open(&mut session, 1, ProjectDoc::empty("project-1", "First"));
 
     let open_effects = session.submit(Event::Open {

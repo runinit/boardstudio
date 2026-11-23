@@ -166,6 +166,7 @@ pub struct MatrixColumnBasis {
     #[serde(rename = "staggerAxis")]
     pub stagger_axis: Vec2,
 }
+#[cfg(feature = "wire-json")]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum CoreRequest {
@@ -274,6 +275,7 @@ pub enum CoreRequest {
         ir: CaseAssemblyIR,
     },
 }
+#[cfg(feature = "wire-json")]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum CoreReply {
@@ -1398,23 +1400,26 @@ pub struct KeycapResolution {
     pub findings: Vec<Finding>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(tag = "kind", rename_all = "kebab-case"))]
 pub enum KeycapBoardChange {
     Color { value: String },
     LegendColor { value: String },
     Clearance { value: f64 },
 }
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(tag = "kind", rename_all = "kebab-case"))]
 pub enum KeycapMatrixChange {
     Profile { value: Option<KeycapProfile> },
     Mount { value: Option<KeycapMount> },
     FirstRow { value: u8 },
     WallThickness { value: f64 },
 }
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(tag = "kind", rename_all = "kebab-case"))]
 pub enum KeycapKeyChange {
     Profile { value: Option<KeycapProfile> },
     Mount { value: Option<KeycapMount> },

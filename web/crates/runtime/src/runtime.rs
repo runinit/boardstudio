@@ -1,5 +1,4 @@
 //! Browser composition runs identified effects; the headless session remains authoritative.
-pub use crate::core_services::CoreServices;
 use crate::mechanical_package::{
     critical_fit_drawing, mechanical_fabrication_notes, mechanical_filename_component,
     mechanical_stl, push_mechanical_file,
@@ -13,18 +12,18 @@ use crate::physical_pcb::{artifact_reply, install_source_pcb, verify_source_dige
 pub use crate::runtime_report::RuntimeNotification;
 use crate::runtime_report::{RuntimeReport, publish};
 use boardstudio_application::{
-    AcceptedSnapshot, Completion, Durability, Effect, Event, JobId, Lifecycle, OperationId,
-    ReadModel, SaveResult, Scope, Session, SnapshotToken, TerminalOutcome,
+    AcceptedSnapshot, Completion, CoreEngine, Durability, Effect, Event, JobId, Lifecycle,
+    OperationId, ReadModel, SaveResult, Scope, Session, SnapshotToken, TerminalOutcome,
 };
 use boardstudio_core_mechanical::electrical::{
     ElectricalMode, ElectricalPlan, ElectricalPlanRequest,
 };
 use boardstudio_model::model::{
     ArchiveReply, ArtifactReply, ArtifactRequest, Board, BoardReference, CaseAssemblyIR, CaseIR,
-    CompiledFootprint, CoreReply, CoreRequest, HardwareTopology, KeycapSpec, Material,
-    MechanicalAssembly, MechanicalBuiltinProfile, MechanicalConfiguration, MechanicalExtraction,
-    MechanicalPartProfile, MechanicalPurposeMapping, MechanicalSwitchFamily, Operation,
-    OutlineFeature, OutlineSettings, PcbModel, PcbPreview, PrepareExportRequest, ProjectDoc,
+    CompiledFootprint, HardwareTopology, KeycapSpec, Material, MechanicalAssembly,
+    MechanicalBuiltinProfile, MechanicalConfiguration, MechanicalExtraction, MechanicalPartProfile,
+    MechanicalPurposeMapping, MechanicalSwitchFamily, Operation, OutlineFeature, OutlineSettings,
+    PcbModel, PcbPreview, PrepareExportRequest, ProjectDoc,
 };
 
 use boardstudio_web_host::browser::browser_uuid;
@@ -298,7 +297,6 @@ type BeforeUnloadClosure = Closure<dyn FnMut(web_sys::Event)>;
 
 pub struct Runtime {
     session: RefCell<Session>,
-    core_services: CoreServices,
     pub(crate) operation_outcomes: crate::operation_outcomes::OperationOutcomes,
     pub store: BrowserStore,
     persistence: RefCell<Rc<dyn DocumentPersistence>>,
@@ -580,16 +578,11 @@ impl Runtime {
             .map_err(|error| error.to_string())
     }
 
-    /// Keep one injected engine for the document; scratch probes create their own engines.
-    /// Archive and artifact operations also execute in process.
-    pub fn new(core_services: CoreServices) -> Result<Rc<Self>, String> {
-        Self::new_with_restoration(true, core_services)
+    pub fn new() -> Result<Rc<Self>, String> {
+        Self::new_with_restoration(true)
     }
 
-    fn new_with_restoration(
-        restore_active_project: bool,
-        core_services: CoreServices,
-    ) -> Result<Rc<Self>, String> {
+    fn new_with_restoration(restore_active_project: bool) -> Result<Rc<Self>, String> {
         let prefix = deployment_prefix()?;
         let store = if restore_active_project {
             BrowserStore::scoped(if prefix == "/" { "root" } else { "boardstudio" })
@@ -597,19 +590,17 @@ impl Runtime {
             BrowserStore::new(format!("boardstudio-test-{}", browser_uuid()?))
         }
         .map_err(|e| e.to_string())?;
-        Self::new_with_store(restore_active_project, store, core_services)
+        Self::new_with_store(restore_active_project, store)
     }
 
     fn new_with_store(
         restore_active_project: bool,
         store: BrowserStore,
-        core_services: CoreServices,
     ) -> Result<Rc<Self>, String> {
         #[cfg(not(any(test, feature = "test-support")))]
         let prefix = deployment_prefix()?;
         let runtime = Rc::new(Self {
-            session: RefCell::new(Session::new(core_services.validate_open)),
-            core_services,
+            session: RefCell::new(Session::new()),
             operation_outcomes: crate::operation_outcomes::OperationOutcomes::default(),
             persistence: RefCell::new(Rc::new(store.clone())),
             store,
@@ -736,10 +727,6 @@ impl Runtime {
     pub fn scope(&self) -> Option<boardstudio_application::Scope> {
         self.session.borrow().scope()
     }
-    /// The Core entry points the page injected (Open admission and scratch probes).
-    pub fn core_services(&self) -> CoreServices {
-        self.core_services
-    }
     pub fn model(&self) -> ReadModel {
         self.with_model(Clone::clone)
     }
@@ -758,7 +745,6 @@ impl Runtime {
     /// remains the sole owner of document history.
     pub fn standard_switch_profile(
         &self,
-        operation_id: OperationId,
         definition_id: String,
         family: MechanicalSwitchFamily,
         plate_to_pcb: f64,
@@ -768,18 +754,7 @@ impl Runtime {
             MechanicalSwitchFamily::ChocV1 => MechanicalBuiltinProfile::ChocV1Switch,
             MechanicalSwitchFamily::ChocV2 => MechanicalBuiltinProfile::ChocV2Switch,
         };
-        let request_id = format!("parts-standard-profile-{}", operation_id.0);
-        let request = CoreRequest::MechanicalProfile {
-            id: request_id,
-            definition_id,
-            source,
-            plate_to_pcb,
-        };
-        match (self.core_services.open_scratch)()(request) {
-            CoreReply::MechanicalProfile { profile, .. } => Ok(profile),
-            CoreReply::Error { message, .. } => Err(message),
-            _ => Err("Core returned an unexpected standard mechanical profile reply.".into()),
-        }
+        CoreEngine::mechanical_profile(definition_id, source, plate_to_pcb)
     }
 
     /// Import a source-owned KiCad footprint through the existing artifact worker.
@@ -829,32 +804,11 @@ impl Runtime {
         base_revision: u64,
         matrices: Vec<boardstudio_model::model::Matrix>,
     ) -> Result<Vec<boardstudio_model::model::MatrixScene>, String> {
-        let expected_ids: Vec<_> = matrices.iter().map(|matrix| matrix.id.clone()).collect();
-        if self.session.borrow().read_model().lifecycle == Lifecycle::Closed {
+        let session = self.session.borrow();
+        if session.read_model().lifecycle == Lifecycle::Closed {
             return Err("Matrix preview failed: editor is closed".into());
         }
-        let reply =
-            self.session
-                .borrow_mut()
-                .project_matrices(String::new(), base_revision, matrices);
-        match reply {
-            CoreReply::MatrixProjections {
-                revision,
-                matrix_scenes,
-                ..
-            } if revision == base_revision => {
-                let actual_ids: Vec<_> = matrix_scenes
-                    .iter()
-                    .map(|scene| scene.matrix_id.clone())
-                    .collect();
-                if actual_ids != expected_ids {
-                    return Err("Core returned a different matrix preview set.".into());
-                }
-                Ok(matrix_scenes)
-            }
-            CoreReply::Error { message, .. } => Err(message),
-            _ => Err("Core returned an unexpected matrix preview reply.".into()),
-        }
+        session.project_matrices(base_revision, matrices)
     }
     fn storage_initialization_failed(&self, error: &str) {
         let message =

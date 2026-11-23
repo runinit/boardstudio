@@ -351,13 +351,7 @@ impl Runtime {
         };
         guard()?;
         let job = format!("case-{}", job_id.0);
-        let prepared = prepare_captured_case(
-            (self.core_services.open_scratch)(),
-            &job,
-            snapshot,
-            scope,
-            false,
-        )?;
+        let prepared = prepare_captured_case(snapshot, scope, false)?;
         guard()?;
         let worker = self
             .case_cad_worker(scope, false)

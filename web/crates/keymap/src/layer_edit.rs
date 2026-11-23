@@ -103,7 +103,7 @@ mod tests {
             }))
             .unwrap(),
         );
-        let rt = Runtime::with_core(boardstudio_web_test_runtime::engine_core_services());
+        let rt = Runtime::new();
         rt.submit(Event::Open {
             operation_id: rt.operation(),
             document: doc,

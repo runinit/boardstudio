@@ -101,7 +101,6 @@ mod tests {
         Completion, Durability, Effect, Event, OperationId, SaveResult, SelectionMode, Session,
         TerminalOutcome,
     };
-    use boardstudio_core::CoreEngine;
     use boardstudio_model::model::*;
     use boardstudio_web_catalogue::matrix_setup_operation::{
         MatrixSetupPreset, MatrixSetupRequest, prepare_matrix,
@@ -185,7 +184,7 @@ mod tests {
 
     #[test]
     fn matrix_setup_uses_saved_session_history_selection_and_reopen() {
-        let mut session = Session::new(CoreEngine::validate_open);
+        let mut session = Session::new();
         open_session_saved(&mut session, session_document(), 1);
 
         let prepared = prepare_matrix(
@@ -318,7 +317,7 @@ mod tests {
         assert_eq!(redone.document.revision, 3);
 
         let durable_document = (*redone.document).clone();
-        let mut reopened_session = Session::new(CoreEngine::validate_open);
+        let mut reopened_session = Session::new();
         open_session_saved(&mut reopened_session, durable_document, 6);
         let reopened = reopened_session
             .read_model()

@@ -520,9 +520,7 @@ mod native_tests {
     use std::cell::RefCell;
     use std::task::{Context, Waker};
 
-    use super::super::test_fixtures::{
-        catalogue, open_board_document as open_document, test_services as services,
-    };
+    use super::super::test_fixtures::{catalogue, open_board_document as open_document};
 
     #[derive(Clone)]
     struct Probe {
@@ -615,7 +613,7 @@ mod native_tests {
         clear_detached();
         clear_test_templates();
         let probe = Probe {
-            runtime: Runtime::with_core(services()),
+            runtime: Runtime::new(),
             version: Rc::default(),
             workspace: Rc::new(Cell::new(Workspace::Layout)),
             latest: Rc::default(),

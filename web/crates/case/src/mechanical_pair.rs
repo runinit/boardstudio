@@ -10,6 +10,7 @@
 mod fingerprint;
 pub use fingerprint::reviewed_fingerprint;
 
+use boardstudio_application::CoreEngine;
 use boardstudio_core_mechanical::mechanical::MechanicalTarget;
 use boardstudio_core_mechanical::mechanical::change::{
     MechanicalChange, MechanicalEdit, MechanicalFeatureCorrespondence,
@@ -17,12 +18,10 @@ use boardstudio_core_mechanical::mechanical::change::{
 use boardstudio_core_mechanical::mechanical::features;
 use boardstudio_core_mechanical::mechanical::inputs::effective_inputs;
 use boardstudio_model::model::{
-    BoardContours, CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase,
-    MechanicalConfiguration, MechanicalFeature, MechanicalFeatureKind, MechanicalFeatureMember,
-    MechanicalFeatureState, MechanicalFeatureValue, MechanicalMirrorPair, PartDefinition, Pose2,
-    ProjectDoc, Vec2,
+    BoardContours, EditCommand, EditOperation, EditPhase, MechanicalConfiguration,
+    MechanicalFeature, MechanicalFeatureKind, MechanicalFeatureMember, MechanicalFeatureState,
+    MechanicalFeatureValue, MechanicalMirrorPair, PartDefinition, Pose2, ProjectDoc, Vec2,
 };
-use boardstudio_web_runtime::core_services::OpenScratchCore;
 use std::rc::Rc;
 
 /// One linked feature of the selected half's pair, as the accepted document stores it.
@@ -168,7 +167,6 @@ pub fn pair_link_options(
     board_contours: &[BoardContours],
     instance_id: &str,
     mounting_hole: Option<&PartDefinition>,
-    open_scratch: OpenScratchCore,
 ) -> Vec<MechanicalPairLinkOption> {
     let Some(hardware) = document.hardware.as_ref() else {
         return Vec::new();
@@ -255,7 +253,6 @@ pub fn pair_link_options(
                         board_contours,
                         &reviewed,
                         mounting_hole,
-                        open_scratch,
                     ) {
                         Ok(preview) => (Some(preview), None),
                         Err(reason) => (None, Some(reason)),
@@ -334,20 +331,12 @@ pub fn link_preview(
     board_contours: &[BoardContours],
     change: &MechanicalChange,
     mounting_hole: Option<&PartDefinition>,
-    open_scratch: OpenScratchCore,
 ) -> Result<MechanicalLinkPreview, String> {
     let MechanicalChange::LinkMirrorPair { members, .. } = change else {
         return Err("Only a reviewed link has a two-half preview.".into());
     };
-    let mut core = open_scratch();
-    match core(CoreRequest::Open {
-        id: "pair-review-open".into(),
-        document: document.clone(),
-    }) {
-        CoreReply::Scene { .. } => {}
-        CoreReply::Error { message, .. } => return Err(message),
-        _ => return Err("Core did not open the reviewed projection".into()),
-    }
+    let mut core = CoreEngine::new();
+    core.open(document.clone())?;
     let edit = MechanicalEdit {
         target: MechanicalTarget::Instance {
             instance_id: members[0].clone(),
@@ -364,16 +353,7 @@ pub fn link_preview(
             edit: Box::new(edit),
         },
     };
-    let (projected, _scene) = match core(CoreRequest::Edit {
-        id: "pair-review-link".into(),
-        command,
-    }) {
-        CoreReply::Scene {
-            document, scene, ..
-        } => (*document, scene),
-        CoreReply::Error { message, .. } => return Err(message),
-        _ => return Err("Core did not project the reviewed link".into()),
-    };
+    let projected = core.commit_edit(command)?.document;
 
     let mut previews = Vec::with_capacity(members.len());
     for instance_id in members {

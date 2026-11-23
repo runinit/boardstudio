@@ -248,7 +248,8 @@ pub struct PartAnchor {
 /// Spread/Stagger/Splay carry from the anchor; Offset/Rotation are the part's
 /// own. Anchor retargets, Follow changes and Detach are separate operations
 /// because they re-solve the values to keep the pose.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
 pub enum PartAnchorValueChange {
     Spread(f64),
     Stagger(f64),

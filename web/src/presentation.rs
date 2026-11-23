@@ -169,7 +169,7 @@ pub(crate) use view_helpers::{
 };
 use zmk_firmware_export::use_export_panel_input;
 
-use crate::runtime::{CoreServices, Runtime};
+use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, Event, Lifecycle, ReadModel, Scope, SelectionMode,
     TerminalOutcome,
@@ -197,22 +197,9 @@ pub fn App() -> Element {
     rsx! { notifications::NotificationProvider { WorkbenchApp {} } }
 }
 
-/// The page hosts the document engine: the web crates below it reach Core's synchronous entry
-/// points only through these injected services, so they compile without waiting for the
-/// engine. Tests below the page use the matching `boardstudio_web_test_runtime::engine_core_services()` test helper.
-pub(crate) fn core_services() -> CoreServices {
-    CoreServices {
-        validate_open: boardstudio_core::CoreEngine::validate_open,
-        open_scratch: || {
-            let mut engine = boardstudio_core::CoreEngine::new();
-            Box::new(move |request| engine.handle(request))
-        },
-    }
-}
-
 #[component]
 fn WorkbenchApp() -> Element {
-    let runtime = use_hook(|| Runtime::new(core_services()));
+    let runtime = use_hook(Runtime::new);
     let runtime = match runtime {
         Ok(runtime) => runtime,
         Err(error) => return rsx! { main { role: "alert", "Browser startup failed: {error}" } },

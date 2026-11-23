@@ -224,6 +224,7 @@ version = "0.1.0"
 dependencies = [
  "boardstudio-contracts",
  "boardstudio-core-artifact",
+ "boardstudio-core-engine",
  "boardstudio-core-kernel",
  "boardstudio-core-kicad-source",
  "boardstudio-core-mechanical",

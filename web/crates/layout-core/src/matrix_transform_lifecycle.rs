@@ -251,9 +251,7 @@ mod selection_retention_tests {
         use boardstudio_application::{GestureView, SessionEpoch};
         use std::{cell::Cell, rc::Rc, sync::Arc};
 
-        let runtime = boardstudio_web_runtime::runtime::Runtime::with_core(
-            boardstudio_web_test_runtime::engine_core_services(),
-        );
+        let runtime = boardstudio_web_runtime::runtime::Runtime::new();
         runtime.submit(Event::Open {
             operation_id: OperationId(1),
             document: matrix_fixture(),
@@ -339,9 +337,7 @@ mod selection_retention_tests {
 
     #[test]
     fn core_disable_then_undo_restores_scoped_key_selection() {
-        let runtime = boardstudio_web_runtime::runtime::Runtime::with_core(
-            boardstudio_web_test_runtime::engine_core_services(),
-        );
+        let runtime = boardstudio_web_runtime::runtime::Runtime::new();
         runtime.submit(Event::Open {
             operation_id: OperationId(1),
             document: matrix_fixture(),

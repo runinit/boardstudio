@@ -1,8 +1,8 @@
 //! Case geometry and CAD preparation from the page's accepted snapshot.
 
+#[cfg(any(target_arch = "wasm32", test))]
+use boardstudio_application::CoreEngine;
 use boardstudio_application::{AcceptedSnapshot, Scope};
-#[cfg(test)]
-use boardstudio_core::CoreEngine;
 use boardstudio_model::model::*;
 use boardstudio_web_worker_host::cad_jobs::CadJobError;
 #[cfg(target_arch = "wasm32")]
@@ -149,122 +149,90 @@ fn captured_case_inputs(
 /// Prepare CAD from the selected accepted snapshot. STEP includes the nominal PCB body.
 #[cfg(target_arch = "wasm32")]
 pub fn prepare_captured_case(
-    mut core: impl FnMut(CoreRequest) -> CoreReply,
-    request_prefix: &str,
     snapshot: &AcceptedSnapshot,
     scope: &Scope,
     include_pcb_reference: bool,
 ) -> Result<PreparedCadSnapshot, CadJobError> {
-    let (identity, initial) = preparation_request(snapshot, scope, request_prefix)?;
-    let reply = core(initial.clone());
-    let mut pcb_reference = None;
-    let mechanical_assembly;
-    let prepare = match reply {
-        CoreReply::CasePrepared { id: _, ir } => {
-            return validate_prepared(identity, ir, None);
-        }
-        CoreReply::MechanicalResolved { assembly, .. } => {
-            if assembly.revision != identity.revision || assembly.case.revision != identity.revision
-            {
-                return Err(CadJobError::Stale(
-                    "core resolved another case revision".into(),
-                ));
-            }
-            if assembly.generation_blocked {
-                return Err(CadJobError::Blocked(
-                    "mechanical findings block case generation".into(),
-                ));
-            }
-            let errors = assembly
-                .diagnostics
-                .iter()
-                .filter(|finding| finding.severity == Severity::Error)
-                .map(|finding| finding.message.as_str())
-                .collect::<Vec<_>>();
-            if !errors.is_empty() {
-                return Err(CadJobError::Blocked(errors.join("\n")));
-            }
-            if include_pcb_reference {
-                let (document, contours) = match &initial {
-                    CoreRequest::ResolveMechanical {
-                        document, contours, ..
-                    } => (document, contours),
-                    _ => unreachable!("mechanical reply requires a mechanical request"),
-                };
-                let configuration = document.mechanical.as_ref().ok_or_else(|| {
-                    CadJobError::Blocked("mechanical export has no selected configuration".into())
-                })?;
-                pcb_reference = Some(assembly.pcb_reference.clone().unwrap_or_else(|| CaseIR {
-                    revision: identity.revision,
-                    contours: contours.clone(),
-                    body: CaseBody {
-                        id: "pcb-reference".into(),
-                        name: "PCB reference — unpopulated".into(),
-                        board_id: configuration.board_id.clone(),
-                        kind: CaseKind::Plate,
-                        thickness: configuration.pcb_thickness,
-                        clearance: 0.0,
-                        material_id: None,
-                        z: Some(-configuration.pcb_thickness),
-                        wall_height: None,
-                        wall_thickness: None,
-                        mounts: None,
-                        pcb_source: None,
-                        gasket: None,
-                        openings: None,
-                        features: None,
-                    },
-                }));
-            }
-            mechanical_assembly = Some(assembly.clone());
-            CoreRequest::PrepareCase {
-                id: format!("{request_prefix}-prepare"),
-                ir: assembly.case,
-            }
-        }
-        CoreReply::Error { message, .. } => return Err(CadJobError::Blocked(message)),
-        _ => return Err(unexpected_case_reply()),
-    };
-    let reply = core(prepare);
-    let mut prepared = match reply {
-        CoreReply::CasePrepared { ir, .. } => Ok(ir),
-        CoreReply::Error { message, .. } => Err(CadJobError::Blocked(message)),
-        _ => Err(unexpected_case_reply()),
-    }?;
-    if let Some(reference) = pcb_reference {
-        let request_id = format!("{request_prefix}-pcb-reference");
-        let prepare_reference = CoreRequest::PrepareCase {
-            id: request_id.clone(),
-            ir: CaseAssemblyIR {
+    let (identity, document, contours, configured) = preparation_inputs(snapshot, scope)?;
+    if !configured {
+        let bodies = document
+            .case_bodies
+            .iter()
+            .filter(|body| body.board_id == scope.board_id)
+            .cloned()
+            .map(|body| CaseIR {
                 revision: identity.revision,
-                bodies: vec![reference],
-            },
-        };
-        let reply = core(prepare_reference);
-        match reply {
-            CoreReply::CasePrepared { ir, .. } if ir.revision == identity.revision => {
-                prepared.bodies.extend(ir.bodies);
-            }
-            CoreReply::CasePrepared { .. } => {
-                return Err(CadJobError::Stale(
-                    "PCB reference has another revision".into(),
-                ));
-            }
-            CoreReply::Error { message, .. } => return Err(CadJobError::Blocked(message)),
-            _ => {
-                return Err(CadJobError::Failed(
-                    "unexpected PCB reference preparation reply".into(),
-                ));
-            }
-        }
+                body,
+                contours: contours.clone(),
+            })
+            .collect();
+        let prepared = CoreEngine::prepare_case(&CaseAssemblyIR {
+            revision: identity.revision,
+            bodies,
+        })
+        .map_err(CadJobError::Blocked)?;
+        return validate_prepared(identity, prepared, None);
     }
-    validate_prepared(identity, prepared, mechanical_assembly)
-}
 
-/// A core reply the case pipeline never accepts.
-#[cfg(target_arch = "wasm32")]
-fn unexpected_case_reply() -> CadJobError {
-    CadJobError::Failed("unexpected core case preparation reply".into())
+    let assembly = CoreEngine::resolve_mechanical(&document, &contours);
+    if assembly.revision != identity.revision || assembly.case.revision != identity.revision {
+        return Err(CadJobError::Stale(
+            "core resolved another case revision".into(),
+        ));
+    }
+    if assembly.generation_blocked {
+        return Err(CadJobError::Blocked(
+            "mechanical findings block case generation".into(),
+        ));
+    }
+    let errors = assembly
+        .diagnostics
+        .iter()
+        .filter(|finding| finding.severity == Severity::Error)
+        .map(|finding| finding.message.as_str())
+        .collect::<Vec<_>>();
+    if !errors.is_empty() {
+        return Err(CadJobError::Blocked(errors.join("\n")));
+    }
+    let mut prepared = CoreEngine::prepare_case(&assembly.case).map_err(CadJobError::Blocked)?;
+    if include_pcb_reference {
+        let configuration = document.mechanical.as_ref().ok_or_else(|| {
+            CadJobError::Blocked("mechanical export has no selected configuration".into())
+        })?;
+        let reference = assembly.pcb_reference.clone().unwrap_or_else(|| CaseIR {
+            revision: identity.revision,
+            contours,
+            body: CaseBody {
+                id: "pcb-reference".into(),
+                name: "PCB reference — unpopulated".into(),
+                board_id: configuration.board_id.clone(),
+                kind: CaseKind::Plate,
+                thickness: configuration.pcb_thickness,
+                clearance: 0.0,
+                material_id: None,
+                z: Some(-configuration.pcb_thickness),
+                wall_height: None,
+                wall_thickness: None,
+                mounts: None,
+                pcb_source: None,
+                gasket: None,
+                openings: None,
+                features: None,
+            },
+        });
+        let pcb = CoreEngine::prepare_case(&CaseAssemblyIR {
+            revision: identity.revision,
+            bodies: vec![reference],
+        })
+        .map_err(CadJobError::Blocked)?;
+        if pcb.revision != identity.revision {
+            return Err(CadJobError::Stale(
+                "PCB reference has another revision".into(),
+            ));
+        }
+        prepared.bodies.extend(pcb.bodies);
+    }
+    validate_prepared(identity, prepared, Some(assembly))
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -405,11 +373,10 @@ fn target_case_findings_are_clear(
 }
 
 #[cfg(any(target_arch = "wasm32", test))]
-fn preparation_request(
+fn preparation_inputs(
     snapshot: &AcceptedSnapshot,
     scope: &Scope,
-    request_prefix: &str,
-) -> Result<(CadSnapshotIdentity, CoreRequest), CadJobError> {
+) -> Result<(CadSnapshotIdentity, ProjectDoc, Vec<Contour>, bool), CadJobError> {
     let document = &snapshot.document;
     let scene = &snapshot.scene;
     if !revision_supported_by_cad_boundary(document.revision) {
@@ -444,43 +411,18 @@ fn preparation_request(
         .find(|entry| entry.board_id == scope.board_id)
         .map(|entry| entry.contours.clone())
         .unwrap_or_default();
-    let document_id = effective_document.id.clone();
-    let request = if configured {
-        CoreRequest::ResolveMechanical {
-            id: format!("{request_prefix}-resolve"),
-            document: effective_document,
-            contours,
-        }
-    } else {
-        let bodies = effective_document
-            .case_bodies
-            .iter()
-            .filter(|body| body.board_id == scope.board_id)
-            .cloned()
-            .map(|body| CaseIR {
-                revision: effective_document.revision,
-                body,
-                contours: contours.clone(),
-            })
-            .collect();
-        CoreRequest::PrepareCase {
-            id: format!("{request_prefix}-resolve"),
-            ir: CaseAssemblyIR {
-                revision: effective_document.revision,
-                bodies,
-            },
-        }
-    };
     Ok((
         CadSnapshotIdentity {
             token: snapshot.token.0,
             session_epoch: snapshot.session_epoch.0,
-            document_id,
+            document_id: effective_document.id.clone(),
             board_id: scope.board_id.clone(),
             instance_id: scope.instance_id.clone(),
             revision: document.revision,
         },
-        request,
+        effective_document,
+        contours,
+        configured,
     ))
 }
 
@@ -528,20 +470,14 @@ mod tests {
             }))
             .unwrap(),
         );
-        let CoreReply::Scene {
-            document, scene, ..
-        } = CoreEngine::new().handle(CoreRequest::Open {
-            id: "open".into(),
-            document,
-        })
-        else {
-            panic!("source fixture must open");
-        };
+        let opened = CoreEngine::new()
+            .open(document)
+            .expect("source fixture must open");
         let snapshot = AcceptedSnapshot {
             token: SnapshotToken(1),
             session_epoch: SessionEpoch(1),
-            document: std::sync::Arc::new(*document),
-            scene: std::sync::Arc::new(scene),
+            document: std::sync::Arc::new(opened.document),
+            scene: std::sync::Arc::new(opened.scene),
         };
         let scope = Scope {
             session_epoch: SessionEpoch(1),
@@ -644,7 +580,7 @@ mod tests {
             instance_id: None,
         };
         assert!(matches!(
-            preparation_request(&snapshot, &scope, "fixture"),
+            preparation_inputs(&snapshot, &scope),
             Err(CadJobError::Stale(_))
         ));
     }

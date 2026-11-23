@@ -5,7 +5,7 @@ wasm_bindgen_test_configure!(run_in_browser);
 
 #[wasm_bindgen_test]
 fn a_save_completion_notifies_only_the_durability_subscriber() {
-    let runtime = Runtime::new_with_restoration(false, CoreServices::engine()).unwrap();
+    let runtime = Runtime::new_with_restoration(false).unwrap();
     let counts = Rc::new([Cell::new(0), Cell::new(0)]);
     for (index, subscribe) in [Runtime::subscribe, Runtime::subscribe_durability]
         .into_iter()

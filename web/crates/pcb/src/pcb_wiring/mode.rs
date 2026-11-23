@@ -32,19 +32,24 @@ pub(super) fn current_plan_for(
 }
 
 /// One electrical preview-then-resolve shared by firmware-position and pin locks.
-pub(super) fn resolve_preview_plan(
-    label: &'static str,
-    document: &ProjectDoc,
-    board_id: &str,
-) -> ElectricalPlan {
-    let boardstudio_model::model::CoreRequest::ResolveElectrical {
-        request: electrical_request,
-        ..
-    } = boardstudio_web_runtime::electrical_preview_request(label, document, board_id)
-    else {
-        unreachable!()
-    };
-    boardstudio_core_mechanical::electrical::resolve(electrical_request)
+pub(super) fn resolve_preview_plan(document: &ProjectDoc, board_id: &str) -> ElectricalPlan {
+    use boardstudio_core_mechanical::electrical::{ElectricalMode, ElectricalPlanRequest, resolve};
+
+    let configuration = document.hardware.as_ref().and_then(|hardware| {
+        hardware
+            .boards
+            .iter()
+            .find(|item| item.board_id == board_id)
+    });
+    resolve(ElectricalPlanRequest {
+        document: document.clone(),
+        instance_id: None,
+        mode: configuration.map_or(ElectricalMode::Matrix, |item| item.mode),
+        locks: configuration.map_or_else(Default::default, |item| item.locks.clone()),
+        controller_profile: None,
+        board_id: Some(board_id.to_owned()),
+        controller_part_id: configuration.and_then(|item| item.controller_part_id.clone()),
+    })
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -289,10 +289,9 @@ pub fn LayoutAnchorPickOverlay(
         )
     };
     let hover_ring = {
-        let (document, context, open_scratch, current, item) = (
+        let (document, context, current, item) = (
             document.clone(),
             context.clone(),
-            runtime.core_services().open_scratch,
             current.clone(),
             item.clone(),
         );
@@ -301,12 +300,7 @@ pub fn LayoutAnchorPickOverlay(
             hovered_target.set(target.clone());
             match target {
                 Some(target) => {
-                    preview.set(preview_anchor_poses(
-                        &document,
-                        &context,
-                        &target,
-                        open_scratch,
-                    ));
+                    preview.set(preview_anchor_poses(&document, &context, &target));
                     choose(format!(
                         "{item} → {}",
                         anchor_key_label(&document, &target.matrix_id, target.row, target.column)

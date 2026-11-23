@@ -122,24 +122,15 @@ impl Runtime {
                     && scene.prepared.revision == revision
             })
             .map(|scene| scene.prepared.clone());
+        let physical_document;
         let document = if physical_case {
-            captured_case_document(&accepted, &scope)
-                .map_err(|error| format!("Could not capture physical Case keycaps: {error:?}"))?
+            physical_document = captured_case_document(&accepted, &scope)
+                .map_err(|error| format!("Could not capture physical Case keycaps: {error:?}"))?;
+            &physical_document
         } else {
-            (*accepted.document).clone()
+            &accepted.document
         };
-        let request = CoreRequest::ResolveKeycaps {
-            id: format!("keycaps-fit-{}", self.operation().0),
-            document,
-            board_id: scope.board_id.clone(),
-            cases,
-        };
-        let reply = (self.core_services.open_scratch)()(request);
-        let result = match reply {
-            CoreReply::KeycapsResolved { result, .. } => result,
-            CoreReply::Error { message, .. } => return Err(message),
-            _ => return Err("Core returned an unexpected keycap fit reply.".into()),
-        };
+        let result = CoreEngine::resolve_keycaps(document, &scope.board_id, cases.as_ref());
         if result.revision != accepted.document.revision {
             return Err("Core resolved keycap fit for another document revision.".into());
         }

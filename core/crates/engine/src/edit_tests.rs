@@ -2,6 +2,117 @@ use super::apply::{affects_outline, apply};
 use super::preview::{preview_electrical_loss_findings, preview_electrical_notice_id};
 use super::*;
 
+#[test]
+fn assembly_save_and_placement_each_make_one_undo_entry() {
+    use serde_json::{from_value, json};
+
+    let mut start = ProjectDoc::empty("assembly-project", "Assemblies");
+    start.boards.push(
+        from_value(json!({
+            "id": "pcb", "name": "PCB", "outlineIds": ["edge"], "partIds": [], "netIds": [],
+            "thickness": 1.6
+        }))
+        .unwrap(),
+    );
+    start.outline.push(
+        from_value(json!({
+            "kind": "part-envelope", "id": "edge", "partIds": [], "margin": 2, "operation": "add"
+        }))
+        .unwrap(),
+    );
+    let mut core = CoreEngine::new();
+    let initial = core.open(start).unwrap().document;
+    let mut asset: Asset = from_value(json!({
+        "id": "model", "name": "Model", "mediaType": "model/step", "sha256": "model-digest"
+    }))
+    .unwrap();
+    let assembly: AssemblyDefinition = from_value(json!({
+        "id": "recipe", "name": "Recipe", "members": [{
+            "id": "member", "definitionId": "template", "side": "front", "models": [],
+            "pose": {"at": {"x": 0, "y": 0}, "rotation": 0}
+        }]
+    }))
+    .unwrap();
+    let mut definition: PartDefinition = from_value(json!({
+        "id": "template", "name": "Switch", "kind": "switch", "pads": [],
+        "courtyard": [{"x": -2, "y": -2}, {"x": 2, "y": -2}, {"x": 2, "y": 2}, {"x": -2, "y": 2}]
+    }))
+    .unwrap();
+    let save = |assembly, definitions, assets| EditOperation::UpsertAssembly {
+        assembly: Box::new(assembly),
+        definitions,
+        assets,
+    };
+    let commit = |core: &mut CoreEngine, base_revision, operation| {
+        core.commit_edit(EditCommand {
+            base_revision,
+            transaction_id: "assembly".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![],
+            operation,
+        })
+    };
+    let saved = commit(
+        &mut core,
+        0,
+        save(
+            assembly.clone(),
+            vec![definition.clone()],
+            vec![asset.clone()],
+        ),
+    )
+    .unwrap();
+    assert_eq!(saved.scene.changed_ids, ["recipe"]);
+    assert_eq!(saved.document.assemblies, [assembly.clone()]);
+
+    definition.id = "placed/definition/member".into();
+    let part: Part = from_value(json!({
+        "id": "placed/member", "definitionId": definition.id, "reference": "Recipe member",
+        "pose": {"at": {"x": 2, "y": 3}, "rotation": 0}, "side": "front"
+    }))
+    .unwrap();
+    let place = |parts, assets| EditOperation::PlaceAssembly {
+        board_id: "pcb".into(),
+        placement_id: "placed".into(),
+        definitions: vec![definition.clone()],
+        parts,
+        assets,
+    };
+    let placed = commit(&mut core, 1, place(vec![part.clone()], vec![asset.clone()])).unwrap();
+    assert_eq!(placed.scene.changed_ids, ["pcb", "placed/member"]);
+    assert_eq!(placed.document.boards[0].part_ids, ["placed/member"]);
+    assert!(
+        matches!(&placed.document.outline[0], OutlineFeature::PartEnvelope { part_ids, .. } if part_ids == &["placed/member"])
+    );
+    assert_eq!(
+        placed.document.parts[0].properties.as_ref().unwrap()["assemblyId"],
+        "placed"
+    );
+    assert_eq!(placed.document.assets, [asset.clone()]);
+
+    asset.sha256.push('x');
+    assert!(
+        commit(&mut core, 2, save(assembly, vec![], vec![asset]))
+            .unwrap_err()
+            .contains("conflicts")
+    );
+    assert_eq!(core.snapshot().unwrap().document, placed.document);
+    let without_revision = |mut document: ProjectDoc| {
+        document.revision = 0;
+        document
+    };
+    assert_eq!(
+        without_revision(core.undo().unwrap().document),
+        without_revision(saved.document)
+    );
+    assert_eq!(without_revision(core.undo().unwrap().document), initial);
+    core.redo().unwrap();
+    assert_eq!(
+        without_revision(core.redo().unwrap().document),
+        without_revision(placed.document)
+    );
+}
+
 #[cfg(test)]
 mod preview_electrical_loss_tests {
     use super::*;

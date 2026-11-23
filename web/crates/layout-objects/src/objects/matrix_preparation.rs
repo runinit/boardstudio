@@ -261,15 +261,13 @@ pub(super) fn prepared_definitions_error(
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 mod tests {
-    use super::super::test_fixtures::{
-        open_board_document as open_document, test_services as services,
-    };
+    use super::super::test_fixtures::open_board_document as open_document;
     use super::*;
     use boardstudio_application::Event;
 
     #[test]
     fn configured_board_instance_can_open_matrix_setup() {
-        let runtime = Runtime::with_core(services());
+        let runtime = Runtime::new();
         open_document(&runtime, "A", 10, true);
         runtime.submit(Event::Navigate {
             operation_id: runtime.operation(),
@@ -291,7 +289,7 @@ mod tests {
 
     #[test]
     fn nonexistent_physical_instance_cannot_open_matrix_setup() {
-        let runtime = Runtime::with_core(services());
+        let runtime = Runtime::new();
         open_document(&runtime, "A", 10, true);
         // Session rejects navigation to an unknown instance, so a scope naming one can only
         // arise from a stale owner. Admission must still refuse it.

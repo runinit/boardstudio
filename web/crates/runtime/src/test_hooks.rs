@@ -16,8 +16,8 @@ pub fn installed(runtime: &Runtime) -> Rc<dyn InstalledAdapters> {
         .expect("in-process adapters are installed")
 }
 
-pub fn new_runtime(services: CoreServices) -> Result<Rc<Runtime>, String> {
-    Runtime::new_with_restoration(false, services)
+pub fn new_runtime() -> Result<Rc<Runtime>, String> {
+    Runtime::new_with_restoration(false)
 }
 
 pub fn store(runtime: &Runtime) -> BrowserStore {

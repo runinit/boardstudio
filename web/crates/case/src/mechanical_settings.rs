@@ -230,7 +230,6 @@ fn project_source(
     let instance_id = key.scope.instance_id.as_deref();
     let contours = &accepted.scene.board_contours;
     let projection = instance_id.and_then(|id| pair_projection(&accepted.document, contours, id));
-    let open_scratch = runtime.core_services().open_scratch;
     let preview = configuration.is_none().then(|| {
         boardstudio_core_mechanical::mechanical::effective_inputs(
             &resolved,
@@ -267,24 +266,10 @@ fn project_source(
                 .cloned()
         }),
         pair_features: projection.map(|projection| projection.features.into()),
-        pair_link_options: instance_id.map(|id| {
-            pair_link_options(
-                &accepted.document,
-                contours,
-                id,
-                hole.as_deref(),
-                open_scratch,
-            )
-            .into()
-        }),
+        pair_link_options: instance_id
+            .map(|id| pair_link_options(&accepted.document, contours, id, hole.as_deref()).into()),
         pair_port: Some(MechanicalPairProjectionPort(Rc::new(move |change| {
-            link_preview(
-                &document,
-                &board_contours,
-                change,
-                hole_template.as_deref(),
-                open_scratch,
-            )
+            link_preview(&document, &board_contours, change, hole_template.as_deref())
         }))),
         construction_is_legacy: instance_id
             .and_then(|id| {

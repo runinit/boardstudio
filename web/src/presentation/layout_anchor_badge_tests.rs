@@ -34,8 +34,10 @@ fn set_matrix_command(base_revision: u64, matrix: serde_json::Value) -> EditComm
         transaction_id: "set-matrix".into(),
         phase: EditPhase::Commit,
         target_ids: vec![],
-        operation: serde_json::from_value(json!({ "kind": "set-matrix", "matrix": matrix }))
-            .expect("the operation parses"),
+        operation: EditOperation::SetMatrix {
+            matrix: serde_json::from_value(matrix).expect("fixture matrix parses"),
+            definitions: None,
+        },
     }
 }
 
@@ -45,11 +47,9 @@ fn replace_command(base_revision: u64, document: ProjectDoc) -> EditCommand {
         transaction_id: "replace".into(),
         phase: EditPhase::Commit,
         target_ids: vec![],
-        operation: serde_json::from_value(json!({
-            "kind": "replace-document",
-            "document": serde_json::to_value(document).unwrap(),
-        }))
-        .expect("the operation parses"),
+        operation: EditOperation::ReplaceDocument {
+            document: Box::new(document),
+        },
     }
 }
 
@@ -59,10 +59,10 @@ fn anchor_command(base_revision: u64, id: &str, anchor: serde_json::Value) -> Ed
         transaction_id: "anchor".into(),
         phase: EditPhase::Commit,
         target_ids: vec![],
-        operation: serde_json::from_value(json!({
-            "kind": "add-anchored-matrix", "id": id, "anchor": anchor,
-        }))
-        .expect("the operation parses"),
+        operation: EditOperation::AddAnchoredMatrix {
+            id: id.into(),
+            anchor: serde_json::from_value(anchor).expect("fixture anchor parses"),
+        },
     }
 }
 

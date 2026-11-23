@@ -44,6 +44,18 @@ mod edit_tests;
 mod preview;
 mod scene_reuse;
 
+#[derive(Debug)]
+pub struct CommittedScene {
+    pub scene: SceneDelta,
+    pub document: ProjectDoc,
+}
+
+#[derive(Debug)]
+pub enum EditOutcome {
+    Preview(SceneDelta),
+    Committed(CommittedScene),
+}
+
 pub struct CoreEngine {
     document: ProjectDoc,
     resolved: Arc<mirrored_half::ResolvedDoc>,
@@ -67,7 +79,8 @@ pub struct CoreEngine {
 }
 
 impl CoreEngine {
-    // Worker transport keeps the Rust and TypeScript protocols identical.
+    // Golden fixtures keep the native and wasm32 JSON boundary identical.
+    #[cfg(feature = "wire-json")]
     pub fn request(&mut self, json: &str) -> String {
         let preflight = serde_json::from_str::<serde_json::Value>(json)
             .map_err(|error| error.to_string())

@@ -59,7 +59,6 @@ pub fn can_reconcile(model: &ReadModel) -> bool {
 mod tests {
     use super::*;
     use boardstudio_application::{Completion, Effect, Event, OperationId, SaveResult, Session};
-    use boardstudio_core::CoreEngine;
     use boardstudio_model::model::{HardwareConfiguration, PhysicalBoardInstance};
 
     fn document() -> ProjectDoc {
@@ -150,7 +149,7 @@ mod tests {
 
     #[test]
     fn automatic_navigation_waits_for_real_session_open_and_save() {
-        let mut session = Session::new(CoreEngine::validate_open);
+        let mut session = Session::new();
         assert!(!can_reconcile(session.read_model()));
         let effects = session.submit(Event::Open {
             operation_id: OperationId(1),

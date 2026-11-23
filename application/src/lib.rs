@@ -19,3 +19,5 @@ pub fn resolved_document(
         )
     }
 }
+
+pub use boardstudio_core::CoreEngine;

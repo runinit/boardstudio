@@ -8,7 +8,7 @@ use boardstudio_core_mechanical::mechanical::inputs::effective_inputs;
 #[cfg(test)]
 use boardstudio_core_mechanical::mechanical::pair;
 #[cfg(test)]
-use boardstudio_model::model::{CoreReply, CoreRequest, EditCommand, EditPhase};
+use boardstudio_model::model::{EditCommand, EditPhase};
 use boardstudio_model::model::{
     EditOperation, HardwareTopology, HardwareTransport, MechanicalConfiguration,
     MechanicalConstructionOwnership, MechanicalFeatureKind, MirroredHalfLabel, MirroredHalfLabels,

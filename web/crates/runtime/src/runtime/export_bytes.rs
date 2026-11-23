@@ -51,19 +51,10 @@ impl Runtime {
             return Err("The selected board has no saved authored case bodies.".into());
         }
         let request_id = format!("authored-case-step-{}", operation_id.0);
-        let request = CoreRequest::PrepareCase {
-            id: request_id.clone(),
-            ir: CaseAssemblyIR {
-                revision: snapshot.document.revision,
-                bodies,
-            },
-        };
-        let prepared = (self.core_services.open_scratch)()(request);
-        let prepared = match prepared {
-            CoreReply::CasePrepared { id, ir } if id == request_id => ir,
-            CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
-            _ => return Err("Core returned an unexpected authored case preparation.".into()),
-        };
+        let prepared = CoreEngine::prepare_case(&CaseAssemblyIR {
+            revision: snapshot.document.revision,
+            bodies,
+        })?;
         if prepared.revision != snapshot.document.revision
             || prepared
                 .bodies

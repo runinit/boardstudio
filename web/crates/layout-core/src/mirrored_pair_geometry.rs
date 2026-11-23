@@ -39,7 +39,7 @@ pub struct PairPreviewCell {
 }
 
 /// Adapt Core's projected scene to the canvas preview, adding only the visual key bounds.
-/// Cell locations and rotations always come from `CoreRequest::ProjectMatrices`.
+/// Cell locations and rotations always come from `CoreEngine::project_matrices`.
 pub fn preview_cells(scene: &MatrixScene, matrix: &Matrix) -> Vec<PairPreviewCell> {
     let edge_gap = matrix.edge_gap.unwrap_or(Vec2 { x: 1.0, y: 1.0 });
     scene
@@ -166,7 +166,7 @@ pub fn project_mirrored_pair(
 mod tests {
     use super::*;
     use boardstudio_core::CoreEngine;
-    use boardstudio_model::model::{CoreReply, CoreRequest, Mirror};
+    use boardstudio_model::model::Mirror;
 
     fn matrix() -> Matrix {
         serde_json::from_value(serde_json::json!({
@@ -191,18 +191,13 @@ mod tests {
     }
 
     fn core_project(matrix: Matrix) -> MatrixScene {
-        let mut core = CoreEngine::new();
-        match core.handle(CoreRequest::ProjectMatrices {
-            id: "pair-preview".into(),
-            base_revision: 0,
-            matrices: vec![matrix],
-        }) {
-            CoreReply::MatrixProjections { matrix_scenes, .. } => matrix_scenes
-                .into_iter()
-                .next()
-                .expect("Core returns one matrix projection"),
-            reply => panic!("Core did not project the preview matrix: {reply:?}"),
-        }
+        let (_, scenes) = CoreEngine::new()
+            .project_matrices(0, vec![matrix])
+            .expect("Core projects the preview matrix");
+        scenes
+            .into_iter()
+            .next()
+            .expect("Core returns one matrix projection")
     }
 
     fn request() -> MirroredPairGeometryInput {
