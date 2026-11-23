@@ -2,7 +2,7 @@
 """Fail when a plain #[test] sits in Rust code that native `cargo test` never compiles.
 
 The web crate gates much of `mod presentation` behind target_arch = "wasm32".
-Native `cargo test` only reaches the files that main.rs/lib.rs (or web/tests)
+Native `cargo test` only reaches the files that main.rs/lib.rs
 include through non-wasm cfgs or `#[path]` stubs, so a plain `#[test]` in a
 wasm-only file silently runs zero tests. Use `#[wasm_bindgen_test]` there, or
 include the file natively.
@@ -213,7 +213,6 @@ def _trees(root):
     src = root / "web/src"
     roots = [src / "main.rs", src / "lib.rs"]
     roots += sorted((root / "web/crates").glob("*/src/lib.rs"))
-    roots += sorted((root / "web/tests").glob("*.rs"))
     roots += sorted((root / "web/examples").glob("*.rs"))
     roots = [path.resolve() for path in roots if path.is_file()]
     cache = {}

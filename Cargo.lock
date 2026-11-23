@@ -358,7 +358,6 @@ dependencies = [
  "serde_json",
  "slab",
  "syn 2.0.119",
- "tokio",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
