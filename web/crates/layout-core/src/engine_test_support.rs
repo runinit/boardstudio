@@ -29,21 +29,7 @@ pub fn edit_engine(
     document: &ProjectDoc,
     operation: EditOperation,
 ) -> (SceneDelta, ProjectDoc) {
-    match engine.handle(CoreRequest::Edit {
-        id: "edit".into(),
-        command: EditCommand {
-            base_revision: document.revision,
-            transaction_id: "edit".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation,
-        },
-    }) {
-        CoreReply::Scene {
-            scene, document, ..
-        } => (scene, *document),
-        other => panic!("expected scene: {other:?}"),
-    }
+    edit_revision(engine, document.revision, operation)
 }
 
 /// Commit one JSON operation (parsed as a typed edit); panics unless Core
@@ -53,6 +39,18 @@ pub fn edit_json(
     revision: u64,
     operation: serde_json::Value,
 ) -> (SceneDelta, ProjectDoc) {
+    edit_revision(
+        engine,
+        revision,
+        serde_json::from_value(operation).expect("the operation parses"),
+    )
+}
+
+fn edit_revision(
+    engine: &mut CoreEngine,
+    revision: u64,
+    operation: EditOperation,
+) -> (SceneDelta, ProjectDoc) {
     match engine.handle(CoreRequest::Edit {
         id: "edit".into(),
         command: EditCommand {
@@ -60,7 +58,7 @@ pub fn edit_json(
             transaction_id: "edit".into(),
             phase: EditPhase::Commit,
             target_ids: vec![],
-            operation: serde_json::from_value(operation).expect("the operation parses"),
+            operation,
         },
     }) {
         CoreReply::Scene {
