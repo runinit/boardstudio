@@ -1057,11 +1057,7 @@ pub fn finding_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<FindingMar
                                 .courtyard
                                 .iter()
                                 .map(|p| {
-                                    crate::geometry::part_to_world(
-                                        *p,
-                                        &pose,
-                                        part.side.clone(),
-                                    )
+                                    crate::geometry::part_to_world(*p, &pose, part.side.clone())
                                 })
                                 .collect(),
                             hole: false,

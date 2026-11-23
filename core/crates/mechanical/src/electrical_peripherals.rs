@@ -29,11 +29,7 @@ pub fn describe(document: &ProjectDoc, board_id: &str) -> Vec<PeripheralRequirem
             let input = crate::inputs::profile(definition);
             if let Some(rotary) = input.rotary {
                 let enabled = definition.input_profile.is_some()
-                    || part.generator_flag(
-                        definition,
-                        "include_momentary_switch_pads",
-                        true,
-                    );
+                    || part.generator_flag(definition, "include_momentary_switch_pads", true);
                 let press_key_id = input.press.as_ref().filter(|_| enabled).map(|_| {
                     if crate::inputs::matrix_member(document, part) {
                         part.id.clone()
@@ -176,6 +172,7 @@ pub fn describe(document: &ProjectDoc, board_id: &str) -> Vec<PeripheralRequirem
 mod tests {
     use super::*;
     use crate::model::*;
+    use crate::test_support::*;
     use std::collections::BTreeMap;
     fn doc(source: &str, params: BTreeMap<String, serde_json::Value>) -> ProjectDoc {
         let mut d = ProjectDoc::empty("p", "p");
@@ -201,32 +198,10 @@ mod tests {
             }),
             mechanical_profile: None,
         });
-        d.parts.push(Part {
-            anchor: None,
-            id: "p1".into(),
-            definition_id: "peripheral".into(),
-            reference: "J1".into(),
-            pose: Pose2 {
-                at: Vec2::default(),
-                rotation: 0.0,
-            },
-            side: Side::Front,
-            locked: None,
-            keycap: None,
-            outline: None,
-            properties: None,
-            generator_parameters: Some(params),
-        });
-        d.boards.push(Board {
-            id: "b".into(),
-            name: "b".into(),
-            outline_ids: vec![],
-            part_ids: vec!["p1".into()],
-            net_ids: vec![],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
+        let mut part = part_full("p1", "peripheral", "J1", 0.0, 0.0, 0.0, Side::Front);
+        part.generator_parameters = Some(params);
+        d.parts.push(part);
+        d.boards.push(board("b", vec!["p1".into()], 1.6));
         d
     }
     #[test]

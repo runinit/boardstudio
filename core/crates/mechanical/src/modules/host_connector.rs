@@ -206,9 +206,11 @@ fn part_bounds(doc: &ProjectDoc, part: &Part) -> Option<Bounds> {
     // parts.
     let pose = crate::matrix::layout::evaluated_part_pose(doc, part);
     Bounds::from_points(
-        definition.courtyard.iter().copied().map(|point| {
-            crate::geometry::part_to_world(point, &pose, part.side.clone())
-        }),
+        definition
+            .courtyard
+            .iter()
+            .copied()
+            .map(|point| crate::geometry::part_to_world(point, &pose, part.side.clone())),
     )
 }
 
@@ -282,12 +284,9 @@ fn nearby_pose(
             let place = |point: Vec2| {
                 crate::geometry::part_to_world(point, &pose, instance.host_face.clone())
             };
-            let bounds = Bounds::from_points(
-                connector.courtyard.iter().copied().map(place),
-            )
-            .expect("validated connector courtyard");
-            let footprint_points: Vec<_> =
-                connector.courtyard.iter().copied().map(place).collect();
+            let bounds = Bounds::from_points(connector.courtyard.iter().copied().map(place))
+                .expect("validated connector courtyard");
+            let footprint_points: Vec<_> = connector.courtyard.iter().copied().map(place).collect();
             if !bounds.overlaps(module_bounds)
                 && blockers.iter().all(|blocker| !bounds.overlaps(*blocker))
                 && fits_board_outline(&outline_features, &footprint_points)

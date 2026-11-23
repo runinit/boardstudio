@@ -6,75 +6,24 @@ use crate::mechanical::features;
 use crate::model::{
     HardwareConfiguration, HardwareTopology, HardwareTransport, MechanicalConfiguration,
     MechanicalConstructionOwnership, MechanicalFeatureKind, MechanicalFeatureState,
-    MechanicalFeatureValue, MechanicalGasketAnchor, MechanicalMirrorPair, Mount, MountKind,
-    PartDefinition, PhysicalBoardInstance, Pose2, Vec2,
+    MechanicalFeatureValue, MechanicalMirrorPair, Mount, MountKind, PhysicalBoardInstance, Pose2,
+    Vec2,
 };
+use crate::test_support::*;
 use serde_json::json;
-
-fn board(id: &str, part_ids: Vec<String>) -> Board {
-    Board {
-        id: id.into(),
-        name: id.into(),
-        outline_ids: vec![],
-        part_ids,
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    }
-}
-
-fn configuration() -> MechanicalConfiguration {
-    serde_json::from_value(json!({
-        "boardId": "board",
-        "method": "printed",
-        "mount": "rigid",
-        "plateThickness": 1.5,
-        "plateFoamThickness": 0.5,
-        "pcbThickness": 1.6,
-        "bottomFoamThickness": 0.4,
-        "batteryHeight": 4.0,
-        "bottomThickness": 3.0,
-        "plateToPcb": 3.5,
-        "wallThickness": 2.0,
-        "clearance": 0.3,
-        "bottomStyle": "shell",
-        "middleFrame": false,
-        "openingAllowance": 0.25,
-        "mounts": [],
-        // Deliberate empty closure collection: most settings tests must not
-        // trigger closure initialization and its required template.
-        "closureMounts": [],
-        "profiles": []
-    }))
-    .unwrap()
-}
 
 /// The same configuration with absent closure mounts, for initialization tests.
 fn configuration_without_closures() -> MechanicalConfiguration {
-    let mut configuration = configuration();
+    let mut configuration = edit_configuration();
     configuration.closure_mounts = None;
     configuration
 }
 
 /// The normalized bundled mounting-hole catalogue entry projection expects.
-fn template() -> PartDefinition {
-    serde_json::from_value(json!({
-        "id":"generator:ceoloide/mounting_hole_npth", "name":"mounting hole npth",
-        "kind":"custom", "pads":[{"id":"pad-0", "number":"", "at":{"x":0,"y":0},
-            "size":{"x":2.2,"y":2.2}, "shape":"circle", "drill":2.2,"plated":false,"rotation":0}],
-        "courtyard":[{"x":-1.1,"y":-1.1},{"x":1.1,"y":-1.1},{"x":1.1,"y":1.1},{"x":-1.1,"y":1.1}],
-        "envelopeSource":{"courtyard":"generated"},
-        "envelopeNotice":"No closed courtyard is available; the outline uses physical graphics and pad extents.",
-        "generator":{"source":"ceoloide/mounting_hole_npth", "version":"bundled-1", "parameters":{}}
-    }))
-    .unwrap()
-}
-
 fn document() -> ProjectDoc {
     let mut document = ProjectDoc::empty("doc", "Fixture");
-    document.boards.push(board("board", vec![]));
-    document.mechanical = Some(configuration());
+    document.boards.push(board("board", vec![], 1.6));
+    document.mechanical = Some(edit_configuration());
     document
 }
 
@@ -90,7 +39,7 @@ fn document_with_outline() -> ProjectDoc {
         rotation: None,
         operation: Operation::Add,
     });
-    document.boards.push(board("board", vec![]));
+    document.boards.push(board("board", vec![], 1.6));
     document.boards[0].outline_ids = vec!["outline".into()];
     document.mechanical = Some(configuration_without_closures());
     document
@@ -115,26 +64,13 @@ fn apply_change(doc: &mut ProjectDoc, change: MechanicalChange) -> Result<Vec<St
         &MechanicalEdit {
             target: board_target(),
             change,
-            mounting_hole: Some(Box::new(template())),
+            mounting_hole: Some(Box::new(mounting_hole_template())),
         },
     )
 }
 
 fn stored(doc: &ProjectDoc) -> &MechanicalConfiguration {
     doc.mechanical.as_ref().expect("stored configuration")
-}
-
-fn anchor(id: &str, anchor: f64) -> MechanicalGasketAnchor {
-    MechanicalGasketAnchor {
-        length: Some(12.0),
-        width: Some(3.0),
-        placement: Some(GasketPlacement::User),
-        id: id.into(),
-        region_id: id.into(),
-        outline_key: id.into(),
-        anchor,
-        unlinked: false,
-    }
 }
 
 #[test]
@@ -148,6 +84,7 @@ fn the_initial_switch_family_follows_generator_inference_and_part_overrides() {
         doc.boards.push(board(
             "board",
             parts.iter().map(|(id, _, _)| id.to_string()).collect(),
+            1.6,
         ));
         for (id, definition_id, parameters) in parts {
             let mut part = json!({
@@ -269,12 +206,12 @@ fn reflected_feature_installation_preserves_each_members_identity() {
         (
             MechanicalFeatureKind::GasketSupport,
             MechanicalFeatureValue::GasketSupport {
-                anchor: anchor("left-feature", 0.25),
+                anchor: anchor_at("left-feature", 0.25),
             },
         ),
     ];
     for (kind, value) in values {
-        let mut configuration = configuration();
+        let mut configuration = edit_configuration();
         install_feature(&mut configuration, kind, "right-feature", &value).unwrap();
         let installed = find_feature_value(&configuration, kind, "right-feature")
             .unwrap_or_else(|| panic!("the {kind:?} counterpart must use its member identity"));
@@ -505,7 +442,7 @@ fn a_missing_required_template_rolls_back_the_configuration() {
 }
 
 fn mirror_instance(id: &str, mounts: Vec<Mount>) -> PhysicalBoardInstance {
-    let mut mechanical = configuration();
+    let mut mechanical = edit_configuration();
     mechanical.mounts = mounts;
     PhysicalBoardInstance {
         id: id.into(),
@@ -521,22 +458,11 @@ fn mirror_instance(id: &str, mounts: Vec<Mount>) -> PhysicalBoardInstance {
     }
 }
 
-fn mount(id: &str, x: f64, y: f64) -> Mount {
-    Mount {
-        id: id.into(),
-        at: Vec2 { x, y },
-        kind: MountKind::Hole,
-        hole_diameter: 2.2,
-        boss_diameter: None,
-        height: None,
-    }
-}
-
 /// Two physical halves on one board, each with its own local mount geometry.
 fn mirror_document() -> ProjectDoc {
     let mut doc = ProjectDoc::empty("doc", "Fixture");
-    doc.boards.push(board("board", vec![]));
-    doc.mechanical = Some(configuration());
+    doc.boards.push(board("board", vec![], 1.6));
+    doc.mechanical = Some(edit_configuration());
     doc.hardware = Some(HardwareConfiguration {
         topology: HardwareTopology::Unibody,
         transport: HardwareTransport::None,
@@ -573,7 +499,7 @@ fn link_edit(target: MechanicalTarget, pair_id: &str, source: &str) -> Mechanica
             construction_source: source.into(),
             correspondences: vec![correspondence()],
         },
-        mounting_hole: Some(Box::new(template())),
+        mounting_hole: Some(Box::new(mounting_hole_template())),
     }
 }
 
@@ -581,7 +507,7 @@ fn lifecycle_edit(change: MechanicalChange) -> MechanicalEdit {
     MechanicalEdit {
         target: instance_target(),
         change,
-        mounting_hole: Some(Box::new(template())),
+        mounting_hole: Some(Box::new(mounting_hole_template())),
     }
 }
 
@@ -650,13 +576,6 @@ fn stores_mount(doc: &ProjectDoc, instance_id: &str, id: &str) -> bool {
         .any(|mount| mount.id == id)
 }
 
-fn assert_point(actual: Vec2, expected: Vec2) {
-    assert!(
-        (actual.x - expected.x).abs() < 1e-9 && (actual.y - expected.y).abs() < 1e-9,
-        "expected {expected:?}, got {actual:?}"
-    );
-}
-
 fn linked_document() -> ProjectDoc {
     let mut doc = mirror_document();
     apply(
@@ -683,7 +602,7 @@ fn linking_a_pair_shares_construction_and_sets_both_ownerships() {
     // The source's shared construction excludes its board-local mounts.
     assert_eq!(
         pair.construction,
-        features::shared_construction(&configuration())
+        features::shared_construction(&edit_configuration())
     );
     assert_eq!(pair.features.len(), 1);
     assert_eq!(pair.features[0].author, "left");

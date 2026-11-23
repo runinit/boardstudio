@@ -1,98 +1,19 @@
 use super::*;
-use crate::mechanical::tests::{configuration, empty_board as board};
-
-fn instance(
-    id: &str,
-    ownership: MechanicalConstructionOwnership,
-    mechanical: Option<MechanicalConfiguration>,
-) -> PhysicalBoardInstance {
-    PhysicalBoardInstance {
-        id: id.into(),
-        name: id.into(),
-        board_id: "board".into(),
-        half: "left".into(),
-        role: "controller".into(),
-        flipped: false,
-        controller_part_id: None,
-        mechanical,
-        construction_ownership: ownership,
-        mechanical_identity_reservation: None,
-    }
-}
+use crate::test_support::*;
 
 fn local_instance(id: &str) -> PhysicalBoardInstance {
     instance(
         id,
+        "board",
         MechanicalConstructionOwnership::Local,
         Some(configuration("board")),
     )
 }
 
 fn doc(instances: Vec<PhysicalBoardInstance>, pairs: Vec<MechanicalMirrorPair>) -> ProjectDoc {
-    let mut document = ProjectDoc::empty("doc", "Fixture");
-    document.boards.push(board("board", 1.6));
-    document.hardware = Some(HardwareConfiguration {
-        topology: HardwareTopology::Unibody,
-        transport: HardwareTransport::None,
-        instances,
-        boards: vec![],
-        shared_construction: None,
-        pairs,
-    });
-    document
-}
-
-fn pose(at_x: f64, at_y: f64, rotation: f64) -> Pose2 {
-    Pose2 {
-        at: Vec2 { x: at_x, y: at_y },
-        rotation,
-    }
-}
-
-fn mount(id: &str, x: f64, y: f64) -> Mount {
-    Mount {
-        id: id.into(),
-        at: Vec2 { x, y },
-        kind: MountKind::Hole,
-        hole_diameter: 2.2,
-        boss_diameter: None,
-        height: None,
-    }
-}
-
-fn vertex(id: &str, x: f64, y: f64) -> MechanicalOpeningVertex {
-    MechanicalOpeningVertex {
-        id: id.into(),
-        point: Vec2 { x, y },
-    }
-}
-
-fn opening(id: &str) -> MechanicalOpening {
-    MechanicalOpening {
-        id: id.into(),
-        vertices: vec![
-            vertex("v0", 0.0, 0.0),
-            vertex("v1", 3.0, 0.0),
-            vertex("v2", 3.0, 1.0),
-            vertex("v3", 1.0, 2.5),
-        ],
-        z: 1.25,
-        height: 3.5,
-        next_vertex_identity: 0,
-    }
-}
-
-fn anchor(id: &str) -> MechanicalGasketAnchor {
-    MechanicalGasketAnchor {
-        length: Some(12.0),
-        width: Some(3.0),
-        placement: Some(GasketPlacement::User),
-        id: id.into(),
-        region_id: "region".into(),
-        outline_key: "outline".into(),
-        anchor: 0.25,
-        unlinked: false,
-    }
+    let mut result = hardware(instances, None, HardwareTransport::None);
+    result.pairs = pairs;
+    document_with(board("board", vec![], 1.6), result)
 }
 
 fn feature(
@@ -133,24 +54,6 @@ fn linked_mount_feature(id: &str, author: &str, mount_id: &str, at: Vec2) -> Mec
     )
 }
 
-fn mirror_pair(
-    id: &str,
-    members: [&str; 2],
-    mapping: Pose2,
-    construction: MechanicalConstruction,
-    features: Vec<MechanicalFeature>,
-) -> MechanicalMirrorPair {
-    MechanicalMirrorPair {
-        id: id.into(),
-        members: [members[0].into(), members[1].into()],
-        mapping,
-        construction,
-        construction_source: None,
-        halves: None,
-        features,
-    }
-}
-
 fn consistent_pair(features: Vec<MechanicalFeature>) -> MechanicalMirrorPair {
     mirror_pair(
         "pair-left-right",
@@ -159,18 +62,6 @@ fn consistent_pair(features: Vec<MechanicalFeature>) -> MechanicalMirrorPair {
         shared_construction(&configuration("board")),
         features,
     )
-}
-
-fn assert_close(actual: f64, expected: f64) {
-    assert!(
-        (actual - expected).abs() < 1e-9,
-        "expected {expected}, got {actual}"
-    );
-}
-
-fn assert_point(actual: Vec2, expected: Vec2) {
-    assert_close(actual.x, expected.x);
-    assert_close(actual.y, expected.y);
 }
 
 fn assert_same_direction(actual: f64, expected: f64) {
@@ -190,61 +81,6 @@ fn assert_same_opening(actual: &MechanicalOpening, expected: &MechanicalOpening)
         assert_eq!(actual.id, expected.id);
         assert_point(actual.point, expected.point);
     }
-}
-
-fn gasket_layout(supports: Vec<MechanicalGasketAnchor>) -> MechanicalGasketLayout {
-    MechanicalGasketLayout {
-        auto_size: Some(true),
-        adhesive_thickness: Some(0.1),
-        minimum_foam_thickness: Some(0.5),
-        preset_id: None,
-        material: Some("Poron".into()),
-        length: 99.0,
-        width: 3.0,
-        thickness: 2.0,
-        compression: 0.15,
-        supports,
-    }
-}
-
-fn battery() -> MechanicalBattery {
-    serde_json::from_value(serde_json::json!({
-        "size": { "x": 30.0, "y": 20.0, "z": 6.0 },
-        "at": { "x": 1.0, "y": 2.0 },
-        "cableExit": { "x": 3.0, "y": 2.0 }
-    }))
-    .unwrap()
-}
-
-fn profile(id: &str) -> MechanicalPartProfile {
-    serde_json::from_value(serde_json::json!({
-        "definitionId": id, "source": "test", "cutouts": [], "plateToPcb": 3.5
-    }))
-    .unwrap()
-}
-
-fn stabilizer() -> MechanicalStabilizerOverride {
-    serde_json::from_value(serde_json::json!({
-        "partId": "part", "kind": "pcb-mount", "units": 2.0
-    }))
-    .unwrap()
-}
-
-fn hardware_specification(id: &str) -> MechanicalHardwareSpecification {
-    serde_json::from_value(serde_json::json!({
-        "id": id, "partId": "part", "featureId": "feature", "designation": "M2",
-        "thread": "M2", "length": 8.0, "quantity": 1
-    }))
-    .unwrap()
-}
-
-fn critical_fit(id: &str) -> MechanicalCriticalFit {
-    serde_json::from_value(serde_json::json!({
-        "id": id, "partId": "part", "label": "fit",
-        "from": { "x": 0.0, "y": 0.0 }, "to": { "x": 1.0, "y": 1.0 },
-        "tolerance": "0.1"
-    }))
-    .unwrap()
 }
 
 fn part_process(id: &str) -> MechanicalPartProcess {
@@ -455,7 +291,12 @@ fn validate_enforces_construction_consistency_for_locally_owned_members() {
     member.plate_thickness = 9.0;
     let document = doc(
         vec![
-            instance("left", MechanicalConstructionOwnership::Local, Some(member)),
+            instance(
+                "left",
+                "board",
+                MechanicalConstructionOwnership::Local,
+                Some(member),
+            ),
             local_instance("right"),
         ],
         vec![consistent_pair(vec![])],
@@ -469,7 +310,12 @@ fn validate_enforces_construction_consistency_for_locally_owned_members() {
     member.plate_thickness = 9.0;
     let document = doc(
         vec![
-            instance("left", MechanicalConstructionOwnership::Pair, Some(member)),
+            instance(
+                "left",
+                "board",
+                MechanicalConstructionOwnership::Pair,
+                Some(member),
+            ),
             local_instance("right"),
         ],
         vec![consistent_pair(vec![])],
@@ -479,7 +325,7 @@ fn validate_enforces_construction_consistency_for_locally_owned_members() {
     // A pair-owned member still needs a stored configuration for its local fields.
     let document = doc(
         vec![
-            instance("left", MechanicalConstructionOwnership::Pair, None),
+            instance("left", "board", MechanicalConstructionOwnership::Pair, None),
             local_instance("right"),
         ],
         vec![consistent_pair(vec![])],

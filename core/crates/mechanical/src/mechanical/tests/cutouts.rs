@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::*;
 
 #[test]
 fn duplicate_rings_ignore_winding_start_and_closure() {
@@ -19,7 +20,7 @@ fn duplicate_rings_ignore_winding_start_and_closure() {
 #[test]
 fn profiles_follow_rotation_and_back_side_mirror() {
     let mut doc = ProjectDoc::empty("test", "test");
-    doc.boards.push(board(vec!["key".into()], 1.6));
+    doc.boards.push(board("board", vec!["key".into()], 1.6));
     doc.parts.push(serde_json::from_value(serde_json::json!({"id":"key","definitionId":"switch","reference":"SW1","pose":{"at":{"x":10,"y":20},"rotation":90},"side":"back"})).unwrap());
     let mut configuration = config();
     configuration.profiles.push(MechanicalPartProfile {
@@ -60,7 +61,7 @@ fn profiles_follow_rotation_and_back_side_mirror() {
 #[test]
 fn combined_switch_stabilizer_deduplicates_and_regenerates_with_pose() {
     let mut doc = ProjectDoc::empty("test", "test");
-    doc.boards.push(board(vec!["key".into()], 1.6));
+    doc.boards.push(board("board", vec!["key".into()], 1.6));
     doc.parts.push(serde_json::from_value(serde_json::json!({"id":"key","definitionId":"switch","reference":"SW1","pose":{"at":{"x":30,"y":30},"rotation":0},"side":"front"})).unwrap());
     let mut c = config();
     let mut profile =

@@ -1314,6 +1314,8 @@ pub fn preserve_handoff(previous: &ProjectDoc, next: &mut ProjectDoc) {
             continue;
         };
         let hardware = next.hardware.get_or_insert_with(Default::default);
-        hardware.board_mut_or_insert(&config.board_id).protected_handoff = Some(baseline.clone());
+        hardware
+            .board_mut_or_insert(&config.board_id)
+            .protected_handoff = Some(baseline.clone());
     }
 }

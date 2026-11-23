@@ -854,11 +854,7 @@ pub(super) fn collisions(doc: &ProjectDoc, board_id: &str, result: &mut ModuleRe
                             .points
                             .iter()
                             .map(|point| {
-                                crate::geometry::part_to_world(
-                                    *point,
-                                    &pose,
-                                    part.side.clone(),
-                                )
+                                crate::geometry::part_to_world(*point, &pose, part.side.clone())
                             })
                             .collect(),
                     }],

@@ -79,7 +79,8 @@ pub fn describe(part: &Part, definition: &PartDefinition) -> Option<JumperRecipe
     ) {
         return None;
     }
-    let installed_front = part.generator_parameter(definition, "side")
+    let installed_front = part
+        .generator_parameter(definition, "side")
         .and_then(serde_json::Value::as_str)
         .map(|side| side == "F")
         .unwrap_or(part.side == Side::Front);

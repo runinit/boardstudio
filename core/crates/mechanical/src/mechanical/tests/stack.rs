@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::*;
 
 #[test]
 fn disabled_mechanical_configuration_has_no_stack() {
@@ -15,7 +16,7 @@ fn disabled_mechanical_configuration_has_no_stack() {
 fn stack_is_explicit_and_revision_tagged() {
     let mut doc = ProjectDoc::empty("test", "test");
     doc.revision = 7;
-    doc.boards.push(board(vec![], 1.6));
+    doc.boards.push(board("board", vec![], 1.6));
     doc.mechanical = Some(config());
     let result = resolve(&doc, &[]);
     assert_eq!(result.revision, 7);
@@ -58,6 +59,7 @@ fn custom_dimensions_and_disabled_foam_survive_normalization() {
 fn no_model_foam_fallbacks_transform_union_and_warn() {
     let mut doc = ProjectDoc::empty("foam", "foam");
     doc.boards.push(board(
+        "board",
         vec!["front-a".into(), "front-b".into(), "back".into()],
         1.6,
     ));
@@ -150,7 +152,7 @@ fn no_model_foam_fallbacks_transform_union_and_warn() {
 #[test]
 fn integrated_frame_uses_lid_and_separate_bottom() {
     let mut doc = ProjectDoc::empty("test", "test");
-    doc.boards.push(board(vec![], 1.6));
+    doc.boards.push(board("board", vec![], 1.6));
     let mut c = config();
     c.integrated_plate_frame = true;
     c.mount = MechanicalMount::Rigid;
@@ -180,7 +182,7 @@ fn integrated_frame_uses_lid_and_separate_bottom() {
 #[test]
 fn gasket_mode_places_discrete_supports_and_retaining_frame_from_defaults() {
     let mut doc = ProjectDoc::empty("gaskets", "Gaskets");
-    doc.boards.push(board(vec![], 1.6));
+    doc.boards.push(board("board", vec![], 1.6));
     let mut settings = config();
     settings.mount = MechanicalMount::Gasket;
     doc.mechanical = Some(settings);
@@ -202,7 +204,7 @@ fn gasket_mode_places_discrete_supports_and_retaining_frame_from_defaults() {
 #[test]
 fn manual_gasket_anchors_are_exact_persistent_and_invalidated_by_outline_changes() {
     let mut doc = ProjectDoc::empty("gaskets", "Gaskets");
-    doc.boards.push(board(vec![], 1.6));
+    doc.boards.push(board("board", vec![], 1.6));
     let mut settings = config();
     settings.mount = MechanicalMount::Gasket;
     doc.mechanical = Some(settings);
@@ -247,7 +249,7 @@ fn manual_gasket_anchors_are_exact_persistent_and_invalidated_by_outline_changes
 #[test]
 fn gasket_support_reaches_plate_without_rigid_contact() {
     let mut doc = ProjectDoc::empty("test", "test");
-    doc.boards.push(board(vec![], 1.6));
+    doc.boards.push(board("board", vec![], 1.6));
     let mut c = config();
     c.mount = MechanicalMount::Gasket;
     c.gasket_travel = Some(0.5);
@@ -306,7 +308,7 @@ fn gasket_support_reaches_plate_without_rigid_contact() {
 #[test]
 fn cable_exit_regenerates_single_foam_envelope_without_mutation() {
     let mut doc = ProjectDoc::empty("test", "test");
-    doc.boards.push(board(vec![], 1.6));
+    doc.boards.push(board("board", vec![], 1.6));
     let mut c = config();
     c.battery = Some(MechanicalBattery {
         size: Vec3 {

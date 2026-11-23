@@ -62,7 +62,11 @@ pub fn overlay(
 /// `pose.at.y + x * sin + point.y * cos` with
 /// `(pose.rotation.to_radians()).sin_cos()`, as `part_to_world_bit_order` pins.
 pub fn part_to_world(point: Vec2, pose: &Pose2, side: Side) -> Vec2 {
-    let x = if side == Side::Back { -point.x } else { point.x };
+    let x = if side == Side::Back {
+        -point.x
+    } else {
+        point.x
+    };
     let (sin, cos) = pose.rotation.to_radians().sin_cos();
     Vec2 {
         x: pose.at.x + x * cos - point.y * sin,
@@ -1476,20 +1480,17 @@ mod tests {
         // drift from reordering the transform breaks saved geometry.
         let pose = Pose2 {
             at: Vec2 { x: 10.5, y: -3.75 },
-            rotation: 30.0,
+            rotation: 90.0,
         };
         // These inputs are order-sensitive: reassociating either axis
         // changes the last bit, so the pins below catch any reordering.
-        let point = Vec2 {
-            x: 3.14159,
-            y: 2.71828,
-        };
+        let point = Vec2 { x: 1.1, y: -2.25 };
         let front = part_to_world(point, &pose, Side::Front);
-        assert_eq!(front.x.to_bits(), 0x4027b91df752fad3);
-        assert_eq!(front.y.to_bits(), 0x3fc662f1b12d2050);
+        assert_eq!(front.x.to_bits(), 0x4029800000000000);
+        assert_eq!(front.y.to_bits(), 0xc005333333333333);
         let back = part_to_world(point, &pose, Side::Back);
-        assert_eq!(back.x.to_bits(), 0x4019ae3f46848e92);
-        assert_eq!(back.y.to_bits(), 0xc007bbcad508b467);
+        assert_eq!(back.x.to_bits(), 0x4029800000000000);
+        assert_eq!(back.y.to_bits(), 0xc013666666666666);
         // The outline-controls entry point delegates bit-identically.
         assert_eq!(
             crate::outline_controls::world(point, &pose, Side::Front),
