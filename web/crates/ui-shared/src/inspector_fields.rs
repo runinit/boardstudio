@@ -615,20 +615,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn numeric_parse_clamp_and_format_behave_cleanly() {
-        assert_eq!(
-            parse_clamped_f64(" 12.5 ", Some(0.0), Some(20.0)),
-            Some(12.5)
-        );
-        assert_eq!(parse_clamped_f64("-4", Some(0.0), Some(10.0)), Some(0.0));
-        assert_eq!(parse_clamped_f64("99", Some(0.0), Some(10.0)), Some(10.0));
-        assert_eq!(parse_clamped_f64("NaN", None, None), None);
-        assert_eq!(format_numeric(19.0, 3), "19");
-        assert_eq!(format_numeric(19.050, 3), "19.05");
-        assert_eq!(format_numeric(-0.0, 2), "0");
-    }
-
-    #[test]
     fn declarative_molecules_render_short_long_select_and_sections_on_host() {
         fn fixture() -> Element {
             let long: Vec<_> = (0..14)
@@ -661,6 +647,20 @@ mod commit_field_tests {
         parse_clamped_f64(raw, Some(1.0), Some(50.0))
             .is_none()
             .then(|| "Enter a valid number.".to_owned())
+    }
+
+    #[test]
+    fn numeric_parse_clamp_and_format_behave_cleanly() {
+        assert_eq!(
+            parse_clamped_f64(" 12.5 ", Some(0.0), Some(20.0)),
+            Some(12.5)
+        );
+        assert_eq!(parse_clamped_f64("-4", Some(0.0), Some(10.0)), Some(0.0));
+        assert_eq!(parse_clamped_f64("99", Some(0.0), Some(10.0)), Some(10.0));
+        assert_eq!(parse_clamped_f64("NaN", None, None), None);
+        assert_eq!(format_numeric(19.0, 3), "19");
+        assert_eq!(format_numeric(19.050, 3), "19.05");
+        assert_eq!(format_numeric(-0.0, 2), "0");
     }
 
     thread_local! {
