@@ -11,7 +11,6 @@ pub(in crate::presentation) struct SessionState<'a> {
     pub setup_state: setup_workspace::SetupWorkspaceState,
     pub guide_name_edit: SetupProjectNameEdit,
     pub adapter: SelectionAdapter,
-    pub layout_component_inspector_lifetime: Rc<inspector::LayoutComponentInspectorLifetime>,
     pub observed_version: u64,
     pub case_selection: shared_viewer::CaseSelection,
     pub layout_state: layout_workspace::LayoutWorkspaceState,
@@ -19,13 +18,9 @@ pub(in crate::presentation) struct SessionState<'a> {
     pub active_workspace: Workspace,
     pub requested_workspace_panel: Signal<Option<Workspace>>,
     pub render_generation: u64,
-    pub spacing_ghost_state: Signal<Option<spacing_ghost::SpacingGhostState>>,
     pub tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
     pub matrix_inspector: objects::MatrixInspectorMount,
-    pub board_inspector: board_inspector::BoardInspectorMount,
-    pub key_size: objects::KeySizeMount,
     pub matrix_transform_inspector: objects::MatrixTransformInspectorMount,
-    pub layout_align: objects::LayoutAlignMount,
     pub parts_state: parts_workspace::PartsWorkspaceState,
     pub canvas_interaction: CanvasInteractionArbiter,
     pub matrix_pair: MatrixPairWiring,
@@ -66,8 +61,6 @@ pub(in crate::presentation) fn use_session_state<'a>(
     );
     let guide_name_edit = use_setup_project_name(runtime.clone());
     let adapter = use_context::<SelectionAdapter>();
-    let layout_component_inspector_lifetime =
-        use_hook(|| Rc::new(inspector::LayoutComponentInspectorLifetime::default()));
     let observed_version = (editor.version)();
     let case_workspace_state = case_workspace::use_case_workspace_state();
     use_context_provider(|| case_workspace_state);
@@ -82,13 +75,9 @@ pub(in crate::presentation) fn use_session_state<'a>(
         panels::use_workspace_panel_defaults(active_workspace, objects_open, inspect_open);
     let render_generation = (editor.scope_generation)();
     let layout_workspace::LayoutViewState {
-        spacing_ghost_state,
         tree_cell_anchor,
         matrix_inspector,
-        board_inspector,
-        key_size,
         matrix_transform_inspector,
-        layout_align,
         mut matrix_setup,
         parts_state,
         parts_assembly_orientation,
@@ -129,7 +118,6 @@ pub(in crate::presentation) fn use_session_state<'a>(
             setup_state,
             guide_name_edit,
             adapter,
-            layout_component_inspector_lifetime,
             observed_version,
             case_selection,
             layout_state,
@@ -137,13 +125,9 @@ pub(in crate::presentation) fn use_session_state<'a>(
             active_workspace,
             requested_workspace_panel,
             render_generation,
-            spacing_ghost_state,
             tree_cell_anchor,
             matrix_inspector,
-            board_inspector,
-            key_size,
             matrix_transform_inspector,
-            layout_align,
             parts_state,
             canvas_interaction,
             matrix_pair,
@@ -402,7 +386,6 @@ pub(in crate::presentation) struct EditorContexts {
     pub current_scope: Option<Scope>,
     pub layout_owner: LayoutOwnerIdentity,
     pub layout_findings: boardstudio_web_layout::layout_findings_state::LayoutFindingsState,
-    pub field_preview: Signal<Option<FieldPreviewState>>,
     pub resolved_document: Option<std::sync::Arc<boardstudio_core::model::ProjectDoc>>,
 }
 
@@ -479,7 +462,9 @@ pub(in crate::presentation) fn use_editor_contexts(
             }
         }
     }));
-    let field_preview = layout_workspace::use_layout_transient_highlights(
+    // Provides the RelationHighlight and FieldPreview contexts; Layout reads
+    // the field preview through its context inside its canvas surface.
+    layout_workspace::use_layout_transient_highlights(
         adapter,
         &model,
         active_workspace,
@@ -497,7 +482,6 @@ pub(in crate::presentation) fn use_editor_contexts(
         current_scope,
         layout_owner,
         layout_findings,
-        field_preview,
         resolved_document,
     }
 }

@@ -77,24 +77,23 @@ pub(in crate::presentation) fn on_companion_placement_action_handler(
 }
 
 pub(in crate::presentation) fn layout_inspector_input(
-    editor: boardstudio_web_ui_model::editor::EditorContext,
-    state: &super::super::workbench::editor_session::session_state::SessionState,
+    frame: &super::super::workspace_composition::WorkspaceFrame,
     canvas: &CanvasNamed,
-    callbacks: &super::super::workbench::editor_session::findings_navigation::LayoutFindingCallbacks,
+    mounts: &super::LayoutMounts,
     bindings: &super::toolbar_wiring::WsInputs,
-    select_tree: EventHandler<objects::TreeSelectRequest>,
+    runtime: Rc<Runtime>,
 ) -> layout_workspace::InspectorInput {
-    let layout_state = state.layout_state;
-    let model = &state.view.model;
-    let document = &state.views.document;
-    let layout_owner = &state.view.layout_owner;
-    let layout_findings = state.view.layout_findings;
-    let render_scope = state.render_scope;
-    let snapshot = state.snapshot;
-    let runtime = editor.runtime();
+    let services = &frame.layout_services;
+    let layout_state = frame.status.layout;
+    let model = &frame.model;
+    let layout_owner = &frame.owner;
+    let layout_findings = services.layout_findings;
+    let render_scope = &frame.scope;
+    let snapshot = &frame.snapshot;
+    let select_tree = frame.objects.on_select;
     let selected_tree_context = &canvas.selection.selected_tree_context;
     let board_inspector_projection = &canvas.inspector.board_inspector_projection;
-    let matrix_transform_inspector = &state.matrix_transform_inspector;
+    let matrix_transform_inspector = &services.matrix_transform_inspector;
     let (
         component_inspector_x,
         component_inspector_y,
@@ -141,9 +140,9 @@ pub(in crate::presentation) fn layout_inspector_input(
         companion_placement_error,
         on_companion_placement_action: bindings.on_companion_placement_action,
         on_component_inspector_action: bindings.on_component_inspector_action,
-        matrix_inspector: state.matrix_inspector.clone(),
-        key_size: state.key_size.clone(),
-        matrix_transform_inspector: state.matrix_transform_inspector.clone(),
+        matrix_inspector: services.matrix_inspector.clone(),
+        key_size: mounts.key_size.clone(),
+        matrix_transform_inspector: services.matrix_transform_inspector.clone(),
         on_pick_splay_origin: {
             let mount = matrix_transform_inspector.clone();
             let mut pending = layout_state.pending_splay_origin_pick();
@@ -229,7 +228,7 @@ pub(in crate::presentation) fn layout_inspector_input(
             })
         },
         on_select_context: select_tree,
-        outline_inspector: state.view.outline_inspector.clone().map(Box::new),
+        outline_inspector: services.outline_inspector.clone().map(Box::new),
         findings_return_available: (layout_findings.return_target)().as_ref().is_some_and(
             |target| {
                 layout_finding_return_is_current(
@@ -240,21 +239,28 @@ pub(in crate::presentation) fn layout_inspector_input(
                 )
             },
         ),
-        on_findings_return: callbacks.on_return_from_layout_finding,
-        board_inspector_mount: state.board_inspector.clone(),
+        on_findings_return: services.on_return_from_layout_finding,
+        board_inspector_mount: mounts.board_inspector.clone(),
         findings_page: Some(layout_findings::InspectorMount {
             open: (layout_findings.open)(),
-            document: Rc::new(document.as_ref().clone()),
-            findings: state.views.findings.clone(),
+            document: Rc::new(frame.document.as_ref().clone()),
+            findings: layout_findings_for_display(
+                &frame.snapshot.scene.findings,
+                frame
+                    .model
+                    .display_preview
+                    .as_ref()
+                    .map(|preview| preview.findings.as_slice()),
+            ),
             source: layout_findings::Source {
                 workspace: Workspace::Layout,
                 scope: render_scope.clone(),
                 token: snapshot.token,
                 revision: snapshot.document.revision,
-                generation: state.render_generation,
+                generation: frame.owner.generation,
             },
-            on_close: callbacks.on_close_layout_findings,
-            on_navigate: callbacks.on_layout_finding,
+            on_close: services.on_close_layout_findings,
+            on_navigate: services.on_layout_finding,
         }),
     }
 }
@@ -267,33 +273,29 @@ pub(in crate::presentation) struct InspectorProjections {
     pub board_inspector_projection: Option<board_inspector::BoardInspectorProjection>,
     pub show_position_inspector: bool,
     pub context_summary: Option<context_summary::ContextSummary>,
-    pub mount: EventHandler<MountedEvent>,
     pub canvas_aria_label: &'static str,
 }
 
 pub(in crate::presentation) fn use_inspector_projections(
-    state: &super::super::workbench::editor_session::session_state::SessionState,
-    cam: &super::super::workbench::editor_session::camera::CamNamed,
+    frame: &super::super::workspace_composition::WorkspaceFrame,
+    mounts: &super::LayoutMounts,
     selected_tree_context: Option<objects::ScopedTreeContext>,
+    layout_component_inspector_lifetime: Rc<inspector::LayoutComponentInspectorLifetime>,
 ) -> InspectorProjections {
     let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
-    let model = &state.view.model;
-    let active_workspace = state.active_workspace;
-    let layout_component_inspector_lifetime = state.layout_component_inspector_lifetime.clone();
-    let adapter = state.adapter.clone();
-    let accepted_token = state.view.layout_owner.token;
-    let current_scope = state.view.current_scope.clone();
-    let render_generation = state.render_generation;
-    let board_inspector = state.board_inspector.clone();
-    let matrix_inspector = state.matrix_inspector.clone();
-    let key_size = state.key_size.clone();
-    let matrix_transform_inspector = state.matrix_transform_inspector.clone();
-    let outline_inspector = state.view.outline_inspector.clone();
-    let zoom_surface_size = cam.svg_surface.zoom_surface_size;
+    let model = &frame.model;
+    let active_workspace = Workspace::Layout;
+    let adapter = use_context::<SelectionAdapter>();
+    let accepted_token = frame.owner.token;
+    let current_scope = frame.owner.scope.clone();
+    let render_generation = frame.owner.generation;
+    let board_inspector = mounts.board_inspector.clone();
+    let matrix_inspector = frame.layout_services.matrix_inspector.clone();
+    let key_size = mounts.key_size.clone();
+    let matrix_transform_inspector = frame.layout_services.matrix_transform_inspector.clone();
+    let outline_inspector = frame.layout_services.outline_inspector.clone();
     let runtime = editor.runtime();
-    let svg = cam.svg_surface.svg.clone();
-    let part_placement = cam.placement.part_placement.clone();
-    let matrix_placement = state.matrix_pair.matrix_placement.clone();
+    let matrix_placement = frame.layout_services.matrix_placement.clone();
     let component_inspector_key = layout_component_inspector_owner_key(
         model,
         active_workspace,
@@ -376,39 +378,17 @@ pub(in crate::presentation) fn use_inspector_projections(
     let context_summary = selected_tree_context
         .as_ref()
         .and_then(|selected| context_summary::summarize(model, &selected.context));
-    let mount = EventHandler::new(CanvasNavigationState::mount_handler(
-        zoom_surface_size,
-        runtime.clone(),
-        svg.clone(),
-        part_placement.projection.is_some(),
-    ));
-    let placement_active = part_placement.projection.is_some()
-        || part_placement.busy
-        || matrix_placement.placement.is_some()
-        || matrix_placement.busy;
     let canvas_aria_label = if matrix_placement.placement.is_some() || matrix_placement.busy {
         "Matrix placement canvas. Move the pointer or use arrow keys; click or press Enter to place, Escape to cancel."
     } else {
         "Keyboard layout; drag components, hold Shift for range selection, hold Space and drag to pan, or use position controls"
     };
-    let focus_svg = svg.clone();
-    use_effect(use_reactive!(|placement_active| {
-        if !placement_active {
-            return;
-        }
-        if let Some(element) = focus_svg.borrow().as_ref() {
-            let options = web_sys::FocusOptions::new();
-            options.set_prevent_scroll(true);
-            let _ = element.focus_with_options(&options);
-        }
-    }));
     InspectorProjections {
         component_inspector,
         companion_placement,
         board_inspector_projection,
         show_position_inspector,
         context_summary,
-        mount,
         canvas_aria_label,
     }
 }
@@ -419,39 +399,26 @@ pub(in crate::presentation) struct CanvasNamed {
 }
 
 pub(in crate::presentation) fn use_canvas_bundle(
-    state: &super::super::workbench::editor_session::session_state::SessionState,
-    views: &super::super::workbench::editor_session::setup_workspaces::Views,
-    cam: &super::super::workbench::editor_session::camera::CamNamed,
-    snapshot: &AcceptedSnapshot,
-    render_scope: &Scope,
+    frame: &super::super::workspace_composition::WorkspaceFrame,
+    mounts: &super::LayoutMounts,
+    lifetime: Rc<inspector::LayoutComponentInspectorLifetime>,
 ) -> CanvasNamed {
-    let selection = use_canvas_selection_state(state, views, cam, snapshot, render_scope);
-    let inspector = use_inspector_projections(state, cam, selection.selected_tree_context.clone());
+    let selection = use_canvas_selection_state(frame);
+    let inspector = use_inspector_projections(
+        frame,
+        mounts,
+        selection.selected_tree_context.clone(),
+        lifetime,
+    );
     CanvasNamed {
         selection,
         inspector,
     }
 }
 
-/// Everything the Layout surfaces need from the session bundles, assembled
-/// in one place so the editor session only routes by workspace.
-pub(in crate::presentation) struct LayoutPayloadInput<'a> {
-    pub editor: boardstudio_web_ui_model::editor::EditorContext,
-    pub state: &'a super::super::workbench::editor_session::session_state::SessionState<'a>,
-    pub cam: &'a super::super::workbench::editor_session::camera::CamNamed,
-    pub canvas: &'a CanvasNamed,
-    pub callbacks:
-        &'a super::super::workbench::editor_session::findings_navigation::LayoutFindingCallbacks,
-    pub inp: &'a super::toolbar_wiring::WsInputs,
-    pub guide: &'a super::super::workbench::editor_session::setup_guide_state::GuideNamed,
-    pub wir: &'a super::super::workbench::editor_session::workspace_inputs::WsWiring,
-    pub matrix_setup: &'a objects::MatrixSetupMount,
-    pub snapshot: &'a AcceptedSnapshot,
-    pub select_tree: EventHandler<objects::TreeSelectRequest>,
-    pub split_focused_half: Option<boardstudio_web_ui_model::split_focus::SplitHalf>,
-    pub ptr: &'a super::super::workbench::editor_session::pointer_bundles::PtrNamed,
-}
-
+/// The shared Objects dock input. The Export workspace renders it from the
+/// session (Layout is unmounted there); Layout assembles its own from the
+/// frame inside `use_layout_bundle`.
 pub(in crate::presentation) fn layout_objects_input(
     state: &super::super::workbench::editor_session::session_state::SessionState<'_>,
     cam: &super::super::workbench::editor_session::camera::CamNamed,
@@ -474,56 +441,5 @@ pub(in crate::presentation) fn layout_objects_input(
             .clone()
             .or_else(|| cam.placement.part_placement.error.clone()),
         add_object_menu_open: state.layout_state.add_object_menu_open(),
-    }
-}
-
-pub(in crate::presentation) fn layout_payload(
-    input: LayoutPayloadInput<'_>,
-) -> super::super::workspace_composition::WorkspacePayload {
-    let LayoutPayloadInput {
-        editor,
-        state,
-        cam,
-        canvas,
-        callbacks,
-        inp,
-        guide,
-        wir,
-        matrix_setup,
-        snapshot,
-        select_tree,
-        split_focused_half,
-        ptr,
-    } = input;
-    super::super::workspace_composition::WorkspacePayload::Layout {
-        objects: layout_objects_input(state, cam, wir, matrix_setup),
-        inspector: layout_inspector_input(editor, state, canvas, callbacks, inp, select_tree),
-        toolbar: inp.toolbar_input.clone(),
-        canvas_aria_label: canvas.inspector.canvas_aria_label,
-        canvas_grid: guide.canvas_grid,
-        outline_inspector: state.view.outline_inspector.clone(),
-        outline_overlay_key: guide.outline_overlay_key.clone(),
-        outline_snap_settings: guide.outline_snap_settings.clone(),
-        outline_pitch: guide.outline_pitch,
-        outline_snap_origins: guide.outline_snap_origins.clone(),
-        selected_bridge: super::scene::selected_bridge(
-            snapshot,
-            canvas.selection.selected_tree_context.as_ref(),
-        ),
-        matrix_placement: state.matrix_pair.matrix_placement.clone(),
-        mirrored_pair: state.matrix_pair.mirrored_pair.clone(),
-        split_focused_half,
-        spacing_ghost_prop: canvas.selection.spacing_ghost_prop.clone(),
-        selected_tree_context: canvas.selection.selected_tree_context.clone(),
-        canvas_anchor_badge: canvas.selection.canvas_anchor_badge.clone(),
-        matrix_pointer_down: ptr.matrix_pointer_down,
-        part_pointer_down: ptr.part_pointer_down,
-        selection_geometry_anchor: guide.selection_geometry_anchor,
-        canvas_transform_menu: Some(inp.toolbar_input.transform.clone()),
-        matrix_transform_inspector: state.matrix_transform_inspector.clone(),
-        drag: cam.placement.drag.clone(),
-        layout_transform_target: canvas.selection.layout_transform_target.clone(),
-        part_rail_selection: canvas.selection.part_rail_selection.clone(),
-        part_rail_snap: canvas.selection.part_rail_snap,
     }
 }

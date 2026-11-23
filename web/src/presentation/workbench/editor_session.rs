@@ -100,13 +100,25 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
         &render_scope,
         workspace_routing,
     );
-    let canvas = layout_workspace::inspector_wiring::use_canvas_bundle(
-        &state,
-        views,
-        &cam,
-        snapshot,
-        &render_scope,
+    let mount = camera::use_session_canvas_mount(
+        &cam.svg_surface.svg,
+        cam.svg_surface.zoom_surface_size,
+        editor.runtime(),
+        &cam.placement.part_placement,
+        &state.matrix_pair.matrix_placement,
     );
+    let session_selected_tree_context =
+        state
+            .adapter
+            .selected_context
+            .read()
+            .clone()
+            .filter(|selected| {
+                selected.scope == render_scope
+                    && selection::context_is_current(model, &selected.scope, &selected.context)
+            });
+    let show_position_inspector =
+        camera::session_show_position_inspector(model, session_selected_tree_context.as_ref());
     let (move_pointer, end_pointer, cancel_pointer) =
         pointer_bundles::use_pointer_bundle(&state, &cam, &render_scope);
     let (keyboard, key_up, start_pan) =
@@ -127,14 +139,6 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
         select_tree,
         navigate_box,
     );
-    let inp = layout_workspace::toolbar_wiring::use_layout_toolbar(
-        &state,
-        &cam,
-        &canvas,
-        &wir,
-        matrices.clone(),
-        &matrix_setup,
-    );
     let guide = setup_guide_state::use_setup_guide(
         shared_wiring,
         &state,
@@ -143,15 +147,9 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
         (&visible, &matrices),
         &matrix_setup,
     );
-    let ptr = pointer_bundles::build_canvas_pointer(&state, &cam, views, &render_scope);
-    let cmds = commands::use_view_commands(
-        &state,
-        &cam,
-        inp.on_layout_view_mode,
-        wir.toggle_footprints,
-        guide.state.guide.clone(),
-        workspace_routing,
-    );
+    // Layout owns its canvas bundle, toolbar, pointer handlers and palette
+    // commands inside `LayoutWorkspace`; the session only routes by workspace.
+    commands::use_view_commands(&state, &cam, guide.state.guide.clone(), workspace_routing);
     let guide_state = &guide.state;
     let model = &state.view.model;
     let workspace = state.active_workspace;
@@ -187,23 +185,7 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
                 on_module_attached: wir.on_module_attached,
             })
         }
-        Workspace::Layout => layout_workspace::inspector_wiring::layout_payload(
-            layout_workspace::inspector_wiring::LayoutPayloadInput {
-                editor,
-                state: &state,
-                cam: &cam,
-                canvas: &canvas,
-                callbacks: &nav.callbacks,
-                inp: &inp,
-                guide: &guide,
-                wir: &wir,
-                matrix_setup: &matrix_setup,
-                snapshot,
-                select_tree: workspace_routing.select_tree,
-                split_focused_half: cmds,
-                ptr: &ptr,
-            },
-        ),
+        Workspace::Layout => workspace_composition::WorkspacePayload::Layout,
         Workspace::Pcb => workspace_composition::WorkspacePayload::Pcb,
         Workspace::Keymap => workspace_composition::WorkspacePayload::Keymap,
         Workspace::Keycaps => workspace_composition::WorkspacePayload::Keycaps,
@@ -228,7 +210,7 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
             owner: state.view.layout_owner.clone(),
             objects: wir.shared_objects.clone(),
             handlers: workspace_composition::CanvasEventHandlers {
-                mount: canvas.inspector.mount,
+                mount,
                 start_pan: EventHandler::new(start_pan.clone()),
                 move_pointer: EventHandler::new(move_pointer.clone()),
                 end_pointer: EventHandler::new(end_pointer.clone()),
@@ -251,10 +233,24 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
             parts_query: state.view.parts_query,
             browse_parts: wir.on_browse_parts,
             select_module: wir.mounted_module_select,
-            show_position_inspector: canvas.inspector.show_position_inspector,
+            show_position_inspector,
             camera: cam.scene_bounds.clone(),
             status,
             payload,
+            layout_services: workspace_composition::LayoutSessionServices {
+                matrix_inspector: state.matrix_inspector.clone(),
+                matrix_transform_inspector: state.matrix_transform_inspector.clone(),
+                matrix_placement: state.matrix_pair.matrix_placement.clone(),
+                mirrored_pair: state.matrix_pair.mirrored_pair.clone(),
+                outline_inspector: state.view.outline_inspector.clone(),
+                layout_findings: state.view.layout_findings,
+                on_return_from_layout_finding: nav.callbacks.on_return_from_layout_finding,
+                on_close_layout_findings: nav.callbacks.on_close_layout_findings,
+                on_layout_finding: nav.callbacks.on_layout_finding,
+                interaction_version: cam.placement.interaction_version,
+                visible_ids: views.visible_ids.clone(),
+                objects_panel_settings: state.objects_panel_settings,
+            },
         })
     });
     rsx! {
@@ -334,19 +330,12 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
                             == boardstudio_core::model::HardwareTopology::Split,
                         hardware_wired: physical_setup.projection.transport
                             == boardstudio_core::model::HardwareTransport::Wired,
-                        layout_assembly_3d: state.layout_state.assembly_3d(),
                         return_workspace: editor.return_workspace,
                         inspector_panel_settings: state.inspector_panel_settings,
                         snapshot,
                         on_empty_board_matrix: wir.on_empty_board_matrix,
                         on_browse_parts: wir.on_browse_parts,
                         show_empty_board: guide.show_empty_board,
-                        part_placement: &cam.placement.part_placement,
-                        document: views.document.clone(),
-                        pending_splay_origin_pick: state.layout_state.pending_splay_origin_pick(),
-                        pending_anchor_pick: state.layout_state.pending_anchor_pick(),
-                        field_preview: state.view.field_preview,
-                        canvas_anchor_badge: &canvas.selection.canvas_anchor_badge,
                     },
                 )}
             }

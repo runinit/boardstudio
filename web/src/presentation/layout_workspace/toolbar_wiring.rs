@@ -1,3 +1,4 @@
+use super::super::workbench::editor_session::selection_handlers;
 use super::super::*;
 use boardstudio_web_ui_model::Workspace;
 
@@ -9,51 +10,85 @@ pub(in crate::presentation) struct WsInputs {
 }
 
 pub(in crate::presentation) fn use_layout_toolbar(
-    state: &super::super::workbench::editor_session::session_state::SessionState,
-    cam: &super::super::workbench::editor_session::camera::CamNamed,
+    frame: &super::super::workspace_composition::WorkspaceFrame,
     canvas: &super::inspector_wiring::CanvasNamed,
-    wir: &super::super::workbench::editor_session::workspace_inputs::WsWiring,
-    matrices: Vec<&boardstudio_core::model::Matrix>,
-    matrix_setup: &objects::MatrixSetupMount,
+    mounts: &super::LayoutMounts,
+    layout_component_inspector_lifetime: Rc<inspector::LayoutComponentInspectorLifetime>,
 ) -> WsInputs {
-    let snapshot = state.snapshot;
-    let render_scope = state.render_scope;
+    let services = &frame.layout_services;
+    let snapshot = &frame.snapshot;
+    let render_scope = &frame.scope;
     let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
-    let runtime = &editor.runtime();
-    let adapter = &state.adapter;
-    let layout_owner = &state.view.layout_owner;
+    let adapter = use_context::<SelectionAdapter>();
+    let interaction = use_context::<super::super::workspace_composition::WorkspaceInteraction>();
+    let layout_state = use_context::<layout_workspace::LayoutWorkspaceState>();
+    let runtime = editor.runtime();
+    let layout_owner = frame.owner.clone();
     let workspace = editor.workspace;
-    let layout_assembly_3d = state.layout_state.assembly_3d();
-    let layout_state = state.layout_state;
-    let drag = &cam.placement.drag;
-    let svg = &cam.svg_surface.svg;
-    let interaction_version = cam.placement.interaction_version;
-    let part_placement = &cam.placement.part_placement;
-    let matrix_placement = &state.matrix_pair.matrix_placement;
-    let canvas_interaction = &state.canvas_interaction;
-    let mirrored_pair = &state.matrix_pair.mirrored_pair;
-    let tree_cell_anchor = &state.tree_cell_anchor;
-    let accepted_canvas_source = &cam.scene_bounds.accepted_canvas_source;
-    let model = &state.view.model;
+    let layout_assembly_3d = layout_state.assembly_3d();
+    let drag = interaction.navigation.drag_interaction();
+    let svg = frame.svg.clone();
+    let interaction_version = services.interaction_version;
+    let part_placement = frame.part_placement.clone();
+    let matrix_placement = services.matrix_placement.clone();
+    let canvas_interaction = interaction.arbiter.clone();
+    let mirrored_pair = services.mirrored_pair.clone();
+    let tree_cell_anchor = interaction.tree_cell_anchor.clone();
+    let accepted_canvas_source = frame.camera.accepted_canvas_source.clone();
+    let model = &frame.model;
     let selected_tree_context = &canvas.selection.selected_tree_context;
-    let active_workspace = state.active_workspace;
+    let active_workspace = Workspace::Layout;
     let show_position_inspector = canvas.inspector.show_position_inspector;
-    let matrix_transform_inspector = &state.matrix_transform_inspector;
+    let matrix_transform_inspector = services.matrix_transform_inspector.clone();
     let objects_open = editor.panels.objects_open;
     let inspect_open = editor.panels.inspector_open;
-    let inspector_panel_settings = state.inspector_panel_settings;
-    let layout_transform_tool = state.layout_state.transform_tool();
-    let on_layout_selection_kind_handler = wir.on_layout_selection_kind_handler;
+    let inspector_panel_settings = interaction.inspector_settings;
+    let layout_transform_tool = layout_state.transform_tool();
+    let layout_selection_kind = layout_state.selection_kind();
+    let on_layout_selection_kind_handler = selection_handlers::on_selection_kind_handler(
+        selection_handlers::SelectionKindInput {
+            runtime: runtime.clone(),
+            adapter: adapter.clone(),
+            owner: layout_owner.clone(),
+            tree_cell_anchor: tree_cell_anchor.clone(),
+            objects_open,
+            inspect_open,
+            selection_kind: layout_selection_kind,
+            workspace,
+            inspector_panel_settings,
+        },
+        Workspace::Layout,
+    );
     let layer_visibility = editor.layers;
-    let layout_snap_settings = state.layout_state.snap_settings();
-    let layout_command_menu = state.layout_state.command_menu();
-    let toggle_footprints = wir.toggle_footprints;
-    let layout_selection_kind = state.layout_state.selection_kind();
+    let layout_snap_settings = layout_state.snap_settings();
+    let layout_command_menu = layout_state.command_menu();
+    let toggle_footprints = super::super::workspace_composition::toggle_footprints(editor.layers);
     let component_inspector = &canvas.inspector.component_inspector;
     let layout_transform_target = &canvas.selection.layout_transform_target;
-    let layout_align = &state.layout_align;
-    let layout_snap_intent = wir.layout_snap_intent;
-    let layout_component_inspector_lifetime = &state.layout_component_inspector_lifetime;
+    let layout_align = mounts.layout_align.clone();
+    let layout_snap_intent = selection_handlers::on_snap_intent_handler(
+        runtime.clone(),
+        adapter.clone(),
+        layout_owner.clone(),
+        layout_snap_settings,
+        workspace,
+        Workspace::Layout,
+    );
+    let matrix_setup = frame.matrix_setup.clone();
+    let board = frame
+        .document
+        .boards
+        .iter()
+        .find(|board| board.id == frame.model.active_board_id);
+    let board_part_ids: HashSet<_> = board
+        .into_iter()
+        .flat_map(|board| board.part_ids.iter().map(String::as_str))
+        .collect();
+    let matrices = boardstudio_web_ui_model::tree::visible_matrices(
+        &frame.document,
+        &frame.model.active_board_id,
+        &board_part_ids,
+    );
     let on_layout_view_mode = on_layout_view_mode(OnLayoutViewModeArgs {
         runtime: runtime.clone(),
         adapter: adapter.clone(),

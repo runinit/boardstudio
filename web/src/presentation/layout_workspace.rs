@@ -848,54 +848,195 @@ mod relation_escape_regression_tests {
     }
 }
 
+/// Layout-only mounts. Created inside `LayoutWorkspace` so the session never
+/// hoards them; the Align reference persists on `LayoutWorkspaceState` across
+/// workspace switches while feedback and projection stay per-mount.
+pub(in crate::presentation) struct LayoutMounts {
+    pub board_inspector: super::board_inspector::BoardInspectorMount,
+    pub key_size: objects::KeySizeMount,
+    pub layout_align: objects::LayoutAlignMount,
+}
+
+pub(in crate::presentation) fn use_layout_mounts() -> LayoutMounts {
+    let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
+    let adapter = use_context::<super::SelectionAdapter>();
+    let runtime = editor.runtime();
+    let boardstudio_web_ui_model::editor::EditorContext {
+        version, workspace, ..
+    } = editor;
+    let board_inspector = super::board_inspector::use_board_inspector(
+        runtime.clone(),
+        adapter.selected_context,
+        workspace,
+        adapter.generation,
+    );
+    let key_size = objects::use_key_size(
+        runtime.clone(),
+        version,
+        adapter.selected_context,
+        workspace,
+        adapter.generation,
+    );
+    let layout_align = objects::use_canvas_align(
+        runtime.clone(),
+        version,
+        adapter.selected_context,
+        workspace,
+        adapter.generation,
+        Workspace::Layout,
+    );
+    LayoutMounts {
+        board_inspector,
+        key_size,
+        layout_align,
+    }
+}
+
+pub(in crate::presentation) struct LayoutBundle {
+    pub objects: ObjectsInput,
+    pub inspector: InspectorInput,
+    pub toolbar: ToolbarInput,
+    pub canvas: Element,
+    pub commands: Vec<boardstudio_web_ui_shared::ui::command::Command>,
+}
+
+/// Assemble every Layout surface from the frame and contexts. All Layout-only
+/// hooks (`use_canvas_bundle`, `use_layout_toolbar`, the pointer builders, the
+/// outline overlay, the selection anchor) run here at Layout lifetime; the
+/// session only supplies shared services through the frame.
+pub(in crate::presentation) fn use_layout_bundle(
+    frame: &super::workspace_composition::WorkspaceFrame,
+) -> LayoutBundle {
+    let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
+    let layout_state = use_context::<LayoutWorkspaceState>();
+    let services = &frame.layout_services;
+    let mounts = use_layout_mounts();
+    let lifetime =
+        use_hook(|| Rc::new(super::inspector::LayoutComponentInspectorLifetime::default()));
+    let canvas = inspector_wiring::use_canvas_bundle(frame, &mounts, lifetime.clone());
+    let toolbar_wiring = toolbar_wiring::use_layout_toolbar(frame, &canvas, &mounts, lifetime);
+    let pointer = pointer::build_canvas_pointer(frame);
+    let overlay = scene::use_outline_overlay(frame);
+    let selected_tree_context = canvas.selection.selected_tree_context.clone();
+    let bridge = scene::selected_bridge(&frame.snapshot, selected_tree_context.as_ref());
+    let focused_half = scene::split_focused_half(&frame.document, layout_state.split_focus());
+    let board = frame
+        .document
+        .boards
+        .iter()
+        .find(|board| board.id == frame.model.active_board_id);
+    let visible: Vec<_> = frame
+        .document
+        .parts
+        .iter()
+        .filter(|part| board.is_some_and(|board| board.part_ids.contains(&part.id)))
+        .collect();
+    let anchor = (!layout_state.assembly_3d()()).then(|| {
+        scene::selection_geometry_anchor(
+            &visible,
+            &frame.scene,
+            &frame.model.selected_part_ids,
+            frame.svg.borrow().is_some(),
+            frame.surface_size,
+            frame.camera.width,
+            frame.camera.height,
+            frame.camera.view_x,
+        )
+    });
+    let anchor = anchor.flatten();
+    let objects_input = ObjectsInput {
+        shared: frame.objects.clone(),
+        matrix_setup: frame.matrix_setup.clone(),
+        matrix_inspector: services.matrix_inspector.clone(),
+        pair_created: layout_state.pair_created_selection(),
+        on_place_component: frame.part_placement.on_place_component,
+        layout_target: frame.layout_target,
+        parts_query: frame.parts_query,
+        on_browse_parts: frame.browse_parts,
+        placement_error: frame.placement_error.clone(),
+        add_object_menu_open: layout_state.add_object_menu_open(),
+    };
+    let inspector_input = inspector_wiring::layout_inspector_input(
+        frame,
+        &canvas,
+        &mounts,
+        &toolbar_wiring,
+        editor.runtime(),
+    );
+    let canvas_element = scene::use_layout_canvas(
+        frame,
+        &canvas,
+        &toolbar_wiring.toolbar_input.transform,
+        &pointer,
+        &overlay,
+        scene::LayoutCanvasExtras {
+            bridge,
+            focused_half,
+            anchor,
+        },
+    );
+    let pills = canvas_status_pills(CanvasStatusPillsInput {
+        active: true,
+        part_placement: &frame.part_placement,
+        document: frame.document.clone(),
+        pending_splay_origin_pick: layout_state.pending_splay_origin_pick(),
+        pending_anchor_pick: layout_state.pending_anchor_pick(),
+        field_preview: use_context::<super::FieldPreview>().0,
+        layout_assembly_3d: layout_state.assembly_3d(),
+        canvas_anchor_badge: &canvas.selection.canvas_anchor_badge,
+    });
+    let commands = view_commands(
+        toolbar_wiring.on_layout_view_mode,
+        toolbar_wiring.toolbar_input.on_toggle_footprints,
+        layout_state,
+        editor.panels.objects_open,
+        editor.panels.inspector_open,
+        services.objects_panel_settings,
+    );
+    LayoutBundle {
+        objects: objects_input,
+        inspector: inspector_input,
+        toolbar: toolbar_wiring.toolbar_input.clone(),
+        canvas: rsx! {
+            {canvas_element}
+            {pills}
+        },
+        commands,
+    }
+}
+
 #[component]
 pub(super) fn LayoutWorkspace() -> Element {
-    use super::workspace_composition::{
-        WorkspacePayload, WorkspaceSurfaces, use_frame, use_publish_surfaces,
-    };
+    use super::workspace_composition::{WorkspaceSurfaces, use_frame, use_publish_surfaces};
 
     let frame = use_frame();
-    let canvas = scene::use_layout_canvas(&frame, &frame.payload);
-    let surfaces = match &frame.payload {
-        WorkspacePayload::Layout {
-            objects: objects_input,
-            inspector: inspector_input,
-            toolbar: toolbar_input,
-            ..
-        } => {
-            let input = inspector_input.clone();
-            WorkspaceSurfaces {
-                objects: objects(objects_input.clone()),
-                inspector: rsx! { LayoutInspector { input } },
-                toolbar: toolbar(toolbar_input.clone()),
-                canvas,
-                status: rsx! {},
-                layers: rsx! {},
-            }
-        }
-        _ => WorkspaceSurfaces {
-            objects: rsx! {},
-            inspector: rsx! {},
-            toolbar: rsx! {},
-            canvas,
-            status: rsx! {},
-            layers: rsx! {},
-        },
+    let bundle = use_layout_bundle(&frame);
+    let input = bundle.inspector.clone();
+    let surfaces = WorkspaceSurfaces {
+        objects: objects(bundle.objects.clone()),
+        inspector: rsx! { LayoutInspector { input } },
+        toolbar: toolbar(bundle.toolbar.clone()),
+        canvas: bundle.canvas.clone(),
+        status: rsx! {},
+        layers: rsx! {},
     };
+    boardstudio_web_ui_shared::ui::command::use_commands(bundle.commands.clone());
     use_publish_surfaces(Workspace::Layout, surfaces);
     rsx! {}
 }
 
 // --- Layout session hooks (run at editor-session lifetime) ---
+//
+// Only mounts with cross-workspace lifetime stay here: the Export objects dock
+// reads `matrix_inspector`, session keyboard clears the aggregate pick on
+// `matrix_transform_inspector`, and Parts/PCB share `matrix_setup`. Everything
+// Layout-only (spacing ghost, board/key-size inspectors, align) runs inside
+// `LayoutWorkspace` via `use_layout_mounts` and the canvas bundle.
 
 pub(in crate::presentation) struct LayoutViewState {
-    pub spacing_ghost_state: Signal<Option<super::spacing_ghost::SpacingGhostState>>,
     pub tree_cell_anchor: Rc<std::cell::RefCell<Option<super::OwnedTreeCellAnchor>>>,
     pub matrix_inspector: objects::MatrixInspectorMount,
-    pub board_inspector: super::board_inspector::BoardInspectorMount,
-    pub key_size: objects::KeySizeMount,
     pub matrix_transform_inspector: objects::MatrixTransformInspectorMount,
-    pub layout_align: objects::LayoutAlignMount,
     pub matrix_setup: objects::MatrixSetupMount,
     pub parts_state: super::parts_workspace::PartsWorkspaceState,
     pub parts_assembly_orientation: Signal<super::parts::SwitchOrientation>,
@@ -911,75 +1052,13 @@ pub(in crate::presentation) fn use_layout_view_state(
     let boardstudio_web_ui_model::editor::EditorContext {
         version, workspace, ..
     } = editor;
-    // A spacing commit shows the previous accepted scene until another edit,
-    // undo/redo, or selection change. The tracker only writes view state.
-    let mut last_spacing_seen = use_signal(|| None::<super::spacing_ghost::SeenAccepted>);
-    let mut spacing_ghost_state = use_signal(|| None::<super::spacing_ghost::SpacingGhostState>);
-    let ghost_effect_runtime = runtime.clone();
-    let ghost_effect_selection = adapter.selected_context;
-    use_effect(move || {
-        let _ = version();
-        let tree_context = (ghost_effect_selection)();
-        let model = ghost_effect_runtime.model();
-        let Some(snapshot) = model.accepted.clone() else {
-            return;
-        };
-        let current = super::spacing_ghost::AcceptedView {
-            revision: snapshot.document.revision,
-            transaction: snapshot.scene.transaction_id.clone(),
-            document: snapshot.document.clone(),
-            scene: snapshot.scene.clone(),
-            selected_ids: model.selected_part_ids.clone(),
-            selected_context: tree_context,
-        };
-        // Clone the settled values first: the tracker borrows nothing, and the
-        // guarded writes below only fire on real advances.
-        let seen_before = last_spacing_seen.peek().clone();
-        let ghost_before = spacing_ghost_state.peek().clone();
-        match super::spacing_ghost::advance_spacing_ghost(
-            seen_before.as_ref(),
-            &current,
-            ghost_before.as_ref(),
-        ) {
-            super::spacing_ghost::GhostAdvance::Keep => {}
-            super::spacing_ghost::GhostAdvance::Set { seen, ghost } => {
-                if Some(&seen) != seen_before.as_ref() {
-                    last_spacing_seen.set(Some(seen));
-                }
-                if ghost != ghost_before {
-                    spacing_ghost_state.set(ghost);
-                }
-            }
-        }
-    });
     let tree_cell_anchor =
         use_hook(|| Rc::new(std::cell::RefCell::new(None::<super::OwnedTreeCellAnchor>)));
     let matrix_inspector = objects::use_matrix_inspector(runtime.clone(), adapter.selected_context);
-    let board_inspector = super::board_inspector::use_board_inspector(
-        runtime.clone(),
-        adapter.selected_context,
-        workspace,
-        adapter.generation,
-    );
-    let key_size = objects::use_key_size(
-        runtime.clone(),
-        version,
-        adapter.selected_context,
-        workspace,
-        adapter.generation,
-    );
     let matrix_transform_inspector = objects::use_workspace_matrix_transform(
         runtime.clone(),
         adapter.selected_context,
         layout_state.splay_affect(),
-    );
-    let layout_align = objects::use_canvas_align(
-        runtime.clone(),
-        version,
-        adapter.selected_context,
-        workspace,
-        adapter.generation,
-        Workspace::Layout,
     );
     let matrix_setup = objects::use_matrix_setup(
         runtime.clone(),
@@ -994,13 +1073,9 @@ pub(in crate::presentation) fn use_layout_view_state(
     let parts_assembly_orientation = parts_state.assembly_orientation();
     let canvas_interaction = use_hook(super::CanvasInteractionArbiter::default);
     LayoutViewState {
-        spacing_ghost_state,
         tree_cell_anchor,
         matrix_inspector,
-        board_inspector,
-        key_size,
         matrix_transform_inspector,
-        layout_align,
         matrix_setup,
         parts_state,
         parts_assembly_orientation,
