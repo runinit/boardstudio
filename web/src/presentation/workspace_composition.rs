@@ -168,9 +168,9 @@ pub(super) fn use_workspace_outputs() -> WorkspaceOutputs {
     }
 }
 
-/// Publish the active workspace's surfaces after render. Writing these signals
-/// during render would mark subscribed outlets dirty mid-pass; each outlet
-/// subscribes only to its own surface signal, so unrelated surfaces stay idle.
+/// Publish the active workspace's surfaces after render so signal writes never
+/// happen mid-render. Because `Element` (`VNode`) compares by `Rc::ptr_eq`,
+/// any re-render of the workspace replaces all six surface elements together.
 pub(super) fn use_publish_surfaces(workspace: Workspace, surfaces: WorkspaceSurfaces) {
     let outputs = use_context::<WorkspaceOutputs>();
     use_effect(use_reactive(
@@ -283,7 +283,7 @@ pub(super) fn use_toolbar_selection_availability(
 /// the live selection, clear on an empty id, and open the Inspector for a
 /// key that still exists after the selection lands. `is_current` carries
 /// each workspace's extra currency guard and `key_exists` its projection.
-pub(super) fn use_design_key_select(
+pub(super) fn design_key_select_handler(
     editor: EditorContext,
     adapter: SelectionAdapter,
     frame: &WorkspaceFrame,

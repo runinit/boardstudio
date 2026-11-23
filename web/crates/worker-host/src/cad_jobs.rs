@@ -566,7 +566,9 @@ fn validate_result_payload(request: &CadRequest, result: &CadResult) -> Result<(
             validate_vendor_step(expected_sha, expected_options, mesh, bounds, vendor_step)
                 .map_err(|reason| bad(&reason))?;
         }
-        CadOperation::CollisionQuery => unreachable!("collision payload validated with its report"),
+        CadOperation::CollisionQuery => {
+            return Err(bad("collision query requires validate_collision_reply"));
+        }
     }
     Ok(())
 }

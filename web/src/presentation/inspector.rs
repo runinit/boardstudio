@@ -75,7 +75,11 @@ pub(super) fn Inspector() -> Element {
     }));
     let apply_position = {
         let rt = runtime.clone();
+        let current_key = current_key.clone();
         move || {
+            if *synced_key.peek() != current_key {
+                return;
+            }
             let x = match parse_axis(&x_text(), "X (mm)") {
                 Ok(v) => v,
                 Err(msg) => {

@@ -1,7 +1,7 @@
 //! Keymap-owned canvas and Inspector composition.
 use super::workspace_composition::CanvasEventHandlers;
 use super::workspace_composition::{
-    WorkspaceInteraction, WorkspaceSurfaces, design_toolbar, use_design_key_select, use_frame,
+    WorkspaceInteraction, WorkspaceSurfaces, design_key_select_handler, design_toolbar, use_frame,
     use_publish_surfaces,
 };
 use super::*;
@@ -219,7 +219,7 @@ pub(super) fn KeymapWorkspace() -> Element {
     let render_generation = frame.owner.generation;
     let scope = &frame.scope;
     let snapshot = &frame.snapshot;
-    let on_select_key = use_design_key_select(
+    let on_select_key = design_key_select_handler(
         editor,
         adapter.clone(),
         &frame,

@@ -452,6 +452,31 @@ pub(in crate::presentation) struct LayoutPayloadInput<'a> {
     pub ptr: &'a super::super::workbench::editor_session::pointer_bundles::PtrNamed,
 }
 
+pub(in crate::presentation) fn layout_objects_input(
+    state: &super::super::workbench::editor_session::session_state::SessionState<'_>,
+    cam: &super::super::workbench::editor_session::camera::CamNamed,
+    wir: &super::super::workbench::editor_session::workspace_inputs::WsWiring,
+    matrix_setup: &objects::MatrixSetupMount,
+) -> super::ObjectsInput {
+    super::ObjectsInput {
+        shared: wir.shared_objects.clone(),
+        matrix_setup: matrix_setup.clone(),
+        matrix_inspector: state.matrix_inspector.clone(),
+        pair_created: state.matrix_pair.pair_created_selection,
+        on_place_component: cam.placement.part_placement.on_place_component,
+        layout_target: state.view.layout_target,
+        parts_query: state.view.parts_query,
+        on_browse_parts: wir.on_browse_parts,
+        placement_error: state
+            .matrix_pair
+            .matrix_placement
+            .error
+            .clone()
+            .or_else(|| cam.placement.part_placement.error.clone()),
+        add_object_menu_open: state.layout_state.add_object_menu_open(),
+    }
+}
+
 pub(in crate::presentation) fn layout_payload(
     input: LayoutPayloadInput<'_>,
 ) -> super::super::workspace_composition::WorkspacePayload {
@@ -471,23 +496,7 @@ pub(in crate::presentation) fn layout_payload(
         ptr,
     } = input;
     super::super::workspace_composition::WorkspacePayload::Layout {
-        objects: super::ObjectsInput {
-            shared: wir.shared_objects.clone(),
-            matrix_setup: matrix_setup.clone(),
-            matrix_inspector: state.matrix_inspector.clone(),
-            pair_created: state.matrix_pair.pair_created_selection,
-            on_place_component: cam.placement.part_placement.on_place_component,
-            layout_target: state.view.layout_target,
-            parts_query: state.view.parts_query,
-            on_browse_parts: wir.on_browse_parts,
-            placement_error: state
-                .matrix_pair
-                .matrix_placement
-                .error
-                .clone()
-                .or_else(|| cam.placement.part_placement.error.clone()),
-            add_object_menu_open: state.layout_state.add_object_menu_open(),
-        },
+        objects: layout_objects_input(state, cam, wir, matrix_setup),
         inspector: layout_inspector_input(editor, state, canvas, callbacks, inp, select_tree),
         toolbar: inp.toolbar_input.clone(),
         canvas_aria_label: canvas.inspector.canvas_aria_label,

@@ -703,7 +703,7 @@ mod native_tests {
     }
 
     #[test]
-    fn hidden_pending_waits_for_exact_terminal_then_releases_without_selection() {
+    fn hiding_workspace_retires_admitted_owner_without_selection() {
         let (probe, mut dom) = mounted();
         open(&probe, &mut dom);
         prepared();
@@ -732,7 +732,7 @@ mod native_tests {
     }
 
     #[test]
-    fn current_saved_completion_selects_the_created_matrix_exactly_once() {
+    fn admitted_creation_selects_created_matrix_once_across_save_completion() {
         let (probe, mut dom) = mounted();
         open(&probe, &mut dom);
         prepared();
@@ -796,7 +796,7 @@ mod native_tests {
     }
 
     #[test]
-    fn completed_old_project_retires_before_replacement_revision_checks() {
+    fn opening_lower_revision_project_after_completion_retires_old_owner_without_reselecting() {
         let (probe, mut dom) = mounted();
         open(&probe, &mut dom);
         prepared();
@@ -828,9 +828,6 @@ mod native_tests {
             probe.mount().can_open,
             "completed A must not block lower-revision B"
         );
-        probe.release_pending_operation();
-        flush(&probe, &mut dom);
-        assert!(probe.mount().can_open);
         assert_eq!(
             selections(&probe.runtime).len(),
             1,
@@ -839,7 +836,7 @@ mod native_tests {
     }
 
     #[test]
-    fn closed_session_completion_releases_its_slot() {
+    fn closing_session_retires_admitted_slot_without_reselecting() {
         let (probe, mut dom) = mounted();
         open(&probe, &mut dom);
         prepared();
@@ -855,18 +852,14 @@ mod native_tests {
         });
         probe.release_pending_operation();
         flush(&probe, &mut dom);
-        // The closed completion releases its slot instead of lingering: the owner is gone
-        // and no further selection can fire into the dead session.
+        // Session is terminal after Close: the same probe cannot reopen or project, and no
+        // further selection fires on the released slot.
+        assert!(!probe.mount().can_open, "closed session cannot reopen");
         assert!(
             probe.mount().projection.is_none(),
             "closed completion releases its slot"
         );
         assert_eq!(selections(&probe.runtime).len(), 1);
-        // Closed sessions are terminal; a fresh session admits new boards without
-        // interference from the released slot.
-        let (fresh, mut fresh_dom) = mounted();
-        open(&fresh, &mut fresh_dom);
-        assert!(fresh.mount().projection.is_some());
     }
 
     #[test]

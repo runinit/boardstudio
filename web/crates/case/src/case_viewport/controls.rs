@@ -92,6 +92,30 @@ pub(crate) fn ViewerChrome(
         ],
         move |assembly| transient.with_mut(|view| view.assembly = assembly),
     );
+    let inline_hidden_toggle = rsx! {
+        ToggleGroup {
+            aria_label: "Hidden lines",
+            pressed: Some(if transient().show_hidden { [0].into_iter().collect() } else { Default::default() }),
+            on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                if next.contains(&0) != transient().show_hidden {
+                    transient.with_mut(|view| view.show_hidden = !view.show_hidden);
+                }
+            },
+            Tooltip {
+                TooltipTrigger { as: move |attributes: Vec<Attribute>| rsx! {
+                        ToggleItem { index: 0usize, aria_label: "Show hidden lines",
+                            class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
+                            attributes,
+                            svg { view_box: "0 0 24 24", "aria-hidden": "true",
+                                path { d: "m12 2 9 5v10l-9 5-9-5V7ZM3 7l9 5 9-5M12 12v10" }
+                                path { stroke_dasharray: "2 2", d: "M12 2v10M3 17l9-5 9 5" }
+                            }
+                        }
+                    } }
+                TooltipContent { "Show hidden lines" }
+            }
+        }
+    };
     let show_hidden = rsx! {
         ToggleField {
             label: "Show hidden lines",
@@ -129,7 +153,7 @@ pub(crate) fn ViewerChrome(
                         }
                     }
                     {display_mode.clone()}
-                    {show_hidden.clone()}
+                    {inline_hidden_toggle}
                     if show_assembly_controls { {assembly_view.clone()} }
                 }
                 {case_edit_controls}

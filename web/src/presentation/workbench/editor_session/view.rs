@@ -7,6 +7,7 @@ pub(super) struct ObjectsPanelInput {
     pub objects_open: Signal<bool>,
     pub objects_panel_settings: Signal<PanelSettings>,
     pub active_workspace: Workspace,
+    pub export_objects: Option<Element>,
     pub layout_state: layout_workspace::LayoutWorkspaceState,
     pub layout_assembly_3d: Signal<bool>,
     pub layout_snap_settings: Signal<objects::LayoutSnapSettings>,
@@ -20,6 +21,7 @@ pub(super) fn objects_panel(input: ObjectsPanelInput) -> Option<Element> {
         objects_open,
         objects_panel_settings,
         active_workspace,
+        export_objects,
         layout_state,
         layout_assembly_3d,
         layout_snap_settings,
@@ -33,7 +35,9 @@ pub(super) fn objects_panel(input: ObjectsPanelInput) -> Option<Element> {
                     Some(layout_workspace::add_object_header_action(layout_state.add_object_menu_open()))
                 } else { None },
                 div { class: "min-h-0 min-w-0 flex-[1_1_auto] overflow-x-hidden overflow-y-auto",
-                if active_workspace != Workspace::Export {
+                if active_workspace == Workspace::Export {
+                    {export_objects}
+                } else {
                     WorkspaceOutlet { workspace: active_workspace, surface: Surface::Objects }
                 }
                 }

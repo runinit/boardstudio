@@ -8,7 +8,7 @@ use super::keycaps_settings::{
 use super::objects;
 use super::workspace_composition::{CanvasEventHandlers, SharedObjectsInput};
 use super::workspace_composition::{
-    WorkspaceInteraction, WorkspaceSurfaces, design_toolbar, use_design_key_select, use_frame,
+    WorkspaceInteraction, WorkspaceSurfaces, design_key_select_handler, design_toolbar, use_frame,
     use_publish_surfaces,
 };
 use super::*;
@@ -338,7 +338,7 @@ pub(super) fn KeycapsWorkspace() -> Element {
         || (None, Rc::from([])),
         |(view, contours)| (Some(view), contours),
     );
-    let on_select_key = use_design_key_select(
+    let on_select_key = design_key_select_handler(
         editor,
         adapter.clone(),
         &frame,

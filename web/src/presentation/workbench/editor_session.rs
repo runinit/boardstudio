@@ -209,6 +209,14 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
         Workspace::Keycaps => workspace_composition::WorkspacePayload::Keycaps,
         Workspace::Export => workspace_composition::WorkspacePayload::Export,
     };
+    let export_objects = (workspace == Workspace::Export).then(|| {
+        layout_workspace::objects(layout_workspace::inspector_wiring::layout_objects_input(
+            &state,
+            &cam,
+            &wir,
+            &matrix_setup,
+        ))
+    });
     let frame = (workspace != Workspace::Export).then(|| {
         workspace_composition::Frame::new(workspace_composition::WorkspaceFrame {
             scope: render_scope.clone(),
@@ -261,6 +269,7 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
                         objects_open: editor.panels.objects_open,
                         objects_panel_settings: state.objects_panel_settings,
                         active_workspace: state.active_workspace,
+                        export_objects,
                         layout_state: state.layout_state,
                         layout_assembly_3d: state.layout_state.assembly_3d(),
                         layout_snap_settings: state.layout_state.snap_settings(),
