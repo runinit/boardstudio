@@ -184,6 +184,7 @@ incremental = false
 # measured core-worker -1.5% and cad-worker -0.8% vs the pre-split record.
 [profile.release]
 codegen-units = 1
+lto = "thin"
 opt-level = 2
 
 # The profile for every wasm build `scripts/check.py` makes: the packaged page
