@@ -31,7 +31,6 @@ pub(crate) struct ViewerOverlayConfig {
     pub(crate) selected_reference: Option<String>,
     pub(crate) display: CaseDisplay,
     pub(crate) mechanical_settings: Option<MechanicalSettingsProps>,
-    pub(crate) inline_case_controls: bool,
     pub(crate) toolbar_leading: Option<Element>,
     pub(crate) handles: Vec<ViewerHandle>,
     pub(crate) gesture_message: Option<String>,
@@ -59,14 +58,15 @@ pub(crate) fn ViewerChrome(
         accepts_case_edit,
     );
     let show_assembly_controls = overlay.layers.iter().any(|(id, _)| id != "pcb");
+    let inline = context == ViewerCanvasContext::Case;
 
     let display_mode = view_choices(
-        if overlay.inline_case_controls {
+        if inline {
             "Display mode".to_owned()
         } else {
             format!("{} display mode", context.name())
         },
-        overlay.inline_case_controls,
+        inline,
         transient().mode,
         [
             ("Shaded", RenderMode::Shaded),
@@ -76,14 +76,14 @@ pub(crate) fn ViewerChrome(
         move |mode| transient.with_mut(|view| view.mode = mode),
     );
     let assembly_view = view_choices(
-        if overlay.inline_case_controls {
+        if inline {
             "Mechanical assembly view".to_owned()
         } else if context == ViewerCanvasContext::Parts {
             "Parts sample view".to_owned()
         } else {
             format!("{} assembly view", context.name())
         },
-        overlay.inline_case_controls,
+        inline,
         transient().assembly,
         [
             ("Assembled", AssemblyView::Assembled),
@@ -123,7 +123,7 @@ pub(crate) fn ViewerChrome(
             on_commit: move |checked| transient.with_mut(|view| view.show_hidden = checked),
         }
     };
-    let assembly_adjustments = assembly_adjustments(transient, overlay.inline_case_controls);
+    let assembly_adjustments = assembly_adjustments(transient, inline);
     let docked_layers = boardstudio_web_ui_shared::layer_dock::use_docked_layers(rsx! {
         CaseAssemblyLayers {
             initially_open: false,
@@ -135,17 +135,17 @@ pub(crate) fn ViewerChrome(
             display: overlay.display.clone(),
             on_display_change: change_display,
         }
-        if !overlay.inline_case_controls {
+        if !inline {
             {layer_controls(&overlay.layers, &overlay.selected_layer, &overlay.display, select_layer, change_display)}
         }
     });
 
     rsx! {
         div { class: "relative flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden",
-            style: (!overlay.inline_case_controls).then_some("container-type: size"),
-            div { class: if overlay.inline_case_controls { "relative z-[5] m-3 flex w-max max-w-[calc(100%-24px)] flex-none flex-wrap items-center self-start gap-1 overflow-visible rounded-2xl bg-toolbar p-[5px] shadow-[0_6px_18px_rgb(0_0_0/16%)] [&_[role=group]]:m-0 [&_[role=group]]:flex-none [&_[role=group]]:gap-0.5 [&_[role=group]]:p-0" } else { "relative flex flex-none flex-wrap items-center justify-center gap-1 rounded-md bg-toolbar p-1" },
+            style: (!inline).then_some("container-type: size"),
+            div { class: if inline { "relative z-[5] m-3 flex w-max max-w-[calc(100%-24px)] flex-none flex-wrap items-center self-start gap-1 overflow-visible rounded-2xl bg-toolbar p-[5px] shadow-[0_6px_18px_rgb(0_0_0/16%)] [&_[role=group]]:m-0 [&_[role=group]]:flex-none [&_[role=group]]:gap-0.5 [&_[role=group]]:p-0" } else { "relative flex flex-none flex-wrap items-center justify-center gap-1 rounded-md bg-toolbar p-1" },
                 {overlay.toolbar_leading}
-                if overlay.inline_case_controls {
+                if inline {
                     div { class: "static flex flex-wrap items-center gap-0.5 border-0 bg-transparent p-0", role: "group", "aria-label": "Assembly camera",
                         {camera_button("Fit", "Fit", "Fit model", camera, RendererPageHost::fit)}
                         for (name, label, action) in CAMERA_VIEWS {
@@ -157,11 +157,11 @@ pub(crate) fn ViewerChrome(
                     if show_assembly_controls { {assembly_view.clone()} }
                 }
                 {case_edit_controls}
-                if !overlay.inline_case_controls {
+                if !inline {
                     {compact_view_controls(context, camera, show_hidden, display_mode, assembly_view, assembly_adjustments.clone())}
                 }
             }
-            if overlay.inline_case_controls && show_assembly_controls {
+            if inline && show_assembly_controls {
                 {assembly_adjustments}
             }
             div { class: "relative flex min-h-[160px] min-w-0 flex-1 [&>canvas]:h-full [&>canvas]:min-h-0 [&>canvas]:min-w-0 [&>canvas]:w-full [&>canvas]:flex-1 [&>canvas]:border-0",

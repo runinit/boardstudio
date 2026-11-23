@@ -12,9 +12,9 @@ use crate::mechanical_settings::{
 };
 use crate::runtime::{CadScene, Runtime};
 use crate::shared_viewer::{
-    CaseDisplay, CaseMountTarget, HandleGesturePhase, ScopedDisplayChange, ScopedViewerSignal,
-    ViewerFocusRequest, ViewerHandle, ViewerHandleTarget, ViewerIdentity, ViewerSignalKind,
-    Viewport3D,
+    CaseDisplay, CaseMountTarget, CaseViewerSource, HandleGesturePhase, ScopedDisplayChange,
+    ScopedViewerSignal, ViewerFocusRequest, ViewerHandle, ViewerHandleTarget, ViewerIdentity,
+    ViewerSignalKind, Viewport3D, ViewportSource,
 };
 use crate::{InstanceSelection, ResolvedAppearance, selection::SelectionAdapter};
 use crate::{case_bodies::CaseBodyEdit, viewport_camera::Drag};
@@ -481,24 +481,23 @@ pub(crate) fn CaseViewport(
     });
     rsx! {
         Viewport3D {
-            scene: displayed_scene,
-            handle_source: scene.clone(),
-            preview: preview.clone(),
-            layout_preview: None,
+            source: ViewportSource::Case(CaseViewerSource {
+                scene: displayed_scene,
+                preview: preview.clone(),
+                mechanical_settings,
+                handle_source: scene.clone(),
+                handles,
+                handle_preview: handle_preview(),
+                gesture_message,
+                selected_reference,
+            }),
             keycaps_preview,
-            parts_preview: None,
             model_rows: model_rows.clone(),
             selected_layer,
-            selected_reference,
             display,
             resolved_theme: theme,
             on_signal,
             on_display_change,
-            mechanical_settings,
-            inline_case_controls: true,
-            handles,
-            handle_preview: handle_preview(),
-            gesture_message,
             focus_request,
         }
         {keycaps_feedback}

@@ -20,24 +20,35 @@ pub(super) fn project_source(
     let mut reference = None;
     let mut selected_layer = "";
     let (thickness, contours, pcb) = match source {
-        ViewportSource::Cad(scene) => {
-            let document = captured_case_document(&scene.snapshot, &scene.scope)
-                .map_err(|error| format!("Case scene projection failed: {error:?}"))?;
-            let board = document
-                .boards
-                .iter()
-                .find(|board| board.id == scene.scope.board_id)
-                .ok_or("Case board is unavailable in the selected scene")?;
-            if let Some(assembly) = scene.mechanical.as_ref() {
-                stack = &assembly.stack;
-            }
-            for body in &scene.result.bodies {
-                bodies.push(&body_value(body, None)?);
-                if !layers.iter().any(|(id, _)| id == &body.id) {
-                    layers.push((body.id.clone(), body.name.clone()));
+        ViewportSource::Case(case) => {
+            if let Some(scene) = &case.scene {
+                let document = captured_case_document(&scene.snapshot, &scene.scope)
+                    .map_err(|error| format!("Case scene projection failed: {error:?}"))?;
+                let board = document
+                    .boards
+                    .iter()
+                    .find(|board| board.id == scene.scope.board_id)
+                    .ok_or("Case board is unavailable in the selected scene")?;
+                if let Some(assembly) = scene.mechanical.as_ref() {
+                    stack = &assembly.stack;
                 }
-            }
-            if let Some(preview) = preview {
+                for body in &scene.result.bodies {
+                    bodies.push(&body_value(body, None)?);
+                    if !layers.iter().any(|(id, _)| id == &body.id) {
+                        layers.push((body.id.clone(), body.name.clone()));
+                    }
+                }
+                if let Some(preview) = preview {
+                    reference = preview.board_reference.as_ref();
+                    (
+                        preview.preview.thickness,
+                        &preview.contours,
+                        Some(&preview.preview),
+                    )
+                } else {
+                    (board.thickness, &scene.contours, None)
+                }
+            } else if let Some(preview) = &case.preview {
                 reference = preview.board_reference.as_ref();
                 (
                     preview.preview.thickness,
@@ -45,16 +56,8 @@ pub(super) fn project_source(
                     Some(&preview.preview),
                 )
             } else {
-                (board.thickness, &scene.contours, None)
+                return Err("3D preview source is unavailable.".into());
             }
-        }
-        ViewportSource::Native(preview) => {
-            reference = preview.board_reference.as_ref();
-            (
-                preview.preview.thickness,
-                &preview.contours,
-                Some(&preview.preview),
-            )
         }
         ViewportSource::Layout(preview) => {
             reference = preview
@@ -76,7 +79,7 @@ pub(super) fn project_source(
                 Some(&preview.preview),
             )
         }
-        ViewportSource::Parts(preview) => {
+        ViewportSource::Parts(preview, _) => {
             let board = preview
                 .sample_document
                 .boards
@@ -87,7 +90,7 @@ pub(super) fn project_source(
         }
     };
     let models = model_packets(&bodies, &mut layers, model_rows, layout_document)?;
-    if !matches!(source, ViewportSource::Parts(_)) {
+    if !matches!(source, ViewportSource::Parts(..)) {
         append_keycap_bodies(&bodies, &mut layers, keycaps_preview, &identity)?;
     }
     let packet = serde_json::json!({

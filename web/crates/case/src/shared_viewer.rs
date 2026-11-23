@@ -179,25 +179,14 @@ impl PartialEq for RendererSceneProjection {
 
 #[component]
 pub fn Viewport3D(
-    scene: Option<Rc<CadScene>>,
-    preview: Option<Rc<NativePreviewSnapshot>>,
-    layout_preview: Option<Rc<LayoutPreviewSnapshot>>,
+    source: ViewportSource,
     keycaps_preview: Option<crate::runtime::KeycapsCadPreview>,
-    parts_preview: Option<Rc<crate::parts_preview::PartsPreviewSnapshot>>,
     model_rows: Option<ModelDeliveryRows>,
-    selected_layer: String,
-    selected_reference: Option<String>,
+    #[props(default = "pcb".to_owned())] selected_layer: String,
     display: CaseDisplay,
     resolved_theme: String,
     on_signal: EventHandler<ScopedViewerSignal>,
     on_display_change: EventHandler<ScopedDisplayChange>,
-    mechanical_settings: Option<super::MechanicalSettingsProps>,
-    #[props(default)] inline_case_controls: bool,
-    #[props(default)] toolbar_leading: Option<Element>,
-    #[props(default)] handle_source: Option<Rc<CadScene>>,
-    #[props(default)] handles: Vec<ViewerHandle>,
-    #[props(default)] handle_preview: Option<Vec<ViewerHandle>>,
-    #[props(default)] gesture_message: Option<String>,
     #[props(default)] focus_request: Option<ViewerFocusRequest>,
 ) -> Element {
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
@@ -206,15 +195,12 @@ pub fn Viewport3D(
     let theme = resolved_theme;
     let owner = use_hook(|| Rc::new(ViewerOwner::default()));
     let projection_cache = use_hook(|| Rc::new(RefCell::new(None::<ProjectionCache>)));
-    let Some(source) = scene
-        .map(ViewportSource::Cad)
-        .or_else(|| preview.clone().map(ViewportSource::Native))
-        .or_else(|| layout_preview.map(ViewportSource::Layout))
-        .or_else(|| parts_preview.map(ViewportSource::Parts))
-    else {
-        return rsx! { p { role: "alert", "3D preview source is unavailable." } };
+    let (case, parts_toolbar) = match &source {
+        ViewportSource::Case(case) => (Some(case), None),
+        ViewportSource::Parts(_, toolbar) => (None, toolbar.clone()),
+        _ => (None, None),
     };
-    let Some(view) = source.view(preview.as_ref(), model_rows.as_ref(), workspace) else {
+    let Some(view) = source.view(model_rows.as_ref(), workspace) else {
         return rsx! { p { role: "alert", "3D preview source is no longer current." } };
     };
     let matching_preview = view.preview;
@@ -233,7 +219,8 @@ pub fn Viewport3D(
             .unwrap_or_default(),
         theme: theme.clone(),
     };
-    let handle_projection = handle_source
+    let handle_projection = case
+        .and_then(|case| case.handle_source.clone())
         .filter(|accepted| {
             view.cad.is_some_and(|displayed| {
                 crate::case_viewport::gesture_source_is_current(&runtime, accepted, displayed)
@@ -316,10 +303,11 @@ pub fn Viewport3D(
         .filter(|failure| failure.reference.starts_with("module-model/"))
         .map(|failure| format!("{}: {}", failure.reference, failure.reason))
         .collect::<Vec<_>>();
+    let base_message = case.and_then(|case| case.gesture_message.clone());
     let gesture_message = if module_model_errors.is_empty() {
-        gesture_message
+        base_message
     } else {
-        Some(match gesture_message {
+        Some(match base_message {
             Some(existing) if !existing.is_empty() => {
                 format!(
                     "{existing} · Mounted-module model: {}",
@@ -335,12 +323,11 @@ pub fn Viewport3D(
         component_layers,
         selectable_layers,
         selected_layer,
-        selected_reference,
+        selected_reference: case.and_then(|case| case.selected_reference.clone()),
         display,
-        mechanical_settings,
-        inline_case_controls,
-        toolbar_leading,
-        handles,
+        mechanical_settings: case.and_then(|case| case.mechanical_settings.clone()),
+        toolbar_leading: parts_toolbar,
+        handles: case.map(|case| case.handles.clone()).unwrap_or_default(),
         gesture_message,
     };
     rsx! { MountedCanvas {
@@ -353,17 +340,31 @@ pub fn Viewport3D(
             on_signal,
             on_display_change,
             handle_projection,
-            handle_preview,
+            handle_preview: case.and_then(|case| case.handle_preview.clone()),
             focus_request,
     } }
 }
 
-#[derive(Clone)]
-enum ViewportSource {
-    Cad(Rc<CadScene>),
-    Native(Rc<NativePreviewSnapshot>),
+#[derive(Clone, PartialEq)]
+pub struct CaseViewerSource {
+    pub scene: Option<Rc<CadScene>>,
+    pub preview: Option<Rc<NativePreviewSnapshot>>,
+    pub mechanical_settings: Option<super::MechanicalSettingsProps>,
+    pub handle_source: Option<Rc<CadScene>>,
+    pub handles: Vec<ViewerHandle>,
+    pub handle_preview: Option<Vec<ViewerHandle>>,
+    pub gesture_message: Option<String>,
+    pub selected_reference: Option<String>,
+}
+
+#[derive(Clone, PartialEq)]
+pub enum ViewportSource {
+    Case(CaseViewerSource),
     Layout(Rc<LayoutPreviewSnapshot>),
-    Parts(Rc<crate::parts_preview::PartsPreviewSnapshot>),
+    Parts(
+        Rc<crate::parts_preview::PartsPreviewSnapshot>,
+        Option<Element>,
+    ),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -430,30 +431,46 @@ struct SourceView<'a> {
 impl ViewportSource {
     fn view<'a>(
         &'a self,
-        preview: Option<&'a Rc<NativePreviewSnapshot>>,
         model_rows: Option<&'a ModelDeliveryRows>,
         workspace: Signal<Workspace>,
     ) -> Option<SourceView<'a>> {
-        let (identity, pointer, cad) = match self {
-            Self::Cad(scene) => (
-                (&scene.scope, scene.token, scene.snapshot.document.revision),
-                Rc::as_ptr(scene) as usize,
-                Some(scene),
-            ),
-            Self::Native(preview) => (
-                (
-                    &preview.owner.scope,
-                    preview.owner.snapshot_token,
-                    preview.accepted_document.revision,
-                ),
-                Rc::as_ptr(preview) as usize,
-                None,
-            ),
+        match self {
+            Self::Case(case) => {
+                let (identity, pointer, cad) = match (&case.scene, &case.preview) {
+                    (Some(scene), _) => (
+                        (&scene.scope, scene.token, scene.snapshot.document.revision),
+                        Rc::as_ptr(scene) as usize,
+                        Some(scene),
+                    ),
+                    (None, Some(preview)) => (
+                        (
+                            &preview.owner.scope,
+                            preview.owner.snapshot_token,
+                            preview.accepted_document.revision,
+                        ),
+                        Rc::as_ptr(preview) as usize,
+                        None,
+                    ),
+                    (None, None) => return None,
+                };
+                let preview = case.preview.as_ref().filter(|preview| {
+                    preview.owner.scope == *identity.0 && preview.owner.snapshot_token == identity.1
+                });
+                Some(SourceView {
+                    identity,
+                    pointer,
+                    context: ViewerCanvasContext::Case,
+                    cad,
+                    preview,
+                    model_rows: preview.and(model_rows),
+                    models: preview.map_or(&[], |preview| preview.preview.models.as_slice()),
+                })
+            }
             Self::Layout(preview) => {
                 if !preview.lease.matches(&preview.owner) {
                     return None;
                 }
-                return Some(SourceView {
+                Some(SourceView {
                     identity: (
                         &preview.owner.scope,
                         preview.owner.snapshot_token,
@@ -469,13 +486,13 @@ impl ViewportSource {
                     preview: None,
                     model_rows,
                     models: &preview.preview.models,
-                });
+                })
             }
-            Self::Parts(preview) => {
+            Self::Parts(preview, _) => {
                 if !preview.lease.matches(&preview.owner) {
                     return None;
                 }
-                return Some(SourceView {
+                Some(SourceView {
                     identity: (
                         &preview.owner.scope,
                         preview.owner.snapshot_token,
@@ -487,50 +504,43 @@ impl ViewportSource {
                     preview: None,
                     model_rows: preview.model_rows.as_ref(),
                     models: &preview.preview.models,
-                });
+                })
             }
-        };
-        let preview = preview.filter(|preview| {
-            preview.owner.scope == *identity.0 && preview.owner.snapshot_token == identity.1
-        });
-        Some(SourceView {
-            identity,
-            pointer,
-            context: ViewerCanvasContext::Case,
-            cad,
-            preview,
-            model_rows: preview.and(model_rows),
-            models: preview.map_or(&[], |preview| preview.preview.models.as_slice()),
-        })
+        }
     }
 
     fn is_current(&self, runtime: &crate::runtime::Runtime) -> bool {
         match self {
-            Self::Cad(scene) => {
-                runtime.scope().as_ref() == Some(&scene.scope)
-                    && runtime
-                        .model()
-                        .accepted
-                        .as_ref()
-                        .is_some_and(|snapshot| snapshot.token == scene.token)
-                    && (runtime
-                        .cad_scene()
-                        .as_ref()
-                        .is_some_and(|current| Rc::ptr_eq(current, scene))
-                        || runtime
-                            .case_gesture_preview_scene(scene)
+            Self::Case(case) => {
+                if let Some(scene) = &case.scene {
+                    runtime.scope().as_ref() == Some(&scene.scope)
+                        && runtime
+                            .model()
+                            .accepted
                             .as_ref()
-                            .is_some_and(|current| Rc::ptr_eq(current, scene)))
+                            .is_some_and(|snapshot| snapshot.token == scene.token)
+                        && (runtime
+                            .cad_scene()
+                            .as_ref()
+                            .is_some_and(|current| Rc::ptr_eq(current, scene))
+                            || runtime
+                                .case_gesture_preview_scene(scene)
+                                .as_ref()
+                                .is_some_and(|current| Rc::ptr_eq(current, scene)))
+                } else if let Some(preview) = &case.preview {
+                    runtime.native_case_preview().is_some_and(|current| {
+                        current.owner == preview.owner && Rc::ptr_eq(&current.lease, &preview.lease)
+                    })
+                } else {
+                    false
+                }
             }
-            Self::Native(preview) => runtime.native_case_preview().is_some_and(|current| {
-                current.owner == preview.owner && Rc::ptr_eq(&current.lease, &preview.lease)
-            }),
             Self::Layout(preview) => runtime.layout_preview().is_some_and(|current| {
                 current.owner == preview.owner
                     && Rc::ptr_eq(&current.lease, &preview.lease)
                     && preview.lease.matches(&preview.owner)
             }),
-            Self::Parts(preview) => {
+            Self::Parts(preview, _) => {
                 preview.lease.matches(&preview.owner)
                     && runtime.parts_preview_snapshot_is_current(preview)
             }
