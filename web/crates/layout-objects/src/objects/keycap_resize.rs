@@ -14,7 +14,8 @@ mod geometry;
 mod tests;
 
 use geometry::{
-    add_delta, corners, dot, finite, half_extent, near, overlaps_on_axes, scale, set_cell_offset,
+    add_delta, corners, dot, finite, half_extent, near, overlaps_on_axes, reflow_corners, scale,
+    set_cell_offset,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -507,7 +508,7 @@ fn reflow(resizes: &[Resize], placements: &[KeycapPlacement]) -> BTreeMap<String
     }
     let before: Vec<_> = resizes
         .iter()
-        .flat_map(|resize| corners(&resize.placement))
+        .flat_map(|resize| reflow_corners(&resize.placement))
         .collect();
     let after: Vec<_> = resizes
         .iter()
@@ -520,7 +521,7 @@ fn reflow(resizes: &[Resize], placements: &[KeycapPlacement]) -> BTreeMap<String
                 .unwrap_or(Vec2 { x: 0.0, y: 0.0 });
             changed.at.x += delta.x;
             changed.at.y += delta.y;
-            corners(&changed)
+            reflow_corners(&changed)
         })
         .collect();
     if !before.is_empty() && !after.is_empty() {

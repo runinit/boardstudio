@@ -1,6 +1,7 @@
 //! Accepted-document geometry for the Layout key-size interaction.
 //! Overlap queries and reflow math shared by `plan_resize` and its tests.
 use super::*;
+use boardstudio_model::matrix::splay::rotate;
 
 pub(super) fn overlaps_on_axes(first: &[Vec2; 4], second: &[Vec2; 4], source: &[Vec2; 4]) -> bool {
     for index in 0..source.len() {
@@ -72,6 +73,21 @@ pub(super) fn half_extent(placement: &KeycapPlacement, axis: Vec2, size: Vec2) -
 }
 
 pub(super) fn corners(placement: &KeycapPlacement) -> [Vec2; 4] {
+    [(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)].map(|(x, y)| {
+        let local = Vec2 {
+            x: x * placement.size.x,
+            y: y * placement.size.y,
+        };
+        let offset = rotate(local, placement.rotation, Vec2::default());
+        Vec2 {
+            x: placement.at.x + offset.x,
+            y: placement.at.y + offset.y,
+        }
+    })
+}
+
+// These bounds feed the persisted reflow delta. Keep the original arithmetic order.
+pub(super) fn reflow_corners(placement: &KeycapPlacement) -> [Vec2; 4] {
     let angle = placement.rotation.to_radians();
     let (sin, cos) = angle.sin_cos();
     [(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)].map(|(x, y)| Vec2 {

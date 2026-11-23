@@ -44,6 +44,7 @@ mod layout_toolbar;
 mod layout_toolbar_logic;
 mod matrix_inspector;
 mod matrix_placement_controller;
+mod matrix_preparation;
 mod matrix_preset;
 mod matrix_preset_logic;
 mod matrix_setup;

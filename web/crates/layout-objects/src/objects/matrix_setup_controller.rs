@@ -1,16 +1,15 @@
 //! Editor-lifetime owner for Matrix Setup preparation, submission, and exact acknowledgement.
+use super::matrix_preparation::{PendingSettlement, matrix_source, prepare_matrix_definitions};
 use super::matrix_setup::{
     MatrixSetupCreateRequest, MatrixSetupMount, MatrixSetupOwner, MatrixSetupProjection,
 };
 use super::{ScopedTreeContext, TreeContext};
 use crate::{
-    matrix_setup_operation::{next_matrix_id, prepare_matrix},
+    matrix_setup_operation::{MatrixSetupRequest, next_matrix_id},
     runtime::Runtime,
 };
-use boardstudio_application::{
-    AcceptedSnapshot, Durability, Event, Lifecycle, Scope, SelectionMode,
-};
-use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
+use boardstudio_application::{Event, Scope, SelectionMode};
+use boardstudio_web_runtime::operation_outcomes::Settlement;
 use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
@@ -44,7 +43,7 @@ pub fn use_matrix_setup(
     let status = use_signal(|| None::<String>);
     // The committed SetMatrix is observed through its ticket; the waiting entry is the
     // pending state. No separate disabled flag is kept: availability derives from it.
-    let waiting = use_signal(|| None::<(EditOutcome, MatrixSetupOwner, String)>);
+    let waiting = use_signal(|| None::<PendingSettlement<(MatrixSetupOwner, String)>>);
 
     use_effect(use_reactive(
         (&version(), &workspace(), &scope_generation()),
@@ -102,7 +101,7 @@ pub fn use_matrix_setup(
             let model = runtime.model();
             let scope = runtime.scope();
             let Some((snapshot, scope, board_id)) =
-                setup_source(&runtime, &model, scope.as_ref(), current_workspace)
+                matrix_source(&runtime, &model, scope.as_ref(), current_workspace)
             else {
                 error.set(Some(
                     "Open a saved, editable board in Layout before creating a matrix.".into(),
@@ -173,7 +172,7 @@ pub fn use_matrix_setup(
             let model = runtime.model();
             let live_scope = runtime.scope();
             let Some((snapshot, scope, board_id)) =
-                setup_source(&runtime, &model, live_scope.as_ref(), workspace())
+                matrix_source(&runtime, &model, live_scope.as_ref(), workspace())
             else {
                 error.set(Some(
                     "The selected board is no longer ready for matrix creation.".into(),
@@ -217,34 +216,17 @@ pub fn use_matrix_setup(
                 if !alive.get() {
                     return;
                 }
-                let result = async {
-                    let templates =
-                        crate::presentation::parts::load_matrix_templates(reversible).await?;
-                    if !alive.get() {
-                        return Err("Matrix Setup owner closed.".into());
-                    }
-                    let mut prepared = prepare_matrix(
-                        matrix_id.clone(),
-                        board_id.clone(),
-                        crate::matrix_setup_operation::MatrixSetupRequest {
-                            rows: request.rows,
-                            columns: request.columns,
-                            preset: request.preset,
-                        },
-                        reversible,
-                        &templates,
-                    )?;
-                    for definition in &mut prepared.definitions {
-                        *definition = crate::presentation::parts::normalize_matrix_definition(
-                            definition.clone(),
-                        )
-                        .await?;
-                        if !alive.get() {
-                            return Err("Matrix Setup owner closed.".into());
-                        }
-                    }
-                    Ok::<_, String>((prepared.matrix, prepared.definitions))
-                }
+                let result = prepare_matrix_definitions(
+                    matrix_id,
+                    board_id,
+                    MatrixSetupRequest {
+                        rows: request.rows,
+                        columns: request.columns,
+                        preset: request.preset,
+                    },
+                    reversible,
+                    || alive.get(),
+                )
                 .await;
                 if !alive.get() {
                     return;
@@ -261,7 +243,7 @@ pub fn use_matrix_setup(
                 let current_workspace = workspace();
                 let current_generation = scope_generation();
                 let Some((current, scope, current_board)) =
-                    setup_source(&runtime, &model, current_scope.as_ref(), current_workspace)
+                    matrix_source(&runtime, &model, current_scope.as_ref(), current_workspace)
                 else {
                     preparing.set(None);
                     open.set(None);
@@ -284,7 +266,8 @@ pub fn use_matrix_setup(
                     return;
                 }
                 let (matrix, definitions) = match result {
-                    Ok(prepared) => prepared,
+                    Ok(Some(prepared)) => (prepared.matrix, prepared.definitions),
+                    Ok(None) => return,
                     Err(message) => {
                         preparing.set(None);
                         error.set(Some(message));
@@ -314,7 +297,10 @@ pub fn use_matrix_setup(
                     Some("matrix".into()),
                     create_matrix_resolver(current_board.clone(), matrix, definitions),
                 );
-                waiting.set(Some((ticket, owner.clone(), matrix_id.clone())));
+                waiting.set(Some(PendingSettlement {
+                    ticket,
+                    owner: (owner, matrix_id),
+                }));
                 preparing.set(None);
                 status.set(None);
             });
@@ -336,7 +322,7 @@ pub fn use_matrix_setup(
     let can_open = !create_pending
         && preparing.read().is_none()
         && open.read().is_none()
-        && setup_source(
+        && matrix_source(
             &runtime,
             &current_model,
             runtime.scope().as_ref(),
@@ -362,7 +348,7 @@ fn setup_owner_live(
         return false;
     }
     let model = runtime.model();
-    setup_source(runtime, &model, runtime.scope().as_ref(), workspace).is_some_and(
+    matrix_source(runtime, &model, runtime.scope().as_ref(), workspace).is_some_and(
         |(snapshot, scope, board_id)| {
             scope == owner.scope
                 && board_id == owner.board_id
@@ -372,53 +358,8 @@ fn setup_owner_live(
     )
 }
 
-fn setup_source<'a>(
-    runtime: &Runtime,
-    model: &'a boardstudio_application::ReadModel,
-    scope: Option<&Scope>,
-    workspace: Workspace,
-) -> Option<(&'a AcceptedSnapshot, Scope, String)> {
-    if workspace != Workspace::Layout {
-        return None;
-    }
-    let scope = scope?.clone();
-    if runtime.scope().as_ref() != Some(&scope) {
-        return None;
-    }
-    let snapshot = model.accepted.as_ref()?;
-    let durability_ready = matches!(
-        model.durability,
-        Durability::Saved { revision } | Durability::Saving { revision }
-            if revision == snapshot.document.revision
-    );
-    if snapshot.session_epoch != scope.session_epoch
-        || snapshot.document.id != scope.document_id
-        || model.active_board_id != scope.board_id
-        || model.active_instance_id != scope.instance_id
-        || scope.instance_id.as_ref().is_some_and(|instance_id| {
-            !snapshot.document.hardware.as_ref().is_some_and(|hardware| {
-                hardware.instances.iter().any(|instance| {
-                    &instance.id == instance_id && instance.board_id == scope.board_id
-                })
-            })
-        })
-        || model.lifecycle != Lifecycle::Ready
-        || !durability_ready
-        || model.display_preview.is_some()
-        || model.gesture.is_some()
-        || !snapshot
-            .document
-            .boards
-            .iter()
-            .any(|board| board.id == scope.board_id)
-    {
-        return None;
-    }
-    Some((snapshot, scope.clone(), scope.board_id))
-}
-
 struct SetupSettlement<'a> {
-    waiting: &'a mut Signal<Option<(EditOutcome, MatrixSetupOwner, String)>>,
+    waiting: &'a mut Signal<Option<PendingSettlement<(MatrixSetupOwner, String)>>>,
     open: &'a mut Signal<Option<MatrixSetupOwner>>,
     error: &'a mut Signal<Option<String>>,
     status: &'a mut Signal<Option<String>>,
@@ -432,28 +373,28 @@ fn settle_pending(
     scope_generation: u64,
     signals: &mut SetupSettlement<'_>,
 ) {
-    let Some((ticket, owner, matrix_id)) = signals.waiting.read().clone() else {
+    let model = runtime.model();
+    let Some(((owner, matrix_id), settlement)) =
+        PendingSettlement::finish(signals.waiting, |(owner, _)| {
+            // A hidden or departed owner cannot reconcile selection or publish feedback.
+            workspace == Workspace::Layout
+                && scope_generation == owner.scope_generation
+                && runtime.scope().as_ref() == Some(&owner.scope)
+                && model.accepted.as_ref().is_some_and(|snapshot| {
+                    snapshot.session_epoch == owner.scope.session_epoch
+                        && snapshot.document.id == owner.scope.document_id
+                })
+        })
+    else {
         return;
     };
-    let model = runtime.model();
-    // A hidden or departed owner cannot reconcile selection or publish feedback.
-    let owner_is_live = workspace == Workspace::Layout
-        && scope_generation == owner.scope_generation
-        && runtime.scope().as_ref() == Some(&owner.scope)
-        && model.accepted.as_ref().is_some_and(|snapshot| {
-            snapshot.session_epoch == owner.scope.session_epoch
-                && snapshot.document.id == owner.scope.document_id
-        });
-    match ticket.settlement(owner_is_live) {
+    signals.status.set(None);
+    match settlement {
         Settlement::Retired => {
-            signals.waiting.set(None);
-            signals.status.set(None);
             signals.open.set(None);
             signals.error.set(None);
         }
         Settlement::Landed { .. } => {
-            signals.waiting.set(None);
-            signals.status.set(None);
             signals.open.set(None);
             signals.error.set(None);
             if model.active_board_id == owner.board_id {
@@ -480,8 +421,6 @@ fn settle_pending(
             }
         }
         Settlement::Failed { message } => {
-            signals.waiting.set(None);
-            signals.status.set(None);
             signals.error.set(Some(message));
         }
     }
