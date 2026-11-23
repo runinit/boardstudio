@@ -7,51 +7,26 @@
 //! setup-guide state logic also compiles natively so its unit tests run under `cargo test`.
 #![cfg_attr(not(target_arch = "wasm32"), allow(dead_code, unused_imports))]
 
-// Modules keep the page bin's paths: `super::SelectionAdapter`, `super::parts::PartsQuery`,
-// `super::keycaps_fit::KeycapsFitState`, `crate::presentation::coordinates`, `crate::runtime`.
-#[allow(unused_imports)]
+// Shared imports keep the paths used by Layout's view and controller modules.
 pub(crate) use crate as presentation;
 #[cfg(target_arch = "wasm32")]
-#[allow(unused_imports)]
 pub(crate) use boardstudio_web_case::{case_display, shared_viewer};
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_catalogue::matrix_setup_operation;
 #[cfg(target_arch = "wasm32")]
-#[allow(unused_imports)]
 pub(crate) use boardstudio_web_keycaps::{keycaps_finding_marker, keycaps_fit};
 #[cfg(target_arch = "wasm32")]
-#[allow(unused_imports)]
 pub(crate) use boardstudio_web_parts::parts;
+pub(crate) use boardstudio_web_runtime::layout_viewer_source;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use boardstudio_web_runtime::runtime;
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_runtime::{
-    case_generation_lifecycle, layout_viewer_source, model_delivery, operation_outcomes,
-};
 #[cfg(target_arch = "wasm32")]
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_ui_model::selection::{
-    self, SelectionAdapter, active_board_scope_matches, current_layout_owner,
-    layout_owner_is_current,
-};
-#[allow(unused_imports)]
+pub(crate) use boardstudio_web_ui_model::canvas_interaction;
+#[cfg(target_arch = "wasm32")]
+pub(crate) use boardstudio_web_ui_model::selection::{self, SelectionAdapter};
 pub(crate) use boardstudio_web_ui_model::state::*;
 #[cfg(target_arch = "wasm32")]
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
-    PointerLocation, coordinates, coordinates_at, coordinates_with_scale, pointer_location,
-};
+pub(crate) use boardstudio_web_ui_model::svg_coordinates::coordinates;
 #[cfg(target_arch = "wasm32")]
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_ui_model::{canvas_interaction, instance_selection};
-#[cfg(target_arch = "wasm32")]
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_ui_shared::{
-    canvas_layers, footprint_graphics, layout_camera, model_asset_import, panels,
-};
-#[cfg(target_arch = "wasm32")]
-#[allow(unused_imports)]
-pub(crate) use part_placement::{LayoutPlacementCancellation, layout_view_mode_handler};
+pub(crate) use boardstudio_web_ui_shared::panels;
 
 pub use boardstudio_web_layout_core::{
     anchor_badge, anchor_pick, companion_placement, component_inspector, component_offset,

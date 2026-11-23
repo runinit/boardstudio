@@ -20,23 +20,26 @@ mod view;
 mod view_scene;
 mod workspace_inputs;
 
-/// Ticket 18: the ghost of the previous spacing lives here, in the Editor,
-/// next to the other Layout view state. The tracker below records the last
-/// accepted snapshot; a committed spacing change raises the pre-commit scene
-/// as a dashed ghost with its delta note until the next edit, undo/redo, or
-/// selection change. Nothing here writes the document.
 #[component]
 pub(super) fn Editor() -> Element {
+    let runtime = use_context::<Rc<Runtime>>();
+    let version = use_context::<Signal<u64>>();
+    let _ = version();
+    let snapshot = runtime.with_model(|model| model.accepted.clone());
+    let (Some(scope), Some(snapshot)) = (runtime.scope(), snapshot) else {
+        return rsx! {};
+    };
+    rsx! { EditorBody { scope, snapshot } }
+}
+
+#[component]
+fn EditorBody(scope: Scope, snapshot: AcceptedSnapshot) -> Element {
+    let render_scope = scope;
+    let snapshot = &snapshot;
     let (setup_a, mut workspace_routing, mut matrix_setup, on_parts_select) =
         setup_bundles::use_editor_setup_shell();
     let (setup_b, layer_actions, binding_actions, macro_actions) =
         setup_bundles::use_setup_workspaces(&setup_a);
-    let Some(render_scope) = setup_a.current_scope.clone() else {
-        return rsx! {};
-    };
-    let Some(snapshot) = setup_a.model.accepted.as_ref() else {
-        return rsx! {};
-    };
     let views = setup_workspaces::derive_views(
         &setup_a.model,
         snapshot,
@@ -60,23 +63,11 @@ pub(super) fn Editor() -> Element {
         .iter()
         .filter(|part| board_part_ids.contains(part.id.as_str()))
         .collect();
-    let matrices: Vec<_> = views
-        .document
-        .matrices
-        .iter()
-        .filter(|matrix| {
-            matrix
-                .board_id
-                .as_deref()
-                .is_some_and(|id| id == setup_a.model.active_board_id)
-                || (matrix.board_id.is_none()
-                    && (matrix
-                        .part_ids
-                        .iter()
-                        .any(|id| board_part_ids.contains(id.as_str()))
-                        || (matrix.part_ids.is_empty() && views.document.boards.len() <= 1)))
-        })
-        .collect();
+    let matrices = boardstudio_web_ui_model::tree::visible_matrices(
+        &views.document,
+        &setup_a.model.active_board_id,
+        &board_part_ids,
+    );
     let (h_sel, select_tree) = selection_handlers::build_selection_handlers(
         &setup_a,
         snapshot,

@@ -61,6 +61,7 @@ pub(super) struct ToolbarInput {
     pub(super) on_show_relationships: EventHandler<()>,
 }
 
+#[derive(Clone)]
 pub(super) struct InspectorInput {
     pub(super) context_title: Option<String>,
     pub(super) context_detail: Option<String>,
@@ -125,9 +126,8 @@ pub(super) struct LayoutWorkspaceState {
     transform_tool: Signal<Option<objects::LayoutTransformTool>>,
     transform_tool_owner: Signal<Option<TransformToolOwner>>,
     transform_handles: Signal<bool>,
-    /// Ticket 14: view-only editing focus for split boards. Like Handles, this
-    /// is workspace state, never a document edit: it starts on the source half
-    /// and survives workspace switches and spacing changes.
+    /// Split editing focus starts on the source half and survives workspace
+    /// switches and spacing changes without editing the document.
     split_focus: Signal<SplitHalf>,
     assembly_3d: Signal<bool>,
     splay_affect: Signal<boardstudio_core::model::MatrixSplayAffect>,
@@ -516,11 +516,12 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]
-#[cfg(all(test, target_arch = "wasm32"))]
 #[path = "layout_workspace/workspace_state_tests.rs"]
 mod workspace_state_tests;
 
-pub(super) fn inspector(mut input: InspectorInput) -> Element {
+#[component]
+pub(super) fn LayoutInspector(input: ReadSignal<InspectorInput>) -> Element {
+    let mut input = input();
     let mut key_size_open = use_signal(|| true);
     let mut matrix_relationship_escape_target = use_signal(|| None::<objects::TreeSelectRequest>);
     let component_owner = input

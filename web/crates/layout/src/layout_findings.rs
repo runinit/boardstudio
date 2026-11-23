@@ -31,6 +31,7 @@ pub struct Request {
     pub target: FindingNavigationTarget,
 }
 
+#[derive(Clone)]
 pub struct InspectorMount {
     pub open: bool,
     pub document: Rc<ProjectDoc>,
@@ -38,38 +39,6 @@ pub struct InspectorMount {
     pub source: Source,
     pub on_close: EventHandler<()>,
     pub on_navigate: EventHandler<Request>,
-}
-
-#[component]
-pub fn LayoutFindingsFooterButton(count: usize, on_toggle: EventHandler<()>) -> Element {
-    rsx! {
-        Button {
-            variant: ButtonVariant::Secondary,
-            class: "ml-auto h-auto min-h-[26px] w-auto gap-1.5 rounded-[3px] border-0 bg-transparent px-1.5 py-0.5 text-warning-dark [font:inherit] hover:bg-accent",
-            id: "m1-layout-findings-trigger",
-            onkeydown: move |event: KeyboardEvent| {
-                if event.key().to_string() == " " {
-                    event.stop_propagation();
-                    if let Some(raw) = event.data().try_as_web_event() {
-                        raw.stop_propagation();
-                    }
-                }
-            },
-            button_type: "button",
-            onclick: move |_| on_toggle.call(()),
-
-            svg {
-                view_box: "0 0 20 20",
-                fill: "none",
-                stroke: "currentColor",
-                stroke_width: "1.5",
-                "aria-hidden": "true",
-                path { d: "M10 2.5 18 17H2zM10 7v4m0 3v.2" }
-            }
-            "Layout findings: " Badge { variant: BadgeVariant::Secondary, "{count}" }
-
-        }
-    }
 }
 
 #[component]

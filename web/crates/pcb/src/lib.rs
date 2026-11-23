@@ -5,56 +5,46 @@
 //! Browser-only modules are `wasm32`-only; wiring mode, connection, apply, pin and remap
 //! logic, firmware position choices and remap proposals also compile natively so their
 //! unit tests run under `cargo test`.
-#![cfg_attr(not(target_arch = "wasm32"), allow(dead_code, unused_imports))]
+#![cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 
 // Modules keep the page bin's paths: `super::SelectionAdapter`, `super::objects::TreeContext`,
 // `super::parts::is_generator_source`, `crate::runtime`.
-#[allow(unused_imports)]
+#[cfg(target_arch = "wasm32")]
 pub(crate) use crate as presentation;
 #[cfg(target_arch = "wasm32")]
-#[allow(unused_imports)]
 pub(crate) use board_reference_owner::{
     board_reference_owner_is_current, board_reference_owner_lineage_is_current,
-    board_reference_target_is_current, dispatch_board_reference_action,
-    submit_board_reference_document,
-};
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_catalogue::physical_setup;
-#[cfg(any(target_arch = "wasm32", test))]
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_runtime::runtime;
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_runtime::{
-    firmware_position_projection, model_delivery, operation_outcomes,
+    dispatch_board_reference_action, submit_board_reference_document,
 };
 #[cfg(target_arch = "wasm32")]
-#[allow(unused_imports)]
+pub(crate) use boardstudio_web_catalogue::physical_setup;
+#[cfg(target_arch = "wasm32")]
+pub(crate) use boardstudio_web_runtime::firmware_position_projection;
+#[cfg(any(target_arch = "wasm32", test))]
+pub(crate) use boardstudio_web_runtime::runtime;
+#[cfg(target_arch = "wasm32")]
 pub(crate) use boardstudio_web_ui_model::selection::{
     self, SelectionAdapter, active_board_scope_matches, current_layout_owner,
-    layout_owner_is_current,
 };
-#[allow(unused_imports)]
+#[cfg(target_arch = "wasm32")]
 pub(crate) use boardstudio_web_ui_model::state::*;
-#[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_shared::footprint_graphics;
 #[cfg(target_arch = "wasm32")]
-#[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_shared::{
     board_reference_effect, canvas_layers, model_asset_import,
 };
 
-#[allow(unused_imports)]
+#[cfg(target_arch = "wasm32")]
 pub(crate) mod objects {
     pub use boardstudio_web_ui_model::tree::{ScopedTreeContext, TreeContext};
 }
 
-#[allow(unused_imports)]
+#[cfg(target_arch = "wasm32")]
 pub(crate) mod part_placement {
     pub use boardstudio_web_ui_model::state::ComponentPlacementAction;
 }
 
 #[cfg(target_arch = "wasm32")]
-#[allow(unused_imports)]
 pub(crate) mod parts {
     pub use boardstudio_web_catalogue::bundled::{generator_parameter_schema, is_generator_source};
     pub use boardstudio_web_parts::parts::load_horizontal_host_connector_definition;
@@ -101,18 +91,9 @@ mod pcb_board_reference {
 // Native controller tests use the runtime stub supplied by the dev-dependency.
 #[cfg(all(not(target_arch = "wasm32"), test))]
 pub(crate) mod pcb_wiring {
-    #[allow(unused_imports)]
-    use crate::firmware_position_projection::FirmwarePlanIdentity;
-    #[allow(unused_imports)]
-    use boardstudio_application::Scope;
-    #[allow(unused_imports)]
-    use boardstudio_core_mechanical::electrical::ElectricalPlan;
-    use boardstudio_model::model::ProjectDoc;
     pub(crate) use boardstudio_web_ui_model::wiring::{
         PcbWiringResolution, PcbWiringSource, WiringPlanIdentity,
     };
-    #[allow(unused_imports)]
-    use std::{rc::Rc, sync::Arc};
 
     #[path = "part_net_identity.rs"]
     mod part_net_identity;

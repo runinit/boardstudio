@@ -4,3 +4,4 @@ mod layout_space_pan_listener_tests;
 mod mechanical_source_export_browser_tests;
 mod model_decode_boundary_tests;
 mod offline_safety_tests;
+mod test_wait_tests;

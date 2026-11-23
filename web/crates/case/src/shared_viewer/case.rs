@@ -5,6 +5,7 @@ use super::{
     ViewerFocusRequest, ViewerHandle, ViewerHandleTarget, ViewerIdentity, ViewerSignalKind,
     Viewport3D,
 };
+use crate::case_preview::NativePreviewSnapshot;
 use crate::mechanical_settings::{self, MechanicalSettingsPatchExt};
 use crate::runtime::{CadScene, Runtime};
 use crate::{InstanceSelection, ResolvedAppearance, selection::SelectionAdapter};
@@ -241,24 +242,45 @@ fn use_case_keycaps(
     (preview, feedback)
 }
 
+#[derive(Clone, PartialEq)]
+pub(crate) enum CaseViewportSource {
+    Scene {
+        scene: Rc<CadScene>,
+        pcb_preview: Option<Rc<NativePreviewSnapshot>>,
+    },
+    Preview(Rc<NativePreviewSnapshot>),
+}
+
+impl CaseViewportSource {
+    pub(crate) fn scope(&self) -> &Scope {
+        match self {
+            Self::Scene { scene, .. } => &scene.scope,
+            Self::Preview(preview) => &preview.owner.scope,
+        }
+    }
+}
+
 #[component]
 pub(crate) fn CaseViewport(
-    scene: Option<Rc<CadScene>>,
-    preview: Option<Rc<crate::case_preview::NativePreviewSnapshot>>,
+    source: CaseViewportSource,
     model_rows: Option<crate::model_delivery::ModelDeliveryRows>,
     mechanical_settings: Option<crate::MechanicalSettingsProps>,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
-    let (scope, token, revision) = if let Some(scene) = scene.as_ref() {
-        (&scene.scope, scene.token, scene.snapshot.document.revision)
-    } else if let Some(preview) = preview.as_ref() {
-        (
-            &preview.owner.scope,
+    let scope = source.scope();
+    let (token, revision, scene, preview) = match &source {
+        CaseViewportSource::Scene { scene, pcb_preview } => (
+            scene.token,
+            scene.snapshot.document.revision,
+            Some(scene.clone()),
+            pcb_preview.clone(),
+        ),
+        CaseViewportSource::Preview(preview) => (
             preview.owner.snapshot_token,
             preview.accepted_document.revision,
-        )
-    } else {
-        return rsx! {};
+            None,
+            Some(preview.clone()),
+        ),
     };
     let (keycaps_preview, keycaps_feedback) =
         use_case_keycaps(runtime.clone(), scope, token, revision);

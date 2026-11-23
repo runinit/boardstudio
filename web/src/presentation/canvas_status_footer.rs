@@ -6,6 +6,7 @@ use boardstudio_web_ui_shared::ui::{
     toolbar::{Toolbar, ToolbarButton},
 };
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 
 #[component]
 pub(in crate::presentation) fn CanvasStatusFooter(
@@ -44,6 +45,15 @@ pub(in crate::presentation) fn CanvasStatusFooter(
 pub(super) fn FindingsButton(count: usize, on_toggle: EventHandler<()>) -> Element {
     rsx! {
         Button { id: "m1-layout-findings-trigger", class: "ml-auto", variant: ButtonVariant::Ghost, aria_label: "Layout findings: {count}",
+            button_type: "button",
+            onkeydown: move |event: KeyboardEvent| {
+                if matches!(event.key(), Key::Character(value) if value == " ") {
+                    event.stop_propagation();
+                    if let Some(raw) = event.data().try_as_web_event() {
+                        raw.stop_propagation();
+                    }
+                }
+            },
             onclick: move |_| on_toggle.call(()), "Layout findings: " Badge { variant: BadgeVariant::Warning, "{count}" } }
     }
 }

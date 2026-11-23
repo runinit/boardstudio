@@ -51,11 +51,6 @@ pub(crate) use boardstudio_web_layout::layout_viewer;
 // Shared UI vocabulary lives in `boardstudio-web-ui-model`; re-export it here so
 // presentation modules keep addressing it as `super::selection`, `super::InstanceSelection`
 // and so on.
-#[allow(unused_imports)]
-#[cfg(test)]
-pub(crate) use boardstudio_web_case::test_contexts::{
-    use_case_generation_readiness_test_bridge, use_case_viewer_test_contexts,
-};
 pub(crate) use boardstudio_web_ui_model::selection::{
     active_board_scope_matches, current_layout_owner, layout_owner_is_current,
 };

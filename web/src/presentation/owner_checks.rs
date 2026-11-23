@@ -42,12 +42,7 @@ pub(crate) fn pcb_owner_is_current(
     adapter: &SelectionAdapter,
     owner: &LayoutOwnerIdentity,
 ) -> bool {
-    current_layout_owner(runtime, workspace, adapter) == *owner
-        && owner.workspace == "PCB"
-        && owner
-            .scope
-            .as_ref()
-            .is_some_and(|s| active_board_scope_matches(&runtime.model(), s))
+    selection::workspace_owner_is_current(runtime, workspace, adapter, owner, "PCB")
 }
 
 pub(crate) fn pcb_add_layout_owner_is_current(

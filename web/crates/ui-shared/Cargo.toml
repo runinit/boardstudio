@@ -36,8 +36,5 @@ web-sys = { workspace = true }
 boardstudio-web-test-runtime = { path = "../test-runtime" }
 boardstudio-web-runtime = { path = "../runtime", features = ["test-support"] }
 
-[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
-wasm-bindgen-test = "=0.3.79"
-
 [lints]
 workspace = true

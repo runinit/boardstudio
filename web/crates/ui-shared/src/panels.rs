@@ -480,10 +480,6 @@ fn toggle_id(side: PanelSide) -> &'static str {
     }
 }
 
-pub fn focus_panel_toggle(side: PanelSide) {
-    focus_element(toggle_id(side));
-}
-
 fn focus_element(id: &str) {
     if let Some(element) = web_sys::window()
         .and_then(|w| w.document())

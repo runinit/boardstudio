@@ -93,7 +93,7 @@ pub(super) fn select_tree_handler(
     }
 }
 
-pub(super) struct OnLayoutSelectionKindInput {
+pub(super) struct SelectionKindInput {
     pub runtime: Rc<Runtime>,
     pub adapter: SelectionAdapter,
     pub owner: LayoutOwnerIdentity,
@@ -105,10 +105,11 @@ pub(super) struct OnLayoutSelectionKindInput {
     pub inspector_panel_settings: Signal<PanelSettings>,
 }
 
-pub(super) fn on_layout_selection_kind_handler(
-    input: OnLayoutSelectionKindInput,
+pub(super) fn on_selection_kind_handler(
+    input: SelectionKindInput,
+    expected_workspace: &'static str,
 ) -> EventHandler<objects::LayoutSelectionKind> {
-    let OnLayoutSelectionKindInput {
+    let SelectionKindInput {
         runtime,
         adapter,
         owner,
@@ -120,7 +121,13 @@ pub(super) fn on_layout_selection_kind_handler(
         inspector_panel_settings,
     } = input;
     EventHandler::new(move |kind: objects::LayoutSelectionKind| {
-        if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
+        if !selection::workspace_owner_is_current(
+            &runtime,
+            workspace,
+            &adapter,
+            &owner,
+            expected_workspace,
+        ) {
             return;
         }
         selection_kind.set(kind);
@@ -163,118 +170,13 @@ pub(super) fn on_layout_selection_kind_handler(
             }
             .into(),
         );
-        if layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
-            pin_inspector_on_desktop(inspector_panel_settings);
-            objects_open.set(false);
-            inspect_open.set(true);
-        }
-    })
-}
-
-pub(super) fn on_layout_snap_intent_handler(
-    runtime: Rc<Runtime>,
-    adapter: SelectionAdapter,
-    owner: LayoutOwnerIdentity,
-    mut snap_settings: Signal<objects::LayoutSnapSettings>,
-    workspace: Signal<&'static str>,
-) -> EventHandler<objects::LayoutSnapIntent> {
-    EventHandler::new(move |intent: objects::LayoutSnapIntent| {
-        if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
-            return;
-        }
-        let mut settings = snap_settings.read().clone();
-        match intent {
-            objects::LayoutSnapIntent::Fraction(value)
-                if [0.0, 0.125, 0.25, 0.5, 1.0, -1.0, -0.5, -0.1].contains(&value) =>
-            {
-                settings.snap_fraction = value;
-            }
-            objects::LayoutSnapIntent::GeometrySnap(enabled) => {
-                settings.geometry_snap = enabled;
-            }
-            objects::LayoutSnapIntent::GapSnap(enabled) => {
-                settings.gap_snap = enabled;
-            }
-            objects::LayoutSnapIntent::GapOverride(value) => {
-                settings.gap_override = value;
-            }
-            objects::LayoutSnapIntent::Fraction(_) => return,
-        }
-        snap_settings.set(settings);
-    })
-}
-
-pub(super) struct OnPcbSelectionKindInput {
-    pub runtime: Rc<Runtime>,
-    pub adapter: SelectionAdapter,
-    pub owner: LayoutOwnerIdentity,
-    pub tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
-    pub objects_open: Signal<bool>,
-    pub inspect_open: Signal<bool>,
-    pub selection_kind: Signal<objects::LayoutSelectionKind>,
-    pub workspace: Signal<&'static str>,
-    pub inspector_panel_settings: Signal<PanelSettings>,
-}
-
-pub(super) fn on_pcb_selection_kind_handler(
-    input: OnPcbSelectionKindInput,
-) -> EventHandler<objects::LayoutSelectionKind> {
-    let OnPcbSelectionKindInput {
-        runtime,
-        adapter,
-        owner,
-        tree_cell_anchor,
-        mut objects_open,
-        mut inspect_open,
-        mut selection_kind,
-        workspace,
-        inspector_panel_settings,
-    } = input;
-    EventHandler::new(move |kind: objects::LayoutSelectionKind| {
-        if !pcb_owner_is_current(&runtime, workspace, &adapter, &owner) {
-            return;
-        }
-        selection_kind.set(kind);
-        let model = runtime.model();
-        let Some(scope) = owner.scope.as_ref() else {
-            tree_cell_anchor.borrow_mut().take();
-            return;
-        };
-        let Some(selected) = adapter
-            .selected_context
-            .read()
-            .clone()
-            .filter(|selected| selected.scope == *scope)
-        else {
-            tree_cell_anchor.borrow_mut().take();
-            return;
-        };
-        if !selection::context_is_current(&model, scope, &selected.context) {
-            tree_cell_anchor.borrow_mut().take();
-            return;
-        }
-        let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
-        let Some(projection) =
-            objects::context_for_selection_kind(&model, &selected.context, kind, retained.as_ref())
-        else {
-            return;
-        };
-        if !selection::context_is_current(&model, scope, &projection.context) {
-            return;
-        }
-        update_tree_cell_anchor(&tree_cell_anchor, &owner, &model, Some(&projection.context));
-        selection::submit_context(
+        if selection::workspace_owner_is_current(
             &runtime,
+            workspace,
             &adapter,
-            objects::TreeSelectRequest {
-                scope: scope.clone(),
-                context: projection.context,
-                mode: SelectionMode::Replace,
-                outline_action: None,
-            }
-            .into(),
-        );
-        if pcb_owner_is_current(&runtime, workspace, &adapter, &owner) {
+            &owner,
+            expected_workspace,
+        ) {
             pin_inspector_on_desktop(inspector_panel_settings);
             objects_open.set(false);
             inspect_open.set(true);
@@ -282,15 +184,22 @@ pub(super) fn on_pcb_selection_kind_handler(
     })
 }
 
-pub(super) fn on_pcb_snap_intent_handler(
+pub(super) fn on_snap_intent_handler(
     runtime: Rc<Runtime>,
     adapter: SelectionAdapter,
     owner: LayoutOwnerIdentity,
     mut snap_settings: Signal<objects::LayoutSnapSettings>,
     workspace: Signal<&'static str>,
+    expected_workspace: &'static str,
 ) -> EventHandler<objects::LayoutSnapIntent> {
     EventHandler::new(move |intent: objects::LayoutSnapIntent| {
-        if !pcb_owner_is_current(&runtime, workspace, &adapter, &owner) {
+        if !selection::workspace_owner_is_current(
+            &runtime,
+            workspace,
+            &adapter,
+            &owner,
+            expected_workspace,
+        ) {
             return;
         }
         let mut settings = snap_settings.read().clone();
@@ -682,42 +591,36 @@ pub(super) fn build_selection_handlers(
         layout_state,
         outline_activation,
     });
-    let on_layout_selection_kind = on_layout_selection_kind_handler(OnLayoutSelectionKindInput {
-        runtime: runtime.clone(),
-        adapter: adapter.clone(),
-        owner: layout_owner.clone(),
-        tree_cell_anchor: tree_cell_anchor.clone(),
-        objects_open,
-        inspect_open,
-        selection_kind: layout_selection_kind,
-        workspace,
-        inspector_panel_settings,
-    });
-    let on_layout_snap_intent = on_layout_snap_intent_handler(
-        runtime.clone(),
-        adapter.clone(),
-        layout_owner.clone(),
-        layout_snap_settings,
-        workspace,
-    );
-    let on_pcb_selection_kind = on_pcb_selection_kind_handler(OnPcbSelectionKindInput {
-        runtime: runtime.clone(),
-        adapter: adapter.clone(),
-        owner: layout_owner.clone(),
-        tree_cell_anchor: tree_cell_anchor.clone(),
-        objects_open,
-        inspect_open,
-        selection_kind: layout_selection_kind,
-        workspace,
-        inspector_panel_settings,
-    });
-    let on_pcb_snap_intent = on_pcb_snap_intent_handler(
-        runtime.clone(),
-        adapter.clone(),
-        layout_owner.clone(),
-        layout_snap_settings,
-        workspace,
-    );
+    let selection_kind_handler = |expected_workspace| {
+        on_selection_kind_handler(
+            SelectionKindInput {
+                runtime: runtime.clone(),
+                adapter: adapter.clone(),
+                owner: layout_owner.clone(),
+                tree_cell_anchor: tree_cell_anchor.clone(),
+                objects_open,
+                inspect_open,
+                selection_kind: layout_selection_kind,
+                workspace,
+                inspector_panel_settings,
+            },
+            expected_workspace,
+        )
+    };
+    let snap_intent_handler = |expected_workspace| {
+        on_snap_intent_handler(
+            runtime.clone(),
+            adapter.clone(),
+            layout_owner.clone(),
+            layout_snap_settings,
+            workspace,
+            expected_workspace,
+        )
+    };
+    let on_layout_selection_kind = selection_kind_handler("Layout");
+    let on_layout_snap_intent = snap_intent_handler("Layout");
+    let on_pcb_selection_kind = selection_kind_handler("PCB");
+    let on_pcb_snap_intent = snap_intent_handler("PCB");
     let on_keymap_select = on_keymap_select_handler(OnKeymapSelectInput {
         runtime: runtime.clone(),
         adapter: adapter.clone(),

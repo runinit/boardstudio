@@ -2,10 +2,10 @@
 
 mod canvas;
 mod case;
-pub(crate) use case::CaseViewport;
 pub use case::{
     BodySelection, CaseBodyEditDispatch, CaseBodyEditPortal, CaseSelection, LayerSelection,
 };
+pub(crate) use case::{CaseViewport, CaseViewportSource};
 mod interaction;
 mod scene;
 

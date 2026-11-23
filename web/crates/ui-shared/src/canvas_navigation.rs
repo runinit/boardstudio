@@ -246,31 +246,6 @@ impl CanvasNavigationState {
         })
     }
 
-    pub fn wheel_target(
-        bounds: (f64, f64, f64, f64),
-        location: PointerLocation,
-        old_zoom: f64,
-        scale_ratio: f64,
-        delta_y: f64,
-    ) -> ZoomTarget {
-        let zoom = super::layout_camera::wheel_zoom(old_zoom, scale_ratio, delta_y);
-        let center = Self::zoom_center_at(bounds, location, zoom);
-        ZoomTarget { center, zoom }
-    }
-
-    pub fn apply_wheel_zoom(
-        runtime: &Rc<boardstudio_web_runtime::runtime::Runtime>,
-        bounds: (f64, f64, f64, f64),
-        location: PointerLocation,
-        scale_ratio: f64,
-        delta_y: f64,
-    ) -> ZoomTarget {
-        let old = runtime.model().camera;
-        let target = Self::wheel_target(bounds, location, old.zoom, scale_ratio, delta_y);
-        Self::apply_zoom_target(runtime, target);
-        target
-    }
-
     pub fn apply_zoom_target(
         runtime: &Rc<boardstudio_web_runtime::runtime::Runtime>,
         target: ZoomTarget,

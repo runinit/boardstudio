@@ -9,43 +9,26 @@
 // Modules keep the page bin's paths: `super::SelectionAdapter`,
 // `super::objects::TreeContext`, `super::shared_viewer::Viewport3D`,
 // `crate::footprint_forms`, `crate::runtime`.
-#[allow(unused_imports)]
 pub(crate) use crate as presentation;
 #[cfg(target_arch = "wasm32")]
-#[allow(unused_imports)]
 pub(crate) use boardstudio_web_case::{case_display, shared_viewer};
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_catalogue::{matrix_setup_operation, physical_setup};
+pub(crate) use boardstudio_web_catalogue::matrix_setup_operation;
 #[cfg(target_arch = "wasm32")]
-#[allow(unused_imports)]
 pub(crate) use boardstudio_web_runtime::runtime;
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_runtime::{
-    bundled_models, layout_viewer_source, model_delivery, operation_outcomes, parts_preview,
-};
+pub(crate) use boardstudio_web_runtime::{bundled_models, parts_preview};
 #[cfg(target_arch = "wasm32")]
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_ui_model::selection::{self, SelectionAdapter};
-#[allow(unused_imports)]
+pub(crate) use boardstudio_web_ui_model::selection::SelectionAdapter;
 pub(crate) use boardstudio_web_ui_model::state::*;
-#[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_shared::footprint_graphics;
 #[cfg(target_arch = "wasm32")]
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_ui_shared::{
-    model_asset_import, panels,
-    panels::browse_parts_workspace,
-    panels::{PanelMode, PanelSettings},
-};
+pub(crate) use boardstudio_web_ui_shared::model_asset_import;
 
-#[allow(unused_imports)]
 pub(crate) mod objects {
     #[cfg(target_arch = "wasm32")]
     pub use crate::parts::MatrixPlacementSource;
     pub use boardstudio_web_ui_model::tree::{ScopedTreeContext, TreeContext, context_for_part};
 }
 
-#[allow(unused_imports)]
 pub(crate) mod part_placement {
     pub use boardstudio_web_ui_model::state::ComponentPlacementAction;
 }

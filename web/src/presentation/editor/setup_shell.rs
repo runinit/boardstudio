@@ -79,15 +79,7 @@ pub(super) fn use_workspace_shell() -> WorkspaceShell {
         panels::use_workspace_panel_defaults(active_workspace, objects_open, inspect_open);
     let render_generation = (adapter.generation)();
     let layout_selection_kind = layout_state.selection_kind();
-    // Ticket 14: view-only split editing focus. Like Handles, this signal
-    // never writes the document; only canvas clicks move it.
     let split_focus = layout_state.split_focus();
-    // Ticket 18: ghost of the previous spacing. The tracker records the last
-    // accepted snapshot it processed; a committed spacing change raises the
-    // pre-commit scene as the ghost. The effect re-runs on every runtime
-    // change (Runtime::submit always notifies, including selection), but only
-    // writes the signals when the tracker advances — selection-only paints
-    // resolve to Keep.
     WorkspaceShell {
         workspace_routing,
         runtime,
@@ -150,6 +142,8 @@ pub(super) fn use_layout_view_state(
     workspace: Signal<&'static str>,
     layout_state: layout_workspace::LayoutWorkspaceState,
 ) -> LayoutViewState {
+    // A spacing commit shows the previous accepted scene until another edit,
+    // undo/redo, or selection change. The tracker only writes view state.
     let mut last_spacing_seen = use_signal(|| None::<spacing_ghost::SeenAccepted>);
     let mut spacing_ghost_state = use_signal(|| None::<spacing_ghost::SpacingGhostState>);
     let ghost_effect_runtime = runtime.clone();
@@ -586,11 +580,8 @@ pub(super) fn use_editor_contexts(
     use_effect(use_reactive((&highlight_context,), move |(_,)| {
         RelationHighlight(relation_highlight).clear();
     }));
-    // Ticket 16: the amber at-rest field preview is transient view state too,
-    // but separate from the violet reference above: hovering or focusing an
-    // Inspector number field shows it, and leave, blur, unmount, a selection
-    // change or any accepted revision clears it (the set is computed from
-    // the accepted document, so a commit always stales it).
+    // Hovering or focusing an Inspector number field shows its accepted geometry.
+    // Leave, blur, unmount, selection changes, and accepted revisions clear it.
     let field_preview = use_signal(|| None::<FieldPreviewState>);
     use_context_provider(|| FieldPreview(field_preview));
     let field_preview_source =

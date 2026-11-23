@@ -103,7 +103,9 @@ pub(super) fn canvas(i: WorkspaceCanvasInput) -> Element {
 
 pub(super) fn inspector(i: WorkspaceInspectorInput) -> Element {
     match i {
-        WorkspaceInspectorInput::Layout(i) => super::layout_workspace::inspector(*i),
+        WorkspaceInspectorInput::Layout(i) => rsx! {
+            super::layout_workspace::LayoutInspector { input: *i }
+        },
         WorkspaceInspectorInput::Pcb(Some(i)) => rsx! {
             super::pcb_workspace::PcbInspector { selected: i.source.active_part_id.is_some(),
                 super::pcb_wiring::PcbWiringInspector {

@@ -1,5 +1,6 @@
 //! Canvas lifetime and case controls consume immutable session snapshots.
 use crate::runtime::{CadScene, Runtime};
+use crate::shared_viewer::{CaseViewport, CaseViewportSource};
 use crate::viewport_camera::current_exact_case;
 use boardstudio_application::{Event, GenerationStatus};
 use boardstudio_web_ui_shared::ui::{
@@ -173,19 +174,18 @@ pub fn CasePanel(
             export_mechanical.export_mechanical();
         }
     };
-    let scene = current_scene;
     let mut live_preview_control = live_preview;
     let mut automatic_generation_control = automatic_generation;
     let toggle_runtime = runtime.clone();
     let generation_enabled = automatic_generation.read().enabled();
-    let stale = scene
+    let stale = current_scene
         .as_ref()
         .is_some_and(|scene| scene.token != snapshot.token);
     let geometry = if has_reusable_result {
         CaseGeometryStatus::CurrentExact
     } else if stale {
         CaseGeometryStatus::Previous
-    } else if scene.is_some() {
+    } else if current_scene.is_some() {
         CaseGeometryStatus::Preview
     } else {
         CaseGeometryStatus::Missing
@@ -225,6 +225,29 @@ pub fn CasePanel(
             on_select: on_cancel,
         },
     ]);
+    let preview_only = current_scene.is_none();
+    let mechanical_settings = current_scene.as_ref().and(mechanical_settings);
+    let source = match current_scene {
+        Some(scene) => Some(CaseViewportSource::Scene {
+            scene,
+            pcb_preview: accepted_preview.clone(),
+        }),
+        None => accepted_preview.clone().map(CaseViewportSource::Preview),
+    };
+    let model_rows = accepted_preview
+        .as_ref()
+        .and_then(|preview| runtime.native_model_delivery(preview));
+    let viewport = source.map(|source| {
+        let scope = source.scope();
+        rsx! {
+            CaseViewport {
+                key: "{scope.session_epoch.0}:{scope.board_id}:{scope.instance_id:?}:{preview_only}",
+                model_rows: model_rows.clone(),
+                mechanical_settings,
+                source,
+            }
+        }
+    });
     let live_preview_id = format!("case-live-preview-{}", dioxus::core::current_scope_id().0);
     rsx! {
         section { class: "relative flex h-full min-h-0 flex-1 flex-col gap-0 overflow-hidden bg-canvas p-0 [&_h2]:m-0 [&_p]:m-0", "aria-label": "Case assembly",
@@ -235,7 +258,7 @@ pub fn CasePanel(
                 p { class: "order-[9] m-0 flex-none px-3 py-1 text-xs leading-[1.35] text-destructive", role: "alert", "The accepted PCB preview could not be prepared." }
             }
             if let Some(preview) = accepted_preview.as_ref()
-                && let Some(rows) = runtime.native_model_delivery(preview)
+                && let Some(rows) = model_rows
                 && (rows.delivered.len() != preview.preview.models.len() || !rows.failures.is_empty())
             {
                 Collapsible { class: "absolute top-[46px] right-3 z-[6] max-w-[min(420px,calc(100%-24px))] border border-border bg-card px-[9px] py-1.5 max-[760px]:top-14 max-[760px]:right-2 max-[760px]:max-w-[calc(100%-16px)]", keep_mounted: true, default_open: false,
@@ -247,17 +270,7 @@ pub fn CasePanel(
                     }
                 }
             }
-            if let Some(scope) = scene.as_ref().map(|scene| &scene.scope)
-                .or_else(|| accepted_preview.as_ref().map(|preview| &preview.owner.scope))
-            {
-                crate::shared_viewer::CaseViewport {
-                    key: "{scope.session_epoch.0}:{scope.board_id}:{scope.instance_id:?}:{scene.is_none()}",
-                    model_rows: accepted_preview.as_ref().and_then(|preview| runtime.native_model_delivery(preview)),
-                    mechanical_settings: scene.as_ref().and(mechanical_settings),
-                    scene,
-                    preview: accepted_preview,
-                }
-            }
+            {viewport}
             footer { class: "relative order-10 m-0 flex flex-none flex-wrap items-center gap-1.5 border-0 border-t border-border bg-card px-3 py-1.5 [&_h2]:hidden max-[760px]:gap-2 max-[760px]:[&>button]:min-h-11",
                 h2 { "Case assembly" }
                 FieldLabel { class: "mx-1.5 flex items-center gap-1.5 text-xs text-muted-foreground max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", html_for: live_preview_id.clone(),

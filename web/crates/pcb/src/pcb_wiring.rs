@@ -33,7 +33,7 @@ pub use apply::{BoardWiringApplyActions, use_board_wiring_apply};
 use mode::pcb_source;
 pub use mode::{BoardWiringModeActions, BoardWiringModeEditRequest, use_board_wiring_mode_edits};
 use part_connections::PartNetIntent;
-pub use part_input_settings::PartInputActions;
+pub use part_input_settings::{PartInputActions, use_part_input_edits};
 use part_net_identity::{admit_classified_part_net_edit, request_matches_current_part};
 pub use pins::{PcbWiringPinActions, PcbWiringPinEditRequest, use_pcb_wiring_pin_edits};
 pub use remap::{ProtectedRemapActions, ProtectedRemapFeedback, use_protected_remap_review};
@@ -213,22 +213,6 @@ pub fn firmware_position_projection(
         &source.ui_scope,
         generation,
         lifecycle,
-    )
-}
-
-pub fn use_part_input_edits(
-    runtime: Rc<crate::runtime::Runtime>,
-    version: Signal<u64>,
-    workspace: Signal<&'static str>,
-    scope_generation: Signal<u64>,
-    instance_is_current: Rc<dyn Fn() -> bool>,
-) -> PartInputActions {
-    part_input_settings::use_part_input_edits(
-        runtime,
-        version,
-        workspace,
-        scope_generation,
-        instance_is_current,
     )
 }
 

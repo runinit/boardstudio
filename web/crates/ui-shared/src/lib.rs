@@ -44,9 +44,7 @@ pub mod panels;
 pub mod project_menu;
 pub mod ui;
 
-// Bounded waits for the browser tests of the workspace crates (test-support only).
-#[cfg(all(target_arch = "wasm32", any(test, feature = "test-support")))]
-pub mod test_mount;
+// Bounded waits for browser tests (test-support only).
 #[cfg(all(target_arch = "wasm32", any(test, feature = "test-support")))]
 pub mod test_wait;
 // Finds controls by accessible role and name, as a user or assistive technology would (test-support only).
@@ -59,6 +57,3 @@ mod panels {
     #[path = "policy.rs"]
     mod policy;
 }
-
-#[cfg(all(test, target_arch = "wasm32"))]
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);

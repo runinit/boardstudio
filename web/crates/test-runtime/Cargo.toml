@@ -11,10 +11,7 @@ boardstudio_core = { path = "../../../core" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 boardstudio-web-host = { path = "../host", features = ["page"] }
-serde_json = { version = "1", features = ["float_roundtrip"] }
 futures-channel = "=0.3.34"
-wasm-bindgen-futures = "=0.4.79"
-js-sys = "=0.3.106"
 boardstudio-application = { path = "../../../application" }
 boardstudio-model = { path = "../../../core/crates/model" }
 

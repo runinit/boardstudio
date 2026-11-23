@@ -492,12 +492,20 @@ pub fn layout_owner_is_current(
     adapter: &SelectionAdapter,
     owner: &crate::state::LayoutOwnerIdentity,
 ) -> bool {
-    if current_layout_owner(runtime, workspace, adapter) != *owner || owner.workspace != "Layout" {
-        return false;
-    }
-    let model = runtime.model();
-    owner
-        .scope
-        .as_ref()
-        .is_some_and(|scope| active_board_scope_matches(&model, scope))
+    workspace_owner_is_current(runtime, workspace, adapter, owner, "Layout")
+}
+
+pub fn workspace_owner_is_current(
+    runtime: &Runtime,
+    workspace: Signal<&'static str>,
+    adapter: &SelectionAdapter,
+    owner: &crate::state::LayoutOwnerIdentity,
+    expected_workspace: &'static str,
+) -> bool {
+    current_layout_owner(runtime, workspace, adapter) == *owner
+        && owner.workspace == expected_workspace
+        && owner
+            .scope
+            .as_ref()
+            .is_some_and(|scope| active_board_scope_matches(&runtime.model(), scope))
 }

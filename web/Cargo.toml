@@ -59,10 +59,10 @@ boardstudio-web-ui-shared = { path = "crates/ui-shared", features = ["test-suppo
 boardstudio-web-layout = { path = "crates/layout" }
 boardstudio-web-pcb = { path = "crates/pcb" }
 boardstudio-web-parts = { path = "crates/parts" }
-boardstudio-web-case = { path = "crates/case", features = ["test-support"] }
+boardstudio-web-case = { path = "crates/case" }
 boardstudio-web-keymap = { path = "crates/keymap" }
 boardstudio-web-library = { path = "crates/library" }
-boardstudio-web-keycaps = { path = "crates/keycaps", features = ["test-support"] }
+boardstudio-web-keycaps = { path = "crates/keycaps" }
 tokio = { version = "=1.53.1", features = ["macros", "rt", "time"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

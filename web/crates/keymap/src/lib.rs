@@ -1,22 +1,12 @@
 //! The Keymap workspace: layers, bindings, encoders and macros.
 #![cfg_attr(not(target_arch = "wasm32"), allow(dead_code, unused_imports))]
 
-#[allow(unused_imports)]
-pub(crate) use crate as presentation;
 #[cfg(target_arch = "wasm32")]
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_runtime::{operation_outcomes, runtime};
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_ui_model::state::*;
-#[cfg(target_arch = "wasm32")]
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_ui_model::{canvas_interaction, selection};
+pub(crate) use boardstudio_web_runtime::runtime;
 
-#[allow(unused_imports)]
+#[cfg(any(target_arch = "wasm32", test))]
 pub(crate) mod pcb_wiring {
-    pub use boardstudio_web_ui_model::wiring::{
-        PcbWiringResolution, PcbWiringSource, WiringPlanIdentity,
-    };
+    pub use boardstudio_web_ui_model::wiring::PcbWiringResolution;
 }
 
 pub mod binding;
