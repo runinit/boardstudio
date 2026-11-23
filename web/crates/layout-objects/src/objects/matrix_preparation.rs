@@ -7,7 +7,7 @@ use boardstudio_application::{AcceptedSnapshot, Durability, Lifecycle, ReadModel
 use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
 use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
-#[cfg(test)]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 use std::cell::RefCell;
 
 #[derive(Clone)]
@@ -28,7 +28,7 @@ impl<Owner: Clone + 'static> PendingSettlement<Owner> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 thread_local! {
     static TEMPLATE_REPLY: RefCell<Option<Result<Vec<boardstudio_model::model::PartDefinition>, String>>> =
         const { RefCell::new(None) };
@@ -37,7 +37,7 @@ thread_local! {
 /// Stage the next template reply for native lifecycle tests. Until a reply is staged,
 /// preparation stays pending across detached polls so tests can interleave editor unmounts
 /// and accepted-revision changes while normalization is in flight.
-#[cfg(test)]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 pub(super) fn stage_test_templates(
     reply: Result<Vec<boardstudio_model::model::PartDefinition>, String>,
 ) {
@@ -45,7 +45,7 @@ pub(super) fn stage_test_templates(
 }
 
 /// Drop any staged template reply without completing preparation.
-#[cfg(test)]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 pub(super) fn clear_test_templates() {
     TEMPLATE_REPLY.with_borrow_mut(|slot| *slot = None);
 }
@@ -60,7 +60,7 @@ async fn normalize_prepared_definition(
 /// Native lifecycle tests exercise controller admission and settlement, not generator
 /// normalization, so prepared definitions pass through unstamped like the retired browser
 /// harness's port.
-#[cfg(test)]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 async fn normalize_prepared_definition(
     definition: boardstudio_model::model::PartDefinition,
 ) -> Result<boardstudio_model::model::PartDefinition, String> {
@@ -76,7 +76,7 @@ pub(super) async fn prepare_matrix_definitions(
 ) -> Result<Option<PreparedMatrix>, String> {
     #[cfg(target_arch = "wasm32")]
     let templates = parts::load_matrix_templates(reversible).await?;
-    #[cfg(test)]
+    #[cfg(all(not(target_arch = "wasm32"), test))]
     let templates = {
         std::future::poll_fn(|_| {
             TEMPLATE_REPLY.with_borrow_mut(|reply| {
@@ -103,7 +103,52 @@ pub(super) async fn prepare_matrix_definitions(
     Ok(Some(prepared))
 }
 
-#[cfg(test)]
+pub(super) fn matrix_source<'a>(
+    runtime: &Runtime,
+    model: &'a ReadModel,
+    scope: Option<&Scope>,
+    workspace: Workspace,
+) -> Option<(&'a AcceptedSnapshot, Scope, String)> {
+    if workspace != Workspace::Layout {
+        return None;
+    }
+    let scope = scope?.clone();
+    if runtime.scope().as_ref() != Some(&scope) {
+        return None;
+    }
+    let snapshot = model.accepted.as_ref()?;
+    let durability_ready = matches!(
+        model.durability,
+        Durability::Saved { revision } | Durability::Saving { revision }
+            if revision == snapshot.document.revision
+    );
+    if snapshot.session_epoch != scope.session_epoch
+        || snapshot.document.id != scope.document_id
+        || model.active_board_id != scope.board_id
+        || model.active_instance_id != scope.instance_id
+        || scope.instance_id.as_ref().is_some_and(|instance_id| {
+            !snapshot.document.hardware.as_ref().is_some_and(|hardware| {
+                hardware.instances.iter().any(|instance| {
+                    &instance.id == instance_id && instance.board_id == scope.board_id
+                })
+            })
+        })
+        || model.lifecycle != Lifecycle::Ready
+        || !durability_ready
+        || model.display_preview.is_some()
+        || model.gesture.is_some()
+        || !snapshot
+            .document
+            .boards
+            .iter()
+            .any(|board| board.id == scope.board_id)
+    {
+        return None;
+    }
+    Some((snapshot, scope.clone(), scope.board_id))
+}
+
+#[cfg(all(not(target_arch = "wasm32"), test))]
 mod tests {
     use super::*;
     use boardstudio_application::Event;
@@ -186,49 +231,4 @@ mod tests {
             "a nonexistent physical instance must not admit logical board creation"
         );
     }
-}
-
-pub(super) fn matrix_source<'a>(
-    runtime: &Runtime,
-    model: &'a ReadModel,
-    scope: Option<&Scope>,
-    workspace: Workspace,
-) -> Option<(&'a AcceptedSnapshot, Scope, String)> {
-    if workspace != Workspace::Layout {
-        return None;
-    }
-    let scope = scope?.clone();
-    if runtime.scope().as_ref() != Some(&scope) {
-        return None;
-    }
-    let snapshot = model.accepted.as_ref()?;
-    let durability_ready = matches!(
-        model.durability,
-        Durability::Saved { revision } | Durability::Saving { revision }
-            if revision == snapshot.document.revision
-    );
-    if snapshot.session_epoch != scope.session_epoch
-        || snapshot.document.id != scope.document_id
-        || model.active_board_id != scope.board_id
-        || model.active_instance_id != scope.instance_id
-        || scope.instance_id.as_ref().is_some_and(|instance_id| {
-            !snapshot.document.hardware.as_ref().is_some_and(|hardware| {
-                hardware.instances.iter().any(|instance| {
-                    &instance.id == instance_id && instance.board_id == scope.board_id
-                })
-            })
-        })
-        || model.lifecycle != Lifecycle::Ready
-        || !durability_ready
-        || model.display_preview.is_some()
-        || model.gesture.is_some()
-        || !snapshot
-            .document
-            .boards
-            .iter()
-            .any(|board| board.id == scope.board_id)
-    {
-        return None;
-    }
-    Some((snapshot, scope.clone(), scope.board_id))
 }

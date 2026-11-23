@@ -44,7 +44,7 @@ pub fn use_native_case_preview(runtime: Rc<Runtime>, source: Option<(Scope, Snap
     }));
 }
 
-#[cfg(test)]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 mod native_tests {
     //! Native `VirtualDom` lifecycle invariants for the preview hook, driven through the shared
     //! detached queue instead of the browser microtask queue.
