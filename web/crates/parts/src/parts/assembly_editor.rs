@@ -1,8 +1,6 @@
 //! Parts-owned saved assembly list and the first authoring slice of F4.6.
 use super::catalogue::CatalogEntry;
-use super::model_transform::{
-    ModelAxis, ModelVector, model_vector, new_model, set_model_axis, valid_transform_value,
-};
+use super::model_transform::{ModelAxis, ModelVector, set_model_axis, valid_transform_value};
 use crate::parts_custom_definition::{replace_document_resolver, replacement_commit};
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
@@ -23,9 +21,8 @@ use boardstudio_web_ui_shared::ui::{
     item::{Item, ItemGroup, ItemSize},
 };
 use dioxus::prelude::*;
-use js_sys::{Date, Function, Reflect};
+use js_sys::Date;
 use std::rc::Rc;
-use wasm_bindgen::{JsCast, JsValue};
 
 #[derive(Clone, Debug, PartialEq)]
 struct AssemblyDraft {
@@ -730,39 +727,24 @@ struct ModelOption {
     name: String,
 }
 
-fn component_option_rows(
+/// Option rows for a model dropdown, appending the saved selection with
+/// `missing_label` when it is no longer among `options`. Component pickers
+/// prepend their own empty "Visual model only" row at the call site.
+fn model_option_rows(
     options: &[ModelOption],
     selected_id: Option<&str>,
+    missing_label: &str,
 ) -> Vec<(String, String)> {
-    let has_selected = selected_id.is_some_and(|id| options.iter().any(|option| option.id == id));
     let mut rows = Vec::with_capacity(options.len() + 2);
-    rows.push((String::new(), "Visual model only".to_owned()));
     rows.extend(
         options
             .iter()
             .map(|option| (option.id.clone(), option.name.clone())),
     );
-    if let Some(selected_id) = selected_id.filter(|_| !has_selected) {
-        rows.push((
-            selected_id.to_owned(),
-            "Saved component unavailable".to_owned(),
-        ));
-    }
-    rows
-}
-
-fn model_asset_option_rows(options: &[ModelOption], selected_id: &str) -> Vec<(String, String)> {
-    let mut rows = Vec::with_capacity(options.len() + 1);
-    rows.extend(
-        options
-            .iter()
-            .map(|option| (option.id.clone(), option.name.clone())),
-    );
-    if !options.iter().any(|option| option.id == selected_id) {
-        rows.push((
-            selected_id.to_owned(),
-            "Saved model asset unavailable".to_owned(),
-        ));
+    if let Some(selected_id) =
+        selected_id.filter(|id| !options.iter().any(|option| option.id == *id))
+    {
+        rows.push((selected_id.to_owned(), missing_label.to_owned()));
     }
     rows
 }
@@ -811,18 +793,7 @@ fn assembly_preview_recipe(
                 .and_then(|id| definitions.iter().find(|definition| definition.id == id))
                 .cloned()
                 .unwrap_or_else(|| model_only_definition(member));
-            if let Some(generator) = definition.generator.as_mut()
-                && let Some(parameters) = member.parameters.as_ref()
-            {
-                generator.parameters.extend(parameters.clone());
-            }
-            if matches!(
-                &member.model_mode,
-                Some(boardstudio_model::model::AssemblyModelMode::Custom)
-            ) || (member.model_mode.is_none() && !member.models.is_empty())
-            {
-                definition.models = Some(member.models.clone());
-            }
+            apply_member_overrides(&mut definition, member);
             crate::parts_preview::PartsPreviewRecipeMember {
                 id: member.id.clone(),
                 definition,
@@ -834,6 +805,18 @@ fn assembly_preview_recipe(
             }
         })
         .collect()
+}
+
+/// Rebind one member to its template, shared by preview and validation.
+fn apply_member_overrides(definition: &mut PartDefinition, member: &AssemblyMember) {
+    if let (Some(generator), Some(parameters)) = (&mut definition.generator, &member.parameters) {
+        generator.parameters.extend(parameters.clone());
+    }
+    if member.model_mode == Some(AssemblyModelMode::Custom)
+        || (member.model_mode.is_none() && !member.models.is_empty())
+    {
+        definition.models = Some(member.models.clone());
+    }
 }
 
 fn assembly_owner_current(
@@ -849,16 +832,6 @@ fn assembly_owner_current(
     runtime.model().accepted.as_ref().is_some_and(|accepted| {
         guard.is_current(accepted, runtime.scope(), None, None, None, Some(workspace))
     })
-}
-
-fn unique_asset_id(root: &str, document_assets: &[Asset], draft_assets: &[Asset]) -> String {
-    crate::parts_custom_definition::unique_suffixed_id_capped(root, |id| {
-        document_assets
-            .iter()
-            .chain(draft_assets)
-            .any(|asset| asset.id == id)
-    })
-    .unwrap_or_else(|| format!("{root}-new"))
 }
 
 fn saved_document(
@@ -892,19 +865,8 @@ fn saved_document(
     }
 
     let mut document = accepted.clone();
-    for asset in &draft.assets {
-        if let Some(existing) = document
-            .assets
-            .iter()
-            .find(|existing| existing.id == asset.id)
-        {
-            if existing != asset {
-                return Err("A different project asset already uses this model identity.".into());
-            }
-        } else {
-            document.assets.push(asset.clone());
-        }
-    }
+    merge_assets(&mut document, &draft.assets)
+        .map_err(|_| "A different project asset already uses this model identity.".to_owned())?;
     let assembly = draft.value.clone();
     for member in &assembly.members {
         let Some(definition_id) = member.definition_id.as_deref() else {
@@ -937,25 +899,17 @@ fn saved_document(
 }
 
 fn next_id(document: &ProjectDoc) -> Result<String, String> {
-    let base = browser_uuid().unwrap_or_else(|| format!("{:x}", Date::now().max(0.0) as u64));
+    let base = crate::runtime::new_project_id()
+        .unwrap_or_else(|_| format!("{:x}", Date::now().max(0.0) as u64));
     crate::parts_custom_definition::unique_suffixed_id_capped(&format!("assembly-{base}"), |id| {
         document.assemblies.iter().any(|assembly| assembly.id == id)
     })
     .ok_or_else(|| "Could not allocate a unique assembly identity.".into())
 }
 
-fn browser_uuid() -> Option<String> {
-    let crypto = Reflect::get(&js_sys::global(), &JsValue::from_str("crypto")).ok()?;
-    let random_uuid = Reflect::get(&crypto, &JsValue::from_str("randomUUID"))
-        .ok()?
-        .dyn_into::<Function>()
-        .ok()?;
-    random_uuid.call0(&crypto).ok()?.as_string()
-}
-
 fn member_id(assembly: &AssemblyDefinition) -> Option<String> {
     let current = Date::now().max(0.0) as u64;
-    let root = browser_uuid().unwrap_or_else(|| format!("{current:x}"));
+    let root = crate::runtime::new_project_id().unwrap_or_else(|_| format!("{current:x}"));
     crate::parts_custom_definition::unique_suffixed_id_capped(
         &format!("component-{}", &root[..root.len().min(8)]),
         |id| assembly.members.iter().any(|member| member.id == id),
@@ -1559,14 +1513,7 @@ fn member_definition(
             .ok_or_else(|| format!("Missing component definition: {id}"))?,
         None => model_only_definition(member),
     };
-    if let (Some(generator), Some(parameters)) = (&mut definition.generator, &member.parameters) {
-        generator.parameters.extend(parameters.clone());
-    }
-    if member.model_mode == Some(AssemblyModelMode::Custom)
-        || (member.model_mode.is_none() && !member.models.is_empty())
-    {
-        definition.models = Some(member.models.clone());
-    }
+    apply_member_overrides(&mut definition, member);
     for model in definition.models.as_deref().unwrap_or_default() {
         if !asset_exists(document, assets, &model.asset_id) {
             return Err(format!(

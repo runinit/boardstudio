@@ -1,7 +1,7 @@
 //! The one 3D-model transform (offset/rotation/scale) vocabulary, validation and
 //! 3-axis `NumericField` row shared by the component, assembly-member and
 //! module-profile model editors.
-use boardstudio_model::model::{PartModel, Vec3};
+use boardstudio_model::model::{Asset, PartModel, Vec3};
 use boardstudio_web_ui_shared::inspector_fields::NumericField;
 use dioxus::prelude::*;
 
@@ -85,6 +85,86 @@ pub fn model_transform_is_valid(model: &PartModel) -> bool {
             valid_transform_value(*field, axis_value(model_vector(model, *field), *axis))
         })
     })
+}
+
+/// One labelled `fieldset` for a single transform vector's axis row.
+#[component]
+pub fn ModelTransformFieldset(
+    title: String,
+    value: Vec3,
+    #[props(default)] labels: Option<[String; 3]>,
+    #[props(default)] aria_labels: Option<[String; 3]>,
+    #[props(default)] step: Option<f64>,
+    #[props(default)] min: Option<f64>,
+    #[props(into, optional)] disabled_reason: Option<String>,
+    on_commit: EventHandler<(ModelAxis, f64)>,
+) -> Element {
+    rsx! {
+        fieldset { class: "grid gap-2",
+            legend { "{title}" }
+            ModelVec3Fields {
+                value,
+                labels: labels.unwrap_or(["X".into(), "Y".into(), "Z".into()]),
+                aria_labels,
+                step,
+                min,
+                disabled_reason,
+                on_commit,
+            }
+        }
+    }
+}
+
+/// Read, store and wrap one dropped model file while the owner stays current:
+/// returns the deduplicated `Asset` plus the accepted snapshot it was built
+/// against. Both model editors share this flow; only the document edit differs.
+pub async fn upload_model_asset(
+    file: web_sys::File,
+    runtime: &crate::runtime::Runtime,
+    extra_assets: &[Asset],
+    is_current: impl Fn() -> bool,
+    stale_message: &str,
+) -> Result<(Asset, boardstudio_application::AcceptedSnapshot), String> {
+    let imported = crate::presentation::model_asset_import::read_model_file(file).await?;
+    if !is_current() {
+        return Err(stale_message.to_owned());
+    }
+    imported.store(&runtime.store).await?;
+    if !is_current() {
+        return Err(stale_message.to_owned());
+    }
+    let current = runtime
+        .model()
+        .accepted
+        .ok_or("The accepted project is unavailable.")?;
+    let asset = current
+        .document
+        .assets
+        .iter()
+        .chain(extra_assets)
+        .find(|asset| asset.sha256 == imported.sha256)
+        .cloned()
+        .unwrap_or_else(|| {
+            let root = format!("model-asset-{}", runtime.operation().0);
+            let id = crate::parts_custom_definition::unique_suffixed_id_capped(&root, |id| {
+                current
+                    .document
+                    .assets
+                    .iter()
+                    .chain(extra_assets)
+                    .any(|asset| asset.id == id)
+            })
+            .unwrap_or_else(|| format!("{root}-new"));
+            Asset {
+                id,
+                name: imported.filename.clone(),
+                media_type: imported.media_type.clone(),
+                sha256: imported.sha256.clone(),
+                license: None,
+                source: Some("local file".into()),
+            }
+        });
+    Ok((asset, current))
 }
 
 /// One 3-column row of axis `NumericField`s for a single transform vector.

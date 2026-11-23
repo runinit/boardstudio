@@ -278,15 +278,6 @@ pub fn AddObjectComponentChooser(
     let board_id = scope.as_ref().map(|scope| scope.board_id.as_str());
     let mirror_only_available =
         board_id.is_some_and(|board_id| has_unique_mirror_board_pair(&snapshot.document, board_id));
-    let layouts = snapshot
-        .document
-        .layouts
-        .iter()
-        .filter(|layout| Some(layout.board_id.as_str()) == board_id)
-        .collect::<Vec<_>>();
-    let selected_layout = layout_target()
-        .filter(|id| layouts.iter().any(|layout| layout.id == *id))
-        .unwrap_or_default();
     let search = query().trim().to_lowercase();
     let content = if let Some(entries) = catalogue.entries {
         let choices = add_object_choices(&entries);
@@ -340,21 +331,16 @@ pub fn AddObjectComponentChooser(
                 }
             }
         }
-    } else if let Some(error) = catalogue.error {
-        rsx! { Alert { variant: AlertVariant::Destructive, "Component catalogue could not be loaded: {error}" } }
     } else {
-        rsx! { div { role: "status", Spinner {} "Loading component catalogue…" } }
+        catalogue_status(
+            catalogue.error,
+            "Component catalogue",
+            "Loading component catalogue…",
+        )
     };
     rsx! {
         div { class: "grid gap-2 min-w-0",
-            if !layouts.is_empty() {
-                SelectField::<String> {
-                    label: "Place in", aria_label: "Part placement layout", value: selected_layout,
-                    options: std::iter::once((String::new(), "Board / ungrouped".into()))
-                        .chain(layouts.iter().map(|layout| (layout.id.clone(), layout.name.clone()))).collect(),
-                    on_commit: move |value: String| layout_target.set((!value.is_empty()).then_some(value)),
-                }
-            }
+            {placement_layout_select(&snapshot, &scope, layout_target)}
             Field {
                 Label { html_for: format!("parts-add-search-{}", dioxus::core::current_scope_id().0), "Parts" }
                 InputGroup { class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch", InputGroupInput { class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
@@ -373,6 +359,44 @@ pub fn AddObjectComponentChooser(
                 "Browse all parts"
             }
         }
+    }
+}
+
+/// Shared "Place in" layout picker; renders nothing without board layouts.
+fn placement_layout_select(
+    snapshot: &AcceptedSnapshot,
+    scope: &Option<Scope>,
+    mut layout_target: Signal<Option<String>>,
+) -> Element {
+    let board_id = scope.as_ref().map(|scope| scope.board_id.as_str());
+    let layouts = snapshot
+        .document
+        .layouts
+        .iter()
+        .filter(|layout| Some(layout.board_id.as_str()) == board_id)
+        .collect::<Vec<_>>();
+    if layouts.is_empty() {
+        return rsx! {};
+    }
+    let selected = layout_target()
+        .filter(|id| layouts.iter().any(|layout| layout.id == *id))
+        .unwrap_or_default();
+    rsx! {
+        SelectField::<String> {
+            label: "Place in", aria_label: "Part placement layout", value: selected,
+            options: std::iter::once((String::new(), "Board / ungrouped".into()))
+                .chain(layouts.iter().map(|layout| (layout.id.clone(), layout.name.clone()))).collect(),
+            on_commit: move |value: String| layout_target.set((!value.is_empty()).then_some(value)),
+        }
+    }
+}
+
+/// Shared catalogue status: the load error alert, otherwise the spinner.
+fn catalogue_status(error: Option<String>, context: &str, loading: &str) -> Element {
+    if let Some(error) = error {
+        rsx! { Alert { variant: AlertVariant::Destructive, "{context} could not be loaded: {error}" } }
+    } else {
+        rsx! { div { role: "status", Spinner {} "{loading}" } }
     }
 }
 
@@ -490,16 +514,6 @@ pub fn PartsInspectorPanel(
             )
         })
         .map(|entry| entry.definition.id.clone());
-    let board_id = scope.as_ref().map(|scope| scope.board_id.as_str());
-    let layouts = snapshot
-        .document
-        .layouts
-        .iter()
-        .filter(|layout| Some(layout.board_id.as_str()) == board_id)
-        .collect::<Vec<_>>();
-    let selected_layout = layout_target()
-        .filter(|id| layouts.iter().any(|layout| layout.id == *id))
-        .unwrap_or_default();
     let apply_to_key = selected_context().as_ref().is_some_and(|selected| {
         scope.as_ref() == Some(&selected.scope)
             && matches!(selected.context, super::objects::TreeContext::Key { .. })
@@ -521,16 +535,12 @@ pub fn PartsInspectorPanel(
                     { let variants = module_catalogue.entries.as_deref().map(|entries| modules_catalogue::variants(entries, &module.row)).unwrap_or_default();
                       rsx! { modules_catalogue::ModuleInspector { snapshot: snapshot.clone(), module: module.clone(), variants, scope: scope.clone(), selected, placement_id: selected_module_placement.clone(), on_open_placement: on_open_module_placement, on_attached: on_module_attached } }
                     }
-                } else if let Some(error) = module_catalogue.error.as_ref() {
-                    Alert { variant: AlertVariant::Destructive, "Module sources could not be loaded: {error}" }
                 } else {
-                    div { role: "status", Spinner {} "Loading module sources…" }
+                    {catalogue_status(module_catalogue.error.clone(), "Module sources", "Loading module sources…")}
                 }
             } else {
-            if let Some(error) = catalogue.error.as_ref() {
-                Alert { variant: AlertVariant::Destructive, "Component catalogue could not be loaded: {error}" }
-            } else if catalogue.entries.is_none() {
-                div { role: "status", Spinner {} "Loading component catalogue…" }
+            if catalogue.entries.is_none() {
+                {catalogue_status(catalogue.error.clone(), "Component catalogue", "Loading component catalogue…")}
             }
             SelectedDefinition { entry: entry.clone() }
             if let Some(preset) = active_assembly {
@@ -578,14 +588,7 @@ pub fn PartsInspectorPanel(
                 }
             }
             if controller_placement_enabled {
-                if !layouts.is_empty() {
-                    SelectField::<String> {
-                        label: "Place in", aria_label: "Part placement layout", value: selected_layout,
-                        options: std::iter::once((String::new(), "Board / ungrouped".into()))
-                            .chain(layouts.iter().map(|layout| (layout.id.clone(), layout.name.clone()))).collect(),
-                        on_commit: move |value: String| layout_target.set((!value.is_empty()).then_some(value)),
-                    }
-                }
+                {placement_layout_select(&snapshot, &scope, layout_target)}
                 if let Some(definition_id) = controller_id {
                     Button {
                         class: "w-full {TOUCH_CLS}",
@@ -725,29 +728,18 @@ pub fn PartsPreviewWorkspace(
         }) {
             return rsx! { modules_catalogue::ModuleSourcePreview { module: module.clone() } };
         }
-        if let Some(error) = module_catalogue.error {
-            return rsx! {
-                section { class: "relative order-2 flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden rounded-xl bg-card shadow-sm", "aria-label": "Module source preview",
-                    Alert { variant: AlertVariant::Destructive, "Module source preview could not be loaded: {error}" }
-                }
-            };
-        }
         return rsx! {
             section { class: "relative order-2 flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden rounded-xl bg-card shadow-sm", "aria-label": "Module source preview",
-                div { role: "status", Spinner {} "Loading module source preview…" }
+                {catalogue_status(module_catalogue.error, "Module source preview", "Loading module source preview…")}
             }
         };
     }
     let Some(entries) = catalogue.entries else {
-        return if let Some(error) = catalogue.error {
-            rsx! {
-                Alert { variant: AlertVariant::Destructive, "Component catalogue could not be loaded: {error}" }
-            }
-        } else {
-            rsx! {
-                div { role: "status", Spinner {} "Loading component catalogue…" }
-            }
-        };
+        return catalogue_status(
+            catalogue.error,
+            "Component catalogue",
+            "Loading component catalogue…",
+        );
     };
     let listed_entries = catalogue_choices(&entries);
     let entry = selected_id.as_deref().and_then(|id| {

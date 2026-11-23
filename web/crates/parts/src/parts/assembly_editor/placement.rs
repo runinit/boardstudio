@@ -1,6 +1,42 @@
 use super::*;
 use boardstudio_web_ui_model::Workspace;
 
+/// Shared post-await liveness gate for both assembly placement paths.
+fn abort_if_view_changed(
+    editor_generation: Signal<u64>,
+    view_generation: u64,
+    workspace: Signal<Workspace>,
+    runtime: &Rc<crate::runtime::Runtime>,
+    scope: &Scope,
+    mut preparing: Signal<bool>,
+) -> bool {
+    if editor_generation() != view_generation
+        || workspace() != Workspace::Parts
+        || runtime.scope().as_ref() != Some(scope)
+    {
+        preparing.set(false);
+        return true;
+    }
+    preparing.set(false);
+    false
+}
+
+/// The accepted snapshot matching the pre-await submission identity.
+fn accepted_if_current(
+    runtime: &Rc<crate::runtime::Runtime>,
+    workspace: Signal<Workspace>,
+    scope: &Scope,
+    document_id: &str,
+    session_epoch: boardstudio_application::SessionEpoch,
+) -> Option<AcceptedSnapshot> {
+    if workspace() != Workspace::Parts || runtime.scope().as_ref() != Some(scope) {
+        return None;
+    }
+    let accepted = runtime.model().accepted?;
+    (accepted.document.id == document_id && accepted.session_epoch == session_epoch)
+        .then_some(accepted)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn begin_place_assembly_on_board(
     runtime: Rc<crate::runtime::Runtime>,
@@ -103,29 +139,26 @@ pub(super) fn begin_place_assembly_on_board(
             Ok::<_, String>(())
         }
         .await;
-        if editor_generation() != view_generation
-            || workspace() != Workspace::Parts
-            || runtime.scope().as_ref() != Some(&scope)
-        {
-            preparing.set(false);
+        if abort_if_view_changed(
+            editor_generation,
+            view_generation,
+            workspace,
+            &runtime,
+            &scope,
+            preparing,
+        ) {
             return;
         }
-        preparing.set(false);
         if let Err(error) = normalized {
             feedback.set(Some(error));
             return;
         }
 
-        let current = runtime.model();
-        let Some(latest) = current.accepted.as_ref() else {
+        if runtime.model().accepted.is_none() {
             feedback.set(Some("The accepted project is unavailable.".into()));
             return;
-        };
-        if workspace() != Workspace::Parts
-            || runtime.scope().as_ref() != Some(&scope)
-            || latest.document.id != project_id
-            || latest.session_epoch != session_epoch
-        {
+        }
+        if accepted_if_current(&runtime, workspace, &scope, &project_id, session_epoch).is_none() {
             feedback.set(Some(
                 "The project, a component definition, or board scope changed while the assembly was being prepared. Reopen the editor and try again.".into(),
             ));
@@ -256,14 +289,16 @@ pub(super) fn begin_apply_assembly_to_matrix(
             Ok::<_, String>((matrix, definitions))
         }
         .await;
-        if editor_generation() != view_generation
-            || workspace() != Workspace::Parts
-            || runtime.scope().as_ref() != Some(&scope)
-        {
-            preparing.set(false);
+        if abort_if_view_changed(
+            editor_generation,
+            view_generation,
+            workspace,
+            &runtime,
+            &scope,
+            preparing,
+        ) {
             return;
         }
-        preparing.set(false);
         let (_matrix, definitions) = match prepared {
             Ok(prepared) => prepared,
             Err(error) => {
@@ -271,14 +306,10 @@ pub(super) fn begin_apply_assembly_to_matrix(
                 return;
             }
         };
-        let current_model = runtime.model();
         let still_selected = selected_context.peek().as_ref() == Some(&selected);
-        if workspace() != Workspace::Parts
-            || runtime.scope().as_ref() != Some(&scope)
-            || !still_selected
-            || !current_model.accepted.as_ref().is_some_and(|current| {
-                current.session_epoch == session_epoch && current.document.id == document_id
-            })
+        if !still_selected
+            || accepted_if_current(&runtime, workspace, &scope, &document_id, session_epoch)
+                .is_none()
         {
             feedback.set(Some("The project or matrix selection changed while the assembly was being prepared. Reopen the editor and try again.".into()));
             return;

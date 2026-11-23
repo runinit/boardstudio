@@ -1,6 +1,7 @@
 //! Definition-level module profile draft and accepted edit path.
 use super::model_transform::{
-    ModelVec3Fields, ModelVector, model_transform_is_valid, new_model, set_model_axis,
+    ModelTransformFieldset, ModelVector, model_transform_is_valid, model_vector, new_model,
+    set_model_axis,
 };
 use super::{PartsSelection, PartsSelectionGeneration};
 use crate::parts_custom_definition::{PartsOwnerGuard, replacement_commit};
@@ -598,8 +599,8 @@ pub fn ModuleProfileEditor(
             for (model_index, model) in current_draft.models.iter().enumerate() {
                 fieldset { class: "grid gap-2", key: "model-{model.asset_id}-{model_index}",
                     legend { "{model.asset_id}" }
-                    for (vector_name, field, vector) in [("offset", ModelVector::Offset, model.offset), ("rotation", ModelVector::Rotation, model.rotation), ("scale", ModelVector::Scale, model.scale)] {
-                        ModelVec3Fields { value: vector, step: Some(0.1),
+                    for (vector_name, field) in [("offset", ModelVector::Offset), ("rotation", ModelVector::Rotation), ("scale", ModelVector::Scale)] {
+                        ModelTransformFieldset { title: vector_name.to_owned(), value: model_vector(model, field), step: Some(0.1),
                             labels: [format!("{vector_name} x"), format!("{vector_name} y"), format!("{vector_name} z")],
                             aria_labels: Some([
                                 format!("Module model {} {vector_name} x", model_index + 1),

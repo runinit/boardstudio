@@ -97,18 +97,7 @@ fn pins_resolver(request: PcbWiringPinEditRequest) -> EditResolver {
         if !replacement.boards.iter().any(|board| &board.id == board_id) {
             return Err("The board was deleted.".into());
         }
-        let boardstudio_model::model::CoreRequest::ResolveElectrical {
-            request: electrical_request,
-            ..
-        } = boardstudio_web_runtime::electrical_preview_request(
-            "pin-edit",
-            &accepted.document,
-            board_id,
-        )
-        else {
-            unreachable!()
-        };
-        let plan = boardstudio_core_mechanical::electrical::resolve(electrical_request);
+        let plan = super::mode::resolve_preview_plan("pin-edit", &accepted.document, board_id);
         if !pin_edit_is_available(
             &accepted.document,
             &plan,
