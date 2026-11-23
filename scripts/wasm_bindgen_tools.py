@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 
@@ -29,12 +30,34 @@ def locked_version(root):
     return versions[0]
 
 
+def validate_binary(path, version, name="wasm-bindgen"):
+    result = subprocess.run([str(path), "--version"], capture_output=True, text=True, check=True)
+    if result.stdout.strip() != f"{name} {version}":
+        raise ValueError(f"{path} version {result.stdout.strip()!r}; expected {name} {version}")
+
+
+def find_bindgen(root, extra=()):
+    version = locked_version(root)
+    candidates = []
+    if directory := os.environ.get(DIRECTORY_ENV):
+        candidates.append(Path(directory) / "wasm-bindgen")
+    if found := shutil.which("wasm-bindgen"):
+        candidates.append(Path(found))
+    candidates.extend(extra)
+    cache = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
+    candidates.extend(sorted(cache.glob(".wasm-pack/wasm-bindgen-*/wasm-bindgen")))
+    for path in candidates:
+        try:
+            validate_binary(path, version)
+            return path
+        except (OSError, subprocess.SubprocessError, ValueError):
+            continue
+    return None
+
+
 def validate_pair(directory, version):
     for name in ("wasm-bindgen", TEST_RUNNER):
-        path = directory / name
-        result = subprocess.run([str(path), "--version"], capture_output=True, text=True, check=True)
-        if result.stdout.strip() != f"{name} {version}":
-            raise ValueError(f"{path} version {result.stdout.strip()!r}; expected {name} {version}")
+        validate_binary(directory / name, version, name)
 
 
 @contextmanager
@@ -120,3 +143,30 @@ def configure(env, root):
     env["PATH"] = str(directory) + os.pathsep + env.get("PATH", "")
     print(f"wasm-bindgen pair: {directory} (version {version})", file=sys.stderr)
     return env
+
+
+def find_pair(root):
+    try:
+        if DIRECTORY_ENV in os.environ:
+            env = configure(os.environ, root)
+            return Path(env[DIRECTORY_ENV])
+        version = locked_version(root)
+        cache = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
+        if patched := local_patched_pair(cache, root, version):
+            return patched
+    except (OSError, ValueError) as error:
+        raise ValueError(str(error)) from error
+    cache /= ".wasm-pack"
+    candidates = [path.parent for path in sorted(cache.glob(
+        f"wasm-bindgen-*/{TEST_RUNNER}"))]
+    if bindgen := shutil.which("wasm-bindgen"):
+        candidates.insert(0, Path(bindgen).absolute().parent)
+    for directory in candidates:
+        try:
+            validate_pair(directory, version)
+        except (OSError, subprocess.SubprocessError, ValueError):
+            continue
+        return directory
+    raise ValueError(f"no wasm-bindgen pair at locked version {version} on PATH or in {cache}; "
+                      f"run `cargo install wasm-bindgen-cli --locked --version {version}` "
+                      "or set BOARDSTUDIO_WASM_BINDGEN_DIR to a matching pair")

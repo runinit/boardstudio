@@ -128,6 +128,8 @@ class BuildWebTests(unittest.TestCase):
 
     def test_worker_builds_use_a_separate_cargo_target(self):
         with patch.object(BUILD, "run") as run, \
+             patch.object(BUILD, "locked_wasm_bindgen", return_value=None), \
+             patch.object(BUILD, "bake_bundled_step"), \
              patch.object(BUILD, "_stage_provider_entries"), patch.object(BUILD.shutil, "copy2"):
             BUILD.prepare_runtime_providers(fast=True)
         commands = BUILD.provider_commands(fast=True)
@@ -135,6 +137,87 @@ class BuildWebTests(unittest.TestCase):
         for call in run.call_args_list[:2]:
             self.assertEqual(call.kwargs["env"]["CARGO_TARGET_DIR"], str(BUILD.ROOT / "target/wasm-workers"))
         self.assertNotIn("env", run.call_args_list[2].kwargs)
+
+    def test_fast_provider_rebinds_only_when_wasm_tool_or_output_changes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            artifact = root / "target/wasm32-unknown-unknown/wasm-check/boardstudio_web.wasm"
+            artifact.parent.mkdir(parents=True)
+            artifact.write_bytes(b"one")
+            bindgen = root / "bindgen"
+            bindgen.write_bytes(b"tool")
+            output = root / "out"
+            calls = []
+
+            def run(command, **kwargs):
+                calls.append(command)
+                if command[0] == str(bindgen):
+                    output.mkdir(exist_ok=True)
+                    (output / "worker.js").write_text("js")
+                    (output / "worker_bg.wasm").write_bytes(b"bound")
+
+            with patch.object(BUILD, "run", side_effect=run):
+                def build():
+                    BUILD.fast_provider("worker", output, "boardstudio-web", "cad-worker", root / "target", bindgen)
+                build()
+                build()
+                self.assertEqual(sum(call[0] == str(bindgen) for call in calls), 1)
+                artifact.write_bytes(b"two")
+                build()
+                bindgen.write_bytes(b"new tool")
+                build()
+                (output / "worker.js").unlink()
+                build()
+                self.assertEqual(sum(call[0] == str(bindgen) for call in calls), 4)
+
+    def test_fast_packaging_reuses_unchanged_site_and_repairs_changes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            public = root / "public"
+            public.mkdir()
+            (public / "index.html").write_text("first")
+            with patch.object(BUILD, "ROOT", root), patch.object(BUILD, "WEB", root / "web"), \
+                 patch.object(BUILD, "OFFLINE_WORKER", root / "worker"), \
+                 patch.object(BUILD, "_stage_provider_entries"), \
+                 patch.object(BUILD, "embed_offline_worker") as embed:
+                BUILD.package_route(root / "output", public, "subpath", fast=True)
+                BUILD.package_route(root / "output", public, "subpath", fast=True)
+                self.assertEqual(embed.call_count, 1)
+                (public / "index.html").write_text("second")
+                BUILD.package_route(root / "output", public, "subpath", fast=True)
+                self.assertEqual(embed.call_count, 2)
+                (root / "output/site-subpath/boardstudio/index.html").unlink()
+                BUILD.package_route(root / "output", public, "subpath", fast=True)
+                self.assertEqual(embed.call_count, 3)
+
+    def test_bake_stamp_checks_inputs_and_output_sidecars(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            providers = root / "web/target/providers"
+            baked = providers / "bundled-step"
+            baked.mkdir(parents=True)
+            models = root / "models"
+            models.mkdir()
+            (models / "one.step").write_bytes(b"step")
+            (providers / "ergogen-models.json").write_text(json.dumps({"destination": str(models),
+                "entries": [{"mediaType": "model/step", "emittedPath": "one.step"}]}))
+            for file in ("cad/scripts/bake-bundled-step.cjs", "cad/wasm/tests/load-provider.cjs",
+                         "cad/wasm/pkg/boardstudio_cad_wasm.js", "cad/wasm/pkg/boardstudio_cad_wasm_bg.wasm"):
+                path = root / file
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"input")
+            (baked / "manifest.json").write_text(json.dumps({"assets": {"source": "sidecar"}}))
+            (baked / "sidecar.bstep").write_bytes(b"sidecar")
+            with patch.object(BUILD, "ROOT", root), patch.object(BUILD, "WEB", root / "web"), \
+                 patch.object(BUILD, "run") as run:
+                BUILD.bake_bundled_step()
+                BUILD.bake_bundled_step()
+                self.assertEqual(run.call_count, 1)
+                (models / "one.step").write_bytes(b"changed")
+                BUILD.bake_bundled_step()
+                (baked / "sidecar.bstep").write_bytes(b"changed")
+                BUILD.bake_bundled_step()
+                self.assertEqual(run.call_count, 3)
 
     def test_site_and_dev_assets_stage_the_same_providers_and_worker_entries(self):
         with tempfile.TemporaryDirectory() as directory:

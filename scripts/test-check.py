@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -39,6 +40,32 @@ class CheckTests(unittest.TestCase):
     @staticmethod
     def option_values(command, option):
         return [value for flag, value in zip(command, command[1:]) if flag == option]
+
+    def test_build_overlaps_web_and_browser_prebuilds_and_retains_artifacts(self):
+        barrier = threading.Barrier(2, timeout=2)
+        state = {}
+        env = {}
+
+        def serial(command, environment, cwd, outputs=None, **kwargs):
+            if command == check.STEPS["build"][1][0]:
+                barrier.wait()
+            elif command == check.PAGE_TEST_BUILD:
+                outputs.append((command, "/tmp/page.wasm\n"))
+            return 0, 0
+
+        def crates(command, environment, cwd, state):
+            barrier.wait()
+            state["crates"] = {"host": Path("/tmp/host.wasm")}
+            return True
+
+        with patch.object(check, "check_jobs", return_value=2), \
+             patch.object(check, "run_serial", side_effect=serial), \
+             patch.object(check, "build_crate_tests", side_effect=crates):
+            _, passed = check.run_commands("build", check.STEPS["build"][1], env, state=state)
+        self.assertTrue(passed)
+        self.assertEqual(state["page"], "/tmp/page.wasm")
+        self.assertEqual(state["crates"], {"host": Path("/tmp/host.wasm")})
+        self.assertEqual(env[check.TEST_CSS_READY], "1")
 
     def test_packaged_plan_uses_page_prebuild_only(self):
         with patch.object(check.browser_tools, "locate_chrome"), \

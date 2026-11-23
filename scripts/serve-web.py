@@ -7,6 +7,8 @@ import argparse
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+import browser_tools
+
 
 def handler_for(build_root: Path):
     has_root = (build_root / "site-root/index.html").is_file()
@@ -37,8 +39,7 @@ def handler_for(build_root: Path):
             return str(target)
 
         def end_headers(self) -> None:
-            self.send_header("Cross-Origin-Opener-Policy", "same-origin")
-            self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
+            browser_tools.send_isolation_headers(self, resource=False, no_store=False)
             super().end_headers()
 
         def log_message(self, fmt: str, *args: object) -> None:

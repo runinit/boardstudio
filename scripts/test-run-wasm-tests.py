@@ -72,6 +72,20 @@ else:
         self.assertNotEqual(code, 0)
         self.assertIn("no listed WASM tests", report["problems"][0])
 
+    def test_list_cache_uses_wasm_digest_and_custom_runner_bypasses_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            artifact = root / "page.wasm"
+            artifact.write_bytes(b"one")
+            env = {RUNNER.PAGE_ARTIFACT: str(artifact)}
+            with patch.object(RUNNER, "list_wasm_tests", side_effect=[["a"], ["b"], ["custom"]]) as listing:
+                self.assertEqual(RUNNER.cached_wasm_tests(env, root, False), ["a"])
+                self.assertEqual(RUNNER.cached_wasm_tests(env, root, False), ["a"])
+                artifact.write_bytes(b"two")
+                self.assertEqual(RUNNER.cached_wasm_tests(env, root, False), ["b"])
+                self.assertEqual(RUNNER.cached_wasm_tests(env, root, True), ["custom"])
+                self.assertEqual(listing.call_count, 3)
+
     def test_build_only_generates_css_before_cargo(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

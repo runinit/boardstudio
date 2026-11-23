@@ -48,7 +48,13 @@ def js_key_order(keys) -> list[str]:
     return integers + [key for key in keys if not _is_index(key)]
 
 
-def _encode(value, indent: str, out: list[str]) -> None:
+def _string(value):
+    # JSON.stringify escapes lone surrogates while leaving ordinary Unicode intact.
+    return ''.join(f'\\u{ord(c):04x}' if 0xD800 <= ord(c) <= 0xDFFF else c
+                   for c in json.dumps(value, ensure_ascii=False))
+
+
+def _encode(value, indent: str, out: list[str], step: str | None) -> None:
     if value is None:
         out.append("null")
     elif value is True:
@@ -56,38 +62,45 @@ def _encode(value, indent: str, out: list[str]) -> None:
     elif value is False:
         out.append("false")
     elif isinstance(value, int):
-        out.append(str(value))
+        out.append(number(float(value)))
     elif isinstance(value, float):
         out.append(number(value))
     elif isinstance(value, str):
-        out.append(json.dumps(value, ensure_ascii=False))
+        out.append(_string(value))
     elif isinstance(value, (list, tuple)):
         if not value:
             out.append("[]")
             return
-        inner = indent + "  "
+        if step is None:
+            out.append("[" + ",".join(dumps(item, indent=None) for item in value) + "]")
+            return
+        inner = indent + step
         out.append("[\n")
         for index, item in enumerate(value):
             out.append(inner)
-            _encode(item, inner, out)
+            _encode(item, inner, out, step)
             out.append(",\n" if index < len(value) - 1 else "\n")
         out.append(indent + "]")
     elif isinstance(value, dict):
         if not value:
             out.append("{}")
             return
-        inner = indent + "  "
+        if step is None:
+            out.append("{" + ",".join(_string(key) + ":" + dumps(value[key], indent=None)
+                                      for key in js_key_order(value)) + "}")
+            return
+        inner = indent + step
         out.append("{\n")
         for index, key in enumerate(js_key_order(value)):
-            out.append(inner + json.dumps(key, ensure_ascii=False) + ": ")
-            _encode(value[key], inner, out)
+            out.append(inner + _string(key) + ": ")
+            _encode(value[key], inner, out, step)
             out.append(",\n" if index < len(value) - 1 else "\n")
         out.append(indent + "}")
     else:
         raise TypeError(f"Cannot serialize {type(value).__name__}")
 
 
-def dumps(value) -> str:
+def dumps(value, indent="  ") -> str:
     out: list[str] = []
-    _encode(value, "", out)
+    _encode(value, "", out, indent)
     return "".join(out)

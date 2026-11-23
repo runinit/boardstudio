@@ -14,6 +14,8 @@ import subprocess
 import sys
 from urllib.parse import unquote, urlsplit
 
+import browser_tools
+
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web"
 REQUIRED = (
@@ -26,10 +28,7 @@ REQUIRED = (
 
 
 def add_isolation_headers(handler: BaseHTTPRequestHandler) -> None:
-    handler.send_header("Cross-Origin-Opener-Policy", "same-origin")
-    handler.send_header("Cross-Origin-Embedder-Policy", "require-corp")
-    handler.send_header("Cross-Origin-Resource-Policy", "same-origin")
-    handler.send_header("Cache-Control", "no-store")
+    browser_tools.send_isolation_headers(handler)
 
 
 def dev_handler(upstream_port: int, asset_root: Path | None = None, *,

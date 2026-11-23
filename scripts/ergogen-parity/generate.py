@@ -16,6 +16,8 @@ import sys
 import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import catalogue_json
 import host_probe
 import verified_runtime
 
@@ -66,64 +68,9 @@ def same(a, b):
     return type(a) is type(b) and a == b
 
 
-# JSON.stringify(value, null, indent): ECMAScript Number::toString, string quoting and key order.
-def js_number(value):
-    if not finite(value):
-        return 'null'
-    value = float(value)
-    if value == 0:
-        return '0'
-    mantissa, _, exponent = repr(abs(value)).partition('e')
-    whole, _, fraction = mantissa.partition('.')
-    raw = whole + fraction
-    digits = raw.lstrip('0')
-    n = len(whole) + int(exponent or 0) - (len(raw) - len(digits))
-    digits = digits.rstrip('0')
-    k = len(digits)
-    sign = '-' if value < 0 else ''
-    if k <= n <= 21:
-        return sign + digits + '0' * (n - k)
-    if 0 < n <= 21:
-        return sign + digits[:n] + '.' + digits[n:]
-    if -6 < n <= 0:
-        return sign + '0.' + '0' * -n + digits
-    power = f"e{'+' if n > 0 else '-'}{abs(n - 1)}"
-    return sign + digits[0] + ('.' + digits[1:] if k > 1 else '') + power
-
-
-ESCAPES = {'"': '\\"', '\\': '\\\\', '\b': '\\b', '\f': '\\f', '\n': '\\n', '\r': '\\r', '\t': '\\t'}
-
-
-def js_string(value):
-    return '"' + ''.join(ESCAPES.get(char) or (f'\\u{ord(char):04x}' if ord(char) < 0x20 or 0xD800 <= ord(char) <= 0xDFFF
-                                               else char) for char in value) + '"'
-
-
-def js_keys(value):
-    index = [key for key in value if re.fullmatch(r'0|[1-9][0-9]*', key) and int(key) < 2**32 - 1]
-    return sorted(index, key=int) + [key for key in value if key not in index]
-
-
-def js_json(value, indent=None, level=''):
-    if value is None:
-        return 'null'
-    if isinstance(value, bool):
-        return 'true' if value else 'false'
-    if number(value):
-        return js_number(value)
-    if isinstance(value, str):
-        return js_string(value)
-    inner = level + (indent or '')
-    if isinstance(value, list):
-        brackets, items = '[]', [js_json(item, indent, inner) for item in value]
-    elif isinstance(value, dict):
-        colon = ': ' if indent else ':'
-        brackets, items = '{}', [js_string(key) + colon + js_json(value[key], indent, inner) for key in js_keys(value)]
-    else:
-        raise TypeError(f'not a JSON value: {type(value).__name__}')
-    if not items or not indent:
-        return brackets[0] + ','.join(items) + brackets[1]
-    return brackets[0] + '\n' + inner + (',\n' + inner).join(items) + '\n' + level + brackets[1]
+# Preserve the generator's public serializer contract for its hermetic tests.
+def js_json(value, indent=None):
+    return catalogue_json.dumps(value, indent=indent)
 
 
 def render(fixture):
