@@ -175,7 +175,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                 h3 { class: "mt-4 mb-2 text-[13px] font-semibold", "Point {point_index + 1} of {point_count}" }
                                 div { class: "grid gap-2.5",
                                     OutlineCoordinate {
-                                        key: format!("{:?}:{:?}:{point_index}:x", action_context.scope, perimeter.target),
+                                        key: format!("{:?}:{:?}:{point_index}:x", action_context.envelope.scope, perimeter.target),
                                         label: format!("Point {} X mm", point_index + 1),
                                         value: point.x,
                                         editable: enabled,
@@ -202,7 +202,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                                                 EditPhase::Commit,
                                                                 format!(
                                                                     "outline-point-{}-{point_index}",
-                                                                    action_context.revision,
+                                                                    action_context.envelope.revision,
                                                                 ),
                                                             ),
                                                     );
@@ -210,7 +210,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                         },
                                     }
                                     OutlineCoordinate {
-                                        key: format!("{:?}:{:?}:{point_index}:y", action_context.scope, perimeter.target),
+                                        key: format!("{:?}:{:?}:{point_index}:y", action_context.envelope.scope, perimeter.target),
                                         label: format!("Point {} Y mm", point_index + 1),
                                         value: point.y,
                                         editable: enabled,
@@ -237,7 +237,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                                                 EditPhase::Commit,
                                                                 format!(
                                                                     "outline-point-{}-{point_index}",
-                                                                    action_context.revision,
+                                                                    action_context.envelope.revision,
                                                                 ),
                                                             ),
                                                     );
@@ -261,7 +261,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                             let b = points[next];
                                             points.insert(point_index + 1, Vec2 { x: (a.x + b.x) / 2.0, y: (a.y + b.y) / 2.0 });
                                             selected_point.set(point_index + 1);
-                                            on_action.call(action_context.edit_perimeter(target.clone(), points.clone(), EditPhase::Commit, format!("outline-point-{}-{point_index}", action_context.revision)));
+                                            on_action.call(action_context.edit_perimeter(target.clone(), points.clone(), EditPhase::Commit, format!("outline-point-{}-{point_index}", action_context.envelope.revision)));
                                         }
                                     },
 
@@ -280,7 +280,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                             if point_count <= 3 { return; }
                                             points.remove(point_index);
                                             selected_point.set(point_index.saturating_sub(1));
-                                                on_action.call(action_context.edit_perimeter(target.clone(), points.clone(), EditPhase::Commit, format!("outline-point-{}-{point_index}", action_context.revision)));
+                                                on_action.call(action_context.edit_perimeter(target.clone(), points.clone(), EditPhase::Commit, format!("outline-point-{}-{point_index}", action_context.envelope.revision)));
                                         }
                                     },
 

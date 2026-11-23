@@ -106,35 +106,22 @@ impl OutlineInspectorProjection {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct OutlineActionContext {
-    scope: Scope,
-    token: boardstudio_application::SnapshotToken,
-    pub(super) revision: u64,
-    generation: u64,
-    board_id: String,
+    pub(super) envelope: OutlineActionEnvelope,
     selection_context: crate::objects::TreeContext,
 }
 
 impl OutlineActionContext {
-    fn envelope(&self) -> OutlineActionEnvelope {
-        OutlineActionEnvelope {
-            scope: self.scope.clone(),
-            token: self.token,
-            revision: self.revision,
-            generation: self.generation,
-            board_id: self.board_id.clone(),
-        }
-    }
 
     pub(super) fn action(&self, edit: OutlineEdit) -> OutlineAction {
         OutlineAction {
-            envelope: self.envelope(),
+            envelope: self.envelope.clone(),
             kind: OutlineActionKind::Update { edit },
         }
     }
 
     pub(super) fn activate_action(&self, version_id: Option<String>) -> OutlineAction {
         OutlineAction {
-            envelope: self.envelope(),
+            envelope: self.envelope.clone(),
             kind: OutlineActionKind::Activate {
                 context: self.selection_context.clone(),
                 require_selected_version: false,
@@ -151,7 +138,7 @@ impl OutlineActionContext {
         transaction_id: String,
     ) -> OutlineAction {
         OutlineAction {
-            envelope: self.envelope(),
+            envelope: self.envelope.clone(),
             kind: OutlineActionKind::EditPerimeter {
                 context: self.selection_context.clone(),
                 target,
@@ -164,7 +151,7 @@ impl OutlineActionContext {
 
     pub(super) fn add_feature(&self, feature: OutlineFeature) -> OutlineAction {
         OutlineAction {
-            envelope: self.envelope(),
+            envelope: self.envelope.clone(),
             kind: OutlineActionKind::AddFeature {
                 context: self.selection_context.clone(),
                 feature,
@@ -174,7 +161,7 @@ impl OutlineActionContext {
 
     pub(super) fn add_connection(&self, points: Vec<Vec2>) -> OutlineAction {
         OutlineAction {
-            envelope: self.envelope(),
+            envelope: self.envelope.clone(),
             kind: OutlineActionKind::AddConnection {
                 context: self.selection_context.clone(),
                 points,
@@ -189,7 +176,7 @@ impl OutlineActionContext {
         after: OutlineFeature,
     ) -> OutlineAction {
         OutlineAction {
-            envelope: self.envelope(),
+            envelope: self.envelope.clone(),
             kind: OutlineActionKind::SetFeature {
                 context: self.selection_context.clone(),
                 version_id,
@@ -201,7 +188,7 @@ impl OutlineActionContext {
 
     pub(super) fn remove_feature(&self, version_id: String, feature_id: String) -> OutlineAction {
         OutlineAction {
-            envelope: self.envelope(),
+            envelope: self.envelope.clone(),
             kind: OutlineActionKind::RemoveFeature {
                 context: self.selection_context.clone(),
                 version_id,
@@ -212,7 +199,7 @@ impl OutlineActionContext {
 
     pub(super) fn focus_gap(&self, gap_id: String) -> OutlineAction {
         OutlineAction {
-            envelope: self.envelope(),
+            envelope: self.envelope.clone(),
             kind: OutlineActionKind::FocusGap {
                 context: self.selection_context.clone(),
                 gap_id,
@@ -739,11 +726,13 @@ fn project_inspector(
         has_generated: generated.is_some(),
         gaps,
         action_context: Rc::new(OutlineActionContext {
-            scope: scope.clone(),
-            token: snapshot.token,
-            revision: snapshot.document.revision,
-            generation: captured_generation,
-            board_id: board_id.clone(),
+            envelope: OutlineActionEnvelope {
+                scope: scope.clone(),
+                token: snapshot.token,
+                revision: snapshot.document.revision,
+                generation: captured_generation,
+                board_id: board_id.clone(),
+            },
             selection_context: selected.context,
         }),
         enabled: editable,
