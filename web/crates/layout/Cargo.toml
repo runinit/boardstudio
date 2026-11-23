@@ -37,7 +37,6 @@ boardstudio-web-test-runtime = { path = "../test-runtime" }
 boardstudio-web-runtime = { path = "../runtime", features = ["test-support"] }
 boardstudio-web-ui-model = { path = "../ui-model", features = ["test-support"] }
 boardstudio-web-ui-shared = { path = "../ui-shared", features = ["test-support"] }
-boardstudio-web-parts = { path = "../parts" }
 
 [lints]
 workspace = true

@@ -36,7 +36,6 @@ tokio = { version = "=1.53.1", features = ["macros", "rt", "time"] }
 boardstudio-web-runtime = { path = "../runtime", features = ["test-support"] }
 boardstudio-web-ui-model = { path = "../ui-model", features = ["test-support"] }
 boardstudio-web-ui-shared = { path = "../ui-shared", features = ["test-support"] }
-boardstudio-web-case = { path = "../case" }
 
 [lints]
 workspace = true
