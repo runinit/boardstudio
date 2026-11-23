@@ -1,5 +1,5 @@
 use crate::support::fixture;
-use boardstudio_core::{CoreEngine, model::*};
+use boardstudio_core::{CommittedScene, CoreEngine, model::*};
 use serde_json::json;
 
 fn fixture() -> ProjectDoc {
@@ -22,8 +22,8 @@ fn fixture() -> ProjectDoc {
     doc
 }
 fn open(doc: ProjectDoc) -> SceneDelta {
-    match CoreEngine::new().handle(fixture::open(doc)) {
-        CoreReply::Scene { scene, .. } => scene,
+    match CoreEngine::new().open(doc) {
+        Ok(CommittedScene { scene, .. }) => scene,
         reply => panic!("{reply:?}"),
     }
 }

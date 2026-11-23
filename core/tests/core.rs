@@ -1,5 +1,6 @@
 use crate::support::fixture::{self, matrix_document as matrix_doc, scene_and_document as scene};
 use boardstudio_core::CoreEngine;
+use boardstudio_core::EditOutcome;
 use boardstudio_core::model::*;
 
 #[path = "core/core_chunk0.rs"]
@@ -10,13 +11,13 @@ mod core_chunk1;
 mod core_chunk2;
 #[path = "core/core_chunk3.rs"]
 mod core_chunk3;
-fn preview(reply: CoreReply) -> SceneDelta {
-    match reply {
-        CoreReply::Preview { scene, .. } => scene,
+fn preview(result: Result<EditOutcome, String>) -> SceneDelta {
+    match result {
+        Ok(EditOutcome::Preview(scene)) => scene,
         other => panic!("expected preview: {other:?}"),
     }
 }
-fn edit(base: u64, phase: EditPhase, op: EditOperation) -> CoreRequest {
+fn edit(base: u64, phase: EditPhase, op: EditOperation) -> EditCommand {
     fixture::edit("request", "drag-1", base, phase, op)
 }
 
@@ -37,10 +38,13 @@ fn mirrored_pair_request(base: u64, phase: &str) -> String {
 
 fn linked_pair() -> (CoreEngine, ProjectDoc) {
     let mut engine = CoreEngine::new();
-    engine.handle(fixture::open(matrix_doc()));
+    engine.open(matrix_doc()).unwrap();
     let response = engine.request(&mirrored_pair_request(0, "commit"));
-    let (_, doc) = scene(serde_json::from_str(&response).unwrap());
-    (engine, doc)
+    let reply: CoreReply = serde_json::from_str(&response).unwrap();
+    let CoreReply::Scene { document, .. } = reply else {
+        panic!("expected scene: {reply:?}")
+    };
+    (engine, *document)
 }
 
 fn matrix(rows: u32, columns: u32) -> Matrix {

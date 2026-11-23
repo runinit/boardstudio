@@ -108,6 +108,13 @@ fn stored(doc: &ProjectDoc) -> &MechanicalConfiguration {
     doc.mechanical.as_ref().expect("stored configuration")
 }
 
+/// Apply a board change and return the stored configuration, collapsing the
+/// ubiquitous apply-then-read assertion pairs in the settings suites.
+fn set(doc: &mut ProjectDoc, change: MechanicalChange) -> MechanicalConfiguration {
+    apply_change(doc, change).unwrap();
+    stored(doc).clone()
+}
+
 fn part_definition(id: &str, kind: PartKind, generator: Option<PartGenerator>) -> PartDefinition {
     PartDefinition {
         generator,

@@ -95,23 +95,6 @@ pub(crate) fn replace_document(document: ProjectDoc) -> EditOperation {
     }
 }
 
-/// A typed part-envelope outline feature.
-pub(crate) fn part_envelope(
-    id: &str,
-    part_ids: &[&str],
-    margin: f64,
-    operation: Operation,
-) -> OutlineFeature {
-    OutlineFeature::PartEnvelope {
-        connections: vec![],
-        settings: Default::default(),
-        id: id.into(),
-        part_ids: part_ids.iter().map(|id| id.to_string()).collect(),
-        margin,
-        operation,
-    }
-}
-
 /// A typed polygonal outline feature anchored to a part or matrix key.
 pub(crate) fn anchored_polygon(
     id: &str,

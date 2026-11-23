@@ -148,12 +148,9 @@ fn single_project(
 }
 
 fn hardware_fit_findings(document: boardstudio_core::model::ProjectDoc) -> Vec<String> {
-    use boardstudio_core::{CoreEngine, model::*};
-    let reply = CoreEngine::new().handle(CoreRequest::Open {
-        id: "fit-geometry".into(),
-        document,
-    });
-    let CoreReply::Scene { scene, .. } = reply else {
+    use boardstudio_core::{CommittedScene, CoreEngine};
+    let reply = CoreEngine::new().open(document);
+    let Ok(CommittedScene { scene, .. }) = reply else {
         panic!("{reply:?}")
     };
     scene
@@ -226,12 +223,9 @@ fn paired_project(
 
 #[test]
 fn nominal_model_bounds_locate_a_collision_even_at_mx_pitch() {
-    use boardstudio_core::{CoreEngine, model::*};
-    let reply = CoreEngine::new().handle(CoreRequest::Open {
-        id: "fit".into(),
-        document: placed_project(19.05),
-    });
-    let CoreReply::Scene { scene, .. } = reply else {
+    use boardstudio_core::{CommittedScene, CoreEngine};
+    let reply = CoreEngine::new().open(placed_project(19.05));
+    let Ok(CommittedScene { scene, .. }) = reply else {
         panic!("{reply:?}")
     };
     let finding = scene
@@ -254,11 +248,8 @@ fn nominal_model_bounds_locate_a_collision_even_at_mx_pitch() {
     let width = xs.iter().copied().fold(f64::NEG_INFINITY, f64::max)
         - xs.iter().copied().fold(f64::INFINITY, f64::min);
     assert!((width - 0.369158001).abs() < 0.0001);
-    let reply = CoreEngine::new().handle(CoreRequest::Open {
-        id: "clear".into(),
-        document: placed_project(25.0),
-    });
-    let CoreReply::Scene { scene, .. } = reply else {
+    let reply = CoreEngine::new().open(placed_project(25.0));
+    let Ok(CommittedScene { scene, .. }) = reply else {
         panic!("{reply:?}")
     };
     assert!(

@@ -38,26 +38,23 @@ fn encoder_project() -> ProjectDoc {
 fn matrix_encoder_press_accepts_layer_bindings_and_undo() {
     let doc = encoder_project();
     let mut engine = CoreEngine::new();
-    scene(engine.handle(fixture::open(doc.clone())));
+    scene(engine.open(doc.clone()));
     let operation = serde_json::from_value(json!({
         "kind":"edit-keymap", "change":{"kind":"binding","layerId":"base","keyId":"matrix/main/r0c0", "binding":{"kind":"mod-tap","hold":"LCTRL","tap":"A"}}
     })).unwrap();
-    let (_, edited) = scene(engine.handle(CoreRequest::Edit {
-        id: "bind".into(),
-        command: EditCommand {
-            base_revision: 0,
-            transaction_id: "bind".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec!["matrix/main/r0c0".into()],
-            operation,
-        },
+    let (_, edited) = scene(engine.commit_edit(EditCommand {
+        base_revision: 0,
+        transaction_id: "bind".into(),
+        phase: EditPhase::Commit,
+        target_ids: vec!["matrix/main/r0c0".into()],
+        operation,
     }));
     let saved = serde_json::to_value(&edited).unwrap();
     assert_eq!(
         saved["keymap"]["layers"][0]["bindings"]["matrix/main/r0c0"]["kind"],
         "mod-tap"
     );
-    let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    let (_, undone) = scene(engine.undo());
     assert_eq!(undone.parts, doc.parts);
     assert_eq!(undone.keymap, doc.keymap);
 }
@@ -140,7 +137,7 @@ fn explicit_input_profile_works_without_a_source_name_or_encoder_category() {
     });
     let mut engine = CoreEngine::new();
     let reply = engine.request(&json!({"id":"open","kind":"open","document":value}).to_string());
-    let (_, doc) = scene(serde_json::from_str(&reply).unwrap());
+    let (_, doc) = fixture::wire_scene_and_document(&reply);
     let request =
         serde_json::from_value(json!({"document":doc,"boardId":"board","mode":"matrix"})).unwrap();
     let plan = boardstudio_core::electrical::resolve(request);
@@ -168,13 +165,19 @@ fn press_scan_modes_are_exclusive_and_invalid_matrix_assignment_is_atomic() {
     doc.boards[0].part_ids = vec!["knob".into()];
     doc.matrices.clear();
     let mut engine = CoreEngine::new();
-    scene(engine.handle(fixture::open(doc.clone())));
+    scene(engine.open(doc.clone()));
     let edit = |engine: &mut CoreEngine, revision, mode: &str| {
-        let response=engine.request(&json!({"id":"scan","kind":"edit","command":{
-            "baseRevision":revision,"transactionId":"scan","phase":"commit","targetIds":["knob"],
-            "operation":{"kind":"set-input-scan-mode","partId":"knob","mode":mode}
-        }}).to_string());
-        serde_json::from_str::<CoreReply>(&response).unwrap()
+        let operation: EditOperation = serde_json::from_value(
+            json!({"kind":"set-input-scan-mode","partId":"knob","mode":mode}),
+        )
+        .unwrap();
+        engine.commit_edit(EditCommand {
+            base_revision: revision,
+            transaction_id: "scan".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec!["knob".into()],
+            operation,
+        })
     };
     let (_, unassigned) = scene(edit(&mut engine, 0, "unassigned"));
     let plan = boardstudio_core::electrical::resolve(
@@ -185,20 +188,15 @@ fn press_scan_modes_are_exclusive_and_invalid_matrix_assignment_is_atomic() {
         plan.peripherals[0].fixed_terminals,
         vec![("B".into(), "GND".into())]
     );
-    assert!(matches!(
-        edit(&mut engine, 1, "matrix"),
-        CoreReply::Error { .. }
-    ));
-    let (_, after) = scene(engine.handle(CoreRequest::Snapshot {
-        id: "snapshot".into(),
-    }));
+    assert!(edit(&mut engine, 1, "matrix").is_err());
+    let (_, after) = scene(engine.snapshot());
     assert_eq!(after, unassigned);
     let (_, direct) = scene(edit(&mut engine, 1, "direct"));
     let plan = boardstudio_core::electrical::resolve(
         serde_json::from_value(json!({"document":direct,"boardId":"board"})).unwrap(),
     );
     assert_eq!(plan.peripherals[0].gpio_terminals.len(), 3);
-    let (_, undo) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    let (_, undo) = scene(engine.undo());
     assert_eq!(undo.parts, unassigned.parts);
 }
 
@@ -264,24 +262,19 @@ fn matrix_rejects_rotation_only_profile_without_changing_the_document() {
     let mut matrix = original.matrices[0].clone();
     matrix.definition_id = "rotation-only".into();
     let mut engine = CoreEngine::new();
-    scene(engine.handle(fixture::open(original.clone())));
-    let reply = engine.handle(CoreRequest::Edit {
-        id: "replace".into(),
-        command: EditCommand {
-            base_revision: 0,
-            transaction_id: "replace".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec!["main".into()],
-            operation: EditOperation::SetMatrix {
-                matrix,
-                definitions: Some(vec![definition]),
-            },
+    scene(engine.open(original.clone()));
+    let reply = engine.apply_edit(EditCommand {
+        base_revision: 0,
+        transaction_id: "replace".into(),
+        phase: EditPhase::Commit,
+        target_ids: vec!["main".into()],
+        operation: EditOperation::SetMatrix {
+            matrix,
+            definitions: Some(vec![definition]),
         },
     });
-    assert!(matches!(reply, CoreReply::Error { .. }), "{reply:?}");
-    let (_, after) = scene(engine.handle(CoreRequest::Snapshot {
-        id: "snapshot".into(),
-    }));
+    assert!(reply.is_err(), "{reply:?}");
+    let (_, after) = scene(engine.snapshot());
     assert_eq!(after, original);
 }
 
@@ -299,18 +292,15 @@ fn switching_scan_mode_removes_only_the_previous_generated_press_routes() {
     ])).unwrap();
     doc.boards[0].net_ids = doc.nets.iter().map(|net| net.id.clone()).collect();
     let mut engine = CoreEngine::new();
-    scene(engine.handle(fixture::open(doc.clone())));
-    let (_, edited) = scene(engine.handle(CoreRequest::Edit {
-        id: "scan".into(),
-        command: EditCommand {
-            base_revision: 0,
-            transaction_id: "scan".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![doc.parts[0].id.clone()],
-            operation: EditOperation::SetInputScanMode {
-                part_id: doc.parts[0].id.clone(),
-                mode: PressScanMode::Matrix,
-            },
+    scene(engine.open(doc.clone()));
+    let (_, edited) = scene(engine.commit_edit(EditCommand {
+        base_revision: 0,
+        transaction_id: "scan".into(),
+        phase: EditPhase::Commit,
+        target_ids: vec![doc.parts[0].id.clone()],
+        operation: EditOperation::SetInputScanMode {
+            part_id: doc.parts[0].id.clone(),
+            mode: PressScanMode::Matrix,
         },
     }));
     assert!(!edited.nets.iter().any(|net| {
@@ -338,7 +328,7 @@ fn switching_scan_mode_removes_only_the_previous_generated_press_routes() {
             .iter()
             .any(|id| id.ends_with("/push"))
     );
-    let (_, undo) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    let (_, undo) = scene(engine.undo());
     assert_eq!(undo.nets, doc.nets);
 }
 
@@ -351,8 +341,8 @@ fn changing_scan_mode_removes_an_obsolete_controller_only_press_net() {
     doc.nets=serde_json::from_value(json!([{"id":"generated/electrical/board/row/0","name":"ROW0","pins":[{"partId":"matrix/main/r0c0","padId":"S1"},{"partId":"mcu","padId":"P1"}]}])).unwrap();
     doc.boards[0].net_ids = vec![doc.nets[0].id.clone()];
     let mut engine = CoreEngine::new();
-    scene(engine.handle(fixture::open(doc)));
-    let (_, after) = scene(engine.handle(fixture::commit(
+    scene(engine.open(doc));
+    let (_, after) = scene(engine.commit_edit(fixture::commit(
         "scan",
         "scan",
         0,
@@ -375,8 +365,8 @@ fn changing_scan_mode_preserves_routed_work_and_rejects_the_edit_atomically() {
     doc.boards[0].net_ids = vec![doc.nets[0].id.clone()];
     doc.boards[0].traces=serde_json::from_value(json!([{"id":"routed","start":{"x":0,"y":0},"end":{"x":10,"y":0},"width":0.25,"layer":"front","netId":"generated/electrical/board/push"}])).unwrap();
     let mut engine = CoreEngine::new();
-    scene(engine.handle(fixture::open(doc.clone())));
-    let reply = engine.handle(fixture::commit(
+    scene(engine.open(doc.clone()));
+    let reply = engine.commit_edit(fixture::commit(
         "scan",
         "scan",
         0,
@@ -386,12 +376,10 @@ fn changing_scan_mode_preserves_routed_work_and_rejects_the_edit_atomically() {
         },
     ));
     assert!(
-        matches!(reply, CoreReply::Error { .. }),
+        reply.is_err(),
         "Existing routed copper needs explicit rerouting before a scan-mode change"
     );
-    let (_, after) = scene(engine.handle(CoreRequest::Snapshot {
-        id: "snapshot".into(),
-    }));
+    let (_, after) = scene(engine.snapshot());
     assert_eq!(after, doc);
 }
 
@@ -408,7 +396,7 @@ fn repeated_logical_contacts_reject_conflicting_nets_and_locate_both_physical_pa
     ]))
     .unwrap();
     let mut engine = CoreEngine::new();
-    let (scene, _) = scene(engine.handle(fixture::open(doc)));
+    let (scene, _) = scene(engine.open(doc));
     let conflict = scene
         .findings
         .iter()
@@ -445,7 +433,7 @@ fn encoder_replacement_retains_keycap_settings_and_reports_unverified_fit() {
     );
     let original = doc.keycaps.clone();
     let mut engine = CoreEngine::new();
-    let (opened, saved) = scene(engine.handle(fixture::open(doc.clone())));
+    let (opened, saved) = scene(engine.open(doc.clone()));
     assert_eq!(saved.keycaps, original);
     let finding = opened
         .findings
@@ -453,14 +441,7 @@ fn encoder_replacement_retains_keycap_settings_and_reports_unverified_fit() {
         .find(|finding| finding.id == "keycaps/matrix/main/r0c0/unsupported-input")
         .expect("Inherited MX keycap settings on an encoder require a visible fit finding");
     assert_eq!(finding.target_ids, vec!["matrix/main/r0c0"]);
-    let CoreReply::KeycapsResolved { result, .. } = engine.handle(CoreRequest::ResolveKeycaps {
-        id: "caps".into(),
-        board_id: "board".into(),
-        document: saved,
-        cases: None,
-    }) else {
-        panic!("Expected public keycap resolution")
-    };
+    let result = CoreEngine::resolve_keycaps(&saved, "board", None);
     assert!(
         result.specs.is_empty(),
         "An encoder cannot acquire a fabricated MX stem from inherited settings"
@@ -499,30 +480,24 @@ fn replacing_a_key_with_a_profiled_encoder_preserves_its_companion_and_all_layer
         "assemblies":[{"id":"diode","definitionId":"companion","offset":{"x":8,"y":3},"rotation":90,"side":"back"}]
     }])).unwrap();
     let mut engine = CoreEngine::new();
-    scene(engine.handle(fixture::open(original.clone())));
-    let (_, before) = scene(engine.handle(CoreRequest::Edit {
-        id: "materialize".into(),
-        command: EditCommand {
-            base_revision: 0,
-            transaction_id: "materialize".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec!["main".into()],
-            operation: fixture::set_matrix(original.matrices[0].clone()),
-        },
+    scene(engine.open(original.clone()));
+    let (_, before) = scene(engine.commit_edit(EditCommand {
+        base_revision: 0,
+        transaction_id: "materialize".into(),
+        phase: EditPhase::Commit,
+        target_ids: vec!["main".into()],
+        operation: fixture::set_matrix(original.matrices[0].clone()),
     }));
     let mut matrix = before.matrices[0].clone();
     matrix.cells[0].definition_id = Some("custom-input".into());
-    let (findings, after) = scene(engine.handle(CoreRequest::Edit {
-        id: "replace".into(),
-        command: EditCommand {
-            base_revision: before.revision,
-            transaction_id: "replace".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec!["main".into()],
-            operation: EditOperation::SetMatrix {
-                matrix,
-                definitions: Some(vec![serde_json::from_value(replacement).unwrap()]),
-            },
+    let (findings, after) = scene(engine.commit_edit(EditCommand {
+        base_revision: before.revision,
+        transaction_id: "replace".into(),
+        phase: EditPhase::Commit,
+        target_ids: vec!["main".into()],
+        operation: EditOperation::SetMatrix {
+            matrix,
+            definitions: Some(vec![serde_json::from_value(replacement).unwrap()]),
         },
     }));
     assert_eq!(after.keymap, before.keymap);
@@ -554,15 +529,12 @@ fn replacing_a_key_with_a_profiled_encoder_preserves_its_companion_and_all_layer
             .iter()
             .any(|f| f.id == "input/matrix/main/r0c0/assembly-fit")
     );
-    let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    let (_, undone) = scene(engine.undo());
     assert_eq!(undone.parts, before.parts);
-    let (_, redone) = scene(engine.handle(CoreRequest::Redo { id: "redo".into() }));
+    let (_, redone) = scene(engine.redo());
     assert_eq!(redone.parts, after.parts);
     let mut reopened = CoreEngine::new();
-    let (_, persisted) = scene(reopened.handle(CoreRequest::Open {
-        id: "reload".into(),
-        document: after.clone(),
-    }));
+    let (_, persisted) = scene(reopened.open(after.clone()));
     assert_eq!(persisted.parts, after.parts);
     assert_eq!(persisted.keymap, after.keymap);
 }
@@ -577,7 +549,7 @@ fn press_only_profiles_obey_matrix_direct_and_unassigned_modes() {
         .unwrap(),
     );
     let mut engine = CoreEngine::new();
-    scene(engine.handle(fixture::open(doc)));
+    scene(engine.open(doc));
     let key = "matrix/main/r0c0";
     for (revision, mode, assignments) in [(0, "unassigned", 0), (1, "direct", 0), (2, "matrix", 1)]
     {

@@ -6,15 +6,13 @@
 //! same explicit ownership and geometry, and a document this build writes must already
 //! be at the current integrated format version.
 use crate::support::fixture::{self, outline_snapshot as accepted, scene};
-use boardstudio_core::model::{
-    ArchiveAssetBuffer, ArchiveReply, CoreReply, CoreRequest, ProjectDoc, SceneDelta,
-};
+use boardstudio_core::model::{ArchiveAssetBuffer, ArchiveReply, ProjectDoc, SceneDelta};
 use boardstudio_core::{CoreEngine, archive, document_format};
 use sha2::{Digest, Sha256};
 
 fn edit(engine: &mut CoreEngine, revision: u64, operation: &serde_json::Value) -> SceneDelta {
     let operation = serde_json::from_value(operation.clone()).expect("outline command contract");
-    scene(engine.handle(fixture::commit(
+    scene(engine.commit_edit(fixture::commit(
         "outline-edit",
         "outline-edit",
         revision,
@@ -59,7 +57,7 @@ fn stored_document() -> (String, Vec<ArchiveAssetBuffer>, Vec<Vec<u8>>) {
     }];
     let buffers = vec![asset_bytes];
     let mut engine = CoreEngine::new();
-    let opened = scene(engine.handle(fixture::open(document)));
+    let opened = scene(engine.open(document));
     let linked = edit(
         &mut engine,
         opened.revision,
@@ -138,15 +136,9 @@ fn archive_migration_and_browser_writeback_agree_on_ownership_reservation_and_ge
 
     // Browser path: the same stored JSON through the storage load and writeback.
     let mut archive_engine = CoreEngine::new();
-    let archive_scene = scene(archive_engine.handle(CoreRequest::Open {
-        id: "archive".into(),
-        document: serde_json::from_str(&archived_json).unwrap(),
-    }));
+    let archive_scene = scene(archive_engine.open(serde_json::from_str(&archived_json).unwrap()));
     let mut browser_engine = CoreEngine::new();
-    let browser_scene = scene(browser_engine.handle(CoreRequest::Open {
-        id: "browser".into(),
-        document: browser_writeback(&stored),
-    }));
+    let browser_scene = scene(browser_engine.open(browser_writeback(&stored)));
 
     let archive_document = serde_json::to_value(accepted(&mut archive_engine)).unwrap();
     let browser_document = serde_json::to_value(accepted(&mut browser_engine)).unwrap();
@@ -215,17 +207,14 @@ fn a_document_this_build_writes_is_at_the_current_integrated_format_version() {
     let text = serde_json::to_string(&empty).unwrap();
     assert_eq!(empty.format_version, document_format::CURRENT_VERSION);
     document_format::require_current_value(&serde_json::from_str(&text).unwrap()).unwrap();
-    scene(engine.handle(CoreRequest::Open {
-        id: "new".into(),
-        document: serde_json::from_str(&text).unwrap(),
-    }));
+    scene(engine.open(serde_json::from_str(&text).unwrap()));
 
     // A version created in the current format keeps no migration debt either.
     let mut engine = CoreEngine::new();
     let mut fixture: ProjectDoc =
         serde_json::from_str(include_str!("fixtures/synthetic-outline.json")).unwrap();
     fixture.format_version = document_format::CURRENT_VERSION;
-    let opened = scene(engine.handle(fixture::open(fixture)));
+    let opened = scene(engine.open(fixture));
     let created = edit(
         &mut engine,
         opened.revision,
@@ -279,10 +268,7 @@ fn both_transports_keep_version_and_feature_identities() {
         "the fixture persisted contour identities"
     );
     let mut engine = CoreEngine::new();
-    scene(engine.handle(CoreRequest::Open {
-        id: "browser".into(),
-        document: browser_writeback(&stored),
-    }));
+    scene(engine.open(browser_writeback(&stored)));
     assert_eq!(ids(&accepted(&mut engine)), expected);
 }
 
@@ -298,19 +284,8 @@ fn refusing_an_older_document_preserves_its_outline_versions_and_identity_reserv
     assert!(error == "Unsupported formatVersion: expected 8", "{error}");
     assert_eq!(older.to_string(), original);
     let mut engine = CoreEngine::new();
-    let before = scene(engine.handle(CoreRequest::Open {
-        id: "valid".into(),
-        document: browser_writeback(&stored),
-    }));
-    assert!(matches!(
-        engine.handle(CoreRequest::Open {
-            id: "old".into(),
-            document: serde_json::from_value(older).unwrap()
-        }),
-        CoreReply::Error { .. }
-    ));
-    let after = scene(engine.handle(CoreRequest::Snapshot {
-        id: "after-refusal".into(),
-    }));
+    let before = scene(engine.open(browser_writeback(&stored)));
+    assert!(engine.open(serde_json::from_value(older).unwrap()).is_err());
+    let after = scene(engine.snapshot());
     assert_eq!(after.board_contours, before.board_contours);
 }

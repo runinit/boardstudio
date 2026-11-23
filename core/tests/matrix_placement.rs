@@ -5,10 +5,10 @@ use crate::support::fixture::{
     self, matrix_document as matrix_doc, part_at as at, scene_and_document as scene,
 };
 use crate::support::session::{commit_edit, open_engine};
-use boardstudio_core::{CoreEngine, model::*};
+use boardstudio_core::{CoreEngine, EditOutcome, model::*};
 
 fn snapshot(engine: &mut CoreEngine) -> ProjectDoc {
-    scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() })).1
+    scene(engine.snapshot()).1
 }
 
 fn fixture(rows: u32, columns: u32) -> (CoreEngine, SceneDelta, ProjectDoc) {
@@ -240,7 +240,7 @@ fn wire_placement(
             }
         }
     }).to_string());
-    scene(serde_json::from_str(&reply).unwrap())
+    fixture::wire_scene_and_document(&reply)
 }
 
 fn internal_constraint_translation(column: Option<u32>) {
@@ -282,17 +282,14 @@ fn internal_constraint_translation(column: Option<u32>) {
         matrix_id: "main".into(),
         change,
     };
-    let preview = match engine.handle(CoreRequest::Edit {
-        id: "internal-preview".into(),
-        command: EditCommand {
-            base_revision: before.revision,
-            transaction_id: "internal".into(),
-            phase: EditPhase::Preview,
-            target_ids: vec!["main".into()],
-            operation: operation.clone(),
-        },
+    let preview = match engine.apply_edit(EditCommand {
+        base_revision: before.revision,
+        transaction_id: "internal".into(),
+        phase: EditPhase::Preview,
+        target_ids: vec!["main".into()],
+        operation: operation.clone(),
     }) {
-        CoreReply::Preview { scene, .. } => scene,
+        Ok(EditOutcome::Preview(scene)) => scene,
         other => panic!("representable internal constraint preview: {other:?}"),
     };
     assert_eq!(snapshot(&mut engine), before);
@@ -348,15 +345,11 @@ fn internal_constraint_translation(column: Option<u32>) {
     {
         assert_eq!(values.offset, original.offset);
     }
-    let (_, undone) = scene(engine.handle(CoreRequest::Undo {
-        id: "internal-undo".into(),
-    }));
+    let (_, undone) = scene(engine.undo());
     assert_eq!(undone.parts, before.parts);
     assert_eq!(undone.matrices, before.matrices);
     assert_eq!(undone.constraints, before.constraints);
-    let (_, redone) = scene(engine.handle(CoreRequest::Redo {
-        id: "internal-redo".into(),
-    }));
+    let (_, redone) = scene(engine.redo());
     assert_eq!(redone.parts, after.parts);
     assert_eq!(redone.matrices, after.matrices);
     assert_eq!(redone.constraints, after.constraints);

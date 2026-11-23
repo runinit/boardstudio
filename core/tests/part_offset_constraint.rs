@@ -2,7 +2,7 @@
 //! source part's own axes, so a companion held to a key keeps its pose in the key's frame
 //! whenever the key turns. An `offset` constraint keeps its board-axes meaning.
 use crate::support::fixture::{self, scene_and_document as scene};
-use boardstudio_core::{CoreEngine, model::*};
+use boardstudio_core::{CommittedScene, CoreEngine, EditOutcome, model::*};
 
 const KEY: &str = "matrix/m/r0c1";
 const HELD: &str = "matrix/m/r0c1/held";
@@ -12,7 +12,7 @@ fn edit(
     doc: &ProjectDoc,
     operation: EditOperation,
 ) -> (SceneDelta, ProjectDoc) {
-    scene(engine.handle(fixture::commit("edit", "edit", doc.revision, operation)))
+    scene(engine.commit_edit(fixture::commit("edit", "edit", doc.revision, operation)))
 }
 
 fn matrix() -> Matrix {
@@ -46,15 +46,12 @@ fn fixture(constraint: impl FnOnce() -> Constraint) -> (CoreEngine, ProjectDoc) 
     ]))
     .unwrap();
     let mut engine = CoreEngine::new();
-    let (_, doc) = scene(engine.handle(fixture::open(doc)));
+    let (_, doc) = scene(engine.open(doc));
     let (_, mut doc) = edit(&mut engine, &doc, fixture::set_matrix(matrix()));
     doc.constraints.push(constraint());
     let mut engine = CoreEngine::new();
-    scene(engine.handle(CoreRequest::Open {
-        id: "reopen".into(),
-        document: doc,
-    }));
-    let (_, doc) = scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() }));
+    scene(engine.open(doc));
+    let (_, doc) = scene(engine.snapshot());
     (engine, doc)
 }
 
@@ -246,8 +243,8 @@ fn convert(
     doc: &ProjectDoc,
     constraint_id: &str,
     to: OffsetAxes,
-) -> CoreReply {
-    engine.handle(fixture::commit(
+) -> Result<CommittedScene, String> {
+    engine.commit_edit(fixture::commit(
         "convert",
         "convert",
         doc.revision,
@@ -332,7 +329,7 @@ fn converting_a_part_offset_to_board_axes_moves_no_part_and_keeps_the_id() {
 #[test]
 fn converting_an_unknown_constraint_is_refused_and_changes_nothing() {
     let (mut engine, before) = splayed(held_by_part_axes);
-    let CoreReply::Error { message, .. } = convert(
+    let Err(message) = convert(
         &mut engine,
         &before,
         "no-such-constraint",
@@ -341,7 +338,7 @@ fn converting_an_unknown_constraint_is_refused_and_changes_nothing() {
         panic!("an unknown constraint must be refused");
     };
     assert!(message.contains("no-such-constraint"), "{message}");
-    let (_, now) = scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() }));
+    let (_, now) = scene(engine.snapshot());
     assert_eq!(now.constraints, before.constraints);
     assert_every_part_kept(&before, &now);
 }
@@ -356,11 +353,11 @@ fn converting_a_mirror_constraint_is_refused_and_changes_nothing() {
             axis: MirrorAxis::Vertical,
             coordinate: 5.0,
         });
-        let CoreReply::Error { message, .. } = convert(&mut engine, &before, "held-key", to) else {
+        let Err(message) = convert(&mut engine, &before, "held-key", to) else {
             panic!("a mirror has no offset axes to convert to {to:?}");
         };
         assert!(message.contains("mirror"), "{message}");
-        let (_, now) = scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() }));
+        let (_, now) = scene(engine.snapshot());
         assert_eq!(now.constraints, before.constraints);
         assert_eq!(now.revision, before.revision);
         assert_every_part_kept(&before, &now);
@@ -412,7 +409,7 @@ fn previewing_a_drag_of_a_constrained_companion_leaves_its_stored_offset_untouch
     ] {
         let (mut engine, before) = splayed(constraint);
         let start = fixture::part_by_id(&before, HELD).pose.at;
-        let _ = engine.handle(fixture::edit(
+        let _ = engine.apply_edit(fixture::edit(
             "preview",
             "drag",
             before.revision,
@@ -427,7 +424,7 @@ fn previewing_a_drag_of_a_constrained_companion_leaves_its_stored_offset_untouch
                 }],
             },
         ));
-        let (_, now) = scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() }));
+        let (_, now) = scene(engine.snapshot());
         assert_eq!(
             now.constraints, before.constraints,
             "{kind} was changed by a preview"
@@ -597,7 +594,7 @@ fn dragging_the_authority_retunes_a_saved_linked_target() {
         }
     })).unwrap();
     let mut engine = CoreEngine::new();
-    let (_, opened) = fixture::scene_and_document(engine.handle(fixture::open(document)));
+    let (_, opened) = fixture::scene_and_document(engine.open(document));
     assert_eq!(
         fixture::part_by_id(&opened, "alpha/T").pose.at,
         Vec2 { x: 16.0, y: 4.0 }
@@ -609,7 +606,7 @@ fn dragging_the_authority_retunes_a_saved_linked_target() {
             at,
         }],
     };
-    let CoreReply::Preview { scene, .. } = engine.handle(fixture::edit(
+    let Ok(EditOutcome::Preview(scene)) = engine.apply_edit(fixture::edit(
         "drag",
         "drag",
         opened.revision,
@@ -624,7 +621,7 @@ fn dragging_the_authority_retunes_a_saved_linked_target() {
             .iter()
             .any(|transform| transform.id == "alpha/T" && transform.pose.at == at)
     );
-    let (_, committed) = fixture::scene_and_document(engine.handle(fixture::commit(
+    let (_, committed) = fixture::scene_and_document(engine.commit_edit(fixture::commit(
         "drag",
         "drag",
         opened.revision,

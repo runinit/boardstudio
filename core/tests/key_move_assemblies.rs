@@ -1,10 +1,11 @@
 use crate::support::fixture::{self, document as scene};
 use crate::support::session::builders::{companion_cell, move_key, move_parts, offset_constraint};
 use boardstudio_core::CoreEngine;
+use boardstudio_core::EditOutcome;
 use boardstudio_core::model::*;
 
 fn edit(engine: &mut CoreEngine, doc: &ProjectDoc, operation: EditOperation) -> ProjectDoc {
-    scene(engine.handle(fixture::commit("edit", "move", doc.revision, operation)))
+    scene(engine.commit_edit(fixture::commit("edit", "move", doc.revision, operation)))
 }
 
 fn fixture() -> (CoreEngine, ProjectDoc) {
@@ -16,7 +17,7 @@ fn fixture() -> (CoreEngine, ProjectDoc) {
         {"id":"led","name":"LED","kind":"passive","courtyard":[],"pads":[]}
     ]))
     .unwrap();
-    let doc = scene(engine.handle(fixture::open(doc)));
+    let doc = scene(engine.open(doc));
     let matrix = Matrix {
         cells: vec![companion_cell(0, 0)],
         ..fixture::matrix("main", 1, 1)
@@ -64,9 +65,9 @@ fn moving_matrix_key_moves_its_diode_and_led() {
         after.matrices[0].cells[0].offset,
         Some(Vec2 { x: 7.0, y: 9.0 })
     );
-    let undone = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    let undone = scene(engine.undo());
     assert_eq!(undone.parts, before.parts);
-    let redone = scene(engine.handle(CoreRequest::Redo { id: "redo".into() }));
+    let redone = scene(engine.redo());
     assert_eq!(redone.parts, after.parts);
 }
 
@@ -82,14 +83,14 @@ fn setting_matrix_key_offset_moves_its_diode_and_led() {
 #[test]
 fn key_move_preview_restores_document_and_moves_companions() {
     let (mut engine, before) = fixture();
-    let reply = engine.handle(fixture::edit(
+    let reply = engine.apply_edit(fixture::edit(
         "preview",
         "preview",
         before.revision,
         EditPhase::Preview,
         move_key("matrix/main/r0c0", 7.0, 9.0),
     ));
-    let CoreReply::Preview { scene: preview, .. } = reply else {
+    let Ok(EditOutcome::Preview(preview)) = reply else {
         panic!("expected preview")
     };
     for suffix in ["", "/diode", "/led"] {
@@ -106,9 +107,7 @@ fn key_move_preview_restores_document_and_moves_companions() {
             }
         );
     }
-    let snapshot = scene(engine.handle(CoreRequest::Snapshot {
-        id: "snapshot".into(),
-    }));
+    let snapshot = scene(engine.snapshot());
     assert_eq!(snapshot, before);
 }
 
@@ -156,7 +155,7 @@ fn key_move_absorbs_legacy_absolute_override_into_cell_offset() {
         .get_or_insert_default()
         .insert("layoutOverride".into(), serde_json::json!(1));
     let mut engine = CoreEngine::new();
-    let before = scene(engine.handle(fixture::open(legacy)));
+    let before = scene(engine.open(legacy));
     let after = edit(&mut engine, &before, move_key("matrix/main/r0c0", 7.0, 9.0));
     assert_eq!(at(&after, ""), Vec2 { x: 7.0, y: 9.0 });
     assert_eq!(
@@ -230,7 +229,7 @@ fn constraint_source_fixture() -> (CoreEngine, ProjectDoc) {
         0.0,
     ));
     let mut engine = CoreEngine::new();
-    let doc = scene(engine.handle(fixture::open(doc)));
+    let doc = scene(engine.open(doc));
     (engine, doc)
 }
 
@@ -255,14 +254,14 @@ fn moving_only_constraint_source_moves_matrix_key_companions() {
 #[test]
 fn moving_constraint_source_preview_restores_parametric_document() {
     let (mut engine, before) = constraint_source_fixture();
-    let reply = engine.handle(fixture::edit(
+    let reply = engine.apply_edit(fixture::edit(
         "preview",
         "preview",
         before.revision,
         EditPhase::Preview,
         move_key("anchor", 3.0, 4.0),
     ));
-    let CoreReply::Preview { scene: preview, .. } = reply else {
+    let Ok(EditOutcome::Preview(preview)) = reply else {
         panic!("expected preview")
     };
     for suffix in ["", "/diode", "/led"] {
@@ -282,10 +281,10 @@ fn moving_constraint_source_preview_restores_parametric_document() {
     assert_eq!(fixture::outline_snapshot(&mut engine), before);
     let after = edit(&mut engine, &before, move_key("anchor", 3.0, 4.0));
     assert_companions_follow(&before, &after);
-    let undone = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    let undone = scene(engine.undo());
     assert_eq!(undone.parts, before.parts);
     assert_eq!(undone.matrices, before.matrices);
-    let redone = scene(engine.handle(CoreRequest::Redo { id: "redo".into() }));
+    let redone = scene(engine.redo());
     assert_eq!(redone.parts, after.parts);
     assert_eq!(redone.matrices, after.matrices);
 }
@@ -334,7 +333,7 @@ fn constrained_key_propagation_respects_companions_own_constraint() {
         rotation: 0.0,
     });
     let mut engine = CoreEngine::new();
-    let before = scene(engine.handle(fixture::open(doc)));
+    let before = scene(engine.open(doc));
     let after = edit(&mut engine, &before, move_key("anchor", 3.0, 4.0));
     assert_eq!(at(&after, "/diode"), at(&before, "/diode"));
     assert_eq!(at(&after, "/led"), Vec2 { x: 0.0, y: 10.0 });
@@ -353,7 +352,7 @@ fn opening_constrained_key_reconciles_companion_placement_and_rotation() {
         rotation: 30.0,
     };
     let mut engine = CoreEngine::new();
-    let after = scene(engine.handle(fixture::open(doc)));
+    let after = scene(engine.open(doc));
     let (sin, cos) = 30_f64.to_radians().sin_cos();
     for (suffix, offset) in [
         ("/diode", Vec2 { x: 2.0, y: 5.0 }),
@@ -387,7 +386,7 @@ fn direct_key_move_preserves_companions_authored_constraint() {
         .get_or_insert_default()
         .insert("layoutOverride".into(), serde_json::json!(1));
     let mut engine = CoreEngine::new();
-    let before = scene(engine.handle(fixture::open(doc)));
+    let before = scene(engine.open(doc));
     let after = edit(&mut engine, &before, move_key("matrix/main/r0c0", 3.0, 4.0));
     assert_eq!(at(&after, "/diode"), at(&before, "/diode"));
     assert_eq!(after.constraints, before.constraints);
@@ -412,7 +411,7 @@ fn assembly_chain_fixture() -> (CoreEngine, ProjectDoc) {
             -5.0,
         ));
     }
-    let doc = scene(engine.handle(fixture::open(doc)));
+    let doc = scene(engine.open(doc));
     (engine, doc)
 }
 
@@ -457,21 +456,21 @@ fn assembly_dependency_chain_settles_in_open() {
         .pose
         .at = Vec2 { x: 3.0, y: 4.0 };
     let mut engine = CoreEngine::new();
-    let after = scene(engine.handle(fixture::open(changed)));
+    let after = scene(engine.open(changed));
     assert_chain_shifted(&before, &after, Vec2 { x: 3.0, y: 4.0 });
 }
 
 #[test]
 fn assembly_dependency_chain_preview_settles_and_restores_document() {
     let (mut engine, before) = assembly_chain_fixture();
-    let reply = engine.handle(fixture::edit(
+    let reply = engine.apply_edit(fixture::edit(
         "preview",
         "preview",
         before.revision,
         EditPhase::Preview,
         move_key("anchor", 3.0, 4.0),
     ));
-    let CoreReply::Preview { scene: preview, .. } = reply else {
+    let Ok(EditOutcome::Preview(preview)) = reply else {
         panic!("expected preview")
     };
     for part in &before.parts {
@@ -507,11 +506,8 @@ fn assembly_parent_constraint_cycle_is_rejected_without_mutating_document() {
         -2.0,
         -5.0,
     ));
-    let reply = engine.handle(CoreRequest::Open {
-        id: "cycle".into(),
-        document: cyclic,
-    });
-    let CoreReply::Error { message, .. } = reply else {
+    let reply = engine.open(cyclic);
+    let Err(message) = reply else {
         panic!("expected dependency cycle rejection")
     };
     assert!(message.contains("cycle"), "{message}");
@@ -537,7 +533,7 @@ fn independent_assembly_constraint_breaks_implicit_parent_dependency_cycle() {
         5.0,
     ));
     let mut engine = CoreEngine::new();
-    let before = scene(engine.handle(fixture::open(doc)));
+    let before = scene(engine.open(doc));
     let after = edit(&mut engine, &before, move_key("anchor", 3.0, 4.0));
     assert_companions_follow(&before, &after);
 }

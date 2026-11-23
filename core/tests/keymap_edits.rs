@@ -1,3 +1,4 @@
+use crate::support::fixture;
 use boardstudio_core::{CoreEngine, model::*};
 use serde_json::{Value, json};
 
@@ -18,13 +19,7 @@ fn fixture() -> ProjectDoc {
 
 fn open(doc: ProjectDoc) -> CoreEngine {
     let mut engine = CoreEngine::default();
-    assert!(matches!(
-        engine.handle(CoreRequest::Open {
-            id: "open".into(),
-            document: doc
-        }),
-        CoreReply::Scene { .. }
-    ));
+    assert!(engine.open(doc).is_ok());
     engine
 }
 
@@ -54,9 +49,9 @@ fn bindings_create_defaults_preserve_geometry_and_support_history() {
         "&kp A"
     );
     assert_eq!(doc.revision, 1);
-    let undone = document(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    let undone = fixture::document(engine.undo());
     assert!(undone.hardware.is_none());
-    let redone = document(engine.handle(CoreRequest::Redo { id: "redo".into() }));
+    let redone = fixture::document(engine.redo());
     assert_eq!(
         redone.hardware.unwrap().boards[0].key_bindings["matrix/m/r0c0"],
         "&kp A"
@@ -143,9 +138,7 @@ fn invalid_targets_values_and_stale_revisions_are_atomic() {
             edit(&mut engine, 0, operation),
             CoreReply::Error { .. }
         ));
-        let snapshot = document(engine.handle(CoreRequest::Snapshot {
-            id: "snapshot".into(),
-        }));
+        let snapshot = fixture::document(engine.snapshot());
         assert_eq!(snapshot.revision, 0);
         assert!(snapshot.keycaps.is_none());
         assert!(snapshot.hardware.is_none());

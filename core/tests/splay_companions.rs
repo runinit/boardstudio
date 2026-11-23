@@ -9,7 +9,7 @@ fn edit(
     doc: &ProjectDoc,
     operation: EditOperation,
 ) -> (SceneDelta, ProjectDoc) {
-    scene(engine.handle(fixture::commit("edit", "edit", doc.revision, operation)))
+    scene(engine.commit_edit(fixture::commit("edit", "edit", doc.revision, operation)))
 }
 
 fn matrix() -> Matrix {
@@ -47,7 +47,7 @@ fn fixture() -> (CoreEngine, ProjectDoc) {
     ]))
     .unwrap();
     let mut engine = CoreEngine::new();
-    let (_, doc) = scene(engine.handle(fixture::open(doc)));
+    let (_, doc) = scene(engine.open(doc));
     let (_, mut doc) = edit(&mut engine, &doc, fixture::set_matrix(matrix()));
     doc.constraints.push(Constraint::Offset {
         id: "held-key".into(),
@@ -58,13 +58,10 @@ fn fixture() -> (CoreEngine, ProjectDoc) {
     });
     let (mut engine, _) = {
         let mut engine = CoreEngine::new();
-        let (_, doc) = scene(engine.handle(CoreRequest::Open {
-            id: "reopen".into(),
-            document: doc,
-        }));
+        let (_, doc) = scene(engine.open(doc));
         (engine, doc)
     };
-    let (_, doc) = scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() }));
+    let (_, doc) = scene(engine.snapshot());
     // Author one companion away from its generated offset, as a drag would.
     let (_, doc) = edit(
         &mut engine,

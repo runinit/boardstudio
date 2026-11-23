@@ -1,5 +1,5 @@
 use crate::support::fixture::{self, scene_and_document as scene};
-use boardstudio_core::{CoreEngine, model::*};
+use boardstudio_core::{CoreEngine, EditOutcome, model::*};
 
 fn matrix() -> Matrix {
     Matrix {
@@ -41,7 +41,7 @@ fn open() -> CoreEngine {
     ));
     doc.boards.push(fixture::board("board", "Board"));
     let mut engine = CoreEngine::new();
-    scene(engine.handle(fixture::open(doc)));
+    scene(engine.open(doc));
     let mut source = matrix();
     source.board_id = Some("board".into());
     let request = serde_json::json!({"kind":"edit","id":"pair","command":{
@@ -50,17 +50,17 @@ fn open() -> CoreEngine {
         "left":{"id":"left-layout","name":"Left","boardId":"board","matrixIds":["m"],"partIds":[]},
         "right":{"id":"right-layout","name":"Right","boardId":"board","matrixIds":["right"],"partIds":[],"mirrorLink":{"sourceId":"left-layout","axisX":0}}
     }}});
-    let (_, mut paired) =
-        scene(serde_json::from_str(&engine.request(&request.to_string())).unwrap());
+    let reply: CoreReply = serde_json::from_str(&engine.request(&request.to_string())).unwrap();
+    let CoreReply::Scene { document, .. } = reply else {
+        panic!("expected scene: {reply:?}")
+    };
+    let mut paired = *document;
     paired.revision = 0;
-    scene(engine.handle(CoreRequest::Open {
-        id: "reopen".into(),
-        document: paired,
-    }));
+    scene(engine.open(paired));
     engine
 }
 
-fn edit(base: u64, phase: EditPhase, change: MatrixSplayChange) -> CoreRequest {
+fn edit(base: u64, phase: EditPhase, change: MatrixSplayChange) -> EditCommand {
     fixture::edit(
         "e",
         "t",
@@ -81,24 +81,22 @@ fn preview_and_commit_have_equal_matrix_projection_and_history_roundtrips() {
         angle: 25.0,
         affect: MatrixSplayAffect::Following,
     };
-    let preview = match engine.handle(edit(0, EditPhase::Preview, change.clone())) {
-        CoreReply::Preview { scene, .. } => scene,
+    let preview = match engine.apply_edit(edit(0, EditPhase::Preview, change.clone())) {
+        Ok(EditOutcome::Preview(scene)) => scene,
         other => panic!("{other:?}"),
     };
-    let (_, snapshot) = scene(engine.handle(CoreRequest::Snapshot {
-        id: "snapshot".into(),
-    }));
+    let (_, snapshot) = scene(engine.snapshot());
     assert!(
         snapshot
             .matrices
             .iter()
             .all(|matrix| matrix.column_layout[1].splay == 0.0)
     );
-    let (committed, doc) = scene(engine.handle(edit(0, EditPhase::Commit, change)));
+    let (committed, doc) = scene(engine.commit_edit(edit(0, EditPhase::Commit, change)));
     assert_eq!(preview.matrix_scenes, committed.matrix_scenes);
     assert_eq!(doc.matrices[0].column_layout[1].splay, 25.0);
-    let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "u".into() }));
+    let (_, undone) = scene(engine.undo());
     assert_eq!(undone.matrices[0].column_layout[1].splay, 0.0);
-    let (_, redone) = scene(engine.handle(CoreRequest::Redo { id: "r".into() }));
+    let (_, redone) = scene(engine.redo());
     assert_eq!(redone.matrices[0].column_layout[1].splay, 25.0);
 }

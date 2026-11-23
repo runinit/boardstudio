@@ -21,7 +21,7 @@ fn union_difference_make_one_hole() {
         5.0,
         Operation::Subtract,
     ));
-    let (scene, _) = scene(engine.handle(fixture::open(doc)));
+    let (scene, _) = scene(engine.open(doc));
     assert_eq!(scene.contours.len(), 2);
     assert_eq!(scene.contours.iter().filter(|c| c.hole).count(), 1);
     assert!(scene.readiness.outline);
@@ -87,10 +87,7 @@ fn duplicate_pad_nets_and_invalid_case_block_readiness() {
         pcb_source: None,
         gasket: None,
     });
-    let (bad, _) = scene(engine.handle(CoreRequest::Open {
-        id: "bad".into(),
-        document: doc.clone(),
-    }));
+    let (bad, _) = scene(engine.open(doc.clone()));
     assert!(!bad.readiness.pcb);
     assert!(
         bad.findings
@@ -99,10 +96,7 @@ fn duplicate_pad_nets_and_invalid_case_block_readiness() {
     );
     doc.nets.pop();
     doc.boards[0].net_ids.pop();
-    let (case_bad, _) = scene(engine.handle(CoreRequest::Open {
-        id: "case-bad".into(),
-        document: doc,
-    }));
+    let (case_bad, _) = scene(engine.open(doc));
     assert!(case_bad.readiness.pcb);
     assert!(!case_bad.readiness.case_ready);
     assert!(
@@ -149,7 +143,7 @@ fn board_contours_follow_each_boards_authored_order() {
         outline_ids: vec!["right".into()],
         ..fixture::board("right-board", "Right")
     });
-    let (scene, _) = scene(engine.handle(fixture::open(doc)));
+    let (scene, _) = scene(engine.open(doc));
     assert_eq!(scene.board_contours.len(), 2);
     assert_eq!(scene.board_contours[0].board_id, "left-board");
     assert_eq!(scene.board_contours[0].contours.len(), 2);
@@ -186,7 +180,8 @@ fn add_part_accepts_definition_and_selected_layout_atomically() {
         definition: Some(definition.clone()),
         layout_id: Some("left-layout".into()),
     };
-    let (_, added) = scene(engine.handle(edit(document.revision, EditPhase::Commit, operation)));
+    let (_, added) =
+        scene(engine.commit_edit(edit(document.revision, EditPhase::Commit, operation)));
     assert_eq!(
         added
             .definitions
@@ -215,7 +210,7 @@ fn add_part_reuses_identical_definition_without_duplicate_registration() {
     let mut part = document.parts[0].clone();
     part.id = "board/reused-definition".into();
     part.reference = "REUSE1".into();
-    let (_, added) = scene(engine.handle(edit(
+    let (_, added) = scene(engine.commit_edit(edit(
         document.revision,
         EditPhase::Commit,
         EditOperation::AddPart {
@@ -259,7 +254,7 @@ fn add_part_refuses_conflicting_definitions_and_invalid_layouts() {
         part.id = format!("board/refusal-{layout_id}");
         part.definition_id = "switch".into();
         part.reference = "REFUSE1".into();
-        let reply = engine.handle(edit(
+        let reply = engine.commit_edit(edit(
             document.revision,
             EditPhase::Commit,
             EditOperation::AddPart {
@@ -269,10 +264,8 @@ fn add_part_refuses_conflicting_definitions_and_invalid_layouts() {
                 layout_id: Some(layout_id.into()),
             },
         ));
-        assert!(matches!(reply, CoreReply::Error { .. }), "{reply:?}");
-        let (_, after_refusal) = scene(engine.handle(CoreRequest::Snapshot {
-            id: "snapshot-after-add-part-refusal".into(),
-        }));
+        assert!(reply.is_err(), "{reply:?}");
+        let (_, after_refusal) = scene(engine.snapshot());
         assert_eq!(
             after_refusal, document,
             "definition or layout refusal preserves the complete document"
@@ -301,14 +294,14 @@ fn matrix_shrink_discards_out_of_bounds_edits() {
         rotation: None,
         assemblies: vec![],
     }];
-    let (_, original) = scene(engine.handle(edit(
+    let (_, original) = scene(engine.commit_edit(edit(
         0,
         EditPhase::Commit,
         fixture::set_matrix(value.clone()),
     )));
     value.rows = 5;
     value.columns = 6;
-    let (_, shrunk) = scene(engine.handle(edit(
+    let (_, shrunk) = scene(engine.commit_edit(edit(
         original.revision,
         EditPhase::Commit,
         fixture::set_matrix(value),
@@ -330,30 +323,28 @@ fn failed_matrix_preview_restores_document() {
     doc.parts
         .push(fixture::part("matrix/main/r0c1", "switch", "SW99"));
     let mut engine = CoreEngine::new();
-    let (_, original) = scene(engine.handle(fixture::open(doc)));
-    let reply = engine.handle(edit(
+    let (_, original) = scene(engine.open(doc));
+    let reply = engine.apply_edit(edit(
         0,
         EditPhase::Preview,
         fixture::set_matrix(matrix(1, 2)),
     ));
-    assert!(matches!(reply, CoreReply::Error { .. }));
+    assert!(reply.is_err());
     assert_eq!(fixture::outline_snapshot(&mut engine), original);
-    assert!(matches!(
-        engine.handle(CoreRequest::Undo { id: "undo".into() }),
-        CoreReply::Error { .. }
-    ));
+    assert!(engine.undo().is_err());
 }
 
 #[test]
 fn matrix_edit_preserves_moved_member_and_prunes_removed() {
     let (mut engine, _, _) = open_engine(matrix_doc());
-    engine.handle(edit(
+    let _ = engine.commit_edit(edit(
         0,
         EditPhase::Commit,
         fixture::set_matrix(matrix(2, 2)),
     ));
     let moved_id = "matrix/main/r0c0";
-    let (_, moved) = scene(engine.handle(edit(1, EditPhase::Commit, move_key(moved_id, 5.0, 7.0))));
+    let (_, moved) =
+        scene(engine.commit_edit(edit(1, EditPhase::Commit, move_key(moved_id, 5.0, 7.0))));
     assert_eq!(
         moved.matrices[0].cells[0].offset,
         Some(Vec2 { x: 5.0, y: 7.0 })
@@ -367,7 +358,8 @@ fn matrix_edit_preserves_moved_member_and_prunes_removed() {
     let mut changed = moved.matrices[0].clone();
     changed.rows = 1;
     changed.origin = Vec2 { x: 100.0, y: 50.0 };
-    let (_, doc) = scene(engine.handle(edit(2, EditPhase::Commit, fixture::set_matrix(changed))));
+    let (_, doc) =
+        scene(engine.commit_edit(edit(2, EditPhase::Commit, fixture::set_matrix(changed))));
     assert_eq!(doc.parts.len(), 2);
     assert_eq!(
         fixture::part_by_id(&doc, moved_id).pose.at,
@@ -394,10 +386,10 @@ fn constraint_preview_commit_and_undo() {
     }
     doc.constraints
         .push(offset_constraint("offset", "source", "target", 10.0, 0.0));
-    let (_, opened) = scene(engine.handle(fixture::open(doc)));
+    let (_, opened) = scene(engine.open(doc));
     assert_eq!(opened.parts[1].pose.at.x, 10.0);
     let op = move_key("source", 5.0, 0.0);
-    let preview = preview(engine.handle(edit(0, EditPhase::Preview, op.clone())));
+    let preview = preview(engine.apply_edit(edit(0, EditPhase::Preview, op.clone())));
     assert!(preview.changed_ids.contains(&"target".into()));
     assert_eq!(
         preview
@@ -414,19 +406,15 @@ fn constraint_preview_commit_and_undo() {
         fixture::outline_snapshot(&mut engine).parts[1].pose.at.x,
         10.0
     );
-    let (_, committed) = scene(engine.handle(edit(0, EditPhase::Commit, op.clone())));
+    let (_, committed) = scene(engine.commit_edit(edit(0, EditPhase::Commit, op.clone())));
     assert_eq!(committed.parts[1].pose.at.x, 15.0);
-    assert!(matches!(
-        engine.handle(edit(0, EditPhase::Commit, op)),
-        CoreReply::Error { revision: 1, .. }
-    ));
-    let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    assert!(engine.commit_edit(edit(0, EditPhase::Commit, op)).is_err());
+    let (_, undone) = scene(engine.undo());
     assert_eq!(undone.parts[1].pose.at.x, 10.0);
-    let (_, moved) = scene(engine.handle(edit(2, EditPhase::Commit, move_key("target", 8.0, 0.0))));
+    let (_, moved) =
+        scene(engine.commit_edit(edit(2, EditPhase::Commit, move_key("target", 8.0, 0.0))));
     assert_eq!(moved.parts[1].pose.at.x, 8.0);
-    let (_, restored) = scene(engine.handle(CoreRequest::Undo {
-        id: "undo-offset".into(),
-    }));
+    let (_, restored) = scene(engine.undo());
     assert_eq!(restored.parts[1].pose.at.x, 10.0);
 }
 
@@ -438,7 +426,8 @@ fn matrix_cumulative_stagger_splay_survive_growth_and_serialization() {
     value.column_layout.resize_with(2, Default::default);
     value.column_layout[1].stagger = 5.0;
     value.column_layout[1].splay = 90.0;
-    let (_, doc) = scene(engine.handle(edit(0, EditPhase::Commit, fixture::set_matrix(value))));
+    let (_, doc) =
+        scene(engine.commit_edit(edit(0, EditPhase::Commit, fixture::set_matrix(value))));
     let key = fixture::part_by_id(&doc, "matrix/main/r1c1");
     assert!(key.pose.at.x.abs() < 1e-9);
     assert!((key.pose.at.y - 5.0).abs() < 1e-9);
@@ -455,14 +444,16 @@ fn matrix_cumulative_stagger_splay_survive_growth_and_serialization() {
     let mut value = reopened.matrices[0].clone();
     value.columns = 4;
     value.mirror = Some(Mirror::Y);
-    let (_, grown) = scene(engine.handle(edit(1, EditPhase::Commit, fixture::set_matrix(value))));
+    let (_, grown) =
+        scene(engine.commit_edit(edit(1, EditPhase::Commit, fixture::set_matrix(value))));
     let key = fixture::part_by_id(&grown, "matrix/main/r0c3");
     assert!((key.pose.at.x - 20.0).abs() < 1e-9);
     assert!((key.pose.at.y + 45.0).abs() < 1e-9);
     assert_eq!(key.pose.rotation, -90.0);
     let mut value = grown.matrices[0].clone();
     value.columns = 1;
-    let (_, shrunk) = scene(engine.handle(edit(2, EditPhase::Commit, fixture::set_matrix(value))));
+    let (_, shrunk) =
+        scene(engine.commit_edit(edit(2, EditPhase::Commit, fixture::set_matrix(value))));
     assert_eq!(
         shrunk.matrices[0]
             .column_layout
@@ -489,12 +480,12 @@ fn deleting_matrix_cells_removes_geometry_and_assembly_but_disabled_cells_stay()
         {"row":0,"column":0,"enabled":true,"assemblies":[{"id":"led","definitionId":"switch","offset":{"x":0,"y":4}}]},
         {"row":0,"column":1,"enabled":false}
     ])).unwrap();
-    scene(engine.handle(edit(0, EditPhase::Commit, fixture::set_matrix(value))));
+    scene(engine.commit_edit(edit(0, EditPhase::Commit, fixture::set_matrix(value))));
     let operation = EditOperation::RemoveMatrixCells {
         matrix_id: "main".into(),
         cells: vec![(0, 0)],
     };
-    let (geometry, doc) = scene(engine.handle(edit(1, EditPhase::Commit, operation)));
+    let (geometry, doc) = scene(engine.commit_edit(edit(1, EditPhase::Commit, operation)));
     assert!(
         !doc.parts
             .iter()
@@ -523,7 +514,7 @@ fn deleting_matrix_cells_removes_geometry_and_assembly_but_disabled_cells_stay()
 #[test]
 fn deleting_matrix_row_remaps_nets_constraints_keycaps_and_direct_wiring() {
     let (mut engine, _, _) = open_engine(matrix_doc());
-    let (_, mut doc) = scene(engine.handle(edit(
+    let (_, mut doc) = scene(engine.commit_edit(edit(
         0,
         EditPhase::Commit,
         fixture::set_matrix(matrix(3, 1)),
@@ -575,11 +566,8 @@ fn deleting_matrix_row_remaps_nets_constraints_keycaps_and_direct_wiring() {
         }],
         ..Default::default()
     });
-    engine.handle(CoreRequest::Open {
-        id: "reopen".into(),
-        document: doc.clone(),
-    });
-    let (_, compacted) = scene(engine.handle(edit(
+    engine.open(doc.clone()).unwrap();
+    let (_, compacted) = scene(engine.commit_edit(edit(
         doc.revision,
         EditPhase::Commit,
         EditOperation::RemoveMatrixRow {
@@ -626,7 +614,7 @@ fn deleting_matrix_key_detaches_inactive_outline_snapshots_in_world_coordinates(
             value.origin = Vec2 { x: 100.0, y: 20.0 };
             value.rotation = Some(90.0);
             let (_, mut doc) =
-                scene(engine.handle(edit(0, EditPhase::Commit, fixture::set_matrix(value))));
+                scene(engine.commit_edit(edit(0, EditPhase::Commit, fixture::set_matrix(value))));
             doc.parts
                 .iter_mut()
                 .find(|part| part.id == "matrix/main/r0c0")
@@ -676,10 +664,7 @@ fn deleting_matrix_key_detaches_inactive_outline_snapshots_in_world_coordinates(
                 generated_last_valid: Some(snapshot),
                 retired_version_ids: vec![],
             });
-            engine.handle(CoreRequest::Open {
-                id: "reopen".into(),
-                document: doc.clone(),
-            });
+            engine.open(doc.clone()).unwrap();
             let operation = if removal != 0 {
                 EditOperation::RemoveMatrixRow {
                     matrix_id: "main".into(),
@@ -692,7 +677,7 @@ fn deleting_matrix_key_detaches_inactive_outline_snapshots_in_world_coordinates(
                 }
             };
             let (_, deleted) =
-                scene(engine.handle(edit(doc.revision, EditPhase::Commit, operation)));
+                scene(engine.commit_edit(edit(doc.revision, EditPhase::Commit, operation)));
             for snapshot in [
                 &deleted.board_outlines[0].versions[0].geometry,
                 deleted.board_outlines[0]

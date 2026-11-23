@@ -48,10 +48,8 @@ fn add_anchored_matrix_previews_without_mutation_and_undoes_in_one_entry() {
     assert_eq!(undone_doc.layouts, doc.layouts);
     assert_eq!(undone_doc.parts, doc.parts);
     // The Add was a single history entry: nothing remains to undo.
-    match engine.handle(CoreRequest::Undo {
-        id: "undo-empty".into(),
-    }) {
-        CoreReply::Error { message, .. } => assert!(
+    match engine.undo() {
+        Err(message) => assert!(
             message.contains("History is empty"),
             "unexpected message: {message:?}"
         ),

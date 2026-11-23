@@ -1,5 +1,4 @@
 use super::*;
-use crate::support::fixture;
 
 /// `create-generated`: one accepted edit adds the board's Generated envelope AND
 /// registers its board membership (the gap `SetOutline` has today), and one Undo removes
@@ -7,9 +6,7 @@ use crate::support::fixture;
 #[test]
 fn create_generated_registers_the_envelope_and_board_membership() {
     let mut engine = CoreEngine::new();
-    let opened = scene(engine.handle(fixture::open(
-        serde_json::from_value(fixture_without_generated()).unwrap(),
-    )));
+    let opened = scene(engine.open(serde_json::from_value(fixture_without_generated()).unwrap()));
     let feature_id = "board:board:automatic:outline:91";
     let change = serde_json::json!({
         "create-generated": {
@@ -154,7 +151,7 @@ fn create_generated_registers_the_envelope_and_board_membership() {
             "seed": 92
         }),
     );
-    assert!(matches!(version_target, CoreReply::Error { .. }));
+    assert!(version_target.is_err());
     let unknown_part = reply(
         &mut engine,
         redone.revision,
@@ -168,7 +165,7 @@ fn create_generated_registers_the_envelope_and_board_membership() {
             "seed": 93
         }),
     );
-    assert!(matches!(unknown_part, CoreReply::Error { .. }));
+    assert!(unknown_part.is_err());
     assert_eq!(
         serde_json::to_value(document(&mut engine)).unwrap(),
         before,
@@ -182,9 +179,7 @@ fn create_generated_registers_the_envelope_and_board_membership() {
 #[test]
 fn removing_a_gap_clears_every_alias_protecting_it() {
     let (mut engine, opened) = open((20.0, 0.0));
-    let before = scene(engine.handle(CoreRequest::Snapshot {
-        id: "snapshot".into(),
-    }));
+    let before = scene(engine.snapshot());
     let candidates = before
         .board_outline_scenes
         .iter()
@@ -227,9 +222,7 @@ fn removing_a_gap_clears_every_alias_protecting_it() {
     );
     let accepted = document(&mut engine);
     assert_eq!(accepted.outline[0].keep_gap_ids().len(), 2);
-    let protected = scene(engine.handle(CoreRequest::Snapshot {
-        id: "snapshot".into(),
-    }));
+    let protected = scene(engine.snapshot());
     let candidate_now = protected
         .board_outline_scenes
         .iter()
@@ -277,9 +270,7 @@ fn removing_a_gap_clears_every_alias_protecting_it() {
     );
     let accepted = document(&mut engine);
     assert!(accepted.outline[0].keep_gap_ids().is_empty());
-    let after = scene(engine.handle(CoreRequest::Snapshot {
-        id: "snapshot".into(),
-    }));
+    let after = scene(engine.snapshot());
     let unrelated = after
         .board_outline_scenes
         .iter()
@@ -323,14 +314,11 @@ fn out_of_range_settings_are_refused_with_no_mutation() {
                     "seed": 90
                 }),
             );
-            let CoreReply::Error {
-                message, revision, ..
-            } = refused
-            else {
+            let Err(message) = refused else {
                 panic!("{change} {value} on {target} must be refused");
             };
             assert!(message.contains("must be"), "{change}: {message}");
-            assert_eq!(revision, created.revision);
+            assert_eq!(document(&mut engine).revision, created.revision);
         }
     }
     assert_eq!(
@@ -391,7 +379,7 @@ fn a_fixed_versions_base_contour_cannot_be_removed() {
             "seed": 93
         }),
     );
-    let CoreReply::Error { message, .. } = refused else {
+    let Err(message) = refused else {
         panic!("the base contour must not be removable");
     };
     assert!(message.contains("base outline feature"), "{message}");

@@ -20,6 +20,7 @@ mod mech_chunk0;
 mod mech_chunk1;
 #[path = "mechanical_integration/mech_chunk2.rs"]
 mod mech_chunk2;
+use boardstudio_core::CommittedScene;
 use boardstudio_core::mechanical::{MechanicalEditDisposition, evaluate_edit};
 use boardstudio_core::model::{
     Board, BoardContours, CaseBody, CaseKind, Contour, HardwareConfiguration, HardwareTopology,

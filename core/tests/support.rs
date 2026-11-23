@@ -14,7 +14,7 @@ pub(crate) mod query;
 pub(crate) mod session;
 
 pub(crate) mod fixture {
-    use boardstudio_core::{CoreEngine, model::*};
+    use boardstudio_core::{CommittedScene, CoreEngine, EditOutcome, model::*};
     use serde::Serialize;
     use serde_json::{Value, json};
 
@@ -180,48 +180,69 @@ pub(crate) mod fixture {
     }
 
     #[track_caller]
-    pub fn scene_and_document(reply: CoreReply) -> (SceneDelta, ProjectDoc) {
-        match reply {
-            CoreReply::Scene {
-                scene, document, ..
-            } => (scene, *document),
-            other => panic!("expected scene: {other:?}"),
+    pub fn scene_and_document(result: Result<CommittedScene, String>) -> (SceneDelta, ProjectDoc) {
+        match result {
+            Ok(committed) => (committed.scene, committed.document),
+            Err(message) => panic!("expected scene: {message}"),
         }
     }
 
     #[track_caller]
-    pub fn scene(reply: CoreReply) -> SceneDelta {
-        scene_and_document(reply).0
+    pub fn scene(result: Result<CommittedScene, String>) -> SceneDelta {
+        scene_and_document(result).0
     }
 
     #[track_caller]
-    pub fn document(reply: CoreReply) -> ProjectDoc {
-        scene_and_document(reply).1
+    pub fn document(result: Result<CommittedScene, String>) -> ProjectDoc {
+        scene_and_document(result).1
     }
 
-    pub fn open(document: ProjectDoc) -> CoreRequest {
-        CoreRequest::Open {
-            id: "open".into(),
-            document,
+    /// Unwrap a committed-or-preview outcome into its scene and document.
+    #[track_caller]
+    pub fn committed_outcome(result: Result<EditOutcome, String>) -> (SceneDelta, ProjectDoc) {
+        match result {
+            Ok(EditOutcome::Committed(committed)) => (committed.scene, committed.document),
+            Ok(EditOutcome::Preview(_)) => panic!("expected committed edit, got preview"),
+            Err(message) => panic!("expected committed edit: {message}"),
+        }
+    }
+
+    /// Unwrap a wire-JSON scene reply into its scene and document.
+    /// Covers the named wire-shape tests that drive `CoreEngine::request` directly.
+    #[track_caller]
+    pub fn wire_scene_and_document(reply: &str) -> (SceneDelta, ProjectDoc) {
+        let decoded: CoreReply = serde_json::from_str(reply).expect("wire scene reply");
+        match decoded {
+            CoreReply::Scene {
+                scene, document, ..
+            } => (scene, *document),
+            other => panic!("expected wire scene: {other:?}"),
+        }
+    }
+
+    /// Unwrap a preview outcome into its transient scene.
+    #[track_caller]
+    pub fn preview_scene(result: Result<EditOutcome, String>) -> SceneDelta {
+        match result {
+            Ok(EditOutcome::Preview(scene)) => scene,
+            Ok(EditOutcome::Committed(_)) => panic!("expected preview, got committed edit"),
+            Err(message) => panic!("expected preview: {message}"),
         }
     }
 
     pub fn edit(
-        id: impl Into<String>,
+        _id: impl Into<String>,
         transaction_id: impl Into<String>,
         base_revision: u64,
         phase: EditPhase,
         operation: EditOperation,
-    ) -> CoreRequest {
-        CoreRequest::Edit {
-            id: id.into(),
-            command: EditCommand {
-                base_revision,
-                transaction_id: transaction_id.into(),
-                phase,
-                target_ids: vec![],
-                operation,
-            },
+    ) -> EditCommand {
+        EditCommand {
+            base_revision,
+            transaction_id: transaction_id.into(),
+            phase,
+            target_ids: vec![],
+            operation,
         }
     }
 
@@ -230,7 +251,7 @@ pub(crate) mod fixture {
         transaction_id: impl Into<String>,
         base_revision: u64,
         operation: EditOperation,
-    ) -> CoreRequest {
+    ) -> EditCommand {
         edit(
             id,
             transaction_id,
@@ -367,8 +388,6 @@ pub(crate) mod fixture {
 
     #[track_caller]
     pub fn outline_snapshot(engine: &mut CoreEngine) -> ProjectDoc {
-        document(engine.handle(CoreRequest::Snapshot {
-            id: "snapshot".into(),
-        }))
+        document(engine.snapshot())
     }
 }
