@@ -28,8 +28,7 @@ fn a_linked_feature_is_read_from_the_single_authored_value_on_both_halves() {
             mount: mount("mount-1", 4.0, 0.0),
         };
 
-    let left = instance_inputs(&document, "left");
-    let right = instance_inputs(&document, "right");
+    let (left, right) = both_instance_inputs(&document);
 
     // The author reads the stored value; the other half reads the reflected one.
     assert_eq!(

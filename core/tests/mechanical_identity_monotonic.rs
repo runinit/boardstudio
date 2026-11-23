@@ -1,173 +1,43 @@
 //! Ticket 02: mechanical identities are monotonic within one Core document session,
 //! including removal, Undo, owner lifecycle and exhausted namespaces.
 use crate::support::fixture;
-use crate::support::session::{Session, board_target, collect_ids, error, instance_target, one_id};
+use crate::support::session::{
+    Session, board_target,
+    builders::{sparse_fit, sparse_hardware, sparse_mount, sparse_opening},
+    error, instance_target, mechanical_ids, one_id, paired_instance, sparse_configuration,
+    sparse_mechanical_doc,
+};
 use boardstudio_core::mechanical::change::{
     MechanicalChange, MechanicalCriticalFitTextField, MechanicalDimension,
-    MechanicalHardwareTextField, MechanicalMountCollection, MechanicalTarget,
+    MechanicalHardwareTextField, MechanicalMountCollection,
 };
 use boardstudio_core::model::*;
 
-fn configuration(board_id: &str) -> MechanicalConfiguration {
-    MechanicalConfiguration {
-        openings: Some(vec![]),
-        ..fixture::mechanical(board_id)
-    }
-}
-
-fn board() -> Board {
-    fixture::board("board", "Board")
-}
-
 fn unibody() -> ProjectDoc {
-    let mut document = ProjectDoc::empty("identities", "Identities");
-    document.boards.push(board());
-    document.mechanical = Some(configuration("board"));
-    document
-}
-
-fn instance(id: &str, board_id: &str) -> PhysicalBoardInstance {
-    PhysicalBoardInstance {
-        id: id.into(),
-        name: id.into(),
-        board_id: board_id.into(),
-        half: id.into(),
-        role: "primary".into(),
-        flipped: false,
-        controller_part_id: None,
-        mechanical: Some(configuration(board_id)),
-        construction_ownership: MechanicalConstructionOwnership::Local,
-        mechanical_identity_reservation: None,
-    }
+    sparse_mechanical_doc("identities", "Identities")
 }
 
 fn paired_owners() -> ProjectDoc {
     let mut document = ProjectDoc::empty("identities", "Identities");
-    document.boards.push(board());
+    document.boards.push(fixture::board("board", "Board"));
+    let owner = |id: &str| {
+        paired_instance(
+            id,
+            "board",
+            "primary",
+            Some(sparse_configuration("board")),
+            MechanicalConstructionOwnership::Local,
+        )
+    };
     document.hardware = Some(HardwareConfiguration {
         topology: HardwareTopology::Split,
         transport: HardwareTransport::None,
-        instances: vec![instance("left", "board"), instance("right", "board")],
+        instances: vec![owner("left"), owner("right")],
         boards: vec![],
         shared_construction: None,
         pairs: vec![],
     });
     document
-}
-
-fn commit(engine: &mut Session, target: &MechanicalTarget, change: MechanicalChange) -> CoreReply {
-    let base_revision = engine.rev();
-    engine.commit(
-        base_revision,
-        EditOperation::ApplyMechanicalEdit {
-            edit: Box::new(crate::support::session::mechanical_edit(
-                target.clone(),
-                change,
-                true,
-            )),
-        },
-    )
-}
-
-fn opening_ids(document: &ProjectDoc) -> Vec<String> {
-    collect_ids(
-        document
-            .mechanical
-            .as_ref()
-            .unwrap()
-            .openings
-            .iter()
-            .flatten(),
-        |item| &item.id,
-    )
-}
-fn fit_ids(document: &ProjectDoc) -> Vec<String> {
-    collect_ids(
-        document
-            .mechanical
-            .as_ref()
-            .unwrap()
-            .critical_fits
-            .iter()
-            .flatten(),
-        |item| &item.id,
-    )
-}
-fn hardware_ids(document: &ProjectDoc) -> Vec<String> {
-    collect_ids(
-        document
-            .mechanical
-            .as_ref()
-            .unwrap()
-            .hardware
-            .iter()
-            .flatten(),
-        |item| &item.id,
-    )
-}
-fn mount_ids(document: &ProjectDoc) -> Vec<String> {
-    collect_ids(&document.mechanical.as_ref().unwrap().mounts, |item| {
-        &item.id
-    })
-}
-
-fn sparse_opening(id: &str) -> MechanicalOpening {
-    MechanicalOpening {
-        id: id.into(),
-        vertices: vec![
-            MechanicalOpeningVertex {
-                id: "vertex-1".into(),
-                point: Vec2 { x: 0.0, y: 0.0 },
-            },
-            MechanicalOpeningVertex {
-                id: "vertex-3".into(),
-                point: Vec2 { x: 5.0, y: 0.0 },
-            },
-            MechanicalOpeningVertex {
-                id: "vertex-4".into(),
-                point: Vec2 { x: 5.0, y: 5.0 },
-            },
-        ],
-        z: 0.0,
-        height: 1.0,
-        next_vertex_identity: 0,
-    }
-}
-
-fn sparse_fit(id: &str) -> MechanicalCriticalFit {
-    MechanicalCriticalFit {
-        id: id.into(),
-        part_id: "p".into(),
-        label: "fit".into(),
-        from: Vec2 { x: 0.0, y: 0.0 },
-        to: Vec2 { x: 1.0, y: 0.0 },
-        tolerance: "±0.2 mm".into(),
-    }
-}
-
-fn sparse_hardware(id: &str) -> MechanicalHardwareSpecification {
-    MechanicalHardwareSpecification {
-        id: id.into(),
-        part_id: "p".into(),
-        feature_id: "f".into(),
-        designation: "screw".into(),
-        thread: "M2".into(),
-        length: 6.0,
-        quantity: 1,
-        notes: None,
-        tolerance: None,
-    }
-}
-
-fn sparse_mount(id: &str) -> Mount {
-    Mount {
-        id: id.into(),
-        at: Vec2 { x: 0.0, y: 0.0 },
-        kind: MountKind::Hole,
-        hole_diameter: 2.5,
-        boss_diameter: None,
-        height: None,
-    }
 }
 
 fn add_critical_fit() -> MechanicalChange {
@@ -209,14 +79,10 @@ fn replace_identity(
     add: MechanicalChange,
     ids: IdentityList,
 ) -> String {
-    commit(engine, &board_target(), add.clone());
+    engine.commit_mechanical(board_target(), add.clone());
     let first = ids(&engine.snapshot()).pop().unwrap();
-    commit(
-        engine,
-        &board_target(),
-        remove_identity(label, first.clone()),
-    );
-    commit(engine, &board_target(), add);
+    engine.commit_mechanical(board_target(), remove_identity(label, first.clone()));
+    engine.commit_mechanical(board_target(), add);
     let second = ids(&engine.snapshot()).pop().unwrap();
     assert_ne!(second, first, "{label} reused a removed identity");
     first
@@ -228,45 +94,41 @@ fn remove_and_add_assigns_a_fresh_identity_for_all_five_kinds() {
     let mut engine = Session::default();
     assert!(matches!(engine.open(unibody()), CoreReply::Scene { .. }));
     let first = one_id(
-        &commit(&mut engine, &board_target(), MechanicalChange::AddOpening),
+        &engine.commit_mechanical(board_target(), MechanicalChange::AddOpening),
         "opening-",
     );
-    commit(
-        &mut engine,
-        &board_target(),
+    engine.commit_mechanical(
+        board_target(),
         MechanicalChange::RemoveOpening {
             opening_id: first.clone(),
         },
     );
     let second = one_id(
-        &commit(&mut engine, &board_target(), MechanicalChange::AddOpening),
+        &engine.commit_mechanical(board_target(), MechanicalChange::AddOpening),
         "opening-",
     );
     assert_ne!(second, first);
 
     // Vertex.
     let vertex_first = one_id(
-        &commit(
-            &mut engine,
-            &board_target(),
+        &engine.commit_mechanical(
+            board_target(),
             MechanicalChange::AddOpeningVertex {
                 opening_id: second.clone(),
             },
         ),
         "vertex-",
     );
-    commit(
-        &mut engine,
-        &board_target(),
+    engine.commit_mechanical(
+        board_target(),
         MechanicalChange::RemoveOpeningVertex {
             opening_id: second.clone(),
             vertex_id: vertex_first.clone(),
         },
     );
     let vertex_second = one_id(
-        &commit(
-            &mut engine,
-            &board_target(),
+        &engine.commit_mechanical(
+            board_target(),
             MechanicalChange::AddOpeningVertex { opening_id: second },
         ),
         "vertex-",
@@ -278,17 +140,17 @@ fn remove_and_add_assigns_a_fresh_identity_for_all_five_kinds() {
         (
             "critical fit",
             add_critical_fit(),
-            fit_ids as fn(&ProjectDoc) -> Vec<String>,
+            (|document: &ProjectDoc| mechanical_ids(document, "fit")) as IdentityList,
         ),
         (
             "hardware",
             add_hardware(),
-            hardware_ids as fn(&ProjectDoc) -> Vec<String>,
+            (|document: &ProjectDoc| mechanical_ids(document, "hardware")) as IdentityList,
         ),
         (
             "mount",
             add_mount(),
-            mount_ids as fn(&ProjectDoc) -> Vec<String>,
+            (|document: &ProjectDoc| mechanical_ids(document, "mount")) as IdentityList,
         ),
     ] {
         let mut engine = Session::default();
@@ -303,43 +165,44 @@ fn add_undo_add_assigns_a_fresh_identity_for_all_five_kinds() {
         (
             "opening",
             MechanicalChange::AddOpening,
-            opening_ids as fn(&ProjectDoc) -> Vec<String>,
+            (|document: &ProjectDoc| mechanical_ids(document, "opening")) as IdentityList,
         ),
-        ("critical fit", add_critical_fit(), fit_ids),
-        ("hardware", add_hardware(), hardware_ids),
-        ("mount", add_mount(), mount_ids),
+        (
+            "critical fit",
+            add_critical_fit(),
+            (|document: &ProjectDoc| mechanical_ids(document, "fit")) as IdentityList,
+        ),
+        (
+            "hardware",
+            add_hardware(),
+            (|document: &ProjectDoc| mechanical_ids(document, "hardware")) as IdentityList,
+        ),
+        (
+            "mount",
+            add_mount(),
+            (|document: &ProjectDoc| mechanical_ids(document, "mount")) as IdentityList,
+        ),
         (
             "vertex",
             MechanicalChange::AddOpeningVertex {
                 opening_id: "opening-1".into(),
             },
-            |document| {
-                document
-                    .mechanical
-                    .as_ref()
-                    .unwrap()
-                    .openings
-                    .iter()
-                    .flatten()
-                    .flat_map(|opening| opening.vertices.iter())
-                    .map(|vertex| vertex.id.clone())
-                    .collect()
-            },
+            (|document: &ProjectDoc| mechanical_ids(document, "vertex")) as IdentityList,
         ),
     ];
     for (label, add, ids) in cases {
         let mut engine = Session::default();
         assert!(matches!(engine.open(unibody()), CoreReply::Scene { .. }));
         if label == "vertex" {
-            commit(&mut engine, &board_target(), MechanicalChange::AddOpening);
+            engine.commit_mechanical(board_target(), MechanicalChange::AddOpening);
         }
-        commit(&mut engine, &board_target(), add.clone());
+        engine.commit_mechanical(board_target(), add.clone());
         let first = ids(&engine.snapshot()).pop().unwrap();
         match engine.undo() {
             CoreReply::Scene { .. } => {}
             other => panic!("undo failed: {other:?}"),
         }
-        commit(&mut engine, &board_target(), add);
+        engine.commit_mechanical(board_target(), add);
         let second = ids(&engine.snapshot()).pop().unwrap();
         assert_ne!(second, first, "{label} reused an undone identity");
     }
@@ -353,40 +216,20 @@ fn owners_keep_separate_counters_and_survive_disable_reenable() {
         CoreReply::Scene { .. }
     ));
     let left_first = one_id(
-        &commit(
-            &mut engine,
-            &instance_target("left"),
-            MechanicalChange::AddOpening,
-        ),
+        &engine.commit_mechanical(instance_target("left"), MechanicalChange::AddOpening),
         "opening-",
     );
     let right_first = one_id(
-        &commit(
-            &mut engine,
-            &instance_target("right"),
-            MechanicalChange::AddOpening,
-        ),
+        &engine.commit_mechanical(instance_target("right"), MechanicalChange::AddOpening),
         "opening-",
     );
     assert_eq!(left_first, "opening-1");
     assert_eq!(right_first, "opening-1", "owners must not share a counter");
 
-    commit(
-        &mut engine,
-        &instance_target("left"),
-        MechanicalChange::Disable,
-    );
-    commit(
-        &mut engine,
-        &instance_target("left"),
-        MechanicalChange::Enable,
-    );
+    engine.commit_mechanical(instance_target("left"), MechanicalChange::Disable);
+    engine.commit_mechanical(instance_target("left"), MechanicalChange::Enable);
     let left_next = one_id(
-        &commit(
-            &mut engine,
-            &instance_target("left"),
-            MechanicalChange::AddOpening,
-        ),
+        &engine.commit_mechanical(instance_target("left"), MechanicalChange::AddOpening),
         "opening-",
     );
     assert_ne!(
@@ -394,11 +237,7 @@ fn owners_keep_separate_counters_and_survive_disable_reenable() {
         "disable/re-enable reused an identity"
     );
     let right_next = one_id(
-        &commit(
-            &mut engine,
-            &instance_target("right"),
-            MechanicalChange::AddOpening,
-        ),
+        &engine.commit_mechanical(instance_target("right"), MechanicalChange::AddOpening),
         "opening-",
     );
     assert_ne!(right_next, right_first);
@@ -418,7 +257,7 @@ fn sparse_imported_ids_seed_allocation_and_max_identities_exhaust_cleanly() {
                 ]);
             }) as fn(&mut MechanicalConfiguration),
             "opening-4",
-            opening_ids as fn(&ProjectDoc) -> Vec<String>,
+            (|document: &ProjectDoc| mechanical_ids(document, "opening")) as IdentityList,
         ),
         (
             "vertex",
@@ -429,18 +268,7 @@ fn sparse_imported_ids_seed_allocation_and_max_identities_exhaust_cleanly() {
                 configuration.openings = Some(vec![sparse_opening("opening-1")]);
             }) as fn(&mut MechanicalConfiguration),
             "vertex-5",
-            |document: &ProjectDoc| {
-                document
-                    .mechanical
-                    .as_ref()
-                    .unwrap()
-                    .openings
-                    .iter()
-                    .flatten()
-                    .flat_map(|opening| opening.vertices.iter())
-                    .map(|vertex| vertex.id.clone())
-                    .collect()
-            },
+            (|document: &ProjectDoc| mechanical_ids(document, "vertex")) as IdentityList,
         ),
         (
             "critical fit",
@@ -452,7 +280,7 @@ fn sparse_imported_ids_seed_allocation_and_max_identities_exhaust_cleanly() {
                 ]);
             }) as fn(&mut MechanicalConfiguration),
             "case-critical-fit-4",
-            fit_ids as fn(&ProjectDoc) -> Vec<String>,
+            (|document: &ProjectDoc| mechanical_ids(document, "fit")) as IdentityList,
         ),
         (
             "hardware",
@@ -464,7 +292,7 @@ fn sparse_imported_ids_seed_allocation_and_max_identities_exhaust_cleanly() {
                 ]);
             }) as fn(&mut MechanicalConfiguration),
             "case-mechanical-hardware-4",
-            hardware_ids as fn(&ProjectDoc) -> Vec<String>,
+            (|document: &ProjectDoc| mechanical_ids(document, "hardware")) as IdentityList,
         ),
         (
             "mount",
@@ -476,14 +304,14 @@ fn sparse_imported_ids_seed_allocation_and_max_identities_exhaust_cleanly() {
                 ];
             }) as fn(&mut MechanicalConfiguration),
             "case-mechanical-mount-4",
-            mount_ids as fn(&ProjectDoc) -> Vec<String>,
+            (|document: &ProjectDoc| mechanical_ids(document, "mount")) as IdentityList,
         ),
     ] {
         let mut document = unibody();
         mutate(document.mechanical.as_mut().unwrap());
         let mut engine = Session::default();
         assert!(matches!(engine.open(document), CoreReply::Scene { .. }));
-        commit(&mut engine, &board_target(), add);
+        engine.commit_mechanical(board_target(), add);
         let added = ids(&engine.snapshot()).pop().unwrap();
         assert_eq!(added, expected, "{label}: {added}");
     }
@@ -503,7 +331,7 @@ fn sparse_imported_ids_seed_allocation_and_max_identities_exhaust_cleanly() {
                 }]);
             }) as fn(&mut MechanicalConfiguration),
             "opening-",
-            opening_ids as fn(&ProjectDoc) -> Vec<String>,
+            (|document: &ProjectDoc| mechanical_ids(document, "opening")) as IdentityList,
         ),
         (
             "critical fit suffix",
@@ -515,7 +343,7 @@ fn sparse_imported_ids_seed_allocation_and_max_identities_exhaust_cleanly() {
                 ))]);
             }) as fn(&mut MechanicalConfiguration),
             "case-critical-fit-",
-            fit_ids as fn(&ProjectDoc) -> Vec<String>,
+            (|document: &ProjectDoc| mechanical_ids(document, "fit")) as IdentityList,
         ),
         (
             "hardware suffix",
@@ -527,7 +355,7 @@ fn sparse_imported_ids_seed_allocation_and_max_identities_exhaust_cleanly() {
                 ))]);
             }) as fn(&mut MechanicalConfiguration),
             "case-mechanical-hardware-",
-            hardware_ids as fn(&ProjectDoc) -> Vec<String>,
+            (|document: &ProjectDoc| mechanical_ids(document, "hardware")) as IdentityList,
         ),
         (
             "mount suffix",
@@ -539,18 +367,18 @@ fn sparse_imported_ids_seed_allocation_and_max_identities_exhaust_cleanly() {
                 ))];
             }) as fn(&mut MechanicalConfiguration),
             "case-mechanical-mount-",
-            mount_ids as fn(&ProjectDoc) -> Vec<String>,
+            (|document: &ProjectDoc| mechanical_ids(document, "mount")) as IdentityList,
         ),
     ] {
         let mut document = unibody();
         mutate(document.mechanical.as_mut().unwrap());
         let mut engine = Session::default();
         assert!(matches!(engine.open(document), CoreReply::Scene { .. }));
-        commit(&mut engine, &board_target(), add.clone());
+        engine.commit_mechanical(board_target(), add.clone());
         let max = ids(&engine.snapshot()).pop().unwrap();
         assert_eq!(max, format!("{prefix}{}", u64::MAX), "{label}");
         let accepted = engine.snapshot();
-        let refused = commit(&mut engine, &board_target(), add);
+        let refused = engine.commit_mechanical(board_target(), add);
         assert!(
             error(&refused).contains("exhausted"),
             "{label}: {refused:?}"
@@ -563,13 +391,13 @@ fn sparse_imported_ids_seed_allocation_and_max_identities_exhaust_cleanly() {
     document.mechanical.as_mut().unwrap().next_opening_identity = u64::MAX - 1;
     let mut engine = Session::default();
     assert!(matches!(engine.open(document), CoreReply::Scene { .. }));
-    commit(&mut engine, &board_target(), MechanicalChange::AddOpening);
+    engine.commit_mechanical(board_target(), MechanicalChange::AddOpening);
     assert_eq!(
-        opening_ids(&engine.snapshot()),
+        mechanical_ids(&engine.snapshot(), "opening"),
         [format!("opening-{}", u64::MAX - 1)]
     );
     let accepted = engine.snapshot();
-    let refused = commit(&mut engine, &board_target(), MechanicalChange::AddOpening);
+    let refused = engine.commit_mechanical(board_target(), MechanicalChange::AddOpening);
     assert!(error(&refused).contains("exhausted"), "{refused:?}");
     assert_eq!(engine.snapshot(), accepted);
 
@@ -584,7 +412,7 @@ fn sparse_imported_ids_seed_allocation_and_max_identities_exhaust_cleanly() {
     }]);
     let mut engine = Session::default();
     assert!(matches!(engine.open(document), CoreReply::Scene { .. }));
-    let refused = commit(&mut engine, &board_target(), MechanicalChange::AddOpening);
+    let refused = engine.commit_mechanical(board_target(), MechanicalChange::AddOpening);
     assert!(error(&refused).contains("exhausted"), "{refused:?}");
 }
 
@@ -622,22 +450,10 @@ fn exhausted_reservations_do_not_reopen_after_disable_reenable() {
     left.mechanical.as_mut().unwrap().next_opening_identity = u64::MAX;
     let mut engine = Session::default();
     assert!(matches!(engine.open(document), CoreReply::Scene { .. }));
-    commit(
-        &mut engine,
-        &instance_target("left"),
-        MechanicalChange::Disable,
-    );
-    commit(
-        &mut engine,
-        &instance_target("left"),
-        MechanicalChange::Enable,
-    );
+    engine.commit_mechanical(instance_target("left"), MechanicalChange::Disable);
+    engine.commit_mechanical(instance_target("left"), MechanicalChange::Enable);
     let accepted = engine.snapshot();
-    let refused = commit(
-        &mut engine,
-        &instance_target("left"),
-        MechanicalChange::AddOpening,
-    );
+    let refused = engine.commit_mechanical(instance_target("left"), MechanicalChange::AddOpening);
     assert!(error(&refused).contains("exhausted"), "{refused:?}");
     assert_eq!(engine.snapshot(), accepted);
 }
@@ -647,7 +463,7 @@ fn failed_open_keeps_reservations_and_successful_open_starts_a_new_session() {
     let mut engine = Session::default();
     assert!(matches!(engine.open(unibody()), CoreReply::Scene { .. }));
     let first = one_id(
-        &commit(&mut engine, &board_target(), MechanicalChange::AddOpening),
+        &engine.commit_mechanical(board_target(), MechanicalChange::AddOpening),
         "opening-",
     );
 
@@ -663,7 +479,7 @@ fn failed_open_keeps_reservations_and_successful_open_starts_a_new_session() {
     assert!(matches!(reply, CoreReply::Error { .. }));
 
     let second = one_id(
-        &commit(&mut engine, &board_target(), MechanicalChange::AddOpening),
+        &engine.commit_mechanical(board_target(), MechanicalChange::AddOpening),
         "opening-",
     );
     assert_ne!(second, first, "a failed Open reset the reservation");
@@ -671,7 +487,7 @@ fn failed_open_keeps_reservations_and_successful_open_starts_a_new_session() {
     // A successful explicit Open is a new session: imported/live ids seed it.
     assert!(matches!(engine.open(unibody()), CoreReply::Scene { .. }));
     let reset = one_id(
-        &commit(&mut engine, &board_target(), MechanicalChange::AddOpening),
+        &engine.commit_mechanical(board_target(), MechanicalChange::AddOpening),
         "opening-",
     );
     assert_eq!(reset, "opening-1");
@@ -698,17 +514,9 @@ fn stored_instance_reservations_seed_re_enabled_allocation() {
     });
     let mut engine = Session::default();
     assert!(matches!(engine.open(document), CoreReply::Scene { .. }));
-    commit(
-        &mut engine,
-        &instance_target("left"),
-        MechanicalChange::Enable,
-    );
+    engine.commit_mechanical(instance_target("left"), MechanicalChange::Enable);
     let opening = one_id(
-        &commit(
-            &mut engine,
-            &instance_target("left"),
-            MechanicalChange::AddOpening,
-        ),
+        &engine.commit_mechanical(instance_target("left"), MechanicalChange::AddOpening),
         "opening-",
     );
     assert_eq!(opening, "opening-9");
@@ -719,42 +527,38 @@ fn stale_setters_cannot_change_a_replacement_for_all_five_kinds() {
     let mut engine = Session::default();
     assert!(matches!(engine.open(unibody()), CoreReply::Scene { .. }));
     let opening_first = one_id(
-        &commit(&mut engine, &board_target(), MechanicalChange::AddOpening),
+        &engine.commit_mechanical(board_target(), MechanicalChange::AddOpening),
         "opening-",
     );
     let vertex_first = one_id(
-        &commit(
-            &mut engine,
-            &board_target(),
+        &engine.commit_mechanical(
+            board_target(),
             MechanicalChange::AddOpeningVertex {
                 opening_id: opening_first.clone(),
             },
         ),
         "vertex-",
     );
-    commit(
-        &mut engine,
-        &board_target(),
+    engine.commit_mechanical(
+        board_target(),
         MechanicalChange::RemoveOpeningVertex {
             opening_id: opening_first.clone(),
             vertex_id: vertex_first.clone(),
         },
     );
-    commit(
-        &mut engine,
-        &board_target(),
+    engine.commit_mechanical(
+        board_target(),
         MechanicalChange::RemoveOpening {
             opening_id: opening_first.clone(),
         },
     );
     let opening_second = one_id(
-        &commit(&mut engine, &board_target(), MechanicalChange::AddOpening),
+        &engine.commit_mechanical(board_target(), MechanicalChange::AddOpening),
         "opening-",
     );
     let vertex_second = one_id(
-        &commit(
-            &mut engine,
-            &board_target(),
+        &engine.commit_mechanical(
+            board_target(),
             MechanicalChange::AddOpeningVertex {
                 opening_id: opening_second.clone(),
             },
@@ -764,9 +568,18 @@ fn stale_setters_cannot_change_a_replacement_for_all_five_kinds() {
     assert_ne!(opening_second, opening_first);
     assert_ne!(vertex_second, vertex_first);
 
-    let fit_first = replace_identity(&mut engine, "critical fit", add_critical_fit(), fit_ids);
-    let hardware_first = replace_identity(&mut engine, "hardware", add_hardware(), hardware_ids);
-    let mount_first = replace_identity(&mut engine, "mount", add_mount(), mount_ids);
+    let fit_first = replace_identity(
+        &mut engine,
+        "critical fit",
+        add_critical_fit(),
+        |document| mechanical_ids(document, "fit"),
+    );
+    let hardware_first = replace_identity(&mut engine, "hardware", add_hardware(), |document| {
+        mechanical_ids(document, "hardware")
+    });
+    let mount_first = replace_identity(&mut engine, "mount", add_mount(), |document| {
+        mechanical_ids(document, "mount")
+    });
 
     // Setters authored against the removed identities must not reach the replacements.
     for (label, change) in [
@@ -814,7 +627,7 @@ fn stale_setters_cannot_change_a_replacement_for_all_five_kinds() {
         ),
     ] {
         let accepted = engine.snapshot();
-        let refused = commit(&mut engine, &board_target(), change);
+        let refused = engine.commit_mechanical(board_target(), change);
         assert!(
             matches!(refused, CoreReply::Error { .. }),
             "{label}: {refused:?}"
@@ -828,7 +641,7 @@ fn redo_and_undo_of_configuration_creation_keep_high_water_marks() {
     let mut engine = Session::default();
     assert!(matches!(engine.open(unibody()), CoreReply::Scene { .. }));
     let first = one_id(
-        &commit(&mut engine, &board_target(), MechanicalChange::AddOpening),
+        &engine.commit_mechanical(board_target(), MechanicalChange::AddOpening),
         "opening-",
     );
     match engine.undo() {
@@ -840,7 +653,7 @@ fn redo_and_undo_of_configuration_creation_keep_high_water_marks() {
         other => panic!("redo failed: {other:?}"),
     }
     let after_redo = one_id(
-        &commit(&mut engine, &board_target(), MechanicalChange::AddOpening),
+        &engine.commit_mechanical(board_target(), MechanicalChange::AddOpening),
         "opening-",
     );
     assert_ne!(after_redo, first, "redo reused an identity");
@@ -851,28 +664,16 @@ fn redo_and_undo_of_configuration_creation_keep_high_water_marks() {
         CoreReply::Scene { .. }
     ));
     let left_first = one_id(
-        &commit(
-            &mut engine,
-            &instance_target("left"),
-            MechanicalChange::AddOpening,
-        ),
+        &engine.commit_mechanical(instance_target("left"), MechanicalChange::AddOpening),
         "opening-",
     );
-    commit(
-        &mut engine,
-        &instance_target("left"),
-        MechanicalChange::Disable,
-    );
+    engine.commit_mechanical(instance_target("left"), MechanicalChange::Disable);
     match engine.undo() {
         CoreReply::Scene { .. } => {}
         other => panic!("undo failed: {other:?}"),
     }
     let after_undo = one_id(
-        &commit(
-            &mut engine,
-            &instance_target("left"),
-            MechanicalChange::AddOpening,
-        ),
+        &engine.commit_mechanical(instance_target("left"), MechanicalChange::AddOpening),
         "opening-",
     );
     assert_ne!(
@@ -929,7 +730,7 @@ fn max_counter_sentinels_are_refused_for_all_five_namespaces() {
         let mut engine = Session::default();
         assert!(matches!(engine.open(document), CoreReply::Scene { .. }));
         let accepted = engine.snapshot();
-        let refused = commit(&mut engine, &board_target(), add);
+        let refused = engine.commit_mechanical(board_target(), add);
         assert!(
             error(&refused).contains("exhausted"),
             "{label}: {refused:?}"

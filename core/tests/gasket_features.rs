@@ -1,5 +1,6 @@
 //! Public prepared-CAD contract for the internal gasket construction.
 use crate::support::query::{arr, ids};
+use crate::support::session::{resolve_mechanical, resolve_request};
 use boardstudio_core::{CoreEngine, model::*};
 use serde_json::{Value, json};
 
@@ -228,18 +229,11 @@ fn auto_sized_gaskets() -> Value {
 }
 
 fn resolve_internal(doc: Value) -> Value {
-    resolve_internal_sized(doc, 100., 70.)
+    resolve_mechanical(doc, 100., 70.)
 }
 
 fn resolve_internal_sized(doc: Value, width: f64, height: f64) -> Value {
-    let reply = CoreEngine::new().request(
-        &json!({"kind":"resolve-mechanical","id":"resolve",
-        "document":doc,"contours":[{"hole":false,"points":[
-            {"x":0,"y":0},{"x":width,"y":0},{"x":width,"y":height},{"x":0,"y":height}
-        ]}]})
-        .to_string(),
-    );
-    serde_json::from_str::<Value>(&reply).unwrap()["assembly"].clone()
+    resolve_mechanical(doc, width, height)
 }
 
 fn adoption_reachability_case(id: &str) -> (Value, Value, PreparedCaseIR) {
@@ -354,20 +348,15 @@ fn adoption_reachability_countersunk_hardware_still_emits_contained_surface_seat
         }
     }
     let attempt = &case["blockedWallAxisAttempt"];
-    let blocked: Value =
-        serde_json::from_str(&CoreEngine::new().request(&attempt["request"].to_string())).unwrap();
-    assert_eq!(blocked["assembly"]["generationBlocked"], true);
-    assert!(
-        arr(&blocked["assembly"]["diagnostics"])
-            .iter()
-            .any(|finding| {
-                finding["severity"] == "error"
-                    && finding["message"]
-                        .as_str()
-                        .unwrap()
-                        .contains(attempt["expectedReason"].as_str().unwrap())
-            })
-    );
+    let blocked: Value = resolve_request(attempt["request"].clone());
+    assert_eq!(blocked["generationBlocked"], true);
+    assert!(arr(&blocked["diagnostics"]).iter().any(|finding| {
+        finding["severity"] == "error"
+            && finding["message"]
+                .as_str()
+                .unwrap()
+                .contains(attempt["expectedReason"].as_str().unwrap())
+    }));
 }
 
 #[test]
@@ -556,17 +545,12 @@ fn split_case_preserves_one_regions_closures_and_generates_the_other() {
         point["x"] = json!(point["x"].as_f64().unwrap() + 200.);
     }
     input["contours"].as_array_mut().unwrap().push(second);
-    let resolve = |request: &Value| {
-        serde_json::from_str::<Value>(&CoreEngine::new().request(&request.to_string())).unwrap()
-            ["assembly"]
-            .clone()
-    };
-    let original = resolve(&input);
+    let original = resolve_request(input.clone());
     assert_eq!(original["generationBlocked"], false, "{original}");
     assert_eq!(arr(&original["suggestedMounts"]).len(), 8);
     input["document"]["mechanical"]["closureMounts"] =
         json!(arr(&original["suggestedMounts"])[..4].to_vec());
-    let adopted = resolve(&input);
+    let adopted = resolve_request(input.clone());
     assert_eq!(adopted["generationBlocked"], false, "{adopted}");
     assert_eq!(adopted["suggestedMounts"], original["suggestedMounts"]);
 }
@@ -643,10 +627,9 @@ fn rotated_and_concave_regions_keep_internal_features_within_the_wall_budget() {
                 .map(|(x, y)| json!({"x":x*cos-y*sin,"y":x*sin+y*cos}))
                 .collect::<Vec<_>>()
         );
-        let resolved =
-            serde_json::from_str::<Value>(&CoreEngine::new().request(&input.to_string())).unwrap();
+        let resolved = resolve_request(input.clone());
         assert_eq!(
-            resolved["assembly"]["generationBlocked"], false,
+            resolved["generationBlocked"], false,
             "angle {angle}: {resolved}"
         );
     }
@@ -706,9 +689,7 @@ fn linked_split_supports_use_mirrored_tracks() {
     for automatic in [false, true] {
         input["document"]["mechanical"]["gasketLayout"]["autoSize"] = json!(automatic);
         input["document"]["mechanical"]["internalGasket"]["autoCount"] = json!(automatic);
-        let result = serde_json::from_str::<Value>(&CoreEngine::new().request(&input.to_string()))
-            .unwrap()["assembly"]
-            .clone();
+        let result = resolve_request(input.clone());
         assert_eq!(result["generationBlocked"], false, "{result}");
         let supports = arr(&result["gasketSupports"]);
         for slot in 0..supports.len() / 2 {
@@ -816,9 +797,7 @@ fn every_supplied_foam_size_keeps_free_material_dimensions() {
         foam["width"] = json!(width);
         foam["thickness"] = json!(thickness);
         foam["presetId"] = json!(id);
-        let result = serde_json::from_str::<Value>(&CoreEngine::new().request(&input.to_string()))
-            .unwrap()["assembly"]
-            .clone();
+        let result = resolve_request(input.clone());
         assert_eq!(result["generationBlocked"], false, "{id}: {result}");
         let materials = result["generatedMaterials"]
             .as_array()
@@ -1077,9 +1056,7 @@ fn run_placement_handles_rotated_reversed_and_split_outlines() {
                 }
                 points.reverse();
             }
-            let reply: Value =
-                serde_json::from_str(&CoreEngine::new().request(&request.to_string())).unwrap();
-            let result = &reply["assembly"];
+            let result = resolve_request(request.clone());
             assert_eq!(
                 result["generationBlocked"], false,
                 "angle {angle}: {}",

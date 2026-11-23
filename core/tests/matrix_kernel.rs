@@ -1,6 +1,7 @@
 //! Core's staged carried-layout kernel publishes poses, frames and contributions.
 //! These tests pin the geometry to committed parity fixtures and worked examples.
 
+use crate::support::session::builders::{draft_projection, open_wire_engine, scene_pose};
 use boardstudio_core::layout_kernel::{
     ColumnLayout, Follow, FollowBasis, KeyLayout, LayoutInput, MatrixLayout, RawAnchorContext,
     RowLayout, aggregate_average, aggregate_intersection, evaluate,
@@ -372,12 +373,7 @@ fn production_core_actual_draft_and_materialized_keys_match_committed_fixtures()
                     continue;
                 }
                 assert_eq!(opened["kind"], "scene", "{}: {opened}", case["id"]);
-                let draft: Value = serde_json::from_str(&engine.request(&json!({"kind":"project-matrices","id":"draft","baseRevision":0,"matrices":opened["document"]["matrices"]}).to_string())).unwrap();
-                assert_eq!(
-                    draft["kind"], "matrix-projections",
-                    "{}: {draft}",
-                    case["id"]
-                );
+                let draft = draft_projection(&mut engine, &opened["document"]["matrices"]);
                 for expected in expected.as_array().unwrap() {
                     let id = format!(
                         "matrix/{}/r{}c{}",
@@ -406,34 +402,29 @@ fn production_core_actual_draft_and_materialized_keys_match_committed_fixtures()
                             (&difference["pose"], 1e-9)
                         });
                     for scene in [&opened["scene"]["matrixScenes"], &draft["matrixScenes"]] {
-                        let matrix = scene
-                            .as_array()
-                            .unwrap()
-                            .iter()
-                            .find(|matrix| matrix["matrixId"] == expected["matrix"])
-                            .unwrap();
-                        let cell = matrix["cells"]
-                            .as_array()
-                            .unwrap()
-                            .iter()
-                            .find(|cell| {
-                                cell["row"] == expected["row"]
-                                    && cell["column"] == expected["column"]
-                            })
-                            .unwrap();
-                        for (field, actual) in [
-                            ("x", &cell["pose"]["at"]["x"]),
-                            ("y", &cell["pose"]["at"]["y"]),
-                            ("rotation", &cell["pose"]["rotation"]),
+                        let (ax, ay, ar) = scene_pose(
+                            scene,
+                            expected["matrix"].as_str().unwrap(),
+                            expected["row"].as_u64().unwrap(),
+                            expected["column"].as_u64().unwrap(),
+                        );
+                        for (field, actual, want) in [
+                            ("x", ax, pose["x"].as_f64().unwrap()),
+                            ("y", ay, pose["y"].as_f64().unwrap()),
+                            ("rotation", ar, pose["rotation"].as_f64().unwrap()),
                         ] {
                             assert!(
-                                (actual.as_f64().unwrap() - pose[field].as_f64().unwrap()).abs()
-                                    <= tolerance,
+                                (actual - want).abs() <= tolerance,
                                 "{} {id} {field}: {actual}, expected {pose}",
                                 case["id"]
                             );
                         }
-                        assert_eq!(part.unwrap()["pose"], cell["pose"], "{} {id}", case["id"]);
+                        assert_eq!(
+                            part.unwrap()["pose"],
+                            json!({"at": {"x": ax, "y": ay}, "rotation": ar}),
+                            "{} {id}",
+                            case["id"]
+                        );
                     }
                     count += 1;
                 }
@@ -908,16 +899,8 @@ fn column_bases_origins_and_prefix_exclude_own_rotation() {
 /// Core projects `document` through its public requests, returning the opened scene's
 /// cells, the draft projection's cells and the persisted part ids.
 fn open_and_project(document: Value) -> (Value, Value, Vec<String>) {
-    use boardstudio_core::CoreEngine;
-    use serde_json::json;
-    let mut engine = CoreEngine::new();
-    let opened: Value = serde_json::from_str(
-        &engine.request(&json!({"kind":"open","id":"states","document":document}).to_string()),
-    )
-    .unwrap();
-    assert_eq!(opened["kind"], "scene", "{opened}");
-    let draft: Value = serde_json::from_str(&engine.request(&json!({"kind":"project-matrices","id":"draft","baseRevision":0,"matrices":opened["document"]["matrices"]}).to_string())).unwrap();
-    assert_eq!(draft["kind"], "matrix-projections", "{draft}");
+    let (mut engine, opened) = open_wire_engine(document);
+    let draft = draft_projection(&mut engine, &opened["document"]["matrices"]);
     let parts = opened["document"]["parts"]
         .as_array()
         .unwrap()

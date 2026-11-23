@@ -1,4 +1,5 @@
 use crate::support::fixture::{self, document as scene};
+use crate::support::session::builders::{companion_cell, move_key, move_parts, offset_constraint};
 use boardstudio_core::CoreEngine;
 use boardstudio_core::model::*;
 
@@ -16,15 +17,10 @@ fn fixture() -> (CoreEngine, ProjectDoc) {
     ]))
     .unwrap();
     let doc = scene(engine.handle(fixture::open(doc)));
-    let matrix = serde_json::from_value(serde_json::json!({
-        "id":"main","rows":1,"columns":1,"pitch":{"x":19,"y":19},
-        "origin":{"x":0,"y":0},"definitionId":"switch","partIds":[],
-        "cells":[{"row":0,"column":0,"enabled":true,"assemblies":[
-            {"id":"diode","definitionId":"diode","offset":{"x":2,"y":5}},
-            {"id":"led","definitionId":"led","offset":{"x":-3,"y":6}}
-        ]}]
-    }))
-    .unwrap();
+    let matrix = Matrix {
+        cells: vec![companion_cell(0, 0)],
+        ..fixture::matrix("main", 1, 1)
+    };
     let doc = edit(&mut engine, &doc, fixture::set_matrix(matrix));
     (engine, doc)
 }
@@ -58,16 +54,7 @@ fn assert_companions_follow(before: &ProjectDoc, after: &ProjectDoc) {
 #[test]
 fn moving_matrix_key_moves_its_diode_and_led() {
     let (mut engine, before) = fixture();
-    let after = edit(
-        &mut engine,
-        &before,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: "matrix/main/r0c0".into(),
-                at: Vec2 { x: 7.0, y: 9.0 },
-            }],
-        },
-    );
+    let after = edit(&mut engine, &before, move_key("matrix/main/r0c0", 7.0, 9.0));
     assert_companions_follow(&before, &after);
     assert_eq!(
         after.matrices[0].cells[0].assemblies,
@@ -100,12 +87,7 @@ fn key_move_preview_restores_document_and_moves_companions() {
         "preview",
         before.revision,
         EditPhase::Preview,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: "matrix/main/r0c0".into(),
-                at: Vec2 { x: 7.0, y: 9.0 },
-            }],
-        },
+        move_key("matrix/main/r0c0", 7.0, 9.0),
     ));
     let CoreReply::Preview { scene: preview, .. } = reply else {
         panic!("expected preview")
@@ -136,18 +118,10 @@ fn companion_explicit_move_is_preserved_when_key_is_also_moved() {
     let after = edit(
         &mut engine,
         &before,
-        EditOperation::MoveParts {
-            positions: vec![
-                Position {
-                    id: "matrix/main/r0c0/diode".into(),
-                    at: Vec2 { x: 11.0, y: 12.0 },
-                },
-                Position {
-                    id: "matrix/main/r0c0".into(),
-                    at: Vec2 { x: 7.0, y: 9.0 },
-                },
-            ],
-        },
+        move_parts(&[
+            ("matrix/main/r0c0/diode", 11.0, 12.0),
+            ("matrix/main/r0c0", 7.0, 9.0),
+        ]),
     );
     assert_eq!(at(&after, "/diode"), Vec2 { x: 11.0, y: 12.0 });
     assert_eq!(at(&after, "/led"), Vec2 { x: 4.0, y: 15.0 });
@@ -159,22 +133,12 @@ fn independently_positioned_companion_keeps_its_offset_when_key_moves() {
     let authored = edit(
         &mut engine,
         &before,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: "matrix/main/r0c0/diode".into(),
-                at: Vec2 { x: 11.0, y: 12.0 },
-            }],
-        },
+        move_key("matrix/main/r0c0/diode", 11.0, 12.0),
     );
     let after = edit(
         &mut engine,
         &authored,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: "matrix/main/r0c0".into(),
-                at: Vec2 { x: 7.0, y: 9.0 },
-            }],
-        },
+        move_key("matrix/main/r0c0", 7.0, 9.0),
     );
     assert_companions_follow(&authored, &after);
 }
@@ -193,16 +157,7 @@ fn key_move_absorbs_legacy_absolute_override_into_cell_offset() {
         .insert("layoutOverride".into(), serde_json::json!(1));
     let mut engine = CoreEngine::new();
     let before = scene(engine.handle(fixture::open(legacy)));
-    let after = edit(
-        &mut engine,
-        &before,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: "matrix/main/r0c0".into(),
-                at: Vec2 { x: 7.0, y: 9.0 },
-            }],
-        },
-    );
+    let after = edit(&mut engine, &before, move_key("matrix/main/r0c0", 7.0, 9.0));
     assert_eq!(at(&after, ""), Vec2 { x: 7.0, y: 9.0 });
     assert_eq!(
         after.matrices[0].cells[0].offset,
@@ -250,31 +205,8 @@ fn matrix_key_move_respects_rotated_splayed_and_mirrored_cell_coordinates() {
 
 #[test]
 fn offset_constrained_key_moves_its_companions_and_keeps_constraint() {
-    let (_, mut doc) = fixture();
-    let mut anchor = doc.parts[0].clone();
-    anchor.id = "anchor".into();
-    anchor.reference = "ANCHOR".into();
-    anchor.pose.at = Vec2::default();
-    doc.parts.push(anchor);
-    doc.constraints.push(Constraint::Offset {
-        id: "key-anchor".into(),
-        source_part_id: "anchor".into(),
-        target_part_id: "matrix/main/r0c0".into(),
-        offset: Vec2::default(),
-        rotation: 0.0,
-    });
-    let mut engine = CoreEngine::new();
-    let before = scene(engine.handle(fixture::open(doc)));
-    let after = edit(
-        &mut engine,
-        &before,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: "matrix/main/r0c0".into(),
-                at: Vec2 { x: 7.0, y: 9.0 },
-            }],
-        },
-    );
+    let (mut engine, before) = constraint_source_fixture();
+    let after = edit(&mut engine, &before, move_key("matrix/main/r0c0", 7.0, 9.0));
     assert_companions_follow(&before, &after);
     let Constraint::Offset { offset, .. } = after.constraints[0] else {
         panic!("expected offset constraint")
@@ -290,13 +222,13 @@ fn constraint_source_fixture() -> (CoreEngine, ProjectDoc) {
     anchor.reference = "ANCHOR".into();
     anchor.pose.at = Vec2::default();
     doc.parts.push(anchor);
-    doc.constraints.push(Constraint::Offset {
-        id: "key-anchor".into(),
-        source_part_id: "anchor".into(),
-        target_part_id: "matrix/main/r0c0".into(),
-        offset: Vec2::default(),
-        rotation: 0.0,
-    });
+    doc.constraints.push(offset_constraint(
+        "key-anchor",
+        "anchor",
+        "matrix/main/r0c0",
+        0.0,
+        0.0,
+    ));
     let mut engine = CoreEngine::new();
     let doc = scene(engine.handle(fixture::open(doc)));
     (engine, doc)
@@ -308,18 +240,7 @@ fn moving_constraint_source_and_key_together_moves_companions_by_final_key_delta
     let after = edit(
         &mut engine,
         &before,
-        EditOperation::MoveParts {
-            positions: vec![
-                Position {
-                    id: "anchor".into(),
-                    at: Vec2 { x: 3.0, y: 4.0 },
-                },
-                Position {
-                    id: "matrix/main/r0c0".into(),
-                    at: Vec2 { x: 7.0, y: 9.0 },
-                },
-            ],
-        },
+        move_parts(&[("anchor", 3.0, 4.0), ("matrix/main/r0c0", 7.0, 9.0)]),
     );
     assert_companions_follow(&before, &after);
 }
@@ -327,16 +248,7 @@ fn moving_constraint_source_and_key_together_moves_companions_by_final_key_delta
 #[test]
 fn moving_only_constraint_source_moves_matrix_key_companions() {
     let (mut engine, before) = constraint_source_fixture();
-    let after = edit(
-        &mut engine,
-        &before,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: "anchor".into(),
-                at: Vec2 { x: 3.0, y: 4.0 },
-            }],
-        },
-    );
+    let after = edit(&mut engine, &before, move_key("anchor", 3.0, 4.0));
     assert_companions_follow(&before, &after);
 }
 
@@ -348,12 +260,7 @@ fn moving_constraint_source_preview_restores_parametric_document() {
         "preview",
         before.revision,
         EditPhase::Preview,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: "anchor".into(),
-                at: Vec2 { x: 3.0, y: 4.0 },
-            }],
-        },
+        move_key("anchor", 3.0, 4.0),
     ));
     let CoreReply::Preview { scene: preview, .. } = reply else {
         panic!("expected preview")
@@ -372,22 +279,8 @@ fn moving_constraint_source_preview_restores_parametric_document() {
             }
         );
     }
-    assert_eq!(
-        scene(engine.handle(CoreRequest::Snapshot {
-            id: "snapshot".into()
-        })),
-        before
-    );
-    let after = edit(
-        &mut engine,
-        &before,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: "anchor".into(),
-                at: Vec2 { x: 3.0, y: 4.0 },
-            }],
-        },
-    );
+    assert_eq!(fixture::outline_snapshot(&mut engine), before);
+    let after = edit(&mut engine, &before, move_key("anchor", 3.0, 4.0));
     assert_companions_follow(&before, &after);
     let undone = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
     assert_eq!(undone.parts, before.parts);
@@ -403,18 +296,7 @@ fn constrained_key_propagation_preserves_explicit_companion_destination() {
     let after = edit(
         &mut engine,
         &before,
-        EditOperation::MoveParts {
-            positions: vec![
-                Position {
-                    id: "anchor".into(),
-                    at: Vec2 { x: 3.0, y: 4.0 },
-                },
-                Position {
-                    id: "matrix/main/r0c0/diode".into(),
-                    at: Vec2 { x: 11.0, y: 12.0 },
-                },
-            ],
-        },
+        move_parts(&[("anchor", 3.0, 4.0), ("matrix/main/r0c0/diode", 11.0, 12.0)]),
     );
     assert_eq!(at(&after, "/diode"), Vec2 { x: 11.0, y: 12.0 });
     assert_eq!(at(&after, "/led"), Vec2 { x: 0.0, y: 10.0 });
@@ -426,23 +308,9 @@ fn constrained_key_propagation_preserves_authored_companion_offset() {
     let authored = edit(
         &mut engine,
         &before,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: "matrix/main/r0c0/diode".into(),
-                at: Vec2 { x: 11.0, y: 12.0 },
-            }],
-        },
+        move_key("matrix/main/r0c0/diode", 11.0, 12.0),
     );
-    let after = edit(
-        &mut engine,
-        &authored,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: "anchor".into(),
-                at: Vec2 { x: 3.0, y: 4.0 },
-            }],
-        },
-    );
+    let after = edit(&mut engine, &authored, move_key("anchor", 3.0, 4.0));
     assert_companions_follow(&authored, &after);
 }
 
@@ -467,16 +335,7 @@ fn constrained_key_propagation_respects_companions_own_constraint() {
     });
     let mut engine = CoreEngine::new();
     let before = scene(engine.handle(fixture::open(doc)));
-    let after = edit(
-        &mut engine,
-        &before,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: "anchor".into(),
-                at: Vec2 { x: 3.0, y: 4.0 },
-            }],
-        },
-    );
+    let after = edit(&mut engine, &before, move_key("anchor", 3.0, 4.0));
     assert_eq!(at(&after, "/diode"), at(&before, "/diode"));
     assert_eq!(at(&after, "/led"), Vec2 { x: 0.0, y: 10.0 });
 }
@@ -511,13 +370,13 @@ fn opening_constrained_key_reconciles_companion_placement_and_rotation() {
 fn direct_key_move_preserves_companions_authored_constraint() {
     let (_, mut doc) = constraint_source_fixture();
     doc.constraints.clear();
-    doc.constraints.push(Constraint::Offset {
-        id: "diode-anchor".into(),
-        source_part_id: "anchor".into(),
-        target_part_id: "matrix/main/r0c0/diode".into(),
-        offset: Vec2 { x: 11.0, y: 12.0 },
-        rotation: 0.0,
-    });
+    doc.constraints.push(offset_constraint(
+        "diode-anchor",
+        "anchor",
+        "matrix/main/r0c0/diode",
+        11.0,
+        12.0,
+    ));
     let diode = doc
         .parts
         .iter_mut()
@@ -529,16 +388,7 @@ fn direct_key_move_preserves_companions_authored_constraint() {
         .insert("layoutOverride".into(), serde_json::json!(1));
     let mut engine = CoreEngine::new();
     let before = scene(engine.handle(fixture::open(doc)));
-    let after = edit(
-        &mut engine,
-        &before,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: "matrix/main/r0c0".into(),
-                at: Vec2 { x: 3.0, y: 4.0 },
-            }],
-        },
-    );
+    let after = edit(&mut engine, &before, move_key("matrix/main/r0c0", 3.0, 4.0));
     assert_eq!(at(&after, "/diode"), at(&before, "/diode"));
     assert_eq!(after.constraints, before.constraints);
 }
@@ -554,18 +404,15 @@ fn assembly_chain_fixture() -> (CoreEngine, ProjectDoc) {
     }
     let mut doc = edit(&mut engine, &doc, fixture::set_matrix(matrix));
     for column in 1..3 {
-        doc.constraints.push(Constraint::Offset {
-            id: format!("assembly-chain-{column}"),
-            source_part_id: format!("matrix/main/r0c{}/diode", column - 1),
-            target_part_id: format!("matrix/main/r0c{column}"),
-            offset: Vec2 { x: 17.0, y: -5.0 },
-            rotation: 0.0,
-        });
+        doc.constraints.push(offset_constraint(
+            &format!("assembly-chain-{column}"),
+            &format!("matrix/main/r0c{}/diode", column - 1),
+            &format!("matrix/main/r0c{column}"),
+            17.0,
+            -5.0,
+        ));
     }
-    let doc = scene(engine.handle(CoreRequest::Open {
-        id: "open-chain".into(),
-        document: doc,
-    }));
+    let doc = scene(engine.handle(fixture::open(doc)));
     (engine, doc)
 }
 
@@ -594,16 +441,7 @@ fn assert_chain_shifted(before: &ProjectDoc, after: &ProjectDoc, delta: Vec2) {
 #[test]
 fn assembly_dependency_chain_settles_every_key_and_companion_in_commit() {
     let (mut engine, before) = assembly_chain_fixture();
-    let after = edit(
-        &mut engine,
-        &before,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: "anchor".into(),
-                at: Vec2 { x: 3.0, y: 4.0 },
-            }],
-        },
-    );
+    let after = edit(&mut engine, &before, move_key("anchor", 3.0, 4.0));
     assert_chain_shifted(&before, &after, Vec2 { x: 3.0, y: 4.0 });
 }
 
@@ -619,10 +457,7 @@ fn assembly_dependency_chain_settles_in_open() {
         .pose
         .at = Vec2 { x: 3.0, y: 4.0 };
     let mut engine = CoreEngine::new();
-    let after = scene(engine.handle(CoreRequest::Open {
-        id: "open-chain".into(),
-        document: changed,
-    }));
+    let after = scene(engine.handle(fixture::open(changed)));
     assert_chain_shifted(&before, &after, Vec2 { x: 3.0, y: 4.0 });
 }
 
@@ -634,12 +469,7 @@ fn assembly_dependency_chain_preview_settles_and_restores_document() {
         "preview",
         before.revision,
         EditPhase::Preview,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: "anchor".into(),
-                at: Vec2 { x: 3.0, y: 4.0 },
-            }],
-        },
+        move_key("anchor", 3.0, 4.0),
     ));
     let CoreReply::Preview { scene: preview, .. } = reply else {
         panic!("expected preview")
@@ -663,25 +493,20 @@ fn assembly_dependency_chain_preview_settles_and_restores_document() {
             part.id
         );
     }
-    assert_eq!(
-        scene(engine.handle(CoreRequest::Snapshot {
-            id: "snapshot".into()
-        })),
-        before
-    );
+    assert_eq!(fixture::outline_snapshot(&mut engine), before);
 }
 
 #[test]
 fn assembly_parent_constraint_cycle_is_rejected_without_mutating_document() {
     let (mut engine, before) = fixture();
     let mut cyclic = before.clone();
-    cyclic.constraints.push(Constraint::Offset {
-        id: "assembly-cycle".into(),
-        source_part_id: "matrix/main/r0c0/diode".into(),
-        target_part_id: "matrix/main/r0c0".into(),
-        offset: Vec2 { x: -2.0, y: -5.0 },
-        rotation: 0.0,
-    });
+    cyclic.constraints.push(offset_constraint(
+        "assembly-cycle",
+        "matrix/main/r0c0/diode",
+        "matrix/main/r0c0",
+        -2.0,
+        -5.0,
+    ));
     let reply = engine.handle(CoreRequest::Open {
         id: "cycle".into(),
         document: cyclic,
@@ -690,44 +515,30 @@ fn assembly_parent_constraint_cycle_is_rejected_without_mutating_document() {
         panic!("expected dependency cycle rejection")
     };
     assert!(message.contains("cycle"), "{message}");
-    assert_eq!(
-        scene(engine.handle(CoreRequest::Snapshot {
-            id: "snapshot".into()
-        })),
-        before
-    );
+    assert_eq!(fixture::outline_snapshot(&mut engine), before);
 }
 
 #[test]
 fn independent_assembly_constraint_breaks_implicit_parent_dependency_cycle() {
     let (_, mut doc) = constraint_source_fixture();
     doc.constraints.clear();
-    doc.constraints.push(Constraint::Offset {
-        id: "key-from-diode".into(),
-        source_part_id: "matrix/main/r0c0/diode".into(),
-        target_part_id: "matrix/main/r0c0".into(),
-        offset: Vec2 { x: -2.0, y: -5.0 },
-        rotation: 0.0,
-    });
-    doc.constraints.push(Constraint::Offset {
-        id: "diode-from-anchor".into(),
-        source_part_id: "anchor".into(),
-        target_part_id: "matrix/main/r0c0/diode".into(),
-        offset: Vec2 { x: 2.0, y: 5.0 },
-        rotation: 0.0,
-    });
+    doc.constraints.push(offset_constraint(
+        "key-from-diode",
+        "matrix/main/r0c0/diode",
+        "matrix/main/r0c0",
+        -2.0,
+        -5.0,
+    ));
+    doc.constraints.push(offset_constraint(
+        "diode-from-anchor",
+        "anchor",
+        "matrix/main/r0c0/diode",
+        2.0,
+        5.0,
+    ));
     let mut engine = CoreEngine::new();
     let before = scene(engine.handle(fixture::open(doc)));
-    let after = edit(
-        &mut engine,
-        &before,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: "anchor".into(),
-                at: Vec2 { x: 3.0, y: 4.0 },
-            }],
-        },
-    );
+    let after = edit(&mut engine, &before, move_key("anchor", 3.0, 4.0));
     assert_companions_follow(&before, &after);
 }
 
@@ -737,23 +548,9 @@ fn assembly_dependency_chain_uses_authored_companion_offset() {
     let authored = edit(
         &mut engine,
         &before,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: "matrix/main/r0c0/diode".into(),
-                at: Vec2 { x: 11.0, y: 12.0 },
-            }],
-        },
+        move_key("matrix/main/r0c0/diode", 11.0, 12.0),
     );
-    let after = edit(
-        &mut engine,
-        &authored,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: "anchor".into(),
-                at: Vec2 { x: 3.0, y: 4.0 },
-            }],
-        },
-    );
+    let after = edit(&mut engine, &authored, move_key("anchor", 3.0, 4.0));
     assert_chain_shifted(&authored, &after, Vec2 { x: 3.0, y: 4.0 });
 }
 
@@ -763,18 +560,7 @@ fn assembly_dependency_chain_respects_explicit_companion_destination() {
     let after = edit(
         &mut engine,
         &before,
-        EditOperation::MoveParts {
-            positions: vec![
-                Position {
-                    id: "anchor".into(),
-                    at: Vec2 { x: 3.0, y: 4.0 },
-                },
-                Position {
-                    id: "matrix/main/r0c0/diode".into(),
-                    at: Vec2 { x: 11.0, y: 12.0 },
-                },
-            ],
-        },
+        move_parts(&[("anchor", 3.0, 4.0), ("matrix/main/r0c0/diode", 11.0, 12.0)]),
     );
     assert_eq!(at(&after, "/diode"), Vec2 { x: 11.0, y: 12.0 });
     let last = after

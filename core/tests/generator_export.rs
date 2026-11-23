@@ -98,22 +98,11 @@ fn model_paths(items: &[(&PartDefinition, Option<&Value>)]) -> BTreeMap<String, 
     paths
 }
 
-fn kicad10() -> bool {
-    crate::support::kicad_command("kicad-cli")
-        .arg("version")
-        .output()
-        .map(|output| {
-            String::from_utf8_lossy(&output.stdout)
-                .trim()
-                .starts_with("10.")
-        })
-        .unwrap_or(false)
-}
-
 /// Whether KiCad 10 parses the board. Without KiCad 10 the check fails, as
 /// `kicad_integration.rs` does, unless `BOARDSTUDIO_ALLOW_NO_KICAD=1` skips it on purpose.
 fn kicad_parses(content: &str) -> bool {
-    if !kicad10() {
+    use crate::support::session::{kicad_board_parses, kicad10_available};
+    if !kicad10_available() {
         if std::env::var("BOARDSTUDIO_ALLOW_NO_KICAD").as_deref() == Ok("1") {
             return true;
         }
@@ -122,22 +111,7 @@ fn kicad_parses(content: &str) -> bool {
              set BOARDSTUDIO_ALLOW_NO_KICAD=1 to skip them"
         );
     }
-    let directory = crate::support::session::temp_dir("generator-kicad");
-    let board = directory.join("main.kicad_pcb");
-    std::fs::write(&board, content).unwrap();
-    let report = directory.join("stats.json");
-    let status = crate::support::kicad_command("kicad-cli")
-        .args(["pcb", "export", "stats", "--format", "json", "--output"])
-        .arg(&report)
-        .arg(&board)
-        .output()
-        .unwrap();
-    let _ = std::fs::remove_dir_all(&directory);
-    status.status.success()
-}
-
-fn count(text: &str, needle: &str) -> usize {
-    text.matches(needle).count()
+    kicad_board_parses(content)
 }
 
 #[test]
@@ -170,8 +144,8 @@ fn exports_front_and_back_switches_with_instance_nets_and_models() {
     for net in ["ROW0", "COL0", "ROW1", "COL1"] {
         assert!(board.contains(&format!("\"{net}\")")), "{net}");
     }
-    assert_eq!(count(&board, "(footprint "), 2);
-    assert_eq!(count(&board, "(model \"${KIPRJMOD}/models/"), 6);
+    assert_eq!(board.matches("(footprint ").count(), 2);
+    assert_eq!(board.matches("(model \"${KIPRJMOD}/models/").count(), 6);
     assert!(board.contains("(layer \"F.Cu\")") && board.contains("(layer \"B.Cu\")"));
     assert!(kicad_parses(&board));
 }
@@ -189,7 +163,7 @@ fn part_null_selects_the_declared_default_and_non_null_override_wins() {
         let placed = part(&mx, "sw", 0.0, "front", overrides);
         let paths = model_paths(&[(&mx, Some(&placed))]);
         let doc = project(std::slice::from_ref(&mx), &[placed], &[]);
-        count(&export_board(doc, paths), "(pad ")
+        export_board(doc, paths).matches("(pad ").count()
     };
     let inherited = pads(json!({}));
     let masked = pads(json!({ "hotswap": null }));
@@ -247,8 +221,8 @@ fn exports_zone_text_and_route_as_board_objects() {
     ];
     let board = export_board(project(&[zone, text, router], &parts, &[]), BTreeMap::new());
     assert!(board.contains("\"GND\")") && board.contains("(zone"));
-    assert_eq!(count(&board, "(gr_text \"BOARD\""), 2);
-    assert_eq!(count(&board, "(segment"), 2);
+    assert_eq!(board.matches("(gr_text \"BOARD\"").count(), 2);
+    assert_eq!(board.matches("(segment").count(), 2);
     assert!(board.contains("(via"));
     assert!(kicad_parses(&board));
 }

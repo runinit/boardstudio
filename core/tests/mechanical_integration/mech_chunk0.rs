@@ -569,8 +569,7 @@ fn a_generic_addition_on_a_paired_half_joins_the_pair() {
         },
     )
     .unwrap();
-    let left = instance_inputs(&document, "left");
-    let right = instance_inputs(&document, "right");
+    let (left, right) = both_instance_inputs(&document);
     assert_close(
         mount_at(&right.configuration, &added_id),
         Vec2 { x: 5.0, y: 1.0 },
