@@ -1061,8 +1061,7 @@ fn assignment_group(
 fn firmware_position_resolver(request: FirmwarePositionEditRequest) -> EditResolver {
     EditResolver::new("firmware-position", move |accepted: &AcceptedSnapshot| {
         let scope = &request.identity.ui_scope;
-        let plan =
-            mode::resolve_preview_plan("firmware-position", &accepted.document, &scope.board_id);
+        let plan = mode::resolve_preview_plan(&accepted.document, &scope.board_id);
         let identity = WiringPlanIdentity {
             token: accepted.token,
             revision: accepted.document.revision,

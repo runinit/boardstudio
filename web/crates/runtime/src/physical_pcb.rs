@@ -1,8 +1,8 @@
 //! Source-backed PCB preparation shared by mechanical export and collision.
-use crate::core_services::OpenScratchCore;
+use boardstudio_application::CoreEngine;
 use boardstudio_core_kernel::hash::sha256_hex;
 use boardstudio_model::model::{
-    ArtifactReply, ArtifactRequest, Asset, CaseAssemblyIR, CaseIR, Contour, CoreReply, CoreRequest,
+    ArtifactReply, ArtifactRequest, Asset, CaseAssemblyIR, CaseIR, Contour,
 };
 use boardstudio_web_host::cad_jobs::{CapturedPcbSource, PreparedCadSnapshot};
 
@@ -14,7 +14,6 @@ pub(crate) fn verify_source_digest(asset: &Asset, bytes: &[u8]) -> Result<(), St
 }
 
 pub(crate) fn install_source_pcb(
-    open_scratch: OpenScratchCore,
     request_prefix: &str,
     source: &CapturedPcbSource,
     bytes: Vec<u8>,
@@ -79,18 +78,10 @@ pub(crate) fn install_source_pcb(
         body,
         contours,
     };
-    let request_id = format!("{request_prefix}-pcb-prepare");
-    let mut ir = match open_scratch()(CoreRequest::PrepareCase {
-        id: request_id.clone(),
-        ir: CaseAssemblyIR {
-            revision: source_ir.revision,
-            bodies: vec![source_ir.clone()],
-        },
-    }) {
-        CoreReply::CasePrepared { id, ir } if id == request_id => ir,
-        CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
-        _ => return Err("Core returned an unexpected source PCB preparation.".into()),
-    };
+    let mut ir = CoreEngine::prepare_case(&CaseAssemblyIR {
+        revision: source_ir.revision,
+        bodies: vec![source_ir.clone()],
+    })?;
     if ir.revision != prepared.identity.revision
         || ir.bodies.len() != 1
         || ir.bodies[0].revision != ir.revision

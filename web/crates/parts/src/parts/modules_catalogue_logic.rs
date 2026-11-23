@@ -3,9 +3,10 @@
 //! The production catalogue (wasm) delegates to this module so the same
 //! merge/selection projection runs under `cargo test` without a browser.
 
-use boardstudio_application::{Scope, SnapshotToken};
+use boardstudio_application::Scope;
 use boardstudio_model::model::{ModuleDefinition, PartDefinition, PartModel, Vec3};
-use std::{collections::HashMap, rc::Rc};
+use serde::Deserialize;
+use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ModuleEntry {
@@ -20,94 +21,103 @@ pub enum EntrySource {
     Project,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct ModuleCatalogueRequest {
-    pub(crate) active: bool,
-    pub(crate) token: SnapshotToken,
-    pub(crate) project: Vec<ModuleDefinition>,
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ModuleIndex {
+    pub format_version: u32,
+    pub host_connector_asset: String,
+    pub modules: Vec<ModuleIndexEntry>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct ModuleIndexEntry {
+    pub id: String,
+    pub row: String,
+    pub asset: String,
+    pub variant: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct ModuleCatalogueResult {
-    pub(crate) request: ModuleCatalogueRequest,
-    pub(crate) entries: Option<Rc<Vec<ModuleEntry>>>,
-    pub(crate) error: Option<String>,
+pub struct ModuleVariantChoice {
+    pub id: String,
+    pub variant: String,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Default)]
 pub struct ModuleCatalogueView {
-    pub entries: Option<Rc<Vec<ModuleEntry>>>,
+    pub selected: Option<ModuleEntry>,
+    pub variants: Vec<ModuleVariantChoice>,
     pub error: Option<String>,
-    pub pending: bool,
 }
 
 pub(crate) fn catalogue_view(
-    request: &ModuleCatalogueRequest,
-    result: Option<ModuleCatalogueResult>,
-    bundled: Option<Rc<Vec<ModuleEntry>>>,
-) -> ModuleCatalogueView {
-    if !request.active {
-        return ModuleCatalogueView::default();
-    }
-    match result.filter(|result| result.request == *request) {
-        Some(result) => ModuleCatalogueView {
-            entries: result.entries,
-            error: result.error,
-            pending: false,
-        },
-        None => match bundled {
-            // The package catalogue is immutable. Re-project only the current accepted
-            // document's overrides while the request-owned resource catches up, so an
-            // accepted edit cannot unmount the editor that is settling that edit.
-            Some(bundled) => ModuleCatalogueView {
-                entries: Some(Rc::new(merge_project_overrides(&bundled, &request.project))),
-                error: None,
-                pending: false,
-            },
-            None => ModuleCatalogueView {
-                pending: true,
-                ..ModuleCatalogueView::default()
-            },
-        },
-    }
-}
-
-pub(crate) fn merge_project_overrides(
-    bundled: &[ModuleEntry],
+    id: &str,
     project: &[ModuleDefinition],
-) -> Vec<ModuleEntry> {
-    let mut entries = bundled.to_vec();
-    let mut positions = entries
+    index: &[ModuleIndexEntry],
+    bundled: Option<ModuleEntry>,
+    error: Option<String>,
+) -> ModuleCatalogueView {
+    let index_row = |id: &str| {
+        index
+            .iter()
+            .find(|entry| entry.id == id)
+            .map(|entry| entry.row.as_str())
+    };
+    let project_row = |definition: &ModuleDefinition| {
+        definition
+            .catalogue_row
+            .as_deref()
+            .unwrap_or(&definition.id)
+            .to_owned()
+    };
+    // Read the accepted project synchronously so an accepted edit cannot unmount its editor.
+    let selected = project
         .iter()
-        .enumerate()
-        .map(|(index, entry)| (entry.definition.id.clone(), index))
-        .collect::<HashMap<_, _>>();
-    for definition in project {
-        if let Some(index) = positions.get(&definition.id).copied() {
-            entries[index].definition = Rc::new(definition.clone());
-            entries[index].source = EntrySource::Project;
-        } else {
-            let row = definition
-                .catalogue_row
-                .clone()
-                .unwrap_or_else(|| definition.id.clone());
-            positions.insert(definition.id.clone(), entries.len());
-            entries.push(ModuleEntry {
-                row,
-                definition: Rc::new(definition.clone()),
-                source: EntrySource::Project,
-            });
-        }
+        .rev()
+        .find(|definition| definition.id == id)
+        .map(|definition| ModuleEntry {
+            row: index_row(id)
+                .map(str::to_owned)
+                .unwrap_or_else(|| project_row(definition)),
+            definition: Rc::new(definition.clone()),
+            source: EntrySource::Project,
+        })
+        .or(bundled);
+    let variants = selected
+        .as_ref()
+        .map(|entry| {
+            index
+                .iter()
+                .filter(|item| item.row == entry.row)
+                .map(|item| ModuleVariantChoice {
+                    id: item.id.clone(),
+                    variant: project
+                        .iter()
+                        .rev()
+                        .find(|definition| definition.id == item.id)
+                        .map_or(&item.variant, |definition| &definition.variant)
+                        .clone(),
+                })
+                .chain(
+                    project
+                        .iter()
+                        .filter(|definition| {
+                            index_row(&definition.id).is_none()
+                                && project_row(definition) == entry.row
+                        })
+                        .map(|definition| ModuleVariantChoice {
+                            id: definition.id.clone(),
+                            variant: definition.variant.clone(),
+                        }),
+                )
+                .collect()
+        })
+        .unwrap_or_default();
+    ModuleCatalogueView {
+        selected,
+        variants,
+        error,
     }
-    entries
-}
-
-pub fn variants(entries: &[ModuleEntry], row: &str) -> Vec<ModuleEntry> {
-    entries
-        .iter()
-        .filter(|entry| entry.row == row)
-        .cloned()
-        .collect()
 }
 
 pub fn selected_id(
@@ -199,81 +209,71 @@ mod tests {
     }
 
     #[test]
-    fn module_catalogue_refresh_keeps_current_projection_without_stale_project_entries() {
-        let bundled = Rc::new(vec![ModuleEntry {
+    fn module_catalogue_refresh_projects_the_accepted_definition_over_cached_source() {
+        let bundled = ModuleEntry {
             row: "test".into(),
             definition: Rc::new(definition("bundled")),
             source: EntrySource::Bundled,
-        }]);
-        let request = ModuleCatalogueRequest {
-            active: true,
-            token: SnapshotToken(2),
-            project: vec![definition("accepted")],
         };
-        let stale_request = ModuleCatalogueRequest {
-            active: true,
-            token: SnapshotToken(1),
-            project: vec![definition("previous")],
-        };
-        let stale_result = ModuleCatalogueResult {
-            entries: Some(Rc::new(merge_project_overrides(
-                &bundled,
-                &stale_request.project,
-            ))),
-            request: stale_request,
-            error: None,
-        };
-        let view = catalogue_view(&request, Some(stale_result), Some(bundled.clone()));
-        assert!(
-            !view.pending,
-            "accepted token refresh must not unmount the selected module owner"
+        let index = [
+            ModuleIndexEntry {
+                id: "module/test".into(),
+                row: "test".into(),
+                asset: "assets/modules/test.json".into(),
+                variant: "bundled variant".into(),
+            },
+            ModuleIndexEntry {
+                id: "module/sibling".into(),
+                row: "test".into(),
+                asset: "assets/modules/sibling.json".into(),
+                variant: "sibling variant".into(),
+            },
+            ModuleIndexEntry {
+                id: "module/other".into(),
+                row: "other".into(),
+                asset: "assets/modules/other.json".into(),
+                variant: "other variant".into(),
+            },
+        ];
+        let mut accepted = definition("accepted");
+        accepted.variant = "edited variant".into();
+        let view = catalogue_view(
+            "module/test",
+            &[accepted.clone()],
+            &index,
+            Some(bundled.clone()),
+            None,
         );
-        let entries = view.entries.unwrap();
-        assert_eq!(entries[0].definition.name, "accepted");
-        assert_eq!(entries[0].source, EntrySource::Project);
+        let entry = view
+            .selected
+            .expect("accepted refresh must keep the editor mounted");
+        assert_eq!(entry.definition.name, "accepted");
+        assert_eq!(entry.source, EntrySource::Project);
+        assert_eq!(
+            view.variants
+                .iter()
+                .map(|choice| (choice.id.as_str(), choice.variant.as_str()))
+                .collect::<Vec<_>>(),
+            [
+                ("module/test", "edited variant"),
+                ("module/sibling", "sibling variant")
+            ]
+        );
 
-        let switched = ModuleCatalogueRequest {
-            active: true,
-            token: SnapshotToken(3),
-            project: Vec::new(),
-        };
-        let previous = ModuleCatalogueResult {
-            request: request.clone(),
-            entries: Some(entries),
-            error: None,
-        };
-        let view = catalogue_view(&switched, Some(previous), Some(bundled.clone()));
-        assert_eq!(view.entries.unwrap()[0].definition.name, "bundled");
-        assert!(catalogue_view(&switched, None, None).pending);
-        let inactive = ModuleCatalogueRequest {
-            active: false,
-            ..switched
-        };
+        let view = catalogue_view("module/test", &[accepted], &[], None, None);
+        assert_eq!(view.selected.unwrap().source, EntrySource::Project);
+        let view = catalogue_view("module/test", &[], &index, Some(bundled), None);
+        assert_eq!(view.selected.unwrap().definition.name, "bundled");
+        assert_eq!(view.variants[0].variant, "bundled variant");
         assert!(
-            catalogue_view(&inactive, None, Some(bundled))
-                .entries
+            catalogue_view("module/sibling", &[], &index, None, None)
+                .selected
                 .is_none()
         );
     }
 
     #[test]
-    fn catalogue_variants_and_selection_follow_only_the_current_scope() {
-        let first = ModuleEntry {
-            row: "test".into(),
-            definition: Rc::new(definition("bundled")),
-            source: EntrySource::Bundled,
-        };
-        let entries = vec![
-            first.clone(),
-            ModuleEntry {
-                row: "other".into(),
-                definition: Rc::new(definition("other")),
-                source: EntrySource::Bundled,
-            },
-        ];
-        assert_eq!(variants(&entries, "test"), vec![first]);
-        assert!(variants(&entries, "missing").is_empty());
-
+    fn catalogue_selection_follows_only_the_current_scope() {
         let scope = Scope {
             session_epoch: boardstudio_application::SessionEpoch(1),
             document_id: "project".into(),
@@ -287,19 +287,14 @@ mod tests {
             ),
             Some("test".into())
         );
-        assert_eq!(
-            selected_id(
-                Some((Some(scope.clone()), "module:test".into())),
-                &Some(Scope {
-                    board_id: "other".into(),
-                    ..scope.clone()
-                })
-            ),
-            None
-        );
-        assert_eq!(
-            selected_id(Some((None, "module:test".into())), &Some(scope)),
-            None
-        );
+        let other = Scope {
+            board_id: "other".into(),
+            ..scope.clone()
+        };
+        for owner in [Some(other), None] {
+            assert!(
+                selected_id(Some((owner, "module:test".into())), &Some(scope.clone())).is_none()
+            );
+        }
     }
 }

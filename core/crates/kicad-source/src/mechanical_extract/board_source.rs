@@ -346,31 +346,24 @@ fn chain_outline_edges(
         let mut primitives = vec![first.primitive];
         let mut steps = 0;
         while !same_point(current, loop_start) {
-            let matches = edges
-                .iter()
-                .enumerate()
-                .filter_map(|(index, edge)| {
-                    if same_point(edge.start, current) || same_point(edge.end, current) {
-                        Some(index)
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>();
-            if matches.is_empty() {
-                return Err(validation("PCB Edge.Cuts curves contain an open contour"));
-            }
-            if matches.len() != 1 {
-                let ids = matches
-                    .iter()
-                    .map(|&index| edges[index].primitive.source_id.as_str())
+            let mut matches = edges.iter().enumerate().filter(|(_, edge)| {
+                same_point(edge.start, current) || same_point(edge.end, current)
+            });
+            let (index, hit) = matches
+                .next()
+                .ok_or_else(|| validation("PCB Edge.Cuts curves contain an open contour"))?;
+            if let Some(second) = matches.next() {
+                let ids = [hit, second.1]
+                    .into_iter()
+                    .chain(matches.map(|(_, edge)| edge))
+                    .map(|edge| edge.primitive.source_id.as_str())
                     .collect::<Vec<_>>()
                     .join(", ");
                 return Err(validation(format!(
                     "PCB Edge.Cuts sources [{ids}] have an ambiguous junction"
                 )));
             }
-            let mut edge = edges.remove(matches[0]);
+            let mut edge = edges.remove(index);
             if same_point(edge.end, current) {
                 edge.primitive = reverse_primitive(edge.primitive)?;
                 std::mem::swap(&mut edge.start, &mut edge.end);

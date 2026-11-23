@@ -235,21 +235,14 @@ fn project_pad(
 }
 
 fn parse_finite(value: &str) -> Result<f64, ArtifactError> {
-    let number = value
-        .parse::<f64>()
-        .map_err(|_| error("Invalid numeric coordinate or dimension"))?;
-    if !number.is_finite() {
-        return Err(error("Invalid non-finite coordinate or dimension"));
-    }
-    Ok(number)
+    sexpr::parse_finite(value).map_err(|failure| match failure {
+        sexpr::NumberError::Invalid => error("Invalid numeric coordinate or dimension"),
+        sexpr::NumberError::NonFinite => error("Invalid non-finite coordinate or dimension"),
+    })
 }
 
 fn root_is_back(root: &Node) -> bool {
-    sexpr::child(root, "layer")
-        .and_then(sexpr::items)
-        .and_then(|v| v.get(1))
-        .and_then(sexpr::atom)
-        == Some("B.Cu")
+    sexpr::field(root, "layer") == Some("B.Cu")
 }
 
 fn root_rotation(root: &Node) -> f64 {
@@ -273,108 +266,67 @@ fn root_local_point(point: Vec2, back: bool) -> Vec2 {
     local
 }
 
+fn coordinate_pair(node: &Node, label: &str) -> Result<Vec2, ArtifactError> {
+    let coordinate = |index| {
+        parse_finite(sexpr::atom_at(node, index).ok_or_else(|| error(format!("Invalid {label}")))?)
+    };
+    Ok(Vec2 {
+        x: coordinate(1)?,
+        y: coordinate(2)?,
+    })
+}
+
 fn point(node: &Node, label: &str) -> Result<Vec2, ArtifactError> {
-    let values = sexpr::items(node).ok_or_else(|| error(format!("Invalid {label}")))?;
-    let x = values
-        .get(1)
-        .and_then(sexpr::atom)
-        .ok_or_else(|| error(format!("Invalid {label}")))
-        .and_then(parse_finite)?;
-    let y = values
-        .get(2)
-        .and_then(sexpr::atom)
-        .ok_or_else(|| error(format!("Invalid {label}")))
-        .and_then(parse_finite)?;
+    let Vec2 { x, y } = coordinate_pair(node, label)?;
     Ok(Vec2 {
         x,
         y: if y == 0.0 { 0.0 } else { -y },
     })
 }
+
 fn positive_pair(node: &Node, label: &str) -> Result<Vec2, ArtifactError> {
-    let values = sexpr::items(node).ok_or_else(|| error(format!("Invalid {label}")))?;
-    let x = values
-        .get(1)
-        .and_then(sexpr::atom)
-        .ok_or_else(|| error(format!("Invalid {label}")))
-        .and_then(parse_finite)?;
-    let y = values
-        .get(2)
-        .and_then(sexpr::atom)
-        .ok_or_else(|| error(format!("Invalid {label}")))
-        .and_then(parse_finite)?;
-    if x <= 0.0 || y <= 0.0 {
+    let size = coordinate_pair(node, label)?;
+    if size.x <= 0.0 || size.y <= 0.0 {
         return Err(error(format!("Invalid {label}")));
     }
-    Ok(Vec2 { x, y })
+    Ok(size)
 }
 
 fn project_courtyard(
     root: &Node,
     notices: &mut Vec<ArtifactDiagnostic>,
 ) -> Result<Vec<Vec2>, ArtifactError> {
-    let mut edges: Vec<(Vec2, Vec2, Vec<Vec2>)> = Vec::new();
-    let mut explicit_shapes = Vec::<Vec<Vec2>>::new();
-    let front_courtyard = sexpr::items(root).into_iter().flatten().any(|node| {
-        matches!(
-            sexpr::head(node),
-            Some("fp_line" | "fp_arc" | "fp_circle" | "fp_poly" | "fp_rect")
-        ) && sexpr::child(node, "layer")
-            .and_then(sexpr::items)
-            .and_then(|v| v.get(1))
-            .and_then(sexpr::atom)
-            == Some("F.CrtYd")
-    });
-    let has_back_courtyard = sexpr::items(root).into_iter().flatten().any(|node| {
-        matches!(
-            sexpr::head(node),
-            Some("fp_line" | "fp_arc" | "fp_circle" | "fp_poly" | "fp_rect")
-        ) && sexpr::child(node, "layer")
-            .and_then(sexpr::items)
-            .and_then(|v| v.get(1))
-            .and_then(sexpr::atom)
-            == Some("B.CrtYd")
-    });
-    let has_root_side = sexpr::child(root, "layer").is_some();
-    let back = if has_root_side {
+    let mut edges = Vec::new();
+    let mut explicit_shapes = Vec::new();
+    let geometry = || {
+        sexpr::items(root).into_iter().flatten().filter(|node| {
+            matches!(
+                sexpr::head(node),
+                Some("fp_line" | "fp_arc" | "fp_circle" | "fp_poly" | "fp_rect")
+            )
+        })
+    };
+    let has_courtyard = |layer| geometry().any(|node| sexpr::field(node, "layer") == Some(layer));
+    let back = if sexpr::child(root, "layer").is_some() {
         root_is_back(root)
     } else {
-        !front_courtyard && has_back_courtyard
+        !has_courtyard("F.CrtYd") && has_courtyard("B.CrtYd")
     };
     let target_layer = if back { "B.CrtYd" } else { "F.CrtYd" };
-    for node in sexpr::items(root).into_iter().flatten().filter(|node| {
-        matches!(
-            sexpr::head(node),
-            Some("fp_line" | "fp_arc" | "fp_circle" | "fp_poly" | "fp_rect")
-        )
-    }) {
-        let layer = sexpr::child(node, "layer")
-            .and_then(|n| sexpr::items(n))
-            .and_then(|v| v.get(1))
-            .and_then(sexpr::atom);
-        if layer != Some(target_layer) {
-            continue;
-        }
-        let convert = |p: Vec2| Ok(root_local_point(p, back));
+    let convert = |p: Vec2| root_local_point(p, back);
+    for node in geometry().filter(|node| sexpr::field(node, "layer") == Some(target_layer)) {
         match sexpr::head(node) {
             Some("fp_line") => {
                 if let (Some(a), Some(b)) = (sexpr::child(node, "start"), sexpr::child(node, "end"))
                 {
-                    let a = convert(point(a, "courtyard")?)?;
-                    let b = convert(point(b, "courtyard")?)?;
-                    edges.push((a, b, vec![a, b]));
+                    edges.push(vec![
+                        convert(point(a, "courtyard")?),
+                        convert(point(b, "courtyard")?),
+                    ]);
                 }
             }
             Some("fp_arc") => {
-                let curve = flatten_arc(node)?;
-                if let (Some(a), Some(b)) = (curve.first(), curve.last()) {
-                    let a = convert(*a)?;
-                    let b = convert(*b)?;
-                    let curve = curve
-                        .into_iter()
-                        .map(convert)
-                        .collect::<Result<Vec<_>, _>>()?;
-                    edges.push((a, b, curve));
-                }
+                edges.push(flatten_arc(node)?.into_iter().map(convert).collect());
             }
             Some("fp_rect") => {
                 let a = point(
@@ -387,8 +339,8 @@ fn project_courtyard(
                         .ok_or_else(|| error("Courtyard rectangle needs end"))?,
                     "courtyard",
                 )?;
-                let a = convert(a)?;
-                let b = convert(b)?;
+                let a = convert(a);
+                let b = convert(b);
                 explicit_shapes.push(vec![a, Vec2 { x: b.x, y: a.y }, b, Vec2 { x: a.x, y: b.y }]);
             }
             Some("fp_circle") => {
@@ -401,8 +353,8 @@ fn project_courtyard(
                     sexpr::child(node, "end").ok_or_else(|| error("Courtyard circle needs end"))?,
                     "courtyard",
                 )?;
-                let c = convert(c)?;
-                let e = convert(e)?;
+                let c = convert(c);
+                let e = convert(e);
                 let r = ((e.x - c.x).powi(2) + (e.y - c.y).powi(2)).sqrt();
                 let half_step = (r / (r + 0.01)).acos();
                 let count = (std::f64::consts::PI / half_step).ceil().max(12.0) as usize;
@@ -423,7 +375,7 @@ fn project_courtyard(
                 if let Some(pts) = sexpr::child(node, "pts") {
                     let mut polygon = Vec::new();
                     for xy in sexpr::children(pts, "xy") {
-                        polygon.push(convert(point(xy, "courtyard polygon")?)?);
+                        polygon.push(convert(point(xy, "courtyard polygon")?));
                     }
                     if polygon.len() >= 3 {
                         explicit_shapes.push(polygon);
@@ -441,18 +393,17 @@ fn project_courtyard(
             return Ok(explicit_shapes.remove(0));
         }
         let mut points = explicit_shapes.into_iter().flatten().collect::<Vec<_>>();
-        points.extend(edges.iter().flat_map(|(_, _, curve)| curve.iter().copied()));
+        points.extend(edges.into_iter().flatten());
         return Ok(convex_hull(points));
     }
     Ok(chain_courtyard_edges(edges).unwrap_or_default())
 }
 
-fn chain_courtyard_edges(edges: Vec<(Vec2, Vec2, Vec<Vec2>)>) -> Option<Vec<Vec2>> {
+fn chain_courtyard_edges(mut edges: Vec<Vec<Vec2>>) -> Option<Vec<Vec2>> {
     // Chain shuffled and reversed segments by endpoint proximity. A single
     // polygon can represent only one loop, so multiple loops become a
     // conservative convex envelope rather than concatenated invalid rings.
     let tolerance = 0.01;
-    let mut edges: Vec<_> = edges.into_iter().map(|(_, _, curve)| curve).collect();
     let mut loops = Vec::new();
     while !edges.is_empty() {
         let first = edges.remove(0);
@@ -505,51 +456,30 @@ fn near(a: Vec2, b: Vec2, tol: f64) -> bool {
 fn flatten_arc(node: &Node) -> Result<Vec<Vec2>, ArtifactError> {
     let start_node = sexpr::child(node, "start").ok_or_else(|| error("Arc needs start"))?;
     let end_node = sexpr::child(node, "end").ok_or_else(|| error("Arc needs end"))?;
-    if let Some(angle_node) = sexpr::child(node, "angle") {
+    let (center, first, sweep, radius) = if let Some(angle_node) = sexpr::child(node, "angle") {
         // KiCad 5 stored an arc as its center, an endpoint, and a signed sweep.
         // Its positive sweep is clockwise in the Y-down frame. `point` already
         // converted that frame to Y-up, so the shared parameters negate it.
         let center = point(start_node, "legacy arc center")?;
         let endpoint = point(end_node, "legacy arc endpoint")?;
-        let degrees = sexpr::items(angle_node)
-            .and_then(|parts| parts.get(1))
-            .and_then(sexpr::atom)
+        let degrees = sexpr::atom_at(angle_node, 1)
             .ok_or_else(|| error("Legacy arc needs angle"))
             .and_then(parse_finite)?;
-        let (_, initial, sweep, radius) =
-            circular_arc_parameters(center, None, endpoint, Some(degrees))
-                .map_err(|_| error("Degenerate legacy courtyard arc"))?;
-        let step = 2.0 * (1.0 - 0.01 / radius.max(0.01)).clamp(-1.0, 1.0).acos();
-        let count = (sweep.abs() / step.max(0.001)).ceil().max(2.0) as usize;
-        return Ok((0..=count)
-            .map(|index| {
-                let angle = initial + sweep * index as f64 / count as f64;
-                Vec2 {
-                    x: center.x + radius * angle.cos(),
-                    y: center.y + radius * angle.sin(),
-                }
-            })
-            .collect());
-    }
-    let start = point(start_node, "arc start")?;
-    let mid = point(
-        sexpr::child(node, "mid").ok_or_else(|| error("Arc needs midpoint"))?,
-        "arc midpoint",
-    )?;
-    let end = point(end_node, "arc end")?;
-    let (center, a0, sweep, r) = circular_arc_parameters(start, Some(mid), end, None)
-        .map_err(|_| error("Degenerate courtyard arc"))?;
-    let step = 2.0 * (1.0 - 0.01 / r.max(0.01)).clamp(-1.0, 1.0).acos();
+        circular_arc_parameters(center, None, endpoint, Some(degrees))
+            .map_err(|_| error("Degenerate legacy courtyard arc"))?
+    } else {
+        let start = point(start_node, "arc start")?;
+        let mid = point(
+            sexpr::child(node, "mid").ok_or_else(|| error("Arc needs midpoint"))?,
+            "arc midpoint",
+        )?;
+        let end = point(end_node, "arc end")?;
+        circular_arc_parameters(start, Some(mid), end, None)
+            .map_err(|_| error("Degenerate courtyard arc"))?
+    };
+    let step = 2.0 * (1.0 - 0.01 / radius.max(0.01)).clamp(-1.0, 1.0).acos();
     let count = (sweep.abs() / step.max(0.001)).ceil().max(2.0) as usize;
-    Ok((0..=count)
-        .map(|i| {
-            let a = a0 + sweep * i as f64 / count as f64;
-            Vec2 {
-                x: center.x + r * a.cos(),
-                y: center.y + r * a.sin(),
-            }
-        })
-        .collect())
+    Ok(sexpr::sample_arc(center, first, sweep, radius, count))
 }
 
 fn primitive_extent(node: &Node) -> Result<Option<Vec2>, ArtifactError> {

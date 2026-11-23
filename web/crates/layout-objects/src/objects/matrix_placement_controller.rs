@@ -10,7 +10,7 @@ use super::matrix_setup::{
 use super::{ScopedTreeContext, TreeContext};
 use crate::{
     matrix_setup_operation::{MatrixSetupRequest, next_matrix_id},
-    presentation::canvas_interaction::CanvasInteractionOwner,
+    presentation::canvas_interaction::{CanvasMode, LayoutInteraction},
     runtime::Runtime,
 };
 use boardstudio_application::{
@@ -78,6 +78,7 @@ pub fn use_matrix_placement(
     runtime: Rc<Runtime>,
     input: MatrixPlacementInput,
 ) -> MatrixPlacementMount {
+    let canvas_interaction = use_context::<LayoutInteraction>();
     let MatrixPlacementInput {
         version,
         selected_context,
@@ -85,7 +86,6 @@ pub fn use_matrix_placement(
         workspace,
         scope_generation,
         assembly_orientation,
-        canvas_interaction,
     } = input;
     let editor_instance_id = use_hook({
         let runtime = runtime.clone();
@@ -94,10 +94,10 @@ pub fn use_matrix_placement(
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     use_drop({
         let alive = alive.clone();
-        let canvas_interaction = canvas_interaction.clone();
+
         move || {
             alive.set(false);
-            canvas_interaction.release(CanvasInteractionOwner::MatrixPlacement);
+            canvas_interaction.end(CanvasMode::PlacingMatrix);
         }
     });
     let request_id = use_signal(|| 0u64);
@@ -113,7 +113,7 @@ pub fn use_matrix_placement(
         (&version(), &workspace(), &scope_generation()),
         {
             let runtime = runtime.clone();
-            let canvas_interaction = canvas_interaction.clone();
+
             let mut preparing = preparing;
             let mut placement = placement;
             let mut waiting = waiting;
@@ -192,7 +192,7 @@ pub fn use_matrix_placement(
                     preparing.set(None);
                     placement.set(None);
                     error.set(None);
-                    canvas_interaction.release(CanvasInteractionOwner::MatrixPlacement);
+                    canvas_interaction.end(CanvasMode::PlacingMatrix);
                 }
             }
         },
@@ -201,7 +201,7 @@ pub fn use_matrix_placement(
     let on_place = use_callback({
         let runtime = runtime.clone();
         let alive = alive.clone();
-        let canvas_interaction = canvas_interaction.clone();
+
         let mut request_id = request_id;
         let mut preparing = preparing;
         let mut error = error;
@@ -217,7 +217,7 @@ pub fn use_matrix_placement(
                 ));
                 return;
             };
-            if !canvas_interaction.try_acquire(CanvasInteractionOwner::MatrixPlacement) {
+            if !canvas_interaction.begin(CanvasMode::PlacingMatrix) {
                 return;
             }
             let next = request_id()
@@ -267,7 +267,7 @@ pub fn use_matrix_placement(
             let mut preparing = preparing;
             let mut placement = placement;
             let mut error = error;
-            let canvas_interaction = canvas_interaction.clone();
+
             spawn_local(async move {
                 let result = async {
                     let (mut matrix, definitions) = match source {
@@ -378,7 +378,11 @@ pub fn use_matrix_placement(
                 if preparing.read().as_ref() != Some(&owner) {
                     return;
                 }
-                if workspace() != Workspace::Layout
+                // A cancellation (Escape, scope or workspace change) may already
+                // have ended the canvas mode without clearing `preparing` through
+                // this owner; a late result must never re-arm placement then.
+                if canvas_interaction.current() != Some(CanvasMode::PlacingMatrix)
+                    || workspace() != Workspace::Layout
                     || scope_generation() != owner.scope_generation
                     || !owner_session_current(
                         &runtime,
@@ -389,11 +393,14 @@ pub fn use_matrix_placement(
                     )
                 {
                     preparing.set(None);
-                    canvas_interaction.release(CanvasInteractionOwner::MatrixPlacement);
+                    canvas_interaction.end(CanvasMode::PlacingMatrix);
                     return;
                 }
                 match result {
-                    Ok(None) => {}
+                    Ok(None) => {
+                        preparing.set(None);
+                        canvas_interaction.end(CanvasMode::PlacingMatrix);
+                    }
                     Ok(Some((matrix, definitions, scene))) => {
                         placement.set(Some(MatrixPlacementProjection {
                             owner: owner.clone(),
@@ -406,7 +413,7 @@ pub fn use_matrix_placement(
                     Err(message) => {
                         preparing.set(None);
                         error.set(Some(message));
-                        canvas_interaction.release(CanvasInteractionOwner::MatrixPlacement);
+                        canvas_interaction.end(CanvasMode::PlacingMatrix);
                     }
                 }
             });
@@ -415,10 +422,10 @@ pub fn use_matrix_placement(
 
     let on_move = use_callback({
         let runtime = runtime.clone();
-        let canvas_interaction = canvas_interaction.clone();
+
         let mut placement = placement;
         move |movement: MatrixPlacementMove| {
-            if !canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement)
+            if canvas_interaction.current() != Some(CanvasMode::PlacingMatrix)
                 || workspace() != Workspace::Layout
                 || scope_generation() != movement.owner.scope_generation
                 || !movement.center.x.is_finite()
@@ -445,11 +452,9 @@ pub fn use_matrix_placement(
         let mut preparing = preparing;
         let mut placement = placement;
         let mut error = error;
-        let canvas_interaction = canvas_interaction.clone();
+
         move |owner: MatrixPlacementOwner| {
-            if waiting.read().is_some()
-                || !canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement)
-            {
+            if waiting.read().is_some() {
                 return;
             }
             if preparing.read().as_ref() == Some(&owner)
@@ -461,19 +466,19 @@ pub fn use_matrix_placement(
                 preparing.set(None);
                 placement.set(None);
                 error.set(None);
-                canvas_interaction.release(CanvasInteractionOwner::MatrixPlacement);
+                canvas_interaction.end(CanvasMode::PlacingMatrix);
             }
         }
     });
 
     let on_commit = use_callback({
         let runtime = runtime.clone();
-        let canvas_interaction = canvas_interaction.clone();
+
         let mut placement = placement;
         let mut waiting = waiting;
         let mut error = error;
         move |movement: MatrixPlacementMove| {
-            if !canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement)
+            if canvas_interaction.current() != Some(CanvasMode::PlacingMatrix)
                 || waiting.read().is_some()
                 || workspace() != Workspace::Layout
                 || scope_generation() != movement.owner.scope_generation
@@ -525,7 +530,7 @@ pub fn use_matrix_placement(
             }));
             placement.set(None);
             error.set(None);
-            canvas_interaction.release(CanvasInteractionOwner::MatrixPlacement);
+            canvas_interaction.end(CanvasMode::PlacingMatrix);
         }
     });
 

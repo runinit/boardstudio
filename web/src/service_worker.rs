@@ -1,76 +1,46 @@
 use boardstudio_web_worker_host::offline::{OfflineManifest, scope_cache_prefix};
-use js_sys::Array;
+use js_sys::{Array, Function, Promise};
 use wasm_bindgen::{JsCast, JsValue, closure::Closure, prelude::wasm_bindgen};
 use wasm_bindgen_futures::{JsFuture, future_to_promise};
 use web_sys::{
-    Cache, ExtendableEvent, FetchEvent, Request, RequestDestination, ServiceWorkerGlobalScope,
-    WorkerGlobalScope,
+    Cache, ExtendableEvent, FetchEvent, Request, RequestDestination, Response,
+    ServiceWorkerGlobalScope,
 };
 
 thread_local! {
-    static MANIFEST: std::cell::OnceCell<OfflineManifest> = const { std::cell::OnceCell::new() };
+    static STARTED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
-/// The release manifest that `start_offline_worker` received from the generated bootstrap.
-fn manifest() -> Result<OfflineManifest, JsValue> {
-    MANIFEST
-        .with(|manifest| manifest.get().cloned())
-        .ok_or_else(|| JsValue::from_str("offline worker started without a release manifest"))
-}
+struct FinishWait(Option<Function>);
 
-fn scope() -> String {
-    js_sys::global()
-        .unchecked_into::<ServiceWorkerGlobalScope>()
-        .registration()
-        .scope()
-}
-
-fn cache_prefix(scope_url: &str) -> Result<String, JsValue> {
-    scope_cache_prefix(scope_url).map_err(|error| JsValue::from_str(&error))
-}
-
-fn cache_name(scope_url: &str, manifest: &OfflineManifest) -> Result<String, JsValue> {
-    Ok(format!(
-        "{}{version}",
-        cache_prefix(scope_url)?,
-        version = manifest.version
-    ))
-}
-
-fn cache_storage() -> Result<web_sys::CacheStorage, JsValue> {
-    js_sys::global()
-        .unchecked_into::<WorkerGlobalScope>()
-        .caches()
-}
-
-async fn open_current_cache(scope_url: &str, manifest: &OfflineManifest) -> Result<Cache, JsValue> {
-    JsFuture::from(cache_storage()?.open(&cache_name(scope_url, manifest)?))
-        .await?
-        .dyn_into::<Cache>()
-}
-
-async fn install_policy() -> Result<(), JsValue> {
-    let manifest = manifest()?;
-    let scope_url = scope();
-    let cache = open_current_cache(&scope_url, &manifest).await?;
-    let files = Array::new();
-    for asset in &manifest.assets {
-        files.push(&JsValue::from_str(&format!("{scope_url}{asset}")));
+impl Drop for FinishWait {
+    fn drop(&mut self) {
+        if let Some(resolve) = self.0.take() {
+            let _ = resolve.call0(&JsValue::UNDEFINED);
+        }
     }
-    JsFuture::from(cache.add_all_with_str_sequence(files.as_ref())).await?;
-    // Let the browser wait for clients of the active worker to close; they may
-    // still need its cache for assets loaded later while offline.
-    Ok(())
 }
 
-async fn activate_policy() -> Result<(), JsValue> {
-    let global = js_sys::global().unchecked_into::<ServiceWorkerGlobalScope>();
-    let manifest = manifest()?;
-    let scope_url = scope();
-    let cache_storage = cache_storage()?;
+fn global() -> ServiceWorkerGlobalScope {
+    js_sys::global().unchecked_into()
+}
+
+async fn open_cache(name: &str) -> Result<Cache, JsValue> {
+    JsFuture::from(global().caches()?.open(name))
+        .await?
+        .dyn_into()
+}
+
+async fn install_policy(cache_name: String, files: Array) -> Result<JsValue, JsValue> {
+    // The active worker retains its cache until its clients close.
+    let cache = open_cache(&cache_name).await?;
+    JsFuture::from(cache.add_all_with_str_sequence(files.as_ref())).await
+}
+
+async fn activate_policy(prefix: String, active_name: String) -> Result<JsValue, JsValue> {
+    let global = global();
+    let cache_storage = global.caches()?;
     let names = Array::from(&JsFuture::from(cache_storage.keys()).await?);
-    let prefix = cache_prefix(&scope_url)?;
-    let active_name = cache_name(&scope_url, &manifest)?;
     for name in names.iter() {
         if let Some(name) = name.as_string()
             && name.starts_with(&prefix)
@@ -79,13 +49,17 @@ async fn activate_policy() -> Result<(), JsValue> {
             JsFuture::from(cache_storage.delete(&name)).await?;
         }
     }
-    JsFuture::from(global.clients().claim()).await?;
-    Ok(())
+    JsFuture::from(global.clients().claim()).await
 }
 
-async fn cached_fetch(request: Request, scope_url: &str) -> Result<JsValue, JsValue> {
-    let manifest = manifest()?;
-    let cache = open_current_cache(scope_url, &manifest).await?;
+async fn cached_fetch(
+    request: Request,
+    scope_url: &str,
+    cache_name: &str,
+    runtime_cacheable: bool,
+    finish: FinishWait,
+) -> Result<JsValue, JsValue> {
+    let cache = open_cache(cache_name).await?;
     let cached = JsFuture::from(cache.match_with_request(&request)).await?;
     if !cached.is_undefined() {
         return Ok(cached);
@@ -98,8 +72,20 @@ async fn cached_fetch(request: Request, scope_url: &str) -> Result<JsValue, JsVa
         }
     }
 
-    let global = js_sys::global().unchecked_into::<WorkerGlobalScope>();
-    JsFuture::from(global.fetch_with_request(&request)).await
+    let response = JsFuture::from(global().fetch_with_request(&request)).await?;
+    if runtime_cacheable
+        && request.method() == "GET"
+        && let Some(response) = response.dyn_ref::<Response>()
+        && response.ok()
+        && let Ok(cloned) = response.clone()
+    {
+        let _ = future_to_promise(async move {
+            let _finish = finish;
+            let _ = JsFuture::from(cache.put_with_request(&request, &cloned)).await;
+            Ok(JsValue::UNDEFINED)
+        });
+    }
+    Ok(response)
 }
 
 /// Validate the route's asset manifest and register the offline cache policy.
@@ -108,42 +94,78 @@ async fn cached_fetch(request: Request, scope_url: &str) -> Result<JsValue, JsVa
 /// `initSync`, so the handlers exist before the worker's first event. One worker
 /// build serves every route because the manifest is not compiled in.
 #[wasm_bindgen]
-pub fn start_offline_worker(version: String, assets: Vec<String>) -> Result<(), JsValue> {
-    let manifest = OfflineManifest { version, assets };
+pub fn start_offline_worker(
+    version: String,
+    shell_assets: Vec<String>,
+    runtime_cache_prefixes: Vec<String>,
+) -> Result<(), JsValue> {
+    let manifest = OfflineManifest {
+        version,
+        shell_assets,
+        runtime_cache_prefixes,
+    };
     manifest
         .validate()
         .map_err(|error| JsValue::from_str(&error))?;
-    if MANIFEST.with(|current| current.set(manifest)).is_err() {
+    if STARTED.with(|started| started.replace(true)) {
         return Err(JsValue::from_str("offline worker was already started"));
     }
-    let global = js_sys::global().unchecked_into::<ServiceWorkerGlobalScope>();
+    let global = global();
+    let scope_url = global.registration().scope();
+    let prefix = scope_cache_prefix(&scope_url).map_err(|error| JsValue::from_str(&error))?;
+    let cache_name = format!("{prefix}{}", manifest.version);
+    let files: Array = manifest
+        .shell_assets
+        .iter()
+        .map(|asset| JsValue::from_str(&format!("{scope_url}{asset}")))
+        .collect();
 
-    let install = Closure::<dyn FnMut(ExtendableEvent)>::new(|event: ExtendableEvent| {
-        let promise =
-            future_to_promise(async { install_policy().await.map(|()| JsValue::UNDEFINED) });
-        let _ = event.wait_until(&promise);
+    let install_cache = cache_name.clone();
+    let install = Closure::<dyn FnMut(ExtendableEvent)>::new(move |event: ExtendableEvent| {
+        let _ = event.wait_until(&future_to_promise(install_policy(
+            install_cache.clone(),
+            files.clone(),
+        )));
     });
-    global.add_event_listener_with_callback("install", install.as_ref().unchecked_ref())?;
+    global.set_oninstall(Some(install.as_ref().unchecked_ref()));
     install.forget();
 
-    let activate = Closure::<dyn FnMut(ExtendableEvent)>::new(|event: ExtendableEvent| {
-        let promise =
-            future_to_promise(async { activate_policy().await.map(|()| JsValue::UNDEFINED) });
-        let _ = event.wait_until(&promise);
+    let active_cache = cache_name.clone();
+    let activate = Closure::<dyn FnMut(ExtendableEvent)>::new(move |event: ExtendableEvent| {
+        let _ = event.wait_until(&future_to_promise(activate_policy(
+            prefix.clone(),
+            active_cache.clone(),
+        )));
     });
-    global.add_event_listener_with_callback("activate", activate.as_ref().unchecked_ref())?;
+    global.set_onactivate(Some(activate.as_ref().unchecked_ref()));
     activate.forget();
 
-    let scope_url = scope();
     let fetch = Closure::<dyn FnMut(FetchEvent)>::new(move |event: FetchEvent| {
-        if event.request().url().starts_with(&scope_url) {
-            let request = event.request();
-            let scope_url = scope_url.clone();
-            let promise = future_to_promise(async move { cached_fetch(request, &scope_url).await });
+        let request = event.request();
+        if let Some(relative_path) = request.url().strip_prefix(&scope_url) {
+            let asset_path = relative_path
+                .split(['?', '#'])
+                .next()
+                .unwrap_or(relative_path);
+            let runtime_cacheable = manifest.is_runtime_cacheable(asset_path);
+            let mut resolve_cache = None;
+            let cache_done = Promise::new(&mut |resolve, _| resolve_cache = Some(resolve));
+            let _ = event.wait_until(&cache_done);
+            let (scope_url, name) = (scope_url.clone(), cache_name.clone());
+            let promise = future_to_promise(async move {
+                cached_fetch(
+                    request,
+                    &scope_url,
+                    &name,
+                    runtime_cacheable,
+                    FinishWait(resolve_cache),
+                )
+                .await
+            });
             let _ = event.respond_with(&promise);
         }
     });
-    global.add_event_listener_with_callback("fetch", fetch.as_ref().unchecked_ref())?;
+    global.set_onfetch(Some(fetch.as_ref().unchecked_ref()));
     fetch.forget();
     Ok(())
 }

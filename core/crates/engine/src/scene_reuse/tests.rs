@@ -221,18 +221,24 @@ fn compare(engine: &mut CoreEngine, cold: &mut CoreEngine, request: CoreRequest)
             scene.board_outline_scenes,
             geometry::board_outline_scenes(document, &cache)
         );
-        let fresh = cold.scene(
-            id.clone(),
-            SceneInput {
-                transaction: &scene.transaction_id,
-                changed: scene.changed_ids.clone(),
-                document,
-                contours: &contours,
-                geom_findings: &findings,
-                cache: &cache,
-                kind: SceneKind::Committed,
-            },
-        );
+        let fresh_scene = cold
+            .scene_with_board_geometry(
+                SceneInput {
+                    transaction: &scene.transaction_id,
+                    changed: scene.changed_ids.clone(),
+                    document,
+                    contours: &contours,
+                    geom_findings: &findings,
+                    cache: &cache,
+                },
+                None,
+            )
+            .unwrap();
+        let fresh = CoreReply::Scene {
+            id: id.clone(),
+            scene: fresh_scene,
+            document: Box::new(cold.document.clone()),
+        };
         assert_eq!(
             boardstudio_model::wire::encode_core_reply(&actual),
             boardstudio_model::wire::encode_core_reply(&fresh),

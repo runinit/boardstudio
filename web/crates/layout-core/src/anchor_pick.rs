@@ -15,12 +15,11 @@
 //! `SetPartAnchor`; the half origin only marks the current placement of a
 //! detached part or an unanchored matrix.
 
+use boardstudio_application::CoreEngine;
 use boardstudio_core_kernel::matrix::layout::evaluated_part_pose;
 use boardstudio_model::model::{
-    CoreReply, CoreRequest, EditOperation, Follow, Layout, Matrix, MatrixAnchor, Part, PartAnchor,
-    Pose2, ProjectDoc, Vec2,
+    EditOperation, Follow, Layout, Matrix, MatrixAnchor, Part, PartAnchor, Pose2, ProjectDoc, Vec2,
 };
-use boardstudio_web_runtime::core_services::OpenScratchCore;
 use boardstudio_web_ui_model::tree::TreeContext;
 
 /// A committable anchor-key candidate: one live key in the owner's Layout.
@@ -495,7 +494,6 @@ pub fn preview_anchor_poses(
     document: &ProjectDoc,
     selection: &TreeContext,
     target: &PickTarget,
-    open_scratch: OpenScratchCore,
 ) -> Vec<(String, Pose2)> {
     let projected = anchor_pick_candidates(document, selection);
     let Some(projected) = projected else {
@@ -545,13 +543,10 @@ pub fn preview_anchor_poses(
         }
         _ => return Vec::new(),
     }
-    let probe = match open_scratch()(CoreRequest::Open {
-        id: "anchor-pick-preview".into(),
-        document: probe,
-    }) {
-        CoreReply::Scene { document, .. } => *document,
-        _ => return Vec::new(),
+    let Ok(opened) = CoreEngine::new().open(probe) else {
+        return Vec::new();
     };
+    let probe = opened.document;
     match selection {
         TreeContext::Matrix { matrix_id } => {
             let prefix = format!("matrix/{matrix_id}/r");
@@ -1100,12 +1095,7 @@ mod tests {
             row: 0,
             column: 1,
         };
-        let preview = preview_anchor_poses(
-            &doc,
-            &selection,
-            &target,
-            boardstudio_web_test_runtime::engine_core_services().open_scratch,
-        );
+        let preview = preview_anchor_poses(&doc, &selection, &target);
         let commit = pick_commit(&doc, &selection, &target).expect("a live key commits");
         let (mut engine, _, opened) = open_engine(doc);
         let revision_before = opened.revision;
@@ -1151,12 +1141,7 @@ mod tests {
             row: 0,
             column: 1,
         };
-        let preview = preview_anchor_poses(
-            &doc,
-            &selection,
-            &target,
-            boardstudio_web_test_runtime::engine_core_services().open_scratch,
-        );
+        let preview = preview_anchor_poses(&doc, &selection, &target);
         let commit = pick_commit(&doc, &selection, &target).expect("a live key commits");
         let (mut engine, _, opened) = open_engine(doc);
         let (_, edited) = edit_engine(&mut engine, &opened, commit.operation);

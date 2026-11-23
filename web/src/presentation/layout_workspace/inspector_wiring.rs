@@ -146,7 +146,7 @@ pub(in crate::presentation) fn layout_inspector_input(
         on_pick_splay_origin: {
             let mount = matrix_transform_inspector.clone();
             let mut pending = layout_state.pending_splay_origin_pick();
-            let mut anchor_pending = layout_state.pending_anchor_pick();
+            let interaction = consume_context::<LayoutInteraction>();
             EventHandler::new(move |()| {
                 let Some(projection) = mount.projection() else {
                     return;
@@ -155,16 +155,20 @@ pub(in crate::presentation) fn layout_inspector_input(
                     &projection.owner.context,
                     objects::TreeContext::Column { .. }
                 ) && mount.editable()
+                    && interaction.switch_pick(CanvasMode::PickingSplayOrigin)
                 {
-                    anchor_pending.set(None);
                     pending.set(Some(projection.owner.clone()));
+                    interaction.on_cancel(move || {
+                        let mut pending = pending;
+                        pending.set(None);
+                    });
                 }
             })
         },
         on_pick_anchor: {
             let mount = matrix_transform_inspector.clone();
             let mut pending = layout_state.pending_anchor_pick();
-            let mut splay_pending = layout_state.pending_splay_origin_pick();
+            let interaction = consume_context::<LayoutInteraction>();
             EventHandler::new(move |()| {
                 let Some(projection) = mount.projection() else {
                     return;
@@ -173,26 +177,29 @@ pub(in crate::presentation) fn layout_inspector_input(
                     &projection.owner.context,
                     objects::TreeContext::Matrix { .. }
                 ) && mount.editable()
+                    && interaction.switch_pick(CanvasMode::PickingMatrixAnchor)
                 {
-                    splay_pending.set(None);
                     mount.clear_aggregate_pick();
                     pending.set(Some(projection.owner.clone()));
+                    let mount = mount.clone();
+                    interaction.on_cancel(move || {
+                        let mut pending = pending;
+                        mount.clear_aggregate_pick();
+                        pending.set(None);
+                    });
                 }
             })
         },
         anchor_pick_pending: layout_state.pending_anchor_pick()().is_some(),
         on_cancel_anchor_pick: {
+            let interaction = consume_context::<LayoutInteraction>();
             let mount = matrix_transform_inspector.clone();
             let mut pending = layout_state.pending_anchor_pick();
             EventHandler::new(move |()| {
+                interaction.end(CanvasMode::PickingMatrixAnchor);
                 mount.clear_aggregate_pick();
                 pending.set(None);
             })
-        },
-        splay_origin_pick_pending: layout_state.pending_splay_origin_pick()().is_some(),
-        on_cancel_splay_origin_pick: {
-            let mut pending = layout_state.pending_splay_origin_pick();
-            EventHandler::new(move |()| pending.set(None))
         },
         inspector_tab: layout_state.inspector_tab(),
         matrix_relations: matrix_context_relations(model, selected_tree_context.as_ref()),

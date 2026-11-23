@@ -92,7 +92,7 @@ pub(super) fn canvas(i: CanvasInput) -> Element {
                 onmounted: h.mount,
                 onpointerdown: move |e: PointerEvent| { h.start_pan.call(e.clone()); i.on_empty_hit.call(e); },
                 onpointermove: h.move_pointer, onpointerup: h.end_pointer, onpointercancel: h.cancel_pointer,
-                onlostpointercapture: h.cancel_pointer, onkeydown: h.keyboard, onkeyup: h.key_up, onwheel: h.wheel,
+                onlostpointercapture: h.lost_capture, onkeydown: h.keyboard, onkeyup: h.key_up, onwheel: h.wheel,
                 g { transform: "scale(1,-1)",
                     PcbScene {
                         snapshot: i.snapshot, scope: i.scope, selected_ids: i.selected_ids, generation: i.generation,
@@ -317,7 +317,7 @@ pub(super) fn PcbWorkspace() -> Element {
     let mut matrix_setup = frame.matrix_setup.clone();
     matrix_setup.can_open = add_is_current
         && matrix_setup.projection.is_none()
-        && interaction.arbiter.current().is_none();
+        && consume_context::<LayoutInteraction>().current().is_none();
     matrix_setup.on_open = pcb_add_layout_open_handler(
         runtime.clone(),
         workspace,

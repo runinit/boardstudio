@@ -100,35 +100,16 @@ impl Runtime {
             preview.lease.clone(),
             source_is_current.clone(),
         );
-        let module_request_id = format!(
-            "layout-module-models-{}-{}-{}",
-            preview.owner.snapshot_token.0,
-            preview.document.revision,
-            preview.owner.source_generation
-        );
-        let module_request = CoreRequest::ResolveModules {
-            id: module_request_id.clone(),
-            document: preview.document.as_ref().clone(),
-            board_id: preview.owner.scope.board_id.clone(),
-            preview_top_z: Some(preview.preview.thickness),
-        };
-        let module_reply = (self.core_services.open_scratch)()(module_request);
-        let module_placements = match module_reply {
-            CoreReply::ModulesResolved { id, result }
-                if id == module_request_id && result.revision == preview.document.revision =>
-            {
-                result.model_placements
-            }
-            CoreReply::ModulesResolved { .. } => {
-                return Err(
-                    "Core returned mounted-module models for another request or revision".into(),
-                );
-            }
-            CoreReply::Error { id, message, .. } if id == module_request_id => {
-                return Err(format!("Mounted-module model resolution failed: {message}"));
-            }
-            _ => return Err("Core returned an unexpected mounted-module model reply".into()),
-        };
+        let modules = CoreEngine::resolve_modules(
+            &preview.document,
+            &preview.owner.scope.board_id,
+            Some(preview.preview.thickness),
+        )
+        .map_err(|message| format!("Mounted-module model resolution failed: {message}"))?;
+        if modules.revision != preview.document.revision {
+            return Err("Core returned mounted-module models for another revision".into());
+        }
+        let module_placements = modules.model_placements;
         let bundled_ids_by_path = bundled_preview_paths(&preview.preview.models).await?;
         if !source_is_current() {
             return Ok(());

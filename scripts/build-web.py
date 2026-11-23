@@ -25,6 +25,8 @@ WEB = ROOT / "web"
 OFFLINE_WORKER = WEB / "target/providers/offline-worker"
 ROUTES = {"subpath": "/boardstudio/", "root": "/"}
 DEFAULT_ROUTES = ("subpath",)
+MODULE_CATALOGUE = "catalogue/modules/imported-modules.json"
+ON_DEMAND_PREFIXES = ("assets/ergogen-models/", "assets/cad/", "assets/cad-worker/bundled-step/", "assets/modules/")
 # Cargo config already passes the getrandom WASM cfg to every build.
 DX_FLAGS = ("--wasm-js-cfg", "false")
 PAGE_TARGET = WEB / "target/page"
@@ -56,16 +58,19 @@ def run(command, *, cwd=ROOT, env=None):
     subprocess.run(command, cwd=cwd, env=env, check=True, pass_fds=() if fd is None else (fd,))
 
 
+def worker_providers():
+    return (
+        ("m1_cad_worker", WEB / "target/providers/cad-worker", "cad-worker", ROOT / "target/wasm-workers"),
+        ("boardstudio_offline_worker", OFFLINE_WORKER, "service-worker", ROOT / "target/wasm-offline-worker"),
+    )
+
+
 def provider_commands(fast: bool = False) -> list[list[str]]:
     profile = ["--profile", "wasm-check", "--no-opt"] if fast else ["--release"]
-    workers = [
-        ("m1_cad_worker", WEB / "target/providers/cad-worker", "cad-worker"),
-        ("boardstudio_offline_worker", OFFLINE_WORKER, "service-worker"),
-    ]
     return [
         *[["wasm-pack", "build", str(WEB), "--target", "web", "--out-name", name,
            "--out-dir", str(output), *profile, "--locked", "--no-default-features",
-           "--features", feature] for name, output, feature in workers],
+           "--features", feature] for name, output, feature, _ in worker_providers()],
         ["wasm-pack", "build", "renderer", "--target", "web", "--out-dir", "pkg",
          "--out-name", "boardstudio_renderer_wasm", *profile, "--locked"],
         [sys.executable, "cad/scripts/build-cad-wasm.py", *(["--no-opt"] if fast else [])],
@@ -105,14 +110,51 @@ def _stage_baked_step(worker: Path, provider_root: Path) -> str:
     )
 
 
+def stage_module_catalogue(source: Path, assets: Path) -> None:
+    package = json.loads(source.read_text())
+    if package["formatVersion"] != 1:
+        raise ValueError(f"unsupported module source format: {package['formatVersion']}")
+    records = package["modules"]
+    host = next((part for record in records for part in record["definition"].get("circuit", {}).get("definitions", [])
+                 if part.get("hardwareProfile", {}).get("vikRole") == "host" and "horizontal" in part["name"].lower()), None)
+    if host is None:
+        raise ValueError("module catalogue has no horizontal VIK host connector")
+    modules = assets / "modules"
+    (assets / "imported-modules.json").unlink(missing_ok=True)
+    if modules.exists():
+        shutil.rmtree(modules)
+    modules.mkdir(parents=True)
+    host_asset = "assets/modules/vik-host-connector.json"
+    compact = json.JSONEncoder(separators=(",", ":")).encode
+    (modules / Path(host_asset).name).write_text(compact(host))
+    entries = []
+    for record in records:
+        definition = record["definition"]
+        if not re.fullmatch(r"[A-Za-z0-9:-]+", definition["id"]):
+            raise ValueError(f"module id cannot be staged: {definition['id']}")
+        output = modules / (definition["id"].replace(":", "_") + ".json")
+        with output.open("x") as file:
+            file.write(compact(record))
+        points = [point for contour in definition["board"]["contours"] for point in contour["points"]]
+        bounds = [[extent(point[axis] for point in points) for axis in "xy"] for extent in (min, max)] if points else None
+        entries.append({**{key: definition[key] for key in ("id", "name", "family", "variant")},
+                        "row": record["row"], "asset": f"assets/modules/{output.name}", "bounds": bounds,
+                        "protocol": definition["electrical"]["protocol"], "gateCount": len(definition.get("gates", [])),
+                        "pinoutSummary": sorted({signal for port in definition.get("interfaces", []) for signal in port["signals"]})})
+    index = compact({"formatVersion": 1, "hostConnectorAsset": host_asset, "modules": entries})
+    if len(index) >= 200 * 1024:
+        raise ValueError("module catalogue index must be smaller than 200 KiB")
+    (assets / "modules-index.json").write_text(index)
+
+
 def _stage_provider_entries(assets: Path, provider_root: Path, *, include_site_assets: bool = False) -> None:
     """Copy the generated providers into `assets` and write the worker entry modules."""
     if include_site_assets:
-        shutil.copytree(provider_root / "web/assets", assets, dirs_exist_ok=True,
-                        ignore=shutil.ignore_patterns("layout-generators.js", "layout-generators",
-                                                     "preview-generator", "bundled-step"))
-        shutil.copy2(provider_root / "catalogue/modules/imported-modules.json",
-                     assets / "imported-modules.json")
+        site_assets = provider_root / "web/assets"
+        shutil.copytree(site_assets, assets, dirs_exist_ok=True, ignore=lambda d, _: {
+            "layout-generators.js", "layout-generators", "preview-generator", "bundled-step",
+            "modules", "modules-index.json", "imported-modules.json"} if Path(d) == site_assets else ())
+    stage_module_catalogue(provider_root / MODULE_CATALOGUE, assets)
     shutil.copytree(provider_root / "cad/wasm/pkg", assets / "cad", dirs_exist_ok=True)
     shutil.copytree(provider_root / "web/target/providers/cad-worker", assets / "cad-worker",
                     dirs_exist_ok=True)
@@ -128,45 +170,39 @@ def _stage_provider_entries(assets: Path, provider_root: Path, *, include_site_a
 
 
 def validate_offline_manifest(manifest: dict) -> None:
-    """Mirror `OfflineManifest::validate` so a bad manifest fails the build, not the install."""
-    version, assets = manifest["version"], manifest["assets"]
-    if not version or not all(c.isascii() and (c.isalnum() or c in "-_.") for c in version):
-        raise ValueError(f"offline manifest version has unsupported characters: {version!r}")
-    if "index.html" not in assets:
-        raise ValueError("offline manifest must include index.html")
-    if len(set(assets)) != len(assets):
-        raise ValueError("offline manifest contains duplicate asset paths")
-    for path in assets:
-        if (not path or path.startswith("/") or any(c in path for c in "\\?#:%")
-                or any(segment in ("", ".", "..") for segment in path.split("/"))):
+    version, shell, prefixes = (manifest[key] for key in ("version", "shellAssets", "runtimeCachePrefixes"))
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", version) or "index.html" not in shell:
+        raise ValueError("offline manifest requires a valid version and index.html")
+    if (len(set(shell)) != len(shell) or len(set(prefixes)) != len(prefixes)
+            or any(not prefix.endswith("/") for prefix in prefixes)
+            or any(path.startswith(tuple(prefixes)) for path in shell)):
+        raise ValueError("offline manifest has duplicate, malformed or overlapping asset lists")
+    for path in [*shell, *(prefix.rstrip("/") for prefix in prefixes)]:
+        if re.search(r"[\\?#:%]", path) or any(segment in ("", ".", "..") for segment in path.split("/")):
             raise ValueError(f"offline asset path is not normalized and scope-relative: {path}")
 
 
 def embed_offline_worker(site: Path, worker_dir: Path = OFFLINE_WORKER) -> None:
-    """Stage the prebuilt offline worker with this route's asset inventory."""
-    assets = sorted(path.relative_to(site).as_posix() for path in site.rglob("*") if path.is_file())
-    required = set(assets) | {"service-worker.js", "boardstudio_offline_worker.js"}
-    digest = hashlib.sha256()
-    for relative in sorted(required):
-        digest.update(relative.encode())
-        path = site / relative
-        if path.is_file():
-            digest.update(path.read_bytes())
-    manifest = {"version": f"boardstudio-{digest.hexdigest()[:16]}-{time.time_ns()}",
-                "assets": sorted(required)}
-    validate_offline_manifest(manifest)
     js_name = "boardstudio_offline_worker.js"
-    wasm_name = "boardstudio_offline_worker_bg.wasm"
-    wasm = (worker_dir / wasm_name).read_bytes()
+    wasm = (worker_dir / "boardstudio_offline_worker_bg.wasm").read_bytes()
     shutil.copy2(worker_dir / js_name, site / js_name)
+    assets = sorted(path.relative_to(site).as_posix() for path in site.rglob("*") if path.is_file())
+    digest = hashlib.sha256(wasm)
+    for relative in assets:
+        digest.update(relative.encode())
+        digest.update((site / relative).read_bytes())
+    shell = sorted({relative for relative in assets if not relative.startswith(ON_DEMAND_PREFIXES)} | {"service-worker.js"})
+    manifest = {"version": f"boardstudio-{digest.hexdigest()[:16]}-{time.time_ns()}",
+                "shellAssets": shell, "runtimeCachePrefixes": list(ON_DEMAND_PREFIXES)}
+    validate_offline_manifest(manifest)
+    arguments = ", ".join(map(json.dumps, (manifest["version"], shell, manifest["runtimeCachePrefixes"])))
     encoded = base64.b64encode(wasm).decode("ascii")
-    bootstrap = (
+    (site / "service-worker.js").write_text(
         "/* Offline cache policy is implemented in Rust. */\n"
         f'import {{ initSync, start_offline_worker }} from "./{js_name}";\n'
         f'initSync({{ module: Uint8Array.from(atob("{encoded}"), c => c.charCodeAt(0)) }});\n'
-        f"start_offline_worker({json.dumps(manifest['version'])}, {json.dumps(manifest['assets'])});\n"
+        f"start_offline_worker({arguments});\n"
     )
-    (site / "service-worker.js").write_text(bootstrap)
 
 
 def dx_command(route: str, *, release: bool, fast: bool) -> list[str]:
@@ -307,22 +343,21 @@ def snapshot(paths):
     return result
 
 
+def stamp_matches(stamp, expected):
+    try:
+        return json.loads(stamp.read_text()) == expected()
+    except (OSError, ValueError):
+        return False
+
+
 def package_route(output: Path, public: Path, route: str, *, fast=False) -> None:
     site = output / ("site-root" if route == "root" else "site-subpath/boardstudio")
     stamp = output / f".package-{route}.json"
-
-
-    inputs = [public, WEB / "assets", ROOT / "cad/wasm/pkg", ROOT / "renderer/pkg",
-              WEB / "target/providers/cad-worker", WEB / "target/providers/bundled-step",
-              OFFLINE_WORKER, ROOT / "catalogue/modules/imported-modules.json", Path(__file__)]
+    inputs = [public, WEB / "assets", OFFLINE_WORKER, *provider_inputs()]
     current = snapshot(inputs) if fast else None
-    if fast and stamp.is_file() and site.is_dir():
-        try:
-            previous = json.loads(stamp.read_text())
-            if previous == {"inputs": current, "site": snapshot([site])}:
-                return
-        except (OSError, ValueError):
-            pass
+    if fast and stamp.is_file() and site.is_dir() and stamp_matches(
+            stamp, lambda: {"inputs": current, "site": snapshot([site])}):
+        return
     stamp.unlink(missing_ok=True)
     if site.exists():
         shutil.rmtree(site)
@@ -357,12 +392,9 @@ def fast_provider(name, output, package, feature, target, bindgen):
     def product_hashes():
         return {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in products}
 
-    if stamp.is_file() and all(path.is_file() for path in products):
-        try:
-            if json.loads(stamp.read_text()) == {"key": key, "outputs": product_hashes()}:
-                return
-        except (OSError, ValueError):
-            pass
+    if stamp.is_file() and all(path.is_file() for path in products) and stamp_matches(
+            stamp, lambda: {"key": key, "outputs": product_hashes()}):
+        return
     stamp.unlink(missing_ok=True)
     output.mkdir(parents=True, exist_ok=True)
     run([str(bindgen), *args, str(artifact)])
@@ -403,59 +435,45 @@ def bake_bundled_step():
     stamp.write_text(fingerprint())
 
 
+def provider_inputs():
+    return [ROOT / "cad/wasm/pkg", ROOT / "renderer/pkg", WEB / "target/providers/cad-worker",
+            WEB / "target/providers/bundled-step", ROOT / MODULE_CATALOGUE, Path(__file__)]
+
+
 def prepare_runtime_providers(fast=False):
     commands = provider_commands(fast)
     bindgen = locked_wasm_bindgen() if fast else None
+    targets = {name: target for name, _, _, target in worker_providers()}
+    handled = set()
     if bindgen:
-        workers = [
-            ("m1_cad_worker", WEB / "target/providers/cad-worker", "cad-worker", ROOT / "target/wasm-workers"),
-            ("boardstudio_offline_worker", OFFLINE_WORKER, "service-worker", ROOT / "target/wasm-offline-worker"),
-        ]
-        def build_worker(worker):
-            name, output, feature, target = worker
-            fast_provider(name, output, "boardstudio-web", feature, target, bindgen)
-        def build_renderer():
-            fast_provider("boardstudio_renderer_wasm", ROOT / "renderer/pkg", "boardstudio-renderer",
-                          None, ROOT / "target", bindgen)
-        if check_jobs() > 1:
-            with ThreadPoolExecutor(max_workers=3) as pool:
-                futures = [*(pool.submit(build_worker, worker) for worker in workers), pool.submit(build_renderer)]
-                for future in futures:
-                    future.result()
-        else:
-            for worker in workers:
-                build_worker(worker)
-            build_renderer()
-        handled = {name for name, _, _, _ in workers} | {"boardstudio_renderer_wasm"}
-        commands = [
-            command for command in commands
-            if not (command[:2] == ["wasm-pack", "build"]
-                    and "--out-name" in command
-                    and command[command.index("--out-name") + 1] in handled)
-        ]
+        providers = [(name, output, "boardstudio-web", feature, target)
+                     for name, output, feature, target in worker_providers()]
+        providers.append(("boardstudio_renderer_wasm", ROOT / "renderer/pkg", "boardstudio-renderer", None, ROOT / "target"))
+        def build_provider(provider):
+            fast_provider(*provider, bindgen)
+        with ThreadPoolExecutor(max_workers=min(check_jobs(), len(providers))) as pool:
+            list(pool.map(build_provider, providers))
+        handled = {name for name, *_ in providers}
     for command in commands:
-        if command[:2] == ["wasm-pack", "build"]:
-            fast_provider_stamp(command[command.index("--out-name") + 1]).unlink(missing_ok=True)
-        if command[:3] == ["wasm-pack", "build", str(WEB)]:
-            target = ROOT / ("target/wasm-offline-worker" if "service-worker" in command else "target/wasm-workers")
-            run(command, env=dict(os.environ, CARGO_TARGET_DIR=str(target)))
+        if command[:2] != ["wasm-pack", "build"]:
+            run(command)
+            continue
+        name = command[command.index("--out-name") + 1]
+        if name in handled:
+            continue
+        fast_provider_stamp(name).unlink(missing_ok=True)
+        if name in targets:
+            run(command, env=dict(os.environ, CARGO_TARGET_DIR=str(targets[name])))
         else:
             run(command)
     bake_bundled_step()
-    inputs = [ROOT / "cad/wasm/pkg", ROOT / "renderer/pkg", WEB / "target/providers/cad-worker",
-              WEB / "target/providers/bundled-step", ROOT / "catalogue/modules/imported-modules.json", Path(__file__)]
-    outputs = [WEB / "assets" / name for name in ("cad", "renderer", "cad-worker", "imported-modules.json")]
+    outputs = [WEB / "assets" / name for name in ("cad", "renderer", "cad-worker", "modules-index.json", "modules")]
     stamp = WEB / "target/providers/.staged-assets.json"
-    current = snapshot(inputs) if fast else None
-    if fast and stamp.is_file():
-        try:
-            if json.loads(stamp.read_text()) == {"inputs": current, "outputs": snapshot(outputs)}:
-                return
-        except (OSError, ValueError):
-            pass
+    current = snapshot(provider_inputs()) if fast else None
+    if fast and stamp.is_file() and stamp_matches(stamp, lambda: {"inputs": current, "outputs": snapshot(outputs)}):
+        return
     stamp.unlink(missing_ok=True)
     _stage_provider_entries(WEB / "assets", ROOT)
-    shutil.copy2(ROOT / "catalogue/modules/imported-modules.json", WEB / "assets/imported-modules.json")
     if fast:
         stamp.parent.mkdir(parents=True, exist_ok=True)
         stamp.write_text(json.dumps({"inputs": current, "outputs": snapshot(outputs)}))

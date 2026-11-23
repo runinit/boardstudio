@@ -97,7 +97,7 @@ fn pins_resolver(request: PcbWiringPinEditRequest) -> EditResolver {
         if !replacement.boards.iter().any(|board| &board.id == board_id) {
             return Err("The board was deleted.".into());
         }
-        let plan = super::mode::resolve_preview_plan("pin-edit", &accepted.document, board_id);
+        let plan = super::mode::resolve_preview_plan(&accepted.document, board_id);
         if !pin_edit_is_available(
             &accepted.document,
             &plan,

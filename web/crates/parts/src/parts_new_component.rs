@@ -289,7 +289,7 @@ mod tests {
         use std::rc::Rc;
 
         fn open_document(document: ProjectDoc) -> Rc<Runtime> {
-            let runtime = Runtime::with_core(boardstudio_web_test_runtime::engine_core_services());
+            let runtime = Runtime::new();
             runtime.submit(Event::Open {
                 operation_id: runtime.operation(),
                 document,

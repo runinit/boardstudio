@@ -1,7 +1,7 @@
 //! Parts-owned saved assembly list and the first authoring slice of F4.6.
 use super::catalogue::CatalogEntry;
 use super::model_transform::{ModelAxis, ModelVector, set_model_axis, valid_transform_value};
-use crate::parts_custom_definition::{replace_document_resolver, replacement_commit};
+use crate::parts_custom_definition::replacement_commit;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
 };
@@ -91,96 +91,123 @@ fn placed_parts_for_submission(document: &ProjectDoc, board_id: &str, seed: &str
 }
 
 fn assembly_save_resolver(draft: AssemblyDraft, definitions: Vec<PartDefinition>) -> EditResolver {
-    replace_document_resolver("parts-assembly-editor", move |accepted, replacement| {
-        if accepted.document.id != draft.document_id {
-            return Err("The assembly's project changed.".into());
+    EditResolver::new("parts-assembly-editor", move |accepted| {
+        let document = &accepted.document;
+        if document.id != draft.document_id || accepted.session_epoch != draft.session_epoch {
+            return Resolution::Retire("The assembly's project changed.".into());
         }
-        let mut draft = draft.clone();
+        let mut assembly = draft.value.clone();
+        let existing = |id: &str| document.assemblies.iter().find(|item| item.id == id);
         if draft.base.is_none() {
-            let root = draft.value.id.clone();
+            let root = assembly.id.clone();
             let mut suffix = 0_u64;
-            while accepted
-                .document
-                .assemblies
-                .iter()
-                .any(|assembly| assembly.id == draft.value.id)
-            {
+            while existing(&assembly.id).is_some() {
                 suffix += 1;
-                draft.value.id = format!("{root}-{suffix}");
+                assembly.id = format!("{root}-{suffix}");
             }
+        } else if existing(&assembly.id).is_none() {
+            return Resolution::Retire(
+                "This saved assembly changed while the editor was open. Reopen it before saving."
+                    .into(),
+            );
         }
-        *replacement = saved_document(&accepted.document, &draft, &definitions)?;
-        Ok(vec![draft.value.id])
+        if assembly.name.trim().is_empty() || assembly.members.is_empty() {
+            return Resolution::Retire("Name the assembly and add at least one member".into());
+        }
+        if let Err(reason) = validate_members(&assembly, document, &draft.assets) {
+            return Resolution::Retire(reason);
+        }
+        let definitions: Vec<_> = assembly
+            .members
+            .iter()
+            .filter_map(|member| member.definition_id.as_deref())
+            .filter(|id| {
+                !document
+                    .definitions
+                    .iter()
+                    .any(|definition| definition.id == *id)
+            })
+            .filter_map(|id| {
+                definitions
+                    .iter()
+                    .find(|definition| definition.id == id)
+                    .cloned()
+            })
+            .collect();
+        if existing(&assembly.id) == Some(&assembly)
+            && definitions.is_empty()
+            && draft
+                .assets
+                .iter()
+                .all(|asset| document.assets.contains(asset))
+        {
+            return Resolution::Unchanged;
+        }
+        Resolution::submit(
+            vec![assembly.id.clone()],
+            EditOperation::UpsertAssembly {
+                assembly: Box::new(assembly),
+                definitions,
+                assets: draft.assets.clone(),
+            },
+        )
     })
 }
 
 fn assembly_place_resolver(
     scope: Scope,
-    proposal: ProjectDoc,
+    definitions: Vec<PartDefinition>,
+    parts: Vec<Part>,
     assets: Vec<Asset>,
     seed: String,
-    part_ids: Vec<String>,
 ) -> EditResolver {
-    replace_document_resolver("parts-assembly-place", move |accepted, replacement| {
-        if accepted.document.id != scope.document_id {
-            return Err("The assembly's project changed.".into());
+    EditResolver::new("parts-assembly-place", move |accepted| {
+        let document = &accepted.document;
+        if document.id != scope.document_id || accepted.session_epoch != scope.session_epoch {
+            return Resolution::Retire("The assembly's project changed.".into());
         }
-        let mut placement = seed.clone();
+        let mut placement_id = seed.clone();
         let mut suffix = 0_u64;
-        while accepted
-            .document
+        while document
             .parts
             .iter()
-            .any(|part| part.id.starts_with(&format!("{placement}/")))
-            || accepted.document.definitions.iter().any(|definition| {
+            .any(|part| part.id.starts_with(&format!("{placement_id}/")))
+            || document.definitions.iter().any(|definition| {
                 definition
                     .id
-                    .starts_with(&format!("{placement}/definition/"))
+                    .starts_with(&format!("{placement_id}/definition/"))
             })
         {
             suffix += 1;
-            placement = format!("{seed}-{suffix}");
+            placement_id = format!("{seed}-{suffix}");
         }
         let prefix = format!("{seed}/");
         let remap = |id: &str| {
             id.strip_prefix(&prefix)
-                .map(|tail| format!("{placement}/{tail}"))
+                .map(|tail| format!("{placement_id}/{tail}"))
                 .unwrap_or_else(|| id.to_owned())
         };
-        let mut prepared = proposal.clone();
-        for definition in prepared
-            .definitions
-            .iter_mut()
-            .filter(|definition| definition.id.starts_with(&format!("{seed}/definition/")))
-        {
+        let mut definitions = definitions.clone();
+        for definition in &mut definitions {
             definition.id = remap(&definition.id);
         }
-        for part in prepared
-            .parts
-            .iter_mut()
-            .filter(|part| part_ids.contains(&part.id))
-        {
+        let mut parts = parts.clone();
+        for part in &mut parts {
             part.id = remap(&part.id);
             part.definition_id = remap(&part.definition_id);
-            if let Some(properties) = part.properties.as_mut() {
-                properties.insert(
-                    "assemblyId".into(),
-                    serde_json::Value::String(placement.clone()),
-                );
-            }
         }
-        let ids = part_ids.iter().map(|id| remap(id)).collect::<Vec<_>>();
-        *replacement = rebase_assembly_placement(
-            &accepted.document,
-            &prepared,
-            &assets,
-            &scope.board_id,
-            &placement,
-            &ids,
-        )?;
-        let mut targets = ids;
+        let mut targets: Vec<_> = parts.iter().map(|part| part.id.clone()).collect();
         targets.push(scope.board_id.clone());
-        Ok(targets)
+        Resolution::submit(
+            targets,
+            EditOperation::PlaceAssembly {
+                board_id: scope.board_id.clone(),
+                placement_id,
+                definitions,
+                parts,
+                assets: assets.clone(),
+            },
+        )
     })
 }
 
@@ -834,70 +861,6 @@ fn assembly_owner_current(
     })
 }
 
-fn saved_document(
-    accepted: &ProjectDoc,
-    draft: &AssemblyDraft,
-    definitions: &[PartDefinition],
-) -> Result<ProjectDoc, String> {
-    if draft.value.name.trim().is_empty() || draft.value.members.is_empty() {
-        return Err("Name the assembly and add at least one member".into());
-    }
-    validate_members(&draft.value, accepted, &draft.assets)?;
-    let current = accepted
-        .assemblies
-        .iter()
-        .find(|assembly| assembly.id == draft.value.id);
-    match (&draft.base, current) {
-        (Some(_), Some(_)) => {}
-        (None, None) => {}
-        (Some(_), _) => {
-            return Err(
-                "This saved assembly changed while the editor was open. Reopen it before saving."
-                    .into(),
-            );
-        }
-        (None, Some(_)) => {
-            return Err(
-                "An assembly with this identity already exists. Close the editor and try again."
-                    .into(),
-            );
-        }
-    }
-
-    let mut document = accepted.clone();
-    merge_assets(&mut document, &draft.assets)
-        .map_err(|_| "A different project asset already uses this model identity.".to_owned())?;
-    let assembly = draft.value.clone();
-    for member in &assembly.members {
-        let Some(definition_id) = member.definition_id.as_deref() else {
-            continue;
-        };
-        if document
-            .definitions
-            .iter()
-            .any(|definition| definition.id == definition_id)
-        {
-            continue;
-        }
-        if let Some(definition) = definitions
-            .iter()
-            .find(|definition| definition.id == definition_id)
-        {
-            document.definitions.push(definition.clone());
-        }
-    }
-    if let Some(existing) = document
-        .assemblies
-        .iter_mut()
-        .find(|existing| existing.id == assembly.id)
-    {
-        *existing = assembly;
-    } else {
-        document.assemblies.push(assembly);
-    }
-    Ok(document)
-}
-
 fn next_id(document: &ProjectDoc) -> Result<String, String> {
     let base = crate::runtime::new_project_id()
         .unwrap_or_else(|_| format!("{:x}", Date::now().max(0.0) as u64));
@@ -1287,77 +1250,35 @@ pub fn matrix_with_assembly(
     Ok((matrix, definitions))
 }
 
-/// Reproduces the React editor's selected-board placement as one accepted
-/// project proposal. Each assembly member gets an immutable definition/part
-/// snapshot; later recipe edits therefore cannot move existing placements.
-pub fn document_with_assembly(
+/// Snapshot each member's definition so later recipe edits cannot change a placement.
+fn assembly_placement(
     document: &ProjectDoc,
     assembly: &AssemblyDefinition,
     source_definitions: &[PartDefinition],
     draft_assets: &[Asset],
-    board_id: &str,
     origin: Vec2,
     placement_id: &str,
-) -> Result<(ProjectDoc, Vec<String>), String> {
+) -> Result<(Vec<PartDefinition>, Vec<Part>), String> {
     if assembly.members.is_empty() {
         return Err("Add at least one component before placing this assembly.".into());
     }
-    if !origin.x.is_finite() || !origin.y.is_finite() {
-        return Err("Assembly placement coordinates must be finite numbers.".into());
-    }
-    let Some(board_index) = document
-        .boards
-        .iter()
-        .position(|board| board.id == board_id)
-    else {
-        return Err("The selected board is no longer available.".into());
-    };
     validate_members(assembly, document, draft_assets)?;
-    let mut next = document.clone();
-    merge_assets(&mut next, draft_assets)?;
-    let mut part_ids = Vec::with_capacity(assembly.members.len());
+    let mut definitions = Vec::with_capacity(assembly.members.len());
+    let mut parts = Vec::with_capacity(assembly.members.len());
     for member in &assembly.members {
         let mut definition = member_definition(member, document, source_definitions, draft_assets)?;
         definition.id = format!("{placement_id}/definition/{}", member.id);
-        let part_id = format!("{placement_id}/{}", member.id);
-        if next
-            .definitions
-            .iter()
-            .any(|existing| existing.id == definition.id)
-            || next.parts.iter().any(|existing| existing.id == part_id)
-        {
-            return Err("The assembly placement identity is already in use.".into());
-        }
-        let reference = format!("{} {}", assembly.name, member.id);
-        if next
-            .parts
-            .iter()
-            .any(|existing| existing.reference == reference)
-        {
-            return Err(format!(
-                "The component reference '{reference}' is already in use."
-            ));
-        }
-        let mut properties = std::collections::BTreeMap::new();
-        properties.insert(
-            "assemblyId".into(),
-            serde_json::Value::String(placement_id.to_owned()),
-        );
-        properties.insert(
-            "visualOnly".into(),
-            serde_json::Value::Bool(member.definition_id.is_none()),
-        );
-        next.definitions.push(definition.clone());
-        next.parts.push(Part {
+        let visual_only = member.definition_id.is_none();
+        parts.push(Part {
             keycap: None,
-            outline: member.definition_id.is_none().then_some(PartOutline {
+            outline: visual_only.then_some(PartOutline {
                 excluded: true,
                 ..Default::default()
             }),
-            id: part_id.clone(),
-            definition_id: definition.id,
-            reference,
-            pose: boardstudio_model::model::Pose2 {
+            id: format!("{placement_id}/{}", member.id),
+            definition_id: definition.id.clone(),
+            reference: format!("{} {}", assembly.name, member.id),
+            pose: Pose2 {
                 at: Vec2 {
                     x: origin.x + member.pose.at.x,
                     y: origin.y + member.pose.at.y,
@@ -1367,84 +1288,15 @@ pub fn document_with_assembly(
             side: member.side.clone(),
             anchor: None,
             locked: None,
-            properties: Some(properties),
+            properties: Some(std::collections::BTreeMap::from([(
+                "visualOnly".into(),
+                serde_json::Value::Bool(visual_only),
+            )])),
             generator_parameters: None,
         });
-        part_ids.push(part_id);
+        definitions.push(definition);
     }
-    let board = &mut next.boards[board_index];
-    board.part_ids.extend(part_ids.iter().cloned());
-    Ok((next, part_ids))
-}
-
-/// Retain unrelated accepted changes made while definition normalization was
-/// in flight, and attach only this operation's assembly snapshots and assets.
-pub fn rebase_assembly_placement(
-    latest: &ProjectDoc,
-    proposal: &ProjectDoc,
-    draft_assets: &[Asset],
-    board_id: &str,
-    placement_id: &str,
-    part_ids: &[String],
-) -> Result<ProjectDoc, String> {
-    let mut next = latest.clone();
-    merge_assets(&mut next, draft_assets)?;
-
-    let definition_prefix = format!("{placement_id}/definition/");
-    for definition in proposal
-        .definitions
-        .iter()
-        .filter(|definition| definition.id.starts_with(&definition_prefix))
-    {
-        if next
-            .definitions
-            .iter()
-            .any(|existing| existing.id == definition.id)
-        {
-            return Err("The assembly placement definition identity is already in use.".into());
-        }
-        next.definitions.push(definition.clone());
-    }
-    for part_id in part_ids {
-        let Some(part) = proposal.parts.iter().find(|part| part.id == *part_id) else {
-            return Err("The assembly placement proposal is incomplete.".into());
-        };
-        if next.parts.iter().any(|existing| existing.id == *part_id)
-            || next
-                .parts
-                .iter()
-                .any(|existing| existing.reference == part.reference)
-        {
-            return Err("A placed assembly component identity is already in use.".into());
-        }
-        next.parts.push(part.clone());
-    }
-    let Some(board) = next.boards.iter_mut().find(|board| board.id == board_id) else {
-        return Err("The selected board is no longer available.".into());
-    };
-    for part_id in part_ids {
-        if !board.part_ids.contains(part_id) {
-            board.part_ids.push(part_id.clone());
-        }
-    }
-    Ok(next)
-}
-
-pub(super) fn merge_assets(next: &mut ProjectDoc, assets: &[Asset]) -> Result<(), String> {
-    for asset in assets {
-        if let Some(existing) = next.assets.iter().find(|existing| existing.id == asset.id) {
-            if existing != asset {
-                return Err(format!(
-                    "The model asset identity '{}' conflicts with the accepted project.",
-                    asset.id
-                ));
-            }
-        } else {
-            next.assets.push(asset.clone());
-        }
-    }
-
-    Ok(())
+    Ok((definitions, parts))
 }
 
 fn asset_exists(document: &ProjectDoc, assets: &[Asset], id: &str) -> bool {

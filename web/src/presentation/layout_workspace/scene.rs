@@ -70,9 +70,9 @@ pub(in crate::presentation) fn use_layout_canvas(
         move_pointer,
         end_pointer,
         cancel_pointer,
-        keyboard,
-        key_up,
+        lost_capture,
         wheel,
+        ..
     } = frame.handlers;
     let camera = &frame.camera;
     let view_box = &camera.view_box;
@@ -86,7 +86,7 @@ pub(in crate::presentation) fn use_layout_canvas(
     let snapshot = &frame.snapshot;
     rsx! {
         svg { class: "mt-[76px] block h-[calc(100%-120px)] min-h-0 w-full touch-none bg-canvas max-[760px]:mt-0 max-[760px]:h-full", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "{canvas_aria_label}", onmounted: mount,
-        onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer, onlostpointercapture: cancel_pointer, onkeydown: keyboard, onkeyup: key_up, onwheel: wheel,
+        onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer, onlostpointercapture: lost_capture, onwheel: wheel,
         defs {
             pattern { id: "m1-layout-grid-small", width: "{canvas_grid.spacing_mm}", height: "{canvas_grid.spacing_mm}", pattern_units: "userSpaceOnUse",
                 circle { cx: "0", cy: "0", r: "{canvas_grid.radius_mm}", fill: "var(--grid-large)", stroke: "none" }
@@ -135,7 +135,6 @@ fn scene_boards(
     selected_bridge: Option<&boardstudio_core::model::OutlineBridge>,
 ) -> Element {
     let editor = &contexts.editor;
-    let interaction = &contexts.interaction;
     let layer_visibility = &editor.layers;
     let scene = frame.scene.as_ref();
     let model = frame.model.as_ref();
@@ -145,7 +144,6 @@ fn scene_boards(
     let outline_pitch = overlay.outline_pitch;
     let outline_snap_origins = &overlay.outline_snap_origins;
     let runtime = editor.runtime();
-    let canvas_interaction = interaction.arbiter.clone();
     let svg = frame.svg.clone();
     let camera = &frame.camera;
     let (view_x, view_y, width, height) =
@@ -163,7 +161,6 @@ fn scene_boards(
                 runtime: outline_lifecycle::OutlineRuntimeHandle::new(
                     runtime.clone(),
                 ),
-                arbiter: canvas_interaction.clone(),
                 svg: svg.clone(),
                 view_x,
                 view_y,
@@ -247,7 +244,6 @@ fn selection_anchor(
     let svg = frame.svg.clone();
     let drag = interaction.navigation.drag_interaction();
     let layout_owner = frame.owner.clone();
-    let canvas_interaction = interaction.arbiter.clone();
     let render_scope = frame.scope.clone();
     let workspace = editor.workspace;
     let camera = &frame.camera;
@@ -265,7 +261,7 @@ fn selection_anchor(
             if !matches!(selected_tree_context.as_ref().map(|selected| &selected.context), Some(objects::TreeContext::Column { .. } | objects::TreeContext::Row { .. })) {
             { let runtime = runtime.clone(); let svg = svg.clone(); let drag = drag.clone();
                   let owner = layout_owner.clone(); let adapter = adapter.clone();
-                  let arbiter = canvas_interaction.clone(); let scope = render_scope.clone();
+                  let arbiter = consume_context::<LayoutInteraction>(); let scope = render_scope.clone();
                   rsx! {
                     g {
                         class: "cursor-grab touch-none fill-card stroke-current text-primary outline-none [pointer-events:all] [stroke-width:0.4] active:cursor-grabbing focus-visible:stroke-foreground [&_path]:fill-none",
@@ -289,12 +285,19 @@ fn selection_anchor(
                             let Some(snapshot) = current.accepted else { return; };
                             let positions: Vec<_> = snapshot.document.parts.iter().filter(|p| current.selected_part_ids.contains(&p.id)).map(|p| Position { id: p.id.clone(), at: p.pose.at }).collect();
                             if positions.is_empty() { return; }
-                            if let Some(surface) = svg.borrow().as_ref() {
-                                let _ = surface.set_pointer_capture(pointer.pointer_id());
-                                let options = web_sys::FocusOptions::new(); options.set_prevent_scroll(true);
-                                let _ = surface.focus_with_options(&options);
-                            }
-                            *drag.borrow_mut() = Some(Drag { pointer: i64::from(pointer.pointer_id()), scope: scope.clone(), generation: owner.generation, gesture_generation: None, origin, client_x: f64::from(pointer.client_x()), client_y: f64::from(pointer.client_y()), positions, active: false, pan: false, camera: Vec2::default() });
+                            if !workbench::editor_session::canvas_adapter::capture_canvas_drag(
+                                arbiter,
+                                workbench::editor_session::canvas_adapter::CanvasDragStart {
+                                    mode: CanvasMode::DraggingParts,
+                                    id: pointer.pointer_id(),
+                                    client: client_point(&pointer),
+                                    control: pointer.ctrl_key(),
+                                },
+                                &runtime,
+                                &drag,
+                                &svg,
+                            ) { return; }
+                            *drag.borrow_mut() = Some(Drag { pointer: i64::from(pointer.pointer_id()), scope: scope.clone(), generation: owner.generation, gesture_generation: None, origin, client_x: f64::from(pointer.client_x()), client_y: f64::from(pointer.client_y()), positions, last_sample: None, active: false, pan: false, camera: Vec2::default() });
                         },
                         circle { r: "5" }
                         path { d: "M0 -3.2v6.4M-3.2 0h6.4M-1.4 -1.8 0 -3.2l1.4 1.4M-1.4 1.8 0 3.2l1.4 -1.4M-1.8 -1.4-3.2 0l1.4 1.4M1.8 -1.4 3.2 0l-1.4 1.4" }
@@ -321,9 +324,7 @@ fn render_rail_with_anchor_pick(
     snap_origins: Rc<Vec<outline_snapping::Origin>>,
 ) -> Element {
     let runtime = contexts.editor.runtime();
-    let canvas_interaction = contexts.interaction.arbiter.clone();
     let splay_affect = contexts.layout_state.splay_affect();
-    let mut layout_transform_tool = contexts.layout_state.transform_tool();
     let anchored = tools.contains(&objects::LayoutTransformTool::Anchor);
     let slots = tools.len();
     let camera = &frame.camera;
@@ -331,7 +332,6 @@ fn render_rail_with_anchor_pick(
         objects::LayoutRailOverlay {
             runtime: objects::LayoutTransformRuntime(runtime.clone()),
             surface: frame.svg.clone(),
-            arbiter: canvas_interaction.clone(),
             target,
             tools,
             snap_settings,
@@ -342,13 +342,11 @@ fn render_rail_with_anchor_pick(
             view_y: camera.view_y,
             width: camera.width,
             height: camera.height,
-            on_finish: EventHandler::new(move |_| layout_transform_tool.set(None)),
         }
         if anchored {
             objects::LayoutAnchorPickOverlay {
                 runtime: objects::LayoutTransformRuntime(runtime),
                 surface: frame.svg.clone(),
-                arbiter: canvas_interaction,
                 pick_owner,
                 rail_slots: slots,
                 surface_size: Some(frame.surface_size),
@@ -497,7 +495,6 @@ fn finding_marker_draft(
     overlay: &OutlineOverlay,
 ) -> Element {
     let editor = &contexts.editor;
-    let interaction = &contexts.interaction;
     let keycaps = &contexts.keycaps;
     let active_workspace = Workspace::Layout;
     let render_scope = frame.scope.clone();
@@ -510,7 +507,6 @@ fn finding_marker_draft(
     let outline_pitch = overlay.outline_pitch;
     let outline_snap_origins = &overlay.outline_snap_origins;
     let runtime = editor.runtime();
-    let canvas_interaction = interaction.arbiter.clone();
     let svg = frame.svg.clone();
     let camera = &frame.camera;
     let (view_x, view_y, width, height) =
@@ -530,7 +526,6 @@ fn finding_marker_draft(
                 key: "{outline_overlay_key.as_deref().unwrap_or_default()}-draft",
                 projection,
                 runtime: outline_lifecycle::OutlineRuntimeHandle::new(runtime.clone()),
-                arbiter: canvas_interaction.clone(),
                 svg: svg.clone(),
                 view_x,
                 view_y,

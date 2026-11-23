@@ -1,9 +1,9 @@
 //! Relations projection tests: scenes come from a real `CoreEngine`, never hand-built.
 
-use super::super::engine_test_support::{edit_json, open_engine};
+use super::super::engine_test_support::{edit_engine, open_engine};
 use super::*;
 use boardstudio_model::model::SceneDelta;
-use boardstudio_model::model::{ConstraintEndpoint, ConstraintRelation};
+use boardstudio_model::model::{ConstraintEndpoint, ConstraintRelation, EditOperation};
 use serde_json::json;
 
 const MATRIX: &str = "main";
@@ -63,13 +63,16 @@ fn world_of(delta: SceneDelta, document: ProjectDoc, matrix_id: &str) -> World {
     }
 }
 
+fn set_matrix(matrix: serde_json::Value) -> EditOperation {
+    EditOperation::SetMatrix {
+        matrix: serde_json::from_value(matrix).unwrap(),
+        definitions: None,
+    }
+}
+
 fn world(matrix_json: serde_json::Value) -> World {
-    let (mut engine, opened, _) = open_engine(base());
-    let (delta, document) = edit_json(
-        &mut engine,
-        opened.revision,
-        json!({ "kind": "set-matrix", "matrix": matrix_json }),
-    );
+    let (mut engine, _, opened) = open_engine(base());
+    let (delta, document) = edit_engine(&mut engine, &opened, set_matrix(matrix_json));
     world_of(delta, document, MATRIX)
 }
 
@@ -507,16 +510,16 @@ fn a_matrix_chain_shows_common_values_or_varies() {
 
 #[test]
 fn selected_parts_in_two_matrices_yield_a_single_context_note() {
-    let (mut engine, opened, _) = open_engine(base());
-    let (first, _) = edit_json(
+    let (mut engine, _, opened) = open_engine(base());
+    let (_, first) = edit_engine(
         &mut engine,
-        opened.revision,
-        json!({ "kind": "set-matrix", "matrix": matrix(1, 1, json!({"id": "left"})) }),
+        &opened,
+        set_matrix(matrix(1, 1, json!({"id": "left"}))),
     );
-    let (scene, _document) = edit_json(
+    let (scene, _) = edit_engine(
         &mut engine,
-        first.revision,
-        json!({ "kind": "set-matrix", "matrix": matrix(1, 1, json!({"id": "right"})) }),
+        &first,
+        set_matrix(matrix(1, 1, json!({"id": "right"}))),
     );
     let members: Vec<String> = scene
         .matrix_scenes

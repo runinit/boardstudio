@@ -466,7 +466,7 @@ pub fn PartsInspectorPanel(
             _ => None,
         });
     let module_catalogue = modules_catalogue::use_catalogue(
-        selected_module_id.is_some(),
+        selected_module_id.clone(),
         snapshot.token,
         snapshot.document.module_definitions.clone(),
     );
@@ -530,11 +530,9 @@ pub fn PartsInspectorPanel(
                 on_place: on_place_assembly,
                 on_board_placed,
             }
-            if let Some(module_id) = selected_module_id.as_deref() {
-                if let Some(module) = module_catalogue.entries.as_deref().and_then(|entries| entries.iter().find(|entry| entry.definition.id == module_id)) {
-                    { let variants = module_catalogue.entries.as_deref().map(|entries| modules_catalogue::variants(entries, &module.row)).unwrap_or_default();
-                      rsx! { modules_catalogue::ModuleInspector { snapshot: snapshot.clone(), module: module.clone(), variants, scope: scope.clone(), selected, placement_id: selected_module_placement.clone(), on_open_placement: on_open_module_placement, on_attached: on_module_attached } }
-                    }
+            if selected_module_id.is_some() {
+                if let Some(module) = module_catalogue.selected {
+                    modules_catalogue::ModuleInspector { snapshot: snapshot.clone(), module, variants: module_catalogue.variants, scope: scope.clone(), selected, placement_id: selected_module_placement.clone(), on_open_placement: on_open_module_placement, on_attached: on_module_attached }
                 } else {
                     {catalogue_status(module_catalogue.error.clone(), "Module sources", "Loading module sources…")}
                 }
@@ -654,7 +652,7 @@ pub fn PartsPreviewWorkspace(
     let catalogue = use_catalogue(&snapshot, &scope);
     let selected_module_id = modules_catalogue::selected_id(selected(), &scope);
     let module_catalogue = modules_catalogue::use_catalogue(
-        selected_module_id.is_some(),
+        selected_module_id.clone(),
         snapshot.token,
         snapshot.document.module_definitions.clone(),
     );
@@ -720,13 +718,9 @@ pub fn PartsPreviewWorkspace(
     let recipe_pending = active_assembly.is_some() && matching_recipe.is_none();
     let recipe_identity = request.identity();
     let preview_title = active_assembly.map(|preset| assembly_editor::name(preset).to_owned());
-    if let Some(module_id) = selected_module_id.as_deref() {
-        if let Some(module) = module_catalogue.entries.as_deref().and_then(|entries| {
-            entries
-                .iter()
-                .find(|entry| entry.definition.id == module_id)
-        }) {
-            return rsx! { modules_catalogue::ModuleSourcePreview { module: module.clone() } };
+    if selected_module_id.is_some() {
+        if let Some(module) = module_catalogue.selected {
+            return rsx! { modules_catalogue::ModuleSourcePreview { module } };
         }
         return rsx! {
             section { class: "relative order-2 flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden rounded-xl bg-card shadow-sm", "aria-label": "Module source preview",

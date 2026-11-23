@@ -465,47 +465,66 @@ pub enum MirroredItemKind {
 }
 
 /// Where a [`EditOperation::CreateMirroredHalf`] puts the second half.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(tag = "kind", rename_all = "kebab-case"))]
 pub enum MirroredHalfMode {
     /// A new board that receives a reflected copy of the source board.
     NewBoard {
-        #[serde(rename = "boardId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "boardId"))]
         board_id: String,
-        #[serde(rename = "instanceId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "instanceId"))]
         instance_id: String,
     },
     /// A flipped instance of the source board. It copies nothing: the same board is used twice.
     ReuseBoard {
-        #[serde(rename = "instanceId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "instanceId"))]
         instance_id: String,
     },
 }
 
 /// Optional replacements for one physical instance's labels at mirror creation.
 /// Omitted fields keep the source's stored labels or the mirror's default labels.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
 pub struct MirroredHalfLabel {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "wire-json",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub name: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "wire-json",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub half: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "wire-json",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub role: Option<String>,
 }
 
 /// Labels applied to the source and mirror in the same creation edit (ADR-0010).
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
 pub struct MirroredHalfLabels {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "wire-json",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub source: Option<MirroredHalfLabel>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "wire-json",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub mirror: Option<MirroredHalfLabel>,
 }
 
 /// Physical setup values applied atomically with creation of its mirror pair.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(rename_all = "camelCase"))]
 pub struct MirroredHalfPhysicalSetup {
     pub topology: HardwareTopology,
     pub transport: HardwareTransport,
@@ -516,8 +535,9 @@ pub struct MirroredHalfPhysicalSetup {
 /// How copied item ids are named. Ids are `<board>/<local>` or `matrix/<board>-<cluster>/...`:
 /// every whole `<source board>` token is replaced by the mirror board id, and an id that names
 /// no such token is prefixed with `<mirror board>/`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(rename_all = "kebab-case"))]
 pub enum MirroredIdRule {
     BoardPrefix,
 }
@@ -531,8 +551,9 @@ pub enum MirroredExceptionState {
 }
 
 /// Requested exception state for a half. `Linked` removes any stored exception overlay.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(rename_all = "kebab-case"))]
 pub enum HalfExceptionState {
     Local,
     Omitted,
@@ -629,15 +650,17 @@ pub enum MechanicalFeatureValue {
     Opening { opening: MechanicalOpening },
     GasketSupport { anchor: MechanicalGasketAnchor },
 }
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(rename_all = "kebab-case"))]
 pub enum MatrixSplayAffect {
     Column,
     Following,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(tag = "kind", rename_all = "kebab-case"))]
 pub enum MatrixSplayChange {
     Origin {
         world: Option<Vec2>,
@@ -658,8 +681,9 @@ pub enum MatrixSplayChange {
 
 /// A named matrix parameter change, applied to one column or row. Values are
 /// absolute and in matrix coordinates, matching the Inspector fields.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(tag = "kind", rename_all = "kebab-case"))]
 pub enum MatrixPlacementChange {
     ColumnSpread {
         column: u32,
@@ -739,18 +763,22 @@ pub fn convert_offset_available(matrix: &Matrix, column: u32) -> Result<(), Stri
     Ok(())
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(tag = "kind", rename_all = "kebab-case"))]
 pub enum EditOperation {
     SetModuleDefinition {
         definition: ModuleDefinition,
     },
     SetMountedModule {
         instance: Box<MountedModule>,
-        #[serde(default)]
+        #[cfg_attr(feature = "wire-json", serde(default))]
         definition: Option<Box<ModuleDefinition>>,
         /// Source-backed VIK host connector to place atomically with a new connection.
-        #[serde(default, rename = "hostConnectorDefinition")]
+        #[cfg_attr(
+            feature = "wire-json",
+            serde(default, rename = "hostConnectorDefinition")
+        )]
         host_connector_definition: Option<Box<PartDefinition>>,
     },
     RemoveMountedModule {
@@ -759,25 +787,25 @@ pub enum EditOperation {
     EmbedModuleCircuit {
         id: String,
         definition: ModuleDefinition,
-        #[serde(rename = "hostBoardId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "hostBoardId"))]
         host_board_id: String,
         pose: Pose2,
         side: Side,
-        #[serde(default)]
+        #[cfg_attr(feature = "wire-json", serde(default))]
         joins: BTreeMap<String, String>,
     },
     RemoveEmbeddedCircuit {
         id: String,
     },
     SetInputScanMode {
-        #[serde(rename = "partId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "partId"))]
         part_id: String,
         mode: PressScanMode,
     },
     /// Set a board's electrical mode. This changes no component placement or
     /// outline input, so Core can retain its current resolved outline geometry.
     SetWiringMode {
-        #[serde(rename = "boardId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "boardId"))]
         board_id: String,
         mode: crate::electrical::ElectricalMode,
     },
@@ -785,24 +813,24 @@ pub enum EditOperation {
         change: KeymapChange,
     },
     SetKeyBinding {
-        #[serde(rename = "boardId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "boardId"))]
         board_id: String,
-        #[serde(rename = "keyId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "keyId"))]
         key_id: String,
         binding: String,
     },
     SetKeycapBoard {
-        #[serde(rename = "boardId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "boardId"))]
         board_id: String,
         change: KeycapBoardChange,
     },
     SetMatrixKeycaps {
-        #[serde(rename = "matrixId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "matrixId"))]
         matrix_id: String,
         change: KeycapMatrixChange,
     },
     SetKeycapKey {
-        #[serde(rename = "keyId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "keyId"))]
         key_id: String,
         change: KeycapKeyChange,
     },
@@ -823,20 +851,35 @@ pub enum EditOperation {
     },
     AddPart {
         part: Part,
-        #[serde(rename = "boardId", skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(
+            feature = "wire-json",
+            serde(rename = "boardId", skip_serializing_if = "Option::is_none")
+        )]
         board_id: Option<String>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(
+            feature = "wire-json",
+            serde(default, skip_serializing_if = "Option::is_none")
+        )]
         definition: Option<PartDefinition>,
-        #[serde(rename = "layoutId", default, skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(
+            feature = "wire-json",
+            serde(rename = "layoutId", default, skip_serializing_if = "Option::is_none")
+        )]
         layout_id: Option<String>,
     },
     AddMirrorOnlyPart {
         part: Part,
-        #[serde(rename = "boardId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "boardId"))]
         board_id: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(
+            feature = "wire-json",
+            serde(default, skip_serializing_if = "Option::is_none")
+        )]
         definition: Option<PartDefinition>,
-        #[serde(rename = "layoutId", default, skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(
+            feature = "wire-json",
+            serde(rename = "layoutId", default, skip_serializing_if = "Option::is_none")
+        )]
         layout_id: Option<String>,
     },
     RemoveMatrix {
@@ -850,17 +893,17 @@ pub enum EditOperation {
         cells: BTreeMap<String, Vec<(u32, u32)>>,
     },
     RemoveMatrixCells {
-        #[serde(rename = "matrixId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "matrixId"))]
         matrix_id: String,
         cells: Vec<(u32, u32)>,
     },
     RemoveMatrixRow {
-        #[serde(rename = "matrixId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "matrixId"))]
         matrix_id: String,
         row: u32,
     },
     RemoveMatrixColumn {
-        #[serde(rename = "matrixId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "matrixId"))]
         matrix_id: String,
         column: u32,
     },
@@ -872,11 +915,14 @@ pub enum EditOperation {
     },
     SetMatrix {
         matrix: Matrix,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(
+            feature = "wire-json",
+            serde(default, skip_serializing_if = "Option::is_none")
+        )]
         definitions: Option<Vec<PartDefinition>>,
     },
     SetMatrixSplay {
-        #[serde(rename = "matrixId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "matrixId"))]
         matrix_id: String,
         column: u32,
         change: MatrixSplayChange,
@@ -884,7 +930,7 @@ pub enum EditOperation {
     /// Edits one named matrix placement parameter. Core owns the parameter rule,
     /// so the Inspector value and an equivalent gesture submit identical intents.
     SetMatrixPlacement {
-        #[serde(rename = "matrixId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "matrixId"))]
         matrix_id: String,
         change: MatrixPlacementChange,
     },
@@ -897,7 +943,7 @@ pub enum EditOperation {
     },
     /// Re-targets one matrix's anchor and Follow subset in one Undo entry.
     SetMatrixAnchor {
-        #[serde(rename = "matrixId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "matrixId"))]
         matrix_id: String,
         anchor: MatrixAnchor,
     },
@@ -906,7 +952,7 @@ pub enum EditOperation {
     /// detach together; a detach that would need a new Local exception is
     /// refused and names it instead of silently changing one side.
     DetachMatrixAnchor {
-        #[serde(rename = "matrixId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "matrixId"))]
         matrix_id: String,
     },
     /// Applies a confirmed linked detach that needs one additional Local
@@ -915,9 +961,9 @@ pub enum EditOperation {
     /// matrix must be the linked partner needing the exception; anything
     /// else refuses as a stale confirmation and changes nothing.
     DetachMatrixAnchorConfirmed {
-        #[serde(rename = "matrixId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "matrixId"))]
         matrix_id: String,
-        #[serde(rename = "localMatrixId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "localMatrixId"))]
         local_matrix_id: String,
     },
     SetConstraint {
@@ -926,7 +972,7 @@ pub enum EditOperation {
     /// Re-expresses one offset constraint on the other axes without moving any part. `to`
     /// names the kind it becomes. See ADR-0011.
     ConvertOffsetConstraint {
-        #[serde(rename = "constraintId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "constraintId"))]
         constraint_id: String,
         to: OffsetAxes,
     },
@@ -947,7 +993,10 @@ pub enum EditOperation {
         left: Layout,
         right: Layout,
         matrix: Box<Matrix>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(
+            feature = "wire-json",
+            serde(default, skip_serializing_if = "Option::is_none")
+        )]
         definitions: Option<Vec<PartDefinition>>,
     },
     /// Creates the second half of a mechanical pair from its source instance (ADR-0010): a new
@@ -955,67 +1004,85 @@ pub enum EditOperation {
     /// instance of the same board. The pair, its construction source and its mirrored-half
     /// record are created in the same accepted edit. Every new id must be fresh.
     CreateMirroredHalf {
-        #[serde(rename = "pairId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "pairId"))]
         pair_id: String,
-        #[serde(rename = "sourceInstanceId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "sourceInstanceId"))]
         source_instance_id: String,
         mode: MirroredHalfMode,
         /// Optional source and mirror labels, validated and applied atomically with creation.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(
+            feature = "wire-json",
+            serde(default, skip_serializing_if = "Option::is_none")
+        )]
         labels: Option<MirroredHalfLabels>,
         /// Optional physical setup committed in the same edit as pair creation.
-        #[serde(
-            default,
-            rename = "physicalSetup",
-            skip_serializing_if = "Option::is_none"
+        #[cfg_attr(
+            feature = "wire-json",
+            serde(
+                default,
+                rename = "physicalSetup",
+                skip_serializing_if = "Option::is_none"
+            )
         )]
         physical_setup: Option<MirroredHalfPhysicalSetup>,
         /// Default switch-companion placement for the created pair.
-        #[serde(
-            default,
-            rename = "companionMode",
-            skip_serializing_if = "MirroredCompanionMode::is_literal_mirror"
+        #[cfg_attr(
+            feature = "wire-json",
+            serde(
+                default,
+                rename = "companionMode",
+                skip_serializing_if = "MirroredCompanionMode::is_literal_mirror"
+            )
         )]
         companion_mode: MirroredCompanionMode,
         /// Initial adjustment copied into every companion's correspondence (never a pair-wide tweak).
-        #[serde(
-            default,
-            rename = "companionTweak",
-            skip_serializing_if = "Option::is_none"
+        #[cfg_attr(
+            feature = "wire-json",
+            serde(
+                default,
+                rename = "companionTweak",
+                skip_serializing_if = "Option::is_none"
+            )
         )]
         companion_tweak: Option<MirroredCompanionTweak>,
         mapping: Pose2,
-        #[serde(rename = "idRule")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "idRule"))]
         id_rule: MirroredIdRule,
         /// The normalized mounting-hole definition, needed when the source has closure mounts:
         /// the second half's clearance holes are generated from them, as for `LinkMirrorPair`.
-        #[serde(
-            default,
-            rename = "mountingHole",
-            skip_serializing_if = "Option::is_none"
+        #[cfg_attr(
+            feature = "wire-json",
+            serde(
+                default,
+                rename = "mountingHole",
+                skip_serializing_if = "Option::is_none"
+            )
         )]
         mounting_hole: Option<Box<PartDefinition>>,
     },
     SetHalfException {
-        #[serde(rename = "pairId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "pairId"))]
         pair_id: String,
         // EditOperation is internally tagged by `kind`, so the item category uses itemKind.
-        #[serde(rename = "itemKind")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "itemKind"))]
         kind: MirroredItemKind,
-        #[serde(rename = "mirrorId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "mirrorId"))]
         mirror_id: String,
         state: HalfExceptionState,
     },
     SetCompanionPlacement {
-        #[serde(rename = "pairId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "pairId"))]
         pair_id: String,
         targets: Vec<CompanionPlacementTarget>,
         mode: MirroredCompanionMode,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(
+            feature = "wire-json",
+            serde(default, skip_serializing_if = "Option::is_none")
+        )]
         tweak: Option<MirroredCompanionTweak>,
     },
     UnlinkHalves {
-        #[serde(rename = "pairId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "pairId"))]
         pair_id: String,
     },
     SetLayout {
@@ -1025,9 +1092,9 @@ pub enum EditOperation {
     /// halves move apart symmetrically about the split axis; matrix origins
     /// keep their half-frame values and the partner still reflects exactly.
     SetSplitGap {
-        #[serde(rename = "layoutId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "layoutId"))]
         layout_id: String,
-        #[serde(rename = "splitGap")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "splitGap"))]
         split_gap: f64,
     },
     /// Mirrors an independent part on both halves of a split pair, or makes
@@ -1036,7 +1103,7 @@ pub enum EditOperation {
     /// reflected half-frame pose; making it local removes the partner. Either
     /// copy edits both while the link lasts.
     SetMirroredPart {
-        #[serde(rename = "partId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "partId"))]
         part_id: String,
         mirrored: bool,
     },
@@ -1046,7 +1113,7 @@ pub enum EditOperation {
     /// the part moves to the fresh placement from the new anchor key, in one
     /// Undo entry.
     SetPartAnchor {
-        #[serde(rename = "partId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "partId"))]
         part_id: String,
         anchor: PartAnchor,
     },
@@ -1054,20 +1121,20 @@ pub enum EditOperation {
     /// anchor key stays). Core re-solves the carried and local values so the
     /// evaluated pose is unchanged, in one Undo entry.
     SetPartAnchorFollow {
-        #[serde(rename = "partId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "partId"))]
         part_id: String,
         follow: Follow,
     },
     /// Ticket 13: clear an independent part's anchor (Detach), keeping its
     /// evaluated pose from the half origin, in one Undo entry.
     DetachPartAnchor {
-        #[serde(rename = "partId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "partId"))]
         part_id: String,
     },
     /// Ticket 13: edit one carried (Spread/Stagger/Splay) or local
     /// (Offset/Rotation) value of an anchored part, in one Undo entry.
     SetPartAnchorValues {
-        #[serde(rename = "partId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "partId"))]
         part_id: String,
         change: PartAnchorValueChange,
     },
@@ -1075,7 +1142,7 @@ pub enum EditOperation {
     /// Undo entry. Anchored parts keep using `SetPartAnchorValues::Rotation`;
     /// members, companions, locked and constraint-driven parts refuse.
     SetPartRotation {
-        #[serde(rename = "partId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "partId"))]
         part_id: String,
         rotation: f64,
     },
@@ -1086,6 +1153,20 @@ pub enum EditOperation {
     RenameProject {
         name: String,
     },
+    UpsertAssembly {
+        assembly: Box<AssemblyDefinition>,
+        definitions: Vec<PartDefinition>,
+        assets: Vec<Asset>,
+    },
+    PlaceAssembly {
+        #[cfg_attr(feature = "wire-json", serde(rename = "boardId"))]
+        board_id: String,
+        #[cfg_attr(feature = "wire-json", serde(rename = "placementId"))]
+        placement_id: String,
+        definitions: Vec<PartDefinition>,
+        parts: Vec<Part>,
+        assets: Vec<Asset>,
+    },
     ReplaceDocument {
         document: Box<ProjectDoc>,
     },
@@ -1095,34 +1176,38 @@ pub struct OutlineContourEdit {
     pub contour: u32,
     pub points: Vec<Vec2>,
 }
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
 pub struct Position {
     pub id: String,
     pub at: Vec2,
 }
 /// One matrix cell offset update carried by a typed keycap-size resize.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(rename_all = "camelCase"))]
 pub struct KeycapCellOffset {
     pub matrix_id: String,
     pub row: u32,
     pub column: u32,
     pub offset: Option<Vec2>,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(rename_all = "lowercase"))]
 pub enum EditPhase {
     Preview,
     Commit,
 }
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
 pub struct EditCommand {
-    #[serde(rename = "baseRevision")]
+    #[cfg_attr(feature = "wire-json", serde(rename = "baseRevision"))]
     pub base_revision: u64,
-    #[serde(rename = "transactionId")]
+    #[cfg_attr(feature = "wire-json", serde(rename = "transactionId"))]
     pub transaction_id: String,
     pub phase: EditPhase,
-    #[serde(rename = "targetIds")]
+    #[cfg_attr(feature = "wire-json", serde(rename = "targetIds"))]
     pub target_ids: Vec<String>,
     pub operation: EditOperation,
 }

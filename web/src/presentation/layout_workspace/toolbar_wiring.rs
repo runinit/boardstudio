@@ -17,7 +17,6 @@ pub(in crate::presentation) fn use_layout_toolbar(
 ) -> WsInputs {
     let services = frame.layout_services();
     let snapshot = &frame.snapshot;
-    let render_scope = &frame.scope;
     let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
     let adapter = use_context::<SelectionAdapter>();
     let interaction = use_context::<super::super::workspace_composition::WorkspaceInteraction>();
@@ -26,13 +25,6 @@ pub(in crate::presentation) fn use_layout_toolbar(
     let layout_owner = frame.owner.clone();
     let workspace = editor.workspace;
     let layout_assembly_3d = layout_state.assembly_3d();
-    let drag = interaction.navigation.drag_interaction();
-    let svg = frame.svg.clone();
-    let interaction_version = services.interaction_version;
-    let part_placement = frame.part_placement.clone();
-    let matrix_placement = services.matrix_placement.clone();
-    let canvas_interaction = interaction.arbiter.clone();
-    let mirrored_pair = services.mirrored_pair.clone();
     let tree_cell_anchor = interaction.tree_cell_anchor.clone();
     let accepted_canvas_source = frame.camera.accepted_canvas_source.clone();
     let model = &frame.model;
@@ -89,23 +81,25 @@ pub(in crate::presentation) fn use_layout_toolbar(
         &frame.model.active_board_id,
         &board_part_ids,
     );
-    let on_layout_view_mode = on_layout_view_mode(OnLayoutViewModeArgs {
-        runtime: runtime.clone(),
-        adapter: adapter.clone(),
-        layout_owner: layout_owner.clone(),
-        workspace,
-        layout_assembly_3d,
-        layout_state,
-        drag: drag.clone(),
-        svg: svg.clone(),
-        render_scope: render_scope.clone(),
-        interaction_version,
-        part_placement: part_placement.clone(),
-        matrix_placement: matrix_placement.clone(),
-        canvas_interaction: canvas_interaction.clone(),
-        mirrored_pair: mirrored_pair.clone(),
-        matrix_setup: matrix_setup.clone(),
-    });
+    let on_layout_view_mode = {
+        let input = use_context::<layout_input::LayoutInput>();
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let owner = layout_owner.clone();
+        let matrix_setup = matrix_setup.clone();
+        EventHandler::new(move |assembly_3d| {
+            if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
+                return;
+            }
+            if assembly_3d && !layout_assembly_3d() {
+                input.dispatch(CanvasEvent::ScopeChanged);
+                if let Some(projection) = matrix_setup.projection.as_ref() {
+                    matrix_setup.on_cancel.call(projection.owner.clone());
+                }
+            }
+            layout_state.set_assembly_3d(assembly_3d);
+        })
+    };
     let toolbar_selection_availability =
         super::super::workspace_composition::use_toolbar_selection_availability(
             tree_cell_anchor.clone(),
@@ -262,92 +256,4 @@ pub(in crate::presentation) fn use_layout_toolbar(
         on_component_inspector_action,
         on_companion_placement_action,
     }
-}
-
-pub(in crate::presentation) struct OnLayoutViewModeArgs {
-    pub runtime: Rc<Runtime>,
-    pub adapter: SelectionAdapter,
-    pub layout_owner: LayoutOwnerIdentity,
-    pub workspace: Signal<Workspace>,
-    pub layout_assembly_3d: Signal<bool>,
-    pub layout_state: layout_workspace::LayoutWorkspaceState,
-    pub drag: Rc<RefCell<Option<Drag>>>,
-    pub svg: Rc<RefCell<Option<SvgElement>>>,
-    pub render_scope: Scope,
-    pub interaction_version: Signal<u64>,
-    pub part_placement: part_placement::PartPlacementMount,
-    pub matrix_placement: objects::MatrixPlacementMount,
-    pub canvas_interaction: CanvasInteractionArbiter,
-    pub mirrored_pair: objects::MirroredPairMount,
-    pub matrix_setup: objects::MatrixSetupMount,
-}
-
-pub(in crate::presentation) fn on_layout_view_mode(
-    input: OnLayoutViewModeArgs,
-) -> EventHandler<bool> {
-    let OnLayoutViewModeArgs {
-        runtime,
-        adapter,
-        layout_owner,
-        workspace,
-        layout_assembly_3d,
-        layout_state,
-        drag,
-        svg,
-        render_scope,
-        interaction_version,
-        part_placement,
-        matrix_placement,
-        canvas_interaction,
-        mirrored_pair,
-        matrix_setup,
-    } = input;
-    layout_view_mode_handler(
-        {
-            let runtime = runtime.clone();
-            let adapter = adapter.clone();
-            let owner = layout_owner.clone();
-            move || layout_owner_is_current(&runtime, workspace, &adapter, &owner)
-        },
-        layout_assembly_3d,
-        {
-            move |assembly_3d| {
-                layout_state.set_assembly_3d(assembly_3d);
-            }
-        },
-        LayoutPlacementCancellation {
-            parts: part_placement.clone(),
-            matrices: matrix_placement.clone(),
-            interactions: canvas_interaction.clone(),
-        },
-        {
-            let runtime = runtime.clone();
-            let drag = drag.clone();
-            let svg = svg.clone();
-            let render_scope = render_scope.clone();
-            move || {
-                selection::cancel_scoped_drag(&runtime, &drag, &svg, Some(&render_scope));
-                let mut interaction_version = interaction_version;
-                interaction_version += 1;
-            }
-        },
-        {
-            let mirrored_pair = mirrored_pair.clone();
-            let matrix_setup = matrix_setup.clone();
-            let matrix_placement = matrix_placement.clone();
-            move || {
-                if let Some(active) = mirrored_pair.placement.as_ref() {
-                    mirrored_pair.on_cancel.call(active.owner.clone());
-                } else if let Some(form) = mirrored_pair.form.as_ref() {
-                    mirrored_pair.on_cancel.call(form.owner.clone());
-                }
-                if let Some(projection) = matrix_setup.projection.as_ref() {
-                    matrix_setup.on_cancel.call(projection.owner.clone());
-                }
-                if let Some(owner) = matrix_placement.cancel_owner.clone() {
-                    matrix_placement.on_cancel.call(owner);
-                }
-            }
-        },
-    )
 }

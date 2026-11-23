@@ -20,9 +20,9 @@ pub(super) fn commit_placement(
         ..
     } = state;
     let mut adapter = host.adapter.clone();
-    let canvas_interaction = host.canvas_interaction.clone();
+    let canvas_interaction = use_context::<LayoutInteraction>();
     move |at: Vec2| {
-        if !canvas_interaction.is_owner(CanvasInteractionOwner::PartPlacement) {
+        if canvas_interaction.current() != Some(CanvasMode::PlacingPart) {
             return;
         }
         let Some(mut placement) = active() else {
@@ -134,6 +134,6 @@ pub(super) fn commit_placement(
             }
             Settlement::Retired => {}
         }
-        canvas_interaction.release(CanvasInteractionOwner::PartPlacement);
+        canvas_interaction.end(CanvasMode::PlacingPart);
     }
 }

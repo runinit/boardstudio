@@ -54,11 +54,7 @@ async fn pending_keycap_preview_keeps_its_executor_without_borrowing_configurati
 #[wasm_bindgen_test]
 async fn pending_store_save_keeps_its_target_while_future_saves_switch_to_memory() {
     let runtime = support::new_runtime();
-    support::install(
-        &runtime,
-        Session::new(boardstudio_core::CoreEngine::validate_open),
-        boardstudio_core::CoreEngine::new(),
-    );
+    support::install(&runtime, Session::new());
     let store = test_hooks::store(&runtime);
     let stored_id = crate::runtime::new_project_id().unwrap();
     let mut target_captured = Box::pin(support::track_next_persist_target(&runtime));

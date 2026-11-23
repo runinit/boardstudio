@@ -5,9 +5,9 @@
 //! deserializer and serializer monomorphizations to retain, instead of one set
 //! per crate that happens to speak a protocol.
 
-use crate::model::{
-    ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, CoreReply, CoreRequest,
-};
+use crate::model::{ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest};
+#[cfg(feature = "wire-json")]
+use crate::model::{CoreReply, CoreRequest};
 
 pub fn decode_archive_request(json: &str) -> Result<ArchiveRequest, serde_json::Error> {
     serde_json::from_str(json)
@@ -17,10 +17,12 @@ pub fn encode_archive_reply(reply: &ArchiveReply) -> String {
     serde_json::to_string(reply).expect("archive reply serializes")
 }
 
+#[cfg(feature = "wire-json")]
 pub fn decode_core_request(json: &str) -> Result<CoreRequest, serde_json::Error> {
     serde_json::from_str(json)
 }
 
+#[cfg(feature = "wire-json")]
 pub fn encode_core_reply(reply: &CoreReply) -> String {
     serde_json::to_string(reply).expect("reply serializes")
 }

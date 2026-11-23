@@ -3,6 +3,7 @@
 use super::super::change::{MechanicalChange, MechanicalEdit, MechanicalTarget};
 use super::super::features;
 use super::super::inputs::effective_inputs;
+use super::validation::upsert_item;
 use super::{dedup_changed, project};
 use crate::model::*;
 
@@ -455,25 +456,24 @@ pub fn install_feature(
     value: &MechanicalFeatureValue,
 ) -> Result<(), String> {
     match (kind, value) {
-        (MechanicalFeatureKind::Mount, MechanicalFeatureValue::Mount { mount }) => {
-            replace_mount(&mut configuration.mounts, feature_id, mount.clone());
-        }
-        (MechanicalFeatureKind::ClosureMount, MechanicalFeatureValue::Mount { mount }) => {
-            let mounts = configuration.closure_mounts.get_or_insert_with(Vec::new);
-            replace_mount(mounts, feature_id, mount.clone());
+        (
+            MechanicalFeatureKind::Mount | MechanicalFeatureKind::ClosureMount,
+            MechanicalFeatureValue::Mount { mount },
+        ) => {
+            let mounts = if kind == MechanicalFeatureKind::Mount {
+                &mut configuration.mounts
+            } else {
+                configuration.closure_mounts.get_or_insert_with(Vec::new)
+            };
+            let mut mount = mount.clone();
+            mount.id = feature_id.to_owned();
+            upsert_item(mounts, mount, |entry| &entry.id);
         }
         (MechanicalFeatureKind::Opening, MechanicalFeatureValue::Opening { opening }) => {
             let mut opening = opening.clone();
             opening.id = feature_id.to_owned();
             let openings = configuration.openings.get_or_insert_with(Vec::new);
-            if let Some(existing) = openings
-                .iter_mut()
-                .find(|existing| existing.id == feature_id)
-            {
-                *existing = opening;
-            } else {
-                openings.push(opening);
-            }
+            upsert_item(openings, opening, |entry| &entry.id);
         }
         (
             MechanicalFeatureKind::GasketSupport,
@@ -484,15 +484,7 @@ pub fn install_feature(
             let layout = configuration
                 .gasket_layout
                 .get_or_insert_with(crate::mechanical::default_gasket_layout);
-            if let Some(existing) = layout
-                .supports
-                .iter_mut()
-                .find(|existing| existing.id == feature_id)
-            {
-                *existing = anchor;
-            } else {
-                layout.supports.push(anchor);
-            }
+            upsert_item(&mut layout.supports, anchor, |entry| &entry.id);
         }
         _ => {
             return Err(format!(
@@ -501,15 +493,6 @@ pub fn install_feature(
         }
     }
     Ok(())
-}
-
-pub(super) fn replace_mount(mounts: &mut Vec<Mount>, id: &str, mut mount: Mount) {
-    mount.id = id.to_owned();
-    if let Some(existing) = mounts.iter_mut().find(|existing| existing.id == id) {
-        *existing = mount;
-    } else {
-        mounts.push(mount);
-    }
 }
 
 pub fn remove_feature(

@@ -141,14 +141,8 @@ impl Runtime {
                 return executor(snapshot, owner.scope.clone());
             }
         }
-        let prepared = prepare_captured_case(
-            (self.core_services.open_scratch)(),
-            &job_id,
-            &snapshot,
-            &owner.scope,
-            false,
-        )
-        .map_err(|error| format!("Case preview preparation failed: {error:?}"))?;
+        let prepared = prepare_captured_case(&snapshot, &owner.scope, false)
+            .map_err(|error| format!("Case preview preparation failed: {error:?}"))?;
         if !is_current() {
             return Err("Case gesture preview was superseded".into());
         }

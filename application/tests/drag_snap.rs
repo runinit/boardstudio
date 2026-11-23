@@ -304,7 +304,7 @@ fn stale_edit_preserves_drag_and_terminal_owners_settle_once() {
 
     let mut document = fixture();
     document.revision = 1;
-    let mut session = Session::new(boardstudio_core::CoreEngine::validate_open);
+    let mut session = Session::new();
     let effects = session.submit(Event::Open {
         operation_id: OperationId(1),
         document,

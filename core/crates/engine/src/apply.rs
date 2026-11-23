@@ -30,6 +30,7 @@ pub(crate) fn affects_outline(op: &EditOperation) -> bool {
         } | EditOperation::MoveParts { .. }
             | EditOperation::SetKeycapSize { .. }
             | EditOperation::AddPart { .. }
+            | EditOperation::PlaceAssembly { .. }
             | EditOperation::AddMirrorOnlyPart { .. }
             | EditOperation::RemoveParts { .. }
             | EditOperation::RemoveMatrix { .. }
@@ -211,6 +212,31 @@ fn add_part_placement(
     }
     document.parts.push(stored);
     Ok(vec![part.id.clone()])
+}
+
+fn merge_assembly_assets(doc: &mut ProjectDoc, assets: &[Asset]) -> Result<(), String> {
+    for asset in assets {
+        match doc.assets.iter().find(|existing| existing.id == asset.id) {
+            Some(existing) if existing != asset => {
+                return Err(format!(
+                    "The model asset identity '{}' conflicts with the accepted project.",
+                    asset.id
+                ));
+            }
+            Some(_) => {}
+            None => doc.assets.push(asset.clone()),
+        }
+    }
+    Ok(())
+}
+
+/// Mirrors the Parts editor's `asset_exists`: document assets resolve by identity,
+/// while bundled catalogue entries and unresolved placeholders need no document row.
+/// Core cannot name the web catalogue, so bundled identities match by their prefix.
+fn assembly_asset_available(doc: &ProjectDoc, asset_id: &str) -> bool {
+    doc.assets.iter().any(|asset| asset.id == asset_id)
+        || asset_id.starts_with("bundled-model:")
+        || asset_id.starts_with("unresolved-model:")
 }
 
 #[cfg(test)]
@@ -925,6 +951,137 @@ pub(crate) fn apply_with_ledger(
                     )?);
                 }
             }
+            Ok(changed)
+        }
+        EditOperation::UpsertAssembly {
+            assembly,
+            definitions,
+            assets,
+        } => {
+            if assembly.id.trim().is_empty()
+                || assembly.name.trim().is_empty()
+                || assembly.members.is_empty()
+            {
+                return Err("Name the assembly and add at least one member".into());
+            }
+            let mut members = BTreeSet::new();
+            if assembly
+                .members
+                .iter()
+                .any(|member| member.id.trim().is_empty() || !members.insert(&member.id))
+            {
+                return Err("Assembly members must have unique, non-empty identities.".into());
+            }
+            merge_assembly_assets(doc, assets)?;
+            for definition in definitions {
+                if !doc
+                    .definitions
+                    .iter()
+                    .any(|existing| existing.id == definition.id)
+                {
+                    doc.definitions.push(definition.clone());
+                }
+            }
+            // Members without a definition are visual-only; every named definition
+            // and model must resolve against the merged document, as in Parts.
+            for member in &assembly.members {
+                if let Some(definition_id) = &member.definition_id
+                    && !doc
+                        .definitions
+                        .iter()
+                        .any(|definition| &definition.id == definition_id)
+                {
+                    return Err(format!("Missing component definition: {definition_id}"));
+                }
+                for model in &member.models {
+                    if !assembly_asset_available(doc, &model.asset_id) {
+                        return Err(format!(
+                            "The model asset '{}' is not available in this project.",
+                            model.asset_id
+                        ));
+                    }
+                }
+            }
+            if let Some(existing) = doc.assemblies.iter_mut().find(|a| a.id == assembly.id) {
+                existing.clone_from(assembly);
+            } else {
+                doc.assemblies.push(assembly.as_ref().clone());
+            }
+            Ok(vec![assembly.id.clone()])
+        }
+        EditOperation::PlaceAssembly {
+            board_id,
+            placement_id,
+            definitions,
+            parts,
+            assets,
+        } => {
+            require_board(doc, board_id)?;
+            if placement_id.trim().is_empty() || parts.is_empty() {
+                return Err("An assembly placement needs an identity and at least one part".into());
+            }
+            merge_assembly_assets(doc, assets)?;
+            // Placement snapshots live under the placement identity; parts may still
+            // name an existing definition when no snapshots are sent.
+            let prefix = format!("{placement_id}/");
+            for definition in definitions {
+                if !definition.id.starts_with(&prefix) {
+                    return Err(format!(
+                        "Assembly definition '{}' is outside placement '{placement_id}'.",
+                        definition.id
+                    ));
+                }
+                if doc
+                    .definitions
+                    .iter()
+                    .any(|existing| existing.id == definition.id)
+                {
+                    return Err(format!("Duplicate assembly definition {}", definition.id));
+                }
+                doc.definitions.push(definition.clone());
+            }
+            let mut placed_ids = BTreeSet::new();
+            for part in parts {
+                if !placed_ids.insert(&part.id) {
+                    return Err("Assembly parts must have unique identities.".into());
+                }
+                if !part.id.starts_with(&prefix) {
+                    return Err(format!(
+                        "Assembly part '{}' is outside placement '{placement_id}'.",
+                        part.id
+                    ));
+                }
+                if !doc
+                    .definitions
+                    .iter()
+                    .any(|definition| definition.id == part.definition_id)
+                {
+                    return Err(format!("Unknown definition {}", part.definition_id));
+                }
+            }
+            let mut changed = Vec::with_capacity(parts.len() + 1);
+            for part in parts {
+                if part.id.trim().is_empty() || part.reference.trim().is_empty() {
+                    return Err("Assembly parts need an identity and component reference".into());
+                }
+                if doc
+                    .parts
+                    .iter()
+                    .any(|existing| existing.reference == part.reference)
+                {
+                    return Err(format!(
+                        "The component reference '{}' is already in use.",
+                        part.reference
+                    ));
+                }
+                let mut part = part.clone();
+                part.properties.get_or_insert_with(Default::default).insert(
+                    "assemblyId".into(),
+                    serde_json::Value::String(placement_id.clone()),
+                );
+                changed.extend(add_part_placement(doc, &part, Some(board_id), None, None)?);
+            }
+            changed.push(board_id.clone());
             Ok(changed)
         }
         EditOperation::RenameProject { name } => {

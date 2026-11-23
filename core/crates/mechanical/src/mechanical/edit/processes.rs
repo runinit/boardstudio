@@ -2,6 +2,7 @@
 
 use super::super::change::MechanicalChange;
 use super::super::{inferred_switch_family, is_switch_position};
+use super::validation::find_item_mut;
 use crate::model::*;
 
 pub(super) fn normalize_processes(
@@ -201,22 +202,25 @@ pub(super) fn critical_fit_mut<'a>(
     configuration: &'a mut MechanicalConfiguration,
     fit_id: &str,
 ) -> Result<&'a mut MechanicalCriticalFit, String> {
-    configuration
-        .critical_fits
-        .as_mut()
-        .and_then(|fits| fits.iter_mut().find(|fit| fit.id == fit_id))
-        .ok_or_else(|| "The selected critical fit is no longer available.".into())
+    find_item_mut(
+        configuration
+            .critical_fits
+            .as_deref_mut()
+            .unwrap_or_default(),
+        |entry| entry.id == fit_id,
+        "The selected critical fit is no longer available.",
+    )
 }
 
 pub(super) fn hardware_mut<'a>(
     configuration: &'a mut MechanicalConfiguration,
     hardware_id: &str,
 ) -> Result<&'a mut MechanicalHardwareSpecification, String> {
-    configuration
-        .hardware
-        .as_mut()
-        .and_then(|entries| entries.iter_mut().find(|entry| entry.id == hardware_id))
-        .ok_or_else(|| "The selected hardware entry is no longer available.".into())
+    find_item_mut(
+        configuration.hardware.as_deref_mut().unwrap_or_default(),
+        |entry| entry.id == hardware_id,
+        "The selected hardware entry is no longer available.",
+    )
 }
 
 pub(super) fn resize_closure_insert(

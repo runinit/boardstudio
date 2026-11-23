@@ -776,14 +776,7 @@ fn submit_physical_setup(
         .into_mirrored_operation(Some(&mounting_hole_template()))?
         .ok_or("physical setup did not produce a mirrored-half operation")?;
     let mut engine = CoreEngine::new();
-    match engine.handle(CoreRequest::Open {
-        id: "physical-setup-open".into(),
-        document: start.clone(),
-    }) {
-        CoreReply::Scene { .. } => {}
-        CoreReply::Error { message, .. } => return Err(message),
-        _ => return Err("Core did not open the physical-setup input".into()),
-    }
+    engine.open(start.clone())?;
     let command = EditCommand {
         base_revision: start.revision,
         transaction_id: "physical-setup-create".into(),
@@ -791,14 +784,9 @@ fn submit_physical_setup(
         target_ids,
         operation,
     };
-    match engine.handle(CoreRequest::Edit {
-        id: "physical-setup-create".into(),
-        command,
-    }) {
-        CoreReply::Scene { document, .. } => Ok(*document),
-        CoreReply::Error { message, .. } => Err(message),
-        _ => Err("Core did not create the physical-setup pair".into()),
-    }
+    engine
+        .commit_edit(command)
+        .map(|committed| committed.document)
 }
 
 /// Side B: the Core `CreateMirroredHalf` ReuseBoard operation on the same starting document,
@@ -811,13 +799,9 @@ fn reuse_board_half(start: &ProjectDoc) -> ProjectDoc {
     let source = start.hardware.as_ref().unwrap().instances[0].clone();
     let shared_construction = source.mechanical.clone().unwrap();
     let mut engine = CoreEngine::new();
-    match engine.handle(CoreRequest::Open {
-        id: "equivalence-open".into(),
-        document: start.clone(),
-    }) {
-        CoreReply::Scene { .. } => {}
-        other => panic!("Core did not open the starting document: {other:?}"),
-    }
+    engine
+        .open(start.clone())
+        .expect("Core opens the starting document");
     let command = EditCommand {
         base_revision: start.revision,
         transaction_id: "equivalence-half".into(),
@@ -857,13 +841,10 @@ fn reuse_board_half(start: &ProjectDoc) -> ProjectDoc {
             mounting_hole: Some(Box::new(mounting_hole_template())),
         },
     };
-    match engine.handle(CoreRequest::Edit {
-        id: "equivalence-edit".into(),
-        command,
-    }) {
-        CoreReply::Scene { document, .. } => *document,
-        other => panic!("Core refused CreateMirroredHalf: {other:?}"),
-    }
+    engine
+        .commit_edit(command)
+        .expect("Core accepts CreateMirroredHalf")
+        .document
 }
 
 /// Every JSON leaf difference between two values, as (JSON pointer, A, B). A missing side

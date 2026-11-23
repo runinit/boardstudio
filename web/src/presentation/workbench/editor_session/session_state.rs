@@ -22,7 +22,6 @@ pub(in crate::presentation) struct SessionState<'a> {
     pub matrix_inspector: objects::MatrixInspectorMount,
     pub matrix_transform_inspector: objects::MatrixTransformInspectorMount,
     pub parts_state: parts_workspace::PartsWorkspaceState,
-    pub canvas_interaction: CanvasInteractionArbiter,
     pub matrix_pair: MatrixPairWiring,
     pub view: EditorContexts,
 }
@@ -66,10 +65,37 @@ pub(in crate::presentation) fn use_session_state<'a>(
     use_context_provider(|| case_workspace_state);
     let case_selection = case_workspace_state.selection();
     let workspace = editor.workspace;
-    let layout_state =
-        layout_workspace::use_layout_workspace_state(adapter.selected_context, workspace);
+    let layout_state = layout_workspace::use_layout_workspace_state(
+        adapter.selected_context,
+        workspace,
+        use_context::<layout_input::LayoutInput>().menu,
+    );
     use_context_provider(|| layout_state);
-    let canvas_navigation = use_canvas_navigation_state(workspace);
+    let interaction = use_context::<LayoutInteraction>();
+    let selected_context = adapter.selected_context;
+    use_effect(move || {
+        let selected = selected_context.read();
+        for (mode, pending) in [
+            (
+                CanvasMode::PickingSplayOrigin,
+                layout_state.pending_splay_origin_pick(),
+            ),
+            (
+                CanvasMode::PickingMatrixAnchor,
+                layout_state.pending_anchor_pick(),
+            ),
+        ] {
+            let stale = pending.read().as_ref().is_none_or(|owner| {
+                selected.as_ref().is_none_or(|selected| {
+                    selected.scope != owner.scope || selected.context != owner.context
+                })
+            });
+            if stale && interaction.current() == Some(mode) {
+                interaction.handle(CanvasEvent::ScopeChanged);
+            }
+        }
+    });
+    let canvas_navigation = use_canvas_navigation_state();
     let active_workspace = workspace();
     let requested_workspace_panel =
         panels::use_workspace_panel_defaults(active_workspace, objects_open, inspect_open);
@@ -81,13 +107,11 @@ pub(in crate::presentation) fn use_session_state<'a>(
         mut matrix_setup,
         parts_state,
         parts_assembly_orientation,
-        canvas_interaction,
     } = layout_workspace::use_layout_view_state(editor, &adapter, layout_state);
     let matrix_pair = use_matrix_pair_wiring(MatrixPairWiringInput {
         editor,
         adapter: adapter.clone(),
         layout_assembly_3d: layout_state.assembly_3d(),
-        canvas_interaction: canvas_interaction.clone(),
         layout_state,
         inspector_panel_settings,
         parts_assembly_orientation,
@@ -129,7 +153,6 @@ pub(in crate::presentation) fn use_session_state<'a>(
             matrix_inspector,
             matrix_transform_inspector,
             parts_state,
-            canvas_interaction,
             matrix_pair,
             view,
         },
@@ -189,7 +212,6 @@ pub(in crate::presentation) struct MatrixPairWiringInput<'a> {
     pub editor: EditorContext,
     pub adapter: SelectionAdapter,
     pub layout_assembly_3d: Signal<bool>,
-    pub canvas_interaction: CanvasInteractionArbiter,
     pub layout_state: layout_workspace::LayoutWorkspaceState,
     pub inspector_panel_settings: Signal<PanelSettings>,
     pub parts_assembly_orientation: Signal<parts::SwitchOrientation>,
@@ -210,7 +232,6 @@ pub(in crate::presentation) fn use_matrix_pair_wiring(
         editor,
         adapter,
         layout_assembly_3d,
-        canvas_interaction,
         layout_state,
         inspector_panel_settings,
         parts_assembly_orientation,
@@ -236,7 +257,6 @@ pub(in crate::presentation) fn use_matrix_pair_wiring(
             workspace,
             scope_generation: adapter.generation,
             assembly_orientation: parts::PartsAssemblyOrientation(parts_assembly_orientation),
-            canvas_interaction: canvas_interaction.clone(),
         },
     );
     let on_place_matrix_assembly = {
@@ -248,7 +268,7 @@ pub(in crate::presentation) fn use_matrix_pair_wiring(
         let mut layout_assembly_3d = layout_assembly_3d;
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
-        let canvas_interaction = canvas_interaction.clone();
+        let canvas_interaction = use_context::<LayoutInteraction>();
         EventHandler::new(move |source: objects::MatrixPlacementSource| {
             if workspace() != Workspace::Parts || canvas_interaction.current().is_some() {
                 return;
@@ -358,7 +378,6 @@ pub(in crate::presentation) fn use_matrix_pair_wiring(
         workspace,
         adapter.generation,
         on_mirrored_pair_created,
-        canvas_interaction.clone(),
     );
     if mirrored_pair.owns_canvas {
         matrix_setup.can_open = false;

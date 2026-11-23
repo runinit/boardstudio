@@ -2,7 +2,8 @@
 
 pub use boardstudio_core_artifact::artifact;
 pub use boardstudio_core_engine::{
-    ResolvedDoc, archive, companion_placement_disabled_reason, firmware, project_document,
+    CommittedScene, CoreEngine, EditOutcome, ResolvedDoc, archive,
+    companion_placement_disabled_reason, firmware, project_document,
 };
 pub use boardstudio_core_kernel::matrix::kernel as layout_kernel;
 pub use boardstudio_core_kernel::matrix::layout::{
@@ -16,42 +17,6 @@ pub use boardstudio_model::{electrical_jumpers, electrical_profiles, model};
 
 #[cfg(target_arch = "wasm32")]
 use model::ArchiveReply;
-use model::{CoreReply, CoreRequest, ProjectDoc};
-
-pub struct CoreEngine {
-    engine: boardstudio_core_engine::CoreEngine,
-}
-
-impl CoreEngine {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    // JSON transport keeps the native and wasm32 request protocols identical.
-    pub fn request(&mut self, json: &str) -> String {
-        self.engine.request(json)
-    }
-}
-
-impl Default for CoreEngine {
-    fn default() -> Self {
-        Self {
-            engine: boardstudio_core_engine::CoreEngine::new(),
-        }
-    }
-}
-
-impl CoreEngine {
-    /// Validate a typed Open candidate before retiring editor work, without changing Core.
-    pub fn validate_open(document: &ProjectDoc) -> Result<(), String> {
-        boardstudio_core_engine::CoreEngine::validate_open(document)
-    }
-
-    pub fn handle(&mut self, request: CoreRequest) -> CoreReply {
-        self.engine.handle(request)
-    }
-}
-
 /// Handle an artifact request without mutating the stateful document engine.
 pub fn artifact_request(json: &str) -> String {
     artifact::request(json)

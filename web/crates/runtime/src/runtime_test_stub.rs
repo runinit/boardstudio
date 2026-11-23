@@ -1,5 +1,4 @@
 //! Native test Runtime: Session and Core are real; browser effects use in-memory ports.
-use crate::core_services::CoreServices;
 use crate::gate_driver::{GateDriver, OneShotBehavior};
 use boardstudio_application::{
     Completion, Effect, Event, Landing, OperationId, ReadModel, SaveResult, Scope, Session,
@@ -19,7 +18,6 @@ use std::{
 /// reaches a one-shot test gate.
 pub struct Runtime {
     session: RefCell<Session>,
-    services: CoreServices,
     pub(crate) operation_outcomes: crate::operation_outcomes::OperationOutcomes,
     next_operation: Cell<u64>,
     saves: RefCell<BTreeMap<String, ProjectDoc>>,
@@ -48,15 +46,9 @@ impl EventLog {
 }
 
 impl Runtime {
-    #[cfg(test)]
     pub fn new() -> Rc<Self> {
-        Self::with_core(CoreServices::engine())
-    }
-
-    pub fn with_core(services: CoreServices) -> Rc<Self> {
         Rc::new(Self {
-            session: RefCell::new(Session::new(services.validate_open)),
-            services,
+            session: RefCell::new(Session::new()),
             operation_outcomes: Default::default(),
             next_operation: Cell::new(1),
             saves: RefCell::new(BTreeMap::new()),
@@ -65,11 +57,6 @@ impl Runtime {
             parked_save: RefCell::new(None),
             events: EventLog::new(),
         })
-    }
-
-    /// The real engine's Core entry points, matching the browser Runtime's injected services.
-    pub fn core_services(&self) -> crate::core_services::CoreServices {
-        self.services
     }
 
     pub fn model(&self) -> ReadModel {

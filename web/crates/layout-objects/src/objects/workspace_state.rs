@@ -101,12 +101,13 @@ pub struct LayoutWorkspaceState {
 pub fn use_layout_workspace_state(
     selected_context: Signal<Option<ScopedTreeContext>>,
     workspace: Signal<Workspace>,
+    command_menu: Signal<Option<LayoutCommandMenu>>,
 ) -> LayoutWorkspaceState {
     let mut state = LayoutWorkspaceState {
         selection_kind: use_signal(LayoutSelectionKind::default),
         snap_settings: use_signal(LayoutSnapSettings::default),
         inspector_tab: use_signal(LayoutInspectorTab::default),
-        command_menu: use_signal(|| None),
+        command_menu,
         transform_tool: use_signal(|| None),
         transform_tool_owner: use_signal(|| None),
         transform_handles: use_signal(|| true),

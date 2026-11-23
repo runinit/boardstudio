@@ -95,7 +95,6 @@ pub struct MatrixPlacementInput {
     pub workspace: Signal<Workspace>,
     pub scope_generation: Signal<u64>,
     pub assembly_orientation: crate::presentation::parts::PartsAssemblyOrientation,
-    pub canvas_interaction: crate::presentation::canvas_interaction::CanvasInteractionArbiter,
 }
 
 #[derive(Props, Clone, PartialEq)]

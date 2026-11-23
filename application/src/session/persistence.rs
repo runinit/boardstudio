@@ -12,7 +12,7 @@ pub(super) struct PendingOpen {
     save_attempt_id: SaveAttemptId,
     document: Arc<ProjectDoc>,
     scene: Arc<SceneDelta>,
-    core: boardstudio_core::CoreEngine,
+    core: CoreEngine,
 }
 
 impl Session {
@@ -57,60 +57,36 @@ impl Session {
             );
             return;
         }
-        if let Err(reason) = (self.validate_open)(&document) {
+        if let Err(reason) = CoreEngine::validate_open(&document) {
             self.settle(operation_id, TerminalOutcome::Rejected(reason), effects);
             return;
         }
-        let mut next_core = boardstudio_core::CoreEngine::new();
-        let reply = next_core.handle(CoreRequest::Open {
-            id: wire_id(operation_id),
-            document,
-        });
-        match reply {
-            CoreReply::Scene {
-                scene, document, ..
-            } if scene.revision == document.revision => {
-                if let Some(prior) = self.pending_open.take() {
-                    self.settle(prior.operation_id, TerminalOutcome::Superseded, effects);
-                }
-                let document = Arc::new(*document);
-                let save_attempt_id = SaveAttemptId(self.next_save);
-                self.next_save += 1;
-                self.pending_open = Some(PendingOpen {
-                    operation_id,
-                    save_attempt_id,
-                    document: document.clone(),
-                    scene: Arc::new(scene),
-                    core: next_core,
-                });
-                effects.push(Effect::Persist {
-                    save_attempt_id,
-                    document,
-                });
-            }
-            CoreReply::Error { message, .. } => {
+        let mut next_core = CoreEngine::new();
+        let CommittedScene { scene, document } = match next_core.open(document) {
+            Ok(committed) => committed,
+            Err(message) => {
                 self.model.last_error = Some(message.clone());
                 self.settle(operation_id, TerminalOutcome::Rejected(message), effects);
+                return;
             }
-            CoreReply::Scene { .. } => {
-                let failure = "core scene and document revisions differ";
-                self.model.last_error = Some(failure.into());
-                self.settle(
-                    operation_id,
-                    TerminalOutcome::ExecutorFailed(failure.into()),
-                    effects,
-                );
-            }
-            _ => {
-                let failure = "core returned an unexpected reply variant";
-                self.model.last_error = Some(failure.into());
-                self.settle(
-                    operation_id,
-                    TerminalOutcome::ExecutorFailed(failure.into()),
-                    effects,
-                );
-            }
+        };
+        if let Some(prior) = self.pending_open.take() {
+            self.settle(prior.operation_id, TerminalOutcome::Superseded, effects);
         }
+        let document = Arc::new(document);
+        let save_attempt_id = SaveAttemptId(self.next_save);
+        self.next_save += 1;
+        self.pending_open = Some(PendingOpen {
+            operation_id,
+            save_attempt_id,
+            document: document.clone(),
+            scene: Arc::new(scene),
+            core: next_core,
+        });
+        effects.push(Effect::Persist {
+            save_attempt_id,
+            document,
+        });
     }
 
     pub(super) fn start_save(&mut self, operation: Option<OperationId>, effects: &mut Vec<Effect>) {

@@ -191,7 +191,7 @@ pub(super) fn canvas(input: CanvasInput) -> Element {
                 view_box: "{input.view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group",
                 "aria-label": "Physical keycaps; select a key with click, Enter, or Space, hold Space and drag to pan, or use the mouse wheel to zoom",
                 onmounted: h.mount, onpointerdown: h.start_pan, onpointermove: h.move_pointer,
-                onpointerup: h.end_pointer, onpointercancel: h.cancel_pointer, onlostpointercapture: h.cancel_pointer,
+                onpointerup: h.end_pointer, onpointercancel: h.cancel_pointer, onlostpointercapture: h.lost_capture,
                 onkeydown: h.keyboard, onkeyup: h.key_up, onwheel: h.wheel,
                 g { transform: "scale(1,-1)",
                     KeycapsCanvas { view, contours: input.contours, selected_ids: input.selected_ids, on_select_key: input.on_select_key }

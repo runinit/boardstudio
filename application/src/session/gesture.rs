@@ -161,16 +161,7 @@ impl Session {
         if !is_commit {
             g.sent_positions = Some(positions);
         }
-        self.apply_request(
-            operation_id,
-            CoreRequest::Edit {
-                id: String::new(),
-                command,
-            },
-            true,
-            None,
-            effects,
-        );
+        self.apply_edit(operation_id, command, true, effects);
     }
     pub(super) fn invalidate_gesture(&mut self, effects: &mut Vec<Effect>) {
         if let Some(operation_id) = self.clear_gesture(effects) {

@@ -125,7 +125,15 @@ pub(crate) fn canvas_owner_is_current(
 ) -> bool {
     match owner.workspace {
         Workspace::Layout => layout_owner_is_current(runtime, workspace, adapter, owner),
-        Workspace::Pcb => pcb_owner_is_current(runtime, workspace, adapter, owner),
+        workspace_kind @ (Workspace::Pcb | Workspace::Keymap | Workspace::Keycaps) => {
+            selection::workspace_owner_is_current(
+                runtime,
+                workspace,
+                adapter,
+                owner,
+                workspace_kind,
+            )
+        }
         _ => false,
     }
 }

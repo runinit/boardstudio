@@ -1,8 +1,8 @@
-use crate::core_services::CoreServices;
 use crate::physical_pcb::{install_source_pcb, verify_source_digest};
+use boardstudio_application::CoreEngine;
 use boardstudio_application::Event;
 use boardstudio_core_kernel::hash::sha256_hex;
-use boardstudio_model::model::{CaseAssemblyIR, CoreReply, CoreRequest};
+use boardstudio_model::model::CaseAssemblyIR;
 #[path = "source_pcb_test_fixture.rs"]
 mod fixture;
 use boardstudio_web_host::cad_jobs::{
@@ -36,16 +36,15 @@ fn source_pcb_nested_curve_ownership_survives_core_preparation() {
         hole["primitives"][0]["curveSupport"]["center"],
         serde_json::json!({"x":-10.,"y":-20.})
     );
-    let prepared: serde_json::Value = serde_json::from_str(&boardstudio_core::CoreEngine::new().request(
-        &serde_json::json!({"id":"prepare-source","kind":"prepare-case","ir":{"revision":1,"bodies":[{
-            "revision":1,"contours":board["contours"],"body":{
-                "id":"pcb","name":"PCB","boardId":"board","kind":"plate","thickness":1.6,
-                "clearance":0.,"pcb_source":board["pcbSource"]
-            }
-        }]}}).to_string(),
-    )).unwrap();
-    assert_eq!(prepared["kind"], "case-prepared", "{prepared}");
-    let body = &prepared["ir"]["bodies"][0];
+    let ir = serde_json::from_value(serde_json::json!({"revision":1,"bodies":[{
+        "revision":1,"contours":board["contours"],"body":{
+            "id":"pcb","name":"PCB","boardId":"board","kind":"plate","thickness":1.6,
+            "clearance":0.,"pcb_source":board["pcbSource"]
+        }
+    }]}))
+    .unwrap();
+    let prepared = serde_json::to_value(CoreEngine::prepare_case(&ir).unwrap()).unwrap();
+    let body = &prepared["bodies"][0];
     assert_eq!(body["body"]["pcb_source"], board["pcbSource"]);
     let regions = body["regions"].as_array().unwrap();
     assert_eq!(regions.len(), 2);
@@ -72,7 +71,6 @@ fn mechanical_export_refuses_unverified_or_incomplete_pcb_sources_without_nomina
         };
         let accepted = runtime.model().accepted.unwrap();
         let scope = runtime.scope().unwrap();
-        let core = CoreServices::engine().open_scratch;
         let contours = &accepted
             .scene
             .board_contours
@@ -88,15 +86,11 @@ fn mechanical_export_refuses_unverified_or_incomplete_pcb_sources_without_nomina
             .pcb_reference
             .clone()
             .expect("nominal PCB reference");
-        let CoreReply::CasePrepared { ir, .. } = core()(CoreRequest::PrepareCase {
-            id: "nominal".into(),
-            ir: CaseAssemblyIR {
-                revision,
-                bodies: vec![reference],
-            },
-        }) else {
-            panic!("nominal PCB can be prepared before reading its source")
-        };
+        let ir = CoreEngine::prepare_case(&CaseAssemblyIR {
+            revision,
+            bodies: vec![reference],
+        })
+        .expect("nominal PCB can be prepared before reading its source");
         let mut prepared = PreparedCadSnapshot {
             identity: CadSnapshotIdentity {
                 token: accepted.token.0,
@@ -112,7 +106,7 @@ fn mechanical_export_refuses_unverified_or_incomplete_pcb_sources_without_nomina
         let source = captured_pcb_source(&accepted, &scope).unwrap().unwrap();
         let nominal = prepared.prepared.clone();
         let result = verify_source_digest(&source.asset, &bytes)
-            .and_then(|()| install_source_pcb(core, expected, &source, bytes, &mut prepared));
+            .and_then(|()| install_source_pcb(expected, &source, bytes, &mut prepared));
         let error = result
             .expect_err("invalid source must not become a physical collision or export operand");
         assert!(error.contains(expected), "expected {expected}: {error}");

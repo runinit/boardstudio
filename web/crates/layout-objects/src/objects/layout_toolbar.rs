@@ -24,9 +24,8 @@ use boardstudio_web_ui_shared::ui::{
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
-use std::{cell::RefCell, rc::Rc};
-use wasm_bindgen::{JsCast, closure::Closure};
-use web_sys::{Document, HtmlElement, Node, PointerEvent as WebPointerEvent};
+use wasm_bindgen::JsCast;
+use web_sys::HtmlElement;
 
 pub use super::{layout_selection_kind::LayoutSelectionKind, workspace_state::LayoutCommandMenu};
 
@@ -47,15 +46,6 @@ impl LayoutCommandMenu {
             Self::Align => "m1-layout-align-trigger",
             Self::Snap => "m1-layout-snap-trigger",
         }
-    }
-}
-
-type MenuOutsideListener = Rc<RefCell<Option<(Document, Closure<dyn FnMut(WebPointerEvent)>)>>>;
-
-fn remove_menu_outside_listener(listener: &MenuOutsideListener) {
-    if let Some((document, callback)) = listener.borrow_mut().take() {
-        let _ = document
-            .remove_event_listener_with_callback("pointerdown", callback.as_ref().unchecked_ref());
     }
 }
 
@@ -237,55 +227,9 @@ pub fn LayoutCommandPill(
         }
     }
     boardstudio_web_ui_shared::ui::command::use_commands(commands);
-    let outside_listener = use_hook(|| {
-        Rc::new(RefCell::new(
-            None::<(Document, Closure<dyn FnMut(WebPointerEvent)>)>,
-        ))
-    });
-
     use_effect(use_reactive((&menu_owner_key,), move |_| {
         open_menu.set(None);
     }));
-    use_effect(use_reactive((&open_menu(),), {
-        let outside_listener = outside_listener.clone();
-        move |(active_menu,)| {
-            remove_menu_outside_listener(&outside_listener);
-            if active_menu.is_none() {
-                return;
-            }
-            let Some(document) = web_sys::window().and_then(|window| window.document()) else {
-                return;
-            };
-            let listener_document = document.clone();
-            let mut open_menu = open_menu;
-            let callback = Closure::wrap(Box::new(move |event: WebPointerEvent| {
-                let target = event
-                    .target()
-                    .and_then(|target| target.dyn_into::<Node>().ok());
-                let inside = target.as_ref().is_some_and(|target| {
-                    listener_document
-                        .get_element_by_id("m1-layout-command-pill")
-                        .is_some_and(|pill| pill.contains(Some(target)))
-                        || listener_document
-                            .get_element_by_id("m1-layout-snap-trigger")
-                            .and_then(|trigger| {
-                                trigger.closest("[data-slot='collapsible']").ok().flatten()
-                            })
-                            .is_some_and(|dock| dock.contains(Some(target)))
-                });
-                if !inside {
-                    open_menu.set(None);
-                }
-            }) as Box<dyn FnMut(_)>);
-            let _ = document
-                .add_event_listener_with_callback("pointerdown", callback.as_ref().unchecked_ref());
-            *outside_listener.borrow_mut() = Some((document, callback));
-        }
-    }));
-    use_drop({
-        let outside_listener = outside_listener.clone();
-        move || remove_menu_outside_listener(&outside_listener)
-    });
 
     rsx! {
         div { id: "m1-layout-command-pill", class: "layout-toolbar-strips", role: "group", aria_label: "{command_label}",

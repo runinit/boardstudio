@@ -6,8 +6,8 @@
 //! their document, scene, and placement setup.
 use super::*;
 use boardstudio_model::model::{
-    Board, CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, MatrixAssembly,
-    MatrixCell, MatrixColumnBasis, MatrixSceneCell, Mirror, Part, Pose2, Side,
+    Board, EditCommand, EditOperation, EditPhase, MatrixAssembly, MatrixCell, MatrixColumnBasis,
+    MatrixSceneCell, Mirror, Part, Pose2, Side,
 };
 
 /// The diode/LED membership the assembly variants share. The history seam
@@ -573,11 +573,9 @@ fn assembly_history_matrix(mirror: Option<Mirror>) -> Matrix {
 
 #[test]
 fn accepted_rotated_and_mirrored_resize_preserves_assemblies_through_history() {
-    let unpack = |reply| match reply {
-        CoreReply::Scene {
-            document, scene, ..
-        } => (*document, scene),
-        other => panic!("Core edit did not settle: {other:?}"),
+    let unpack = |result: Result<boardstudio_core::CommittedScene, String>| {
+        let committed = result.expect("Core accepts the fixture edit");
+        (committed.document, committed.scene)
     };
     for mirror in [None, Some(Mirror::X)] {
         let mut engine = boardstudio_core::CoreEngine::new();
@@ -592,22 +590,16 @@ fn accepted_rotated_and_mirrored_resize_preserves_assemblies_through_history() {
             }))
             .unwrap(),
         );
-        unpack(engine.handle(CoreRequest::Open {
-            id: "open".into(),
-            document: initial,
-        }));
+        engine.open(initial).expect("Core opens the fixture");
         let matrix = assembly_history_matrix(mirror);
-        let (accepted, scene) = unpack(engine.handle(CoreRequest::Edit {
-            id: "create-matrix".into(),
-            command: EditCommand {
-                base_revision: 0,
-                transaction_id: "create".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec![matrix.id.clone()],
-                operation: EditOperation::SetMatrix {
-                    matrix,
-                    definitions: None,
-                },
+        let (accepted, scene) = unpack(engine.commit_edit(EditCommand {
+            base_revision: 0,
+            transaction_id: "create".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![matrix.id.clone()],
+            operation: EditOperation::SetMatrix {
+                matrix,
+                definitions: None,
             },
         }));
         let placements: Vec<_> = scene.matrix_scenes[0]
@@ -635,19 +627,16 @@ fn accepted_rotated_and_mirrored_resize_preserves_assemblies_through_history() {
             axis: Some(ResizeAxis::Y),
         })
         .unwrap();
-        let (saved, saved_scene) = unpack(engine.handle(CoreRequest::Edit {
-            id: "resize".into(),
-            command: EditCommand {
-                base_revision: accepted.revision,
-                transaction_id: "resize".into(),
-                phase: EditPhase::Commit,
-                // Ticket 33: the planner output commits as the typed edit.
-                target_ids: plan.target_ids.clone(),
-                operation: EditOperation::SetKeycapSize {
-                    sizes: plan.sizes.clone(),
-                    moves: plan.moves.clone(),
-                    offsets: plan.offsets.clone(),
-                },
+        let (saved, saved_scene) = unpack(engine.commit_edit(EditCommand {
+            base_revision: accepted.revision,
+            transaction_id: "resize".into(),
+            phase: EditPhase::Commit,
+            // Ticket 33: the planner output commits as the typed edit.
+            target_ids: plan.target_ids.clone(),
+            operation: EditOperation::SetKeycapSize {
+                sizes: plan.sizes.clone(),
+                moves: plan.moves.clone(),
+                offsets: plan.offsets.clone(),
             },
         }));
         for placement in &placements {
@@ -687,10 +676,10 @@ fn accepted_rotated_and_mirrored_resize_preserves_assemblies_through_history() {
                 assert_eq!(after.side, before.side);
             }
         }
-        let (undone, _) = unpack(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+        let (undone, _) = unpack(engine.undo());
         assert_eq!(undone.parts, accepted.parts);
         assert_eq!(undone.matrices, accepted.matrices);
-        let (redone, _) = unpack(engine.handle(CoreRequest::Redo { id: "redo".into() }));
+        let (redone, _) = unpack(engine.redo());
         assert_eq!(redone.parts, saved.parts);
         assert_eq!(redone.matrices, saved.matrices);
     }
@@ -755,16 +744,8 @@ fn replace_document_reflows_source_and_core_syncs_linked_partner_through_history
         .extend(right_parts);
 
     let mut engine = boardstudio_core::CoreEngine::new();
-    let opened = engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document,
-    });
-    let (accepted, scene) = match opened {
-        CoreReply::Scene {
-            document, scene, ..
-        } => (*document, scene),
-        other => panic!("linked fixture did not open: {other:?}"),
-    };
+    let opened = engine.open(document).expect("linked fixture opens");
+    let (accepted, scene) = (opened.document, opened.scene);
     let source_matrix_id = accepted
         .layouts
         .iter()
@@ -855,16 +836,10 @@ fn replace_document_reflows_source_and_core_syncs_linked_partner_through_history
             offsets: plan.offsets.clone(),
         },
     };
-    let committed = engine.handle(CoreRequest::Edit {
-        id: "resize".into(),
-        command,
-    });
-    let (saved, saved_scene) = match committed {
-        CoreReply::Scene {
-            document, scene, ..
-        } => (*document, scene),
-        other => panic!("typed keycap-size resize was rejected: {other:?}"),
-    };
+    let committed = engine
+        .commit_edit(command)
+        .expect("typed keycap-size resize commits");
+    let (saved, saved_scene) = (committed.document, committed.scene);
     assert_eq!(saved.revision, accepted.revision + 1);
     let partner_layout = saved
         .layouts
@@ -965,13 +940,8 @@ fn replace_document_reflows_source_and_core_syncs_linked_partner_through_history
         assert!((saved_neighbor.pose.at.y - saved_partner.pose.at.y).abs() < 1e-6);
     }
 
-    let undone = engine.handle(CoreRequest::Undo { id: "undo".into() });
-    let (undone, _) = match undone {
-        CoreReply::Scene {
-            document, scene, ..
-        } => (*document, scene),
-        other => panic!("undo failed: {other:?}"),
-    };
+    let undone = engine.undo().expect("undo succeeds");
+    let undone = undone.document;
     assert_eq!(
         undone
             .parts
@@ -986,13 +956,8 @@ fn replace_document_reflows_source_and_core_syncs_linked_partner_through_history
             .unwrap()
             .keycap
     );
-    let redone = engine.handle(CoreRequest::Redo { id: "redo".into() });
-    let (redone, _) = match redone {
-        CoreReply::Scene {
-            document, scene, ..
-        } => (*document, scene),
-        other => panic!("redo failed: {other:?}"),
-    };
+    let redone = engine.redo().expect("redo succeeds");
+    let redone = redone.document;
     assert_eq!(
         redone
             .parts

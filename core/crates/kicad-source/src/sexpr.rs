@@ -43,6 +43,44 @@ pub fn child<'a>(node: &'a Node, name: &str) -> Option<&'a Node> {
     children(node, name).next()
 }
 
+pub fn atom_at(node: &Node, index: usize) -> Option<&str> {
+    atom(items(node)?.get(index)?)
+}
+
+pub fn field<'a>(node: &'a Node, name: &str) -> Option<&'a str> {
+    atom_at(child(node, name)?, 1)
+}
+
+pub fn is_back_layer(node: &Node) -> bool {
+    field(node, "layer").is_some_and(|layer| layer.starts_with("B."))
+}
+
+#[derive(Debug)]
+pub enum NumberError {
+    Invalid,
+    NonFinite,
+}
+
+pub fn parse_finite(value: &str) -> Result<f64, NumberError> {
+    let number: f64 = value.parse().map_err(|_| NumberError::Invalid)?;
+    if !number.is_finite() {
+        return Err(NumberError::NonFinite);
+    }
+    Ok(number)
+}
+
+/// KiCad patches use six fractional digits and retain the sign when a nonzero
+/// negative number rounds to zero.
+pub fn format_decimal(value: f64) -> String {
+    if value == 0.0 {
+        return "0".into();
+    }
+    format!("{value:.6}")
+        .trim_end_matches('0')
+        .trim_end_matches('.')
+        .to_owned()
+}
+
 pub fn span(node: &Node) -> Span {
     match node {
         Node::List { span, .. } | Node::Atom { span, .. } => *span,
@@ -222,6 +260,31 @@ pub fn arc_sweep_through_mid(center: Vec2, start: Vec2, mid: Vec2, end: Vec2) ->
     (first, sweep)
 }
 
+/// Circular support in the input frame with the caller's degeneracy threshold.
+pub fn three_point_arc(
+    start: Vec2,
+    mid: Vec2,
+    end: Vec2,
+    threshold: f64,
+) -> Option<(Vec2, f64, f64, f64)> {
+    let (center, radius) = circumcenter(start, mid, end, threshold)?;
+    let (first, sweep) = arc_sweep_through_mid(center, start, mid, end);
+    Some((center, first, sweep, radius))
+}
+
+/// Sample a circular arc using the caller's subdivision count.
+pub fn sample_arc(center: Vec2, start: f64, sweep: f64, radius: f64, steps: usize) -> Vec<Vec2> {
+    (0..=steps)
+        .map(|i| {
+            let angle = start + sweep * i as f64 / steps as f64;
+            Vec2 {
+                x: center.x + radius * angle.cos(),
+                y: center.y + radius * angle.sin(),
+            }
+        })
+        .collect()
+}
+
 /// Extend `chain` with adjoining edges until it closes, consuming them from
 /// `edges`. Edges may be shuffled or reversed; endpoints within `tolerance`
 /// join. Returns `None` when an open chain has no adjoining edge left.
@@ -255,6 +318,21 @@ fn within(a: Vec2, b: Vec2, tolerance: f64) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn arc_sample_preserves_the_projection_evaluation_order() {
+        // Forming the subdivision fraction first changes the first sample's Y.
+        let (start, sweep, steps) = (0.01_f64, 1.1_f64, 7);
+        let angle = start + sweep / steps as f64;
+        let points = sample_arc(Vec2::default(), start, sweep, 1.0, steps);
+        assert_eq!(
+            points[1],
+            Vec2 {
+                x: angle.cos(),
+                y: angle.sin()
+            }
+        );
+    }
 
     #[test]
     fn kicad_escape_decoder_handles_c_escapes_and_unicode() {

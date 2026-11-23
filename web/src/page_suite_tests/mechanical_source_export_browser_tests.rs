@@ -27,14 +27,7 @@ async fn invalid_raw_pcb_source_settles_export_without_delivery() {
         );
         let accepted = runtime.model().accepted.unwrap();
         let scope = runtime.scope().unwrap();
-        let nominal = prepare_captured_case(
-            (runtime.core_services().open_scratch)(),
-            "export-ready",
-            &accepted,
-            &scope,
-            true,
-        )
-        .unwrap();
+        let nominal = prepare_captured_case(&accepted, &scope, true).unwrap();
         let cad_scene = Rc::new(CadScene {
             scope: scope.clone(),
             token: accepted.token,

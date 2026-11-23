@@ -10,15 +10,14 @@ use boardstudio_model::model::ProjectDoc;
 use std::rc::Rc;
 
 pub fn new_runtime() -> Rc<Runtime> {
-    test_hooks::new_runtime(super::engine_core_services())
-        .expect("browser runtime fixture initializes")
+    test_hooks::new_runtime().expect("browser runtime fixture initializes")
 }
 
-/// Replace the runtime's session and route Core execution through an in-process
-/// `CoreEngine`. Saves keep running through the production browser-store port (gated by
+/// Replace the runtime's session and install in-process adapters.
+/// Saves keep running through the production browser-store port (gated by
 /// `gate_next_persist` / `fail_next_persist`); call `install_memory_persistence` to save
 /// into memory instead.
-pub fn install(runtime: &Runtime, session: Session, _core: boardstudio_core::CoreEngine) {
+pub fn install(runtime: &Runtime, session: Session) {
     let adapters = Rc::new(InProcessAdapters::new(test_hooks::store(runtime)));
     let persistence = adapters.persistence();
     test_hooks::install(runtime, session, adapters, persistence);
@@ -33,11 +32,7 @@ pub fn install_memory_persistence(runtime: &Runtime) {
 /// Session and Core, leaving it accepted, saved and ready. Browser tests that need an
 /// opened project start here instead of giving Runtime a fabricated read model.
 pub async fn open_document(runtime: &Rc<Runtime>, document: ProjectDoc) {
-    install(
-        runtime,
-        Session::new(boardstudio_core::CoreEngine::validate_open),
-        boardstudio_core::CoreEngine::new(),
-    );
+    install(runtime, Session::new());
     install_memory_persistence(runtime);
     runtime.submit(Event::Open {
         operation_id: runtime.operation(),

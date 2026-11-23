@@ -69,9 +69,7 @@ pub(crate) use boardstudio_web_ui_model::state::{
 pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
     PointerLocation, coordinates, coordinates_at, coordinates_with_scale, pointer_location,
 };
-pub(crate) use boardstudio_web_ui_model::{
-    canvas_interaction, instance_selection, selection, spacing_ghost,
-};
+pub(crate) use boardstudio_web_ui_model::{instance_selection, selection, spacing_ghost};
 pub(crate) use boardstudio_web_ui_shared::panels::browse_parts_workspace;
 mod layout_key_selection_actions;
 mod layout_matrix_relations;
@@ -88,7 +86,6 @@ use boardstudio_web_ui_shared::ui::{
     button::{Button, ButtonVariant},
     field::FieldError,
 };
-use part_placement::{LayoutPlacementCancellation, layout_view_mode_handler};
 mod parts_workspace;
 mod setup_project_name;
 mod setup_workspace;
@@ -105,6 +102,7 @@ mod routing;
 pub(crate) use boardstudio_web_case::shared_viewer;
 pub(crate) use boardstudio_web_layout::setup_guide;
 mod finding_navigation;
+mod layout_input;
 mod notifications;
 mod tree_cell_anchor;
 mod view_helpers;
@@ -115,8 +113,11 @@ mod workspace_navigation;
 mod zmk_firmware_export;
 
 use crate::case_generation_lifecycle::AutomaticCaseGeneration;
+use boardstudio_web_layout::canvas_interaction::{
+    CanvasEvent, CanvasKey, CanvasMode, InteractionEffect, LayoutInteraction, client_point,
+    focus_svg,
+};
 pub(crate) use boardstudio_web_ui_shared::footprint_graphics;
-use canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner};
 use canvas_layers::CanvasLayers;
 pub(crate) use companion_placement::{
     companion_placement_projection, matrix_context_relations, relation_target_request,
@@ -169,7 +170,7 @@ pub(crate) use view_helpers::{
 };
 use zmk_firmware_export::use_export_panel_input;
 
-use crate::runtime::{CoreServices, Runtime};
+use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, Event, Lifecycle, ReadModel, Scope, SelectionMode,
     TerminalOutcome,
@@ -197,22 +198,9 @@ pub fn App() -> Element {
     rsx! { notifications::NotificationProvider { WorkbenchApp {} } }
 }
 
-/// The page hosts the document engine: the web crates below it reach Core's synchronous entry
-/// points only through these injected services, so they compile without waiting for the
-/// engine. Tests below the page use the matching `boardstudio_web_test_runtime::engine_core_services()` test helper.
-pub(crate) fn core_services() -> CoreServices {
-    CoreServices {
-        validate_open: boardstudio_core::CoreEngine::validate_open,
-        open_scratch: || {
-            let mut engine = boardstudio_core::CoreEngine::new();
-            Box::new(move |request| engine.handle(request))
-        },
-    }
-}
-
 #[component]
 fn WorkbenchApp() -> Element {
-    let runtime = use_hook(|| Runtime::new(core_services()));
+    let runtime = use_hook(Runtime::new);
     let runtime = match runtime {
         Ok(runtime) => runtime,
         Err(error) => return rsx! { main { role: "alert", "Browser startup failed: {error}" } },
@@ -259,6 +247,27 @@ fn WorkbenchApp() -> Element {
         return_workspace,
         project_browser,
     );
+    let layout_input = layout_input::use_layout_input();
+    let current_view = (workspace(), project_browser());
+    let previous_view = use_hook(|| Rc::new(Cell::new(current_view)));
+    let interaction = use_context::<LayoutInteraction>();
+    use_effect(use_reactive((&current_view,), move |(current,)| {
+        let previous = previous_view.replace(current);
+        // Catalogue and PCB placement can hand an already armed tool into Layout.
+        if previous != current
+            && !(current == (Workspace::Layout, false)
+                && matches!(
+                    interaction.current(),
+                    Some(
+                        CanvasMode::PlacingPart
+                            | CanvasMode::PlacingMatrix
+                            | CanvasMode::PlacingMirroredPair
+                    )
+                ))
+        {
+            layout_input.dispatch(CanvasEvent::WorkspaceChanged);
+        }
+    }));
     let has_project = runtime.with_model(|model| model.accepted.is_some());
     rsx! {
         link { rel: "stylesheet", href: "assets/workbench-base.css" }
@@ -267,10 +276,32 @@ fn WorkbenchApp() -> Element {
         link { rel: "stylesheet", href: "assets/shell.css" }
         link { rel: "stylesheet", href: "assets/firmware-keymap-panel.css" }
         link { rel: "stylesheet", href: "assets/tailwind.css" }
-        main { class: "flex h-dvh min-h-0 w-full flex-col overflow-hidden",
+        main { id: "m1-workbench", tabindex: "-1", class: "flex h-dvh min-h-0 w-full flex-col overflow-hidden focus:outline-none",
+            onkeyup: move |event| layout_input.keyup(event),
+            onfocusout: move |event| layout_input.focusout(event),
+            onpointerdown: move |event| layout_input.pointerdown(event),
+            onpointermove: move |event| layout_input.pointermove(event),
+            onpointerup: move |event| layout_input.pointerup(event),
+            onmounted: move |event| async move {
+                if web_sys::window().and_then(|window| window.document())
+                    .and_then(|document| document.active_element())
+                    .is_some_and(|element| element.tag_name() == "BODY")
+                {
+                    let _ = event.set_focus(true).await;
+                }
+            },
             onkeydown: {
                 let runtime = runtime.clone();
                 move |event: KeyboardEvent| {
+                    let in_workbench = !project_browser();
+                    let current_workspace = workspace();
+                    let layout = in_workbench && current_workspace == Workspace::Layout;
+                    let canvas = in_workbench
+                        && matches!(
+                            current_workspace,
+                            Workspace::Layout | Workspace::Pcb | Workspace::Keymap | Workspace::Keycaps
+                        );
+                    layout_input.keydown(&event, layout, canvas);
                     if !workbench_shortcuts::handle_palette_shortcut(palette, &event) {
                         workbench_shortcuts::handle_history_shortcut(runtime.clone(), event);
                     }

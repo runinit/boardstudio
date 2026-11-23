@@ -19,6 +19,7 @@ pub struct Drag {
     pub client_x: f64,
     pub client_y: f64,
     pub positions: Vec<Position>,
+    pub last_sample: Option<(Vec2, f64, bool)>,
     pub active: bool,
     pub pan: bool,
     pub camera: Vec2,

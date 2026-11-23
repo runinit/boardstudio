@@ -9,8 +9,9 @@ mod persistence;
 mod selection;
 mod types;
 
+use boardstudio_core::{CommittedScene, CoreEngine, EditOutcome};
 use boardstudio_model::model::{
-    CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, Position, ProjectDoc, Vec2,
+    EditCommand, EditOperation, EditPhase, Matrix, MatrixScene, Position, ProjectDoc, Vec2,
 };
 use gesture::Gesture;
 use persistence::{PendingOpen, PendingSave};
@@ -19,7 +20,7 @@ pub use types::*;
 
 pub struct Session {
     model: ReadModel,
-    core: boardstudio_core::CoreEngine,
+    core: CoreEngine,
     display_preview_transaction_id: Option<String>,
     pending_save: Option<PendingSave>,
     pending_open: Option<PendingOpen>,
@@ -31,19 +32,19 @@ pub struct Session {
     exports: Vec<(OperationId, Scope, SnapshotToken)>,
     close_operation: Option<OperationId>,
     gesture: Option<Gesture>,
-    validate_open: OpenValidator,
 }
 
-/// Core's side-effect-free admission check for an Open candidate. The host that owns the
-/// engine passes `boardstudio_core::CoreEngine::validate_open`, so this crate builds without
-/// the engine.
-pub type OpenValidator = fn(&ProjectDoc) -> Result<(), String>;
+impl Default for Session {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Session {
-    pub fn new(validate_open: OpenValidator) -> Self {
+    pub fn new() -> Self {
         Self {
             model: ReadModel::default(),
-            core: boardstudio_core::CoreEngine::new(),
+            core: CoreEngine::new(),
             display_preview_transaction_id: None,
             pending_save: None,
             pending_open: None,
@@ -55,7 +56,6 @@ impl Session {
             exports: vec![],
             close_operation: None,
             gesture: None,
-            validate_open,
         }
     }
     pub fn read_model(&self) -> &ReadModel {
@@ -63,16 +63,13 @@ impl Session {
     }
 
     pub fn project_matrices(
-        &mut self,
-        id: String,
+        &self,
         base_revision: u64,
-        matrices: Vec<boardstudio_model::model::Matrix>,
-    ) -> CoreReply {
-        self.core.handle(CoreRequest::ProjectMatrices {
-            id,
-            base_revision,
-            matrices,
-        })
+        matrices: Vec<Matrix>,
+    ) -> Result<Vec<MatrixScene>, String> {
+        self.core
+            .project_matrices(base_revision, matrices)
+            .map(|(_, scenes)| scenes)
     }
 
     pub fn scope(&self) -> Option<Scope> {
@@ -141,10 +138,6 @@ pub fn event_operation(event: &Event) -> Option<OperationId> {
         _ => None,
     }
 }
-fn wire_id(operation: OperationId) -> String {
-    format!("m1-{}", operation.0)
-}
-
 impl Session {
     fn resolve_edit(
         &mut self,
@@ -189,31 +182,33 @@ impl Session {
                 return;
             }
         };
-        self.apply_document_request(
+        self.apply_edit(operation_id, command, false, effects);
+    }
+
+    fn apply_edit(
+        &mut self,
+        operation_id: OperationId,
+        command: EditCommand,
+        gesture: bool,
+        effects: &mut Vec<Effect>,
+    ) {
+        self.mutate(
             operation_id,
-            CoreRequest::Edit {
-                id: wire_id(operation_id),
-                command,
-            },
+            Some(command.base_revision),
+            gesture,
+            None,
+            |core| core.apply_edit(command),
             effects,
         );
     }
 
-    fn apply_document_request(
-        &mut self,
-        operation: OperationId,
-        request: CoreRequest,
-        effects: &mut Vec<Effect>,
-    ) {
-        self.apply_request(operation, request, false, None, effects);
-    }
-
-    fn apply_request(
+    fn mutate(
         &mut self,
         operation_id: OperationId,
-        request: CoreRequest,
+        revision: Option<u64>,
         gesture: bool,
         export_owner: Option<OperationId>,
+        apply: impl FnOnce(&mut CoreEngine) -> Result<EditOutcome, String>,
         effects: &mut Vec<Effect>,
     ) {
         if matches!(self.model.lifecycle, Lifecycle::Closing | Lifecycle::Closed)
@@ -222,18 +217,11 @@ impl Session {
             self.reject(operation_id, "no editable project is open", effects);
             return;
         }
-        let revision = match &request {
-            CoreRequest::Edit { command, .. } => Some(command.base_revision),
-            CoreRequest::ReviewElectricalRemap { base_revision, .. }
-            | CoreRequest::ApplyElectrical { base_revision, .. }
-            | CoreRequest::ProtectElectricalHandoff { base_revision, .. } => Some(*base_revision),
-            _ => None,
-        };
         if revision.is_some_and(|revision| {
             self.model
                 .accepted
                 .as_ref()
-                .is_none_or(|snapshot| snapshot.document.revision != revision)
+                .is_none_or(|s| s.document.revision != revision)
         }) {
             if gesture {
                 self.clear_gesture(effects);
@@ -241,26 +229,16 @@ impl Session {
             self.reject(operation_id, "captured edit revision is stale", effects);
             return;
         }
-        let preview_transaction_id = match &request {
-            CoreRequest::Edit { command, .. } if command.phase == EditPhase::Preview => {
-                Some(command.transaction_id.clone())
-            }
-            _ => None,
-        };
-        let reply = self.core.handle(request);
-        let failure = match reply {
-            CoreReply::Preview { scene, .. } if preview_transaction_id.is_some() => {
+        match apply(&mut self.core) {
+            Ok(EditOutcome::Preview(scene)) => {
+                self.display_preview_transaction_id = Some(scene.transaction_id.clone());
                 self.model.display_preview = Some(Arc::new(scene));
-                self.display_preview_transaction_id = preview_transaction_id;
                 if !gesture {
                     self.settle(operation_id, TerminalOutcome::Completed, effects);
                 }
-                return;
             }
-            CoreReply::Scene {
-                scene, document, ..
-            } if preview_transaction_id.is_none() && scene.revision == document.revision => {
-                let document = Arc::new(*document);
+            Ok(EditOutcome::Committed(CommittedScene { scene, document })) => {
+                let document = Arc::new(document);
                 let epoch = self.epoch();
                 self.cancel_job(effects);
                 self.retain_export(export_owner, effects);
@@ -292,31 +270,17 @@ impl Session {
                 }
                 self.settle_landed(operation_id, landing, effects);
                 self.start_save(None, effects);
-                return;
             }
-            CoreReply::Error { message, .. } => {
+            Err(message) => {
                 self.model.last_error = Some(message.clone());
                 if gesture {
                     self.clear_gesture(effects);
                 }
                 self.settle(operation_id, TerminalOutcome::Rejected(message), effects);
-                return;
             }
-            CoreReply::Scene { .. } if preview_transaction_id.is_none() => {
-                "core scene and document revisions differ"
-            }
-            _ => "core returned an unexpected reply variant",
-        };
-        self.model.last_error = Some(failure.into());
-        if gesture {
-            self.clear_gesture(effects);
         }
-        self.settle(
-            operation_id,
-            TerminalOutcome::ExecutorFailed(failure.into()),
-            effects,
-        );
     }
+
     pub fn submit(&mut self, event: Event) -> Vec<Effect> {
         let mut effects = Vec::new();
         if self.model.lifecycle == Lifecycle::Closed {
@@ -343,18 +307,16 @@ impl Session {
                     .accepted
                     .as_ref()
                     .map_or(0, |snapshot| snapshot.document.revision);
-                self.apply_document_request(
+                self.apply_edit(
                     operation_id,
-                    CoreRequest::Edit {
-                        id: wire_id(operation_id),
-                        command: EditCommand {
-                            base_revision,
-                            transaction_id,
-                            phase: EditPhase::Preview,
-                            target_ids,
-                            operation,
-                        },
+                    EditCommand {
+                        base_revision,
+                        transaction_id,
+                        phase: EditPhase::Preview,
+                        target_ids,
+                        operation,
                     },
+                    false,
                     &mut effects,
                 );
             }
@@ -398,25 +360,32 @@ impl Session {
                 board_id,
                 expected_fingerprint,
             } => {
-                self.apply_document_request(
+                self.mutate(
                     operation_id,
-                    CoreRequest::ReviewElectricalRemap {
-                        id: wire_id(operation_id),
-                        base_revision,
-                        board_id,
-                        expected_fingerprint,
+                    Some(base_revision),
+                    false,
+                    None,
+                    |core| {
+                        core.review_electrical_remap(base_revision, board_id, expected_fingerprint)
+                            .map(EditOutcome::Committed)
                     },
                     &mut effects,
                 );
             }
             Event::Undo { operation_id } | Event::Redo { operation_id } => {
-                let id = wire_id(operation_id);
-                let request = if matches!(event, Event::Undo { .. }) {
-                    CoreRequest::Undo { id }
+                let apply = if matches!(event, Event::Undo { .. }) {
+                    CoreEngine::undo
                 } else {
-                    CoreRequest::Redo { id }
+                    CoreEngine::redo
                 };
-                self.apply_document_request(operation_id, request, &mut effects);
+                self.mutate(
+                    operation_id,
+                    None,
+                    false,
+                    None,
+                    |core| apply(core).map(EditOutcome::Committed),
+                    &mut effects,
+                );
             }
             Event::RetrySave { operation_id } => self.retry_save(operation_id, &mut effects),
             Event::SelectParts {
@@ -579,30 +548,26 @@ impl Session {
                 if !self.export_is_current(export_operation_id, token, &scope) {
                     self.settle(operation_id, TerminalOutcome::Superseded, &mut effects);
                 } else {
-                    let id = wire_id(operation_id);
-                    let request = match commit {
-                        ExportCommitRequest::ApplyElectrical { plan, draft } => {
-                            CoreRequest::ApplyElectrical {
-                                id,
-                                base_revision: plan.revision,
-                                plan,
-                                draft,
-                            }
-                        }
-                        ExportCommitRequest::ProtectElectricalHandoff { plan } => {
-                            CoreRequest::ProtectElectricalHandoff {
-                                id,
-                                base_revision: plan.revision,
-                                board_id: scope.board_id,
-                                plan,
-                            }
-                        }
+                    let revision = match &commit {
+                        ExportCommitRequest::ApplyElectrical { plan, .. }
+                        | ExportCommitRequest::ProtectElectricalHandoff { plan } => plan.revision,
                     };
-                    self.apply_request(
+                    self.mutate(
                         operation_id,
-                        request,
+                        Some(revision),
                         false,
                         Some(export_operation_id),
+                        |core| {
+                            match commit {
+                                ExportCommitRequest::ApplyElectrical { plan, draft } => {
+                                    core.apply_electrical(revision, plan, draft)
+                                }
+                                ExportCommitRequest::ProtectElectricalHandoff { plan } => {
+                                    core.protect_electrical_handoff(revision, scope.board_id, plan)
+                                }
+                            }
+                            .map(EditOutcome::Committed)
+                        },
                         &mut effects,
                     );
                 }

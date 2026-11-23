@@ -21,7 +21,6 @@ pub mod transform_feedback;
 pub mod tree;
 pub mod wiring;
 
-pub mod canvas_interaction;
 #[cfg(target_arch = "wasm32")]
 pub mod selection;
 #[cfg(target_arch = "wasm32")]

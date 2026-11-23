@@ -570,31 +570,28 @@ pub(super) fn use_selection_cleanup(
     adapter: SelectionAdapter,
     drag: Rc<RefCell<Option<Drag>>>,
     svg: Rc<RefCell<Option<SvgElement>>>,
-    space_down: Rc<Cell<bool>>,
 ) {
+    let layout_input = use_context::<layout_input::LayoutInput>();
     let cleanup_registration = use_hook({
         let runtime = runtime.clone();
         let adapter = adapter.clone();
         let drag = drag.clone();
         let svg = svg.clone();
-        let space_down = space_down.clone();
         move || {
             let id = adapter.next_cleanup_id.get();
             adapter.next_cleanup_id.set(id.wrapping_add(1).max(1));
             let weak_runtime = Rc::downgrade(&runtime);
             let weak_drag = Rc::downgrade(&drag);
             let weak_svg = Rc::downgrade(&svg);
-            let weak_space = Rc::downgrade(&space_down);
             let cleanup: selection::Cleanup = Rc::new(move || {
-                let (Some(runtime), Some(drag), Some(svg), Some(space_down)) = (
+                layout_input.dispatch(CanvasEvent::ScopeChanged);
+                let (Some(runtime), Some(drag), Some(svg)) = (
                     weak_runtime.upgrade(),
                     weak_drag.upgrade(),
                     weak_svg.upgrade(),
-                    weak_space.upgrade(),
                 ) else {
                     return;
                 };
-                space_down.set(false);
                 let pending = drag.borrow_mut().take();
                 if let Some(pending) = pending {
                     if let Some(element) = svg.borrow().as_ref() {
@@ -659,7 +656,6 @@ pub(super) fn use_navigation_bundle(
     let observed_interaction_version = cam.placement.observed_interaction_version;
     let instance_selection = editor.instance_selection;
     let model = &state.view.model;
-    let space_down = &cam.placement.space_down;
     let navigate_scoped = navigate_scoped_handler(
         runtime.clone(),
         adapter.clone(),
@@ -729,13 +725,7 @@ pub(super) fn use_navigation_bundle(
             navigate.clone(),
             render_scope.clone(),
         );
-    use_selection_cleanup(
-        runtime.clone(),
-        adapter.clone(),
-        drag.clone(),
-        svg.clone(),
-        space_down.clone(),
-    );
+    use_selection_cleanup(runtime.clone(), adapter.clone(), drag.clone(), svg.clone());
     (
         NavNamed {
             callbacks: LayoutFindingCallbacks {

@@ -20,6 +20,7 @@ pub(super) struct CanvasEventHandlers {
     pub(super) move_pointer: EventHandler<PointerEvent>,
     pub(super) end_pointer: EventHandler<PointerEvent>,
     pub(super) cancel_pointer: EventHandler<PointerEvent>,
+    pub(super) lost_capture: EventHandler<PointerEvent>,
     pub(super) keyboard: EventHandler<KeyboardEvent>,
     pub(super) key_up: EventHandler<KeyboardEvent>,
     pub(super) wheel: EventHandler<WheelEvent>,
@@ -30,7 +31,6 @@ pub(super) struct CanvasEventHandlers {
 #[derive(Clone)]
 pub(super) struct WorkspaceInteraction {
     pub navigation: CanvasNavigationState,
-    pub arbiter: CanvasInteractionArbiter,
     pub tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
     pub inspector_settings: Signal<PanelSettings>,
 }
@@ -50,7 +50,6 @@ pub(super) struct LayoutSessionServices {
     pub on_return_from_layout_finding: Callback<(), ()>,
     pub on_close_layout_findings: Callback<(), ()>,
     pub on_layout_finding: Callback<layout_findings::Request, ()>,
-    pub interaction_version: Signal<u64>,
     pub visible_ids: Rc<Vec<String>>,
     pub objects_panel_settings: Signal<PanelSettings>,
 }

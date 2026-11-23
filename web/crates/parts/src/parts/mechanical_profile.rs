@@ -268,7 +268,7 @@ pub(crate) mod ui {
                         GeometryRequest::Standard(family) => {
                             let (_, gap) = standard_profile_source_and_gap(family);
                             runtime
-                                .standard_switch_profile(id, definition_id, family, gap)
+                                .standard_switch_profile(definition_id, family, gap)
                                 .map(|loaded| {
                                     if current() {
                                         merge_standard_profile(

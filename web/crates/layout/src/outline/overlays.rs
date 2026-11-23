@@ -4,7 +4,9 @@ use boardstudio_web_ui_shared::inspector_fields::NumericField;
 
 use super::hook::{OutlineActionContext, OutlineDrawTool, OutlineInspectorProjection};
 use super::planner::{OutlinePointTarget, PerimeterAnchor};
-use crate::canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner};
+use crate::canvas_interaction::{
+    CanvasEvent, CanvasMode, InteractionEffect, LayoutInteraction, client_point, focus_svg,
+};
 use crate::runtime::Runtime;
 use boardstudio_application::Event;
 use boardstudio_model::model::{EditPhase, Operation, OutlineFeature, Vec2, polygon_signed_area};
@@ -62,7 +64,6 @@ impl PartialEq for OutlineRuntimeHandle {
 pub fn OutlinePointCanvasOverlay(
     projection: OutlineInspectorProjection,
     runtime: OutlineRuntimeHandle,
-    arbiter: CanvasInteractionArbiter,
     svg: Rc<RefCell<Option<SvgElement>>>,
     view_x: f64,
     view_y: f64,
@@ -72,19 +73,19 @@ pub fn OutlinePointCanvasOverlay(
     pitch: Vec2,
     origins: Vec<crate::presentation::outline_snapping::Origin>,
 ) -> Element {
+    let arbiter = use_context::<LayoutInteraction>();
     let drag = use_hook(|| Rc::new(RefCell::new(None::<PointDrag>)));
-    let mut preview = use_signal(|| None::<Vec<Vec2>>);
-    let mut guides = use_signal(|| None::<crate::presentation::outline_snapping::Snap>);
+    let preview = use_signal(|| None::<Vec<Vec2>>);
+    let guides = use_signal(|| None::<crate::presentation::outline_snapping::Snap>);
     let token = projection.token;
     let revision = projection.revision;
     let clear_board_id = projection.board_id.clone();
     let drop_drag = drag.clone();
     let drop_runtime = runtime.0.clone();
-    let drop_arbiter = arbiter.clone();
     let drop_board_id = clear_board_id.clone();
     use_drop(move || {
         if let Some(active) = drop_drag.borrow_mut().take() {
-            drop_arbiter.release(CanvasInteractionOwner::OutlinePerimeter);
+            arbiter.end(CanvasMode::DraggingOutlineHandle);
             if active.capture.has_pointer_capture(active.pointer_id) {
                 let _ = active.capture.release_pointer_capture(active.pointer_id);
             }
@@ -130,7 +131,6 @@ pub fn OutlinePointCanvasOverlay(
     let finish_drag = {
         let drag = drag.clone();
         let runtime = runtime.0.clone();
-        let arbiter = arbiter.clone();
         let snap_inputs = snap_inputs.clone();
         move |commit: bool, final_at: Option<Vec2>, final_displaced: bool, free: bool| {
             let Some(mut active) = drag.borrow_mut().take() else {
@@ -141,9 +141,10 @@ pub fn OutlinePointCanvasOverlay(
             {
                 apply_point_sample(&mut active, at, &snap_inputs, free);
             }
+            let (mut preview, mut guides) = (preview, guides);
             preview.set(None);
             guides.set(None);
-            arbiter.release(CanvasInteractionOwner::OutlinePerimeter);
+            arbiter.end(CanvasMode::DraggingOutlineHandle);
             if active.capture.has_pointer_capture(active.pointer_id) {
                 let _ = active.capture.release_pointer_capture(active.pointer_id);
             }
@@ -216,7 +217,6 @@ pub fn OutlinePointCanvasOverlay(
                     let point_action = on_action;
                     let point_context = action_context.clone();
                     let point_runtime = runtime.0.clone();
-                    let point_arbiter = arbiter.clone();
                     let point_target = target.clone();
                     let point_points = saved_points.clone();
                     let point_canvas_points = canvas_points.clone();
@@ -229,12 +229,10 @@ pub fn OutlinePointCanvasOverlay(
                     let point_x = point.x;
                     let point_y = point.y;
                     let point_commit = finish_drag.clone();
-                    let mut pointerup_commit = point_commit.clone();
-                    let mut key_commit = point_commit.clone();
-                    let mut cancel_commit = point_commit.clone();
-                    let mut lost_capture_commit = point_commit.clone();
+                    let pointerup_commit = point_commit.clone();
+                    let key_commit = point_commit.clone();
+                    let blur_commit = point_commit.clone();
                     let down_drag = point_drag.clone();
-                    let down_arbiter = point_arbiter.clone();
                     let mut down_selected = point_selected;
                     let down_runtime = point_runtime.clone();
                     let down_points = point_points.clone();
@@ -243,9 +241,10 @@ pub fn OutlinePointCanvasOverlay(
                     let down_context = point_context.clone();
                     let move_drag = point_drag.clone();
                     let move_svg = point_svg.clone();
+                    let down_svg = point_svg.clone();
                     let move_snap_inputs = point_snap_inputs.clone();
-                    let mut move_preview = point_preview;
-                    let mut move_guides = point_guides;
+                    let move_preview = point_preview;
+                    let move_guides = point_guides;
                     let move_action = point_action;
                     let up_drag = point_drag.clone();
                     let up_svg = point_svg.clone();
@@ -261,42 +260,24 @@ pub fn OutlinePointCanvasOverlay(
                     let escape_context = projection.selected_context;
                     let escape_scope = projection.scope.clone();
                     let escape_board_id = projection.board_id.clone();
-                    rsx! {
-                        circle {
-                            key: "{point_id}",
-                            class: if is_selected { "cursor-grab fill-primary stroke-card stroke-[1.2] [pointer-events:all] focus-visible:stroke-primary focus-visible:stroke-[1.7]" } else { "cursor-grab fill-card stroke-primary stroke-[0.9] [pointer-events:all] focus-visible:stroke-primary focus-visible:stroke-[1.7]" },
-                            role: "button",
-                            tabindex: "0",
-                            "aria-label": "{point_label}",
-                            "aria-pressed": "{is_selected}",
-                            cx: "{point_x}", cy: "{point_y}", r: "{handle_radius}",
-                            onfocus: move |_| point_selected.set(index),
-                            onpointerdown: move |event: PointerEvent| {
-                                let Some(pointer) = event.data().try_as_web_event() else { return; };
-                                pointer.stop_propagation();
-                                if !enabled || pointer.button() != 0 || !down_arbiter.try_acquire(CanvasInteractionOwner::OutlinePerimeter) { return; }
-                                let Some(capture) = pointer.target().and_then(|target| target.dyn_into::<SvgElement>().ok()).filter(|target| target.get_attribute("role").as_deref() == Some("button")) else { down_arbiter.release(CanvasInteractionOwner::OutlinePerimeter); return; };
-                                if capture.set_pointer_capture(pointer.pointer_id()).is_err() || !capture.has_pointer_capture(pointer.pointer_id()) {
-                                    down_arbiter.release(CanvasInteractionOwner::OutlinePerimeter);
-                                    return;
-                                }
-                                pointer.prevent_default();
-                                down_selected.set(index);
-                                let transaction_id = format!("outline-drag-{}", down_runtime.operation().0);
-                                *down_drag.borrow_mut() = Some(PointDrag {
-                                    pointer_id: pointer.pointer_id(), point_index: index,
-                                    start_client: (pointer.client_x(), pointer.client_y()),
-                                    points: down_points.clone(), pending: down_points.clone(), preview_points: down_canvas_points.clone(), original_world: down_canvas_points[index],
-                                    target: down_target.clone(), anchor: point_anchor, action_context: down_context.clone(), transaction_id,
-                                    capture, snap: None, preview_submitted: false, moved: false,
+                    let pointer_motion = Rc::new(move |pointer: &web_sys::PointerEvent, released: bool| {
+                        if released {
+                                let final_displaced = up_drag.borrow().as_ref().is_some_and(|drag| {
+                                    drag.pointer_id == pointer.pointer_id()
+                                        && drag.start_client != (pointer.client_x(), pointer.client_y())
                                 });
-                            },
-                            onpointermove: move |event: PointerEvent| {
-                                let Some(pointer) = event.data().try_as_web_event() else { return; };
+                                if !up_drag.borrow().as_ref().is_some_and(|drag| drag.pointer_id == pointer.pointer_id()) { return; }
+                                pointer.stop_propagation();
+                                let at = crate::coordinates(&up_svg, pointer, view_x, view_y, width, height);
+                                arbiter.handle(CanvasEvent::PointerUp { id: pointer.pointer_id(), operation: None });
+                                pointerup_commit(true, at, final_displaced, pointer.alt_key());
+                            return;
+                        }
+                        let (mut move_preview, mut move_guides) = (move_preview, move_guides);
                                 let mut active = move_drag.borrow_mut();
                                 let Some(active) = active.as_mut().filter(|active| active.pointer_id == pointer.pointer_id()) else { return; };
                                 pointer.stop_propagation();
-                                let Some(at) = crate::coordinates(&move_svg, &pointer, view_x, view_y, width, height) else { return; };
+                                let Some(at) = crate::coordinates(&move_svg, pointer, view_x, view_y, width, height) else { return; };
                                 apply_point_sample(active, at, &move_snap_inputs, pointer.alt_key());
                                 let preview_world = active.preview_points.clone();
                                 let pending = active.pending.clone();
@@ -313,20 +294,49 @@ pub fn OutlinePointCanvasOverlay(
                                 if changed {
                                     move_action.call(context.edit_perimeter(target, pending, EditPhase::Preview, transaction));
                                 }
-                            },
-                            onpointerup: move |event: PointerEvent| {
+                    });
+                    rsx! {
+                        circle {
+                            key: "{point_id}",
+                            class: if is_selected { "cursor-grab fill-primary stroke-card stroke-[1.2] [pointer-events:all] focus-visible:stroke-primary focus-visible:stroke-[1.7]" } else { "cursor-grab fill-card stroke-primary stroke-[0.9] [pointer-events:all] focus-visible:stroke-primary focus-visible:stroke-[1.7]" },
+                            role: "button",
+                            tabindex: "0",
+                            "aria-label": "{point_label}",
+                            "aria-pressed": "{is_selected}",
+                            cx: "{point_x}", cy: "{point_y}", r: "{handle_radius}",
+                            onfocus: move |_| point_selected.set(index),
+                            onpointerdown: move |event: PointerEvent| {
                                 let Some(pointer) = event.data().try_as_web_event() else { return; };
-                                let final_displaced = up_drag.borrow().as_ref().is_some_and(|drag| {
-                                    drag.pointer_id == pointer.pointer_id()
-                                        && drag.start_client != (pointer.client_x(), pointer.client_y())
+                                if !enabled || pointer.button() != 0 { return; }
+                                let id = pointer.pointer_id();
+                                if arbiter.handle(CanvasEvent::PointerDown {
+                                    mode: CanvasMode::DraggingOutlineHandle, id, client: client_point(&pointer), control: pointer.ctrl_key(),
+                                }) != [InteractionEffect::CapturePointer(id)] { return; }
+                                let Some(handle) = pointer.target().and_then(|target| target.dyn_into::<SvgElement>().ok())
+                                    .filter(|target| target.get_attribute("role").as_deref() == Some("button")) else {
+                                    arbiter.end(CanvasMode::DraggingOutlineHandle);
+                                    return;
+                                };
+                                let Some(capture) = down_svg.borrow().clone().filter(|surface| surface.set_pointer_capture(id).is_ok()) else {
+                                    arbiter.end(CanvasMode::DraggingOutlineHandle);
+                                    return;
+                                };
+                                pointer.prevent_default();
+                                focus_svg(&handle);
+                                down_selected.set(index);
+                                let transaction_id = format!("outline-drag-{}", down_runtime.operation().0);
+                                *down_drag.borrow_mut() = Some(PointDrag {
+                                    pointer_id: pointer.pointer_id(), point_index: index,
+                                    start_client: (pointer.client_x(), pointer.client_y()),
+                                    points: down_points.clone(), pending: down_points.clone(), preview_points: down_canvas_points.clone(), original_world: down_canvas_points[index],
+                                    target: down_target.clone(), anchor: point_anchor, action_context: down_context.clone(), transaction_id,
+                                    capture, snap: None, preview_submitted: false, moved: false,
                                 });
-                                if !up_drag.borrow().as_ref().is_some_and(|drag| drag.pointer_id == pointer.pointer_id()) { return; }
-                                pointer.stop_propagation();
-                                let at = crate::coordinates(&up_svg, &pointer, view_x, view_y, width, height);
-                                pointerup_commit(true, at, final_displaced, pointer.alt_key());
+                                let cancel = blur_commit.clone();
+                                arbiter.on_cancel(move || cancel(false, None, false, false));
+                                let motion = pointer_motion.clone();
+                                arbiter.on_pointer(move |pointer, released| motion(pointer, released));
                             },
-                            onpointercancel: move |_| cancel_commit(false, None, false, false),
-                            onlostpointercapture: move |_| lost_capture_commit(false, None, false, false),
                             onkeydown: move |event: KeyboardEvent| {
                                 let Some(key) = event.data().try_as_web_event() else { return; };
                                 if key.key() == "Escape" && key_drag.borrow().is_some() {
@@ -348,7 +358,7 @@ pub fn OutlinePointCanvasOverlay(
                                     escape_editing_points.set(false);
                                     return;
                                 }
-                                if key_drag.borrow().is_some() || !enabled { return; }
+                                if arbiter.current().is_some() || !enabled { return; }
                                 let mut points = key_points.clone();
                                 let step_x = grid.x.max(0.1) * if key.shift_key() { 10.0 } else { 1.0 };
                                 let step_y = grid.y.max(0.1) * if key.shift_key() { 10.0 } else { 1.0 };
@@ -383,7 +393,6 @@ pub fn OutlinePointCanvasOverlay(
 pub fn OutlineDraftCanvasOverlay(
     projection: OutlineInspectorProjection,
     runtime: OutlineRuntimeHandle,
-    arbiter: CanvasInteractionArbiter,
     svg: Rc<RefCell<Option<SvgElement>>>,
     view_x: f64,
     view_y: f64,
@@ -393,6 +402,7 @@ pub fn OutlineDraftCanvasOverlay(
     pitch: Vec2,
     origins: Vec<crate::presentation::outline_snapping::Origin>,
 ) -> Element {
+    let arbiter = use_context::<LayoutInteraction>();
     let Some(tool) = (projection.drawing_operation)() else {
         return rsx! {};
     };
@@ -460,9 +470,8 @@ pub fn OutlineDraftCanvasOverlay(
                 onpointerdown: move |event: PointerEvent| {
                     let mut points = points;
                     let Some(pointer) = event.data().try_as_web_event() else { return; };
-                    pointer.stop_propagation();
-                    if !enabled || pointer.button() != 0 || !arbiter.try_acquire(CanvasInteractionOwner::OutlinePerimeter) { return; }
-                    let Some(at) = crate::coordinates(&svg, &pointer, view_x, view_y, width, height) else { arbiter.release(CanvasInteractionOwner::OutlinePerimeter); return; };
+                    if !enabled || pointer.button() != 0 || arbiter.current().is_some() { return; }
+                    let Some(at) = crate::coordinates(&svg, &pointer, view_x, view_y, width, height) else { return; };
                     let path_points = points.read().clone();
                     let context = crate::presentation::outline_snapping::Context { anchor: path_points.last().copied(), previous: path_points.iter().rev().nth(1).copied(), exclude: None, neighbor: None };
                     let px = svg.borrow().as_ref().map(|surface| surface.get_bounding_client_rect().width()).unwrap_or(1.0).max(1.0);
@@ -474,8 +483,10 @@ pub fn OutlineDraftCanvasOverlay(
                         snapped.at = at;
                     }
                     if !path_points.iter().any(|point| (point.x-snapped.at.x).abs() < 1e-7 && (point.y-snapped.at.y).abs() < 1e-7) { points.set(path_points.into_iter().chain([snapped.at]).collect()); }
-                    arbiter.release(CanvasInteractionOwner::OutlinePerimeter);
                     pointer.prevent_default();
+                    if let Some(target) = pointer.target().and_then(|target| target.dyn_into::<SvgElement>().ok()) {
+                        focus_svg(&target);
+                    }
                 },
                 onkeydown: {
                     let mut finish = finish.clone();

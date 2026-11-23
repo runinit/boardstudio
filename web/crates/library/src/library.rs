@@ -290,7 +290,7 @@ fn DemoActionCard(mut open: Signal<bool>) -> Element {
                 CollapsibleContent { id: Some(content_id), class: "grid gap-2 mt-2 [&[hidden]]:hidden", aria_label: "Demo keyboards", hidden: !open(),
                     for demo in DEMO_PROJECTS {
                         {
-                            let doc = demo.document(runtime.core_services().open_scratch);
+                            let doc = demo.document();
                             let rt = runtime.clone();
                             rsx! {
                                 article { class: "grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2 p-2 border border-border rounded-md bg-canvas [&>div:first-child]:row-span-2 [&>div:first-child]:!h-[54px] [&>div:first-child]:!bg-transparent [&>[data-slot=button]]:col-span-full [&>[data-slot=button]]:w-full",

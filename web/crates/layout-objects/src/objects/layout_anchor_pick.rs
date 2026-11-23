@@ -13,7 +13,7 @@ use crate::anchor_pick::{
     CANDIDATE_RING_PX, MAJOR_RING_PX, PickTarget, anchor_is_target, anchor_key_label,
     anchor_pick_candidates, display_name, matrix_display_name, pick_commit, preview_anchor_poses,
 };
-use crate::presentation::canvas_interaction::CanvasInteractionArbiter;
+use crate::canvas_interaction::{CanvasMode, LayoutInteraction, focus_svg};
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core_kernel::matrix::layout::{evaluated_part_pose, layout_half_offset};
 use boardstudio_model::model::{Matrix, MatrixScene, Pose2, ProjectDoc, Vec2};
@@ -22,6 +22,7 @@ use boardstudio_web_ui_model::transform_feedback::{FeedbackDelta, FeedbackEvent,
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use wasm_bindgen::JsCast;
 use web_sys::SvgElement;
 
 /// Which selection a canvas Anchor pick retargets.
@@ -139,7 +140,6 @@ fn item_label(document: &ProjectDoc, owner: &AnchorPickOwner) -> String {
 pub fn LayoutAnchorPickOverlay(
     runtime: LayoutTransformRuntime,
     surface: Rc<RefCell<Option<SvgElement>>>,
-    arbiter: CanvasInteractionArbiter,
     pick_owner: AnchorPickOwner,
     /// How many tokens the rail holds, the Anchor token last.
     rail_slots: usize,
@@ -151,6 +151,8 @@ pub fn LayoutAnchorPickOverlay(
 ) -> Element {
     let _ = surface_size.map(|size| size());
     let runtime = runtime.0;
+    let interaction = use_context::<LayoutInteraction>();
+    let mode = CanvasMode::PickingRailAnchor;
     let armed = use_signal(|| false);
     let hovered_target = use_signal(|| None::<PickTarget>);
     let preview = use_signal(Vec::<(String, Pose2)>::new);
@@ -159,6 +161,10 @@ pub fn LayoutAnchorPickOverlay(
     let context = pick_owner.context();
     let disarm = move || {
         let (mut armed, mut hovered_target, mut preview) = (armed, hovered_target, preview);
+        if !*armed.peek() {
+            return;
+        }
+        interaction.end(mode);
         armed.set(false);
         hovered_target.set(None);
         preview.set(Vec::new());
@@ -172,19 +178,10 @@ pub fn LayoutAnchorPickOverlay(
     };
     // A stale arm (owner or selection moved on) drops without writing.
     use_effect(use_reactive((&context,), move |_| disarm()));
-    // Without a document the guard is inert; dropping it removes the listener.
-    use_hook(move || {
-        Rc::new(super::layout_rail::DocumentKeydown::install(
-            move |event: web_sys::KeyboardEvent| {
-                if !event.default_prevented()
-                    && event.key() == "Escape"
-                    && armed.try_peek().is_ok_and(|armed| *armed)
-                {
-                    event.prevent_default();
-                    disarm();
-                }
-            },
-        ))
+    use_drop(move || {
+        if armed.try_peek().is_ok_and(|armed| *armed) {
+            interaction.end(mode);
+        }
     });
 
     let Some(accepted) = runtime.model().accepted else {
@@ -289,10 +286,9 @@ pub fn LayoutAnchorPickOverlay(
         )
     };
     let hover_ring = {
-        let (document, context, open_scratch, current, item) = (
+        let (document, context, current, item) = (
             document.clone(),
             context.clone(),
-            runtime.core_services().open_scratch,
             current.clone(),
             item.clone(),
         );
@@ -301,12 +297,7 @@ pub fn LayoutAnchorPickOverlay(
             hovered_target.set(target.clone());
             match target {
                 Some(target) => {
-                    preview.set(preview_anchor_poses(
-                        &document,
-                        &context,
-                        &target,
-                        open_scratch,
-                    ));
+                    preview.set(preview_anchor_poses(&document, &context, &target));
                     choose(format!(
                         "{item} → {}",
                         anchor_key_label(&document, &target.matrix_id, target.row, target.column)
@@ -321,9 +312,9 @@ pub fn LayoutAnchorPickOverlay(
     };
     // Clicking a ring commits one Undo entry and leaves pick mode; a stale pick reports and disarms.
     let commit_pick = {
-        let (runtime, arbiter, context) = (runtime.clone(), arbiter.clone(), context.clone());
+        let (runtime, context) = (runtime.clone(), context.clone());
         Rc::new(move |target: PickTarget| {
-            if arbiter.current().is_some() || runtime.model().gesture.is_some() {
+            if interaction.current() != Some(mode) || runtime.model().gesture.is_some() {
                 return;
             }
             // The labels name the anchor before the edit lands.
@@ -359,9 +350,10 @@ pub fn LayoutAnchorPickOverlay(
         Rc::new(move || {
             if armed() {
                 disarm();
-            } else {
+            } else if interaction.begin(mode) {
                 let mut armed = armed;
                 armed.set(true);
+                interaction.on_cancel(disarm);
                 choose(current.clone());
             }
         })
@@ -381,7 +373,7 @@ pub fn LayoutAnchorPickOverlay(
             onpointerdown: { let toggle = toggle.clone(); move |event: PointerEvent| {
                 let Some(pointer) = event.data().try_as_web_event() else { return };
                 pointer.prevent_default();
-                pointer.stop_propagation();
+                if let Some(surface) = pointer.target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()).and_then(|target| target.closest("[data-transform-handle]").ok().flatten()).and_then(|target| target.dyn_into::<SvgElement>().ok()) { focus_svg(&surface); }
                 toggle();
             } },
             onkeydown: { let toggle = toggle.clone(); move |event: KeyboardEvent| {
@@ -412,7 +404,6 @@ pub fn LayoutAnchorPickOverlay(
                             onpointerdown: { let commit = commit_pick.clone(); move |event: PointerEvent| {
                                 let Some(pointer) = event.data().try_as_web_event() else { return };
                                 pointer.prevent_default();
-                                pointer.stop_propagation();
                                 commit(down.clone());
                             } },
                             onkeydown: move |event: KeyboardEvent| { if event.key() == Key::Enter { event.prevent_default(); commit_pick(press.clone()); } },

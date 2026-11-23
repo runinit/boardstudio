@@ -23,7 +23,6 @@ pub(in crate::presentation) fn build_canvas_pointer(
         runtime: runtime.clone(),
         adapter: adapter.clone(),
         svg: frame.svg.clone(),
-        space_down: interaction.navigation.space_key_state(),
         scope: render_scope.clone(),
         generation: render_generation,
         range_ids: services.visible_ids.clone(),
@@ -33,8 +32,6 @@ pub(in crate::presentation) fn build_canvas_pointer(
         pending_splay_pick: layout_state.pending_splay_origin_pick(),
         pending_anchor_pick: layout_state.pending_anchor_pick(),
         transform_inspector: services.matrix_transform_inspector.clone(),
-        canvas_interaction: interaction.arbiter.clone(),
-        mirrored_pair: services.mirrored_pair.clone(),
         split_focus: layout_state.split_focus(),
         workspace: editor.workspace,
         view_x: frame.camera.view_x,
@@ -46,8 +43,6 @@ pub(in crate::presentation) fn build_canvas_pointer(
         runtime,
         svg: frame.svg.clone(),
         drag: interaction.navigation.drag_interaction(),
-        space_down: interaction.navigation.space_key_state(),
-        canvas_interaction: interaction.arbiter.clone(),
         navigation: interaction.navigation.clone(),
         adapter,
         render_scope,
@@ -56,7 +51,6 @@ pub(in crate::presentation) fn build_canvas_pointer(
         selection_kind: layout_state.selection_kind(),
         owner: frame.owner.clone(),
         tree_cell_anchor: interaction.tree_cell_anchor.clone(),
-        mirrored_pair: services.mirrored_pair.clone(),
         pending_splay_pick: layout_state.pending_splay_origin_pick(),
         transform_inspector: services.matrix_transform_inspector.clone(),
         split_focus: layout_state.split_focus(),
@@ -65,6 +59,28 @@ pub(in crate::presentation) fn build_canvas_pointer(
         view_y: frame.camera.view_y,
         width: frame.camera.width,
         height: frame.camera.height,
+    });
+    let interaction = use_context::<LayoutInteraction>();
+    let runtime = editor.runtime();
+    let part_pointer_down = EventHandler::new(move |request: layout_canvas::PartPointerDown| {
+        if interaction.current() == Some(CanvasMode::PickingMatrixAnchor) {
+            if let Some(objects::TreeContext::Key {
+                matrix_id,
+                row,
+                column,
+            }) = runtime.with_model(|model| objects::context_for_part(model, &request.part_id))
+            {
+                matrix_pointer_down.call(layout_canvas::MatrixPointerDown {
+                    event: request.event,
+                    matrix_id,
+                    row,
+                    column,
+                    part_id: Some(request.part_id),
+                });
+            }
+        } else {
+            part_pointer_down.call(request);
+        }
     });
     LayoutPointer {
         matrix_pointer_down,
@@ -76,7 +92,6 @@ pub(in crate::presentation) struct MatrixPointerDownInput {
     pub runtime: Rc<Runtime>,
     pub adapter: SelectionAdapter,
     pub svg: Rc<RefCell<Option<SvgElement>>>,
-    pub space_down: Rc<Cell<bool>>,
     pub scope: Scope,
     pub generation: u64,
     pub range_ids: Rc<Vec<String>>,
@@ -86,8 +101,6 @@ pub(in crate::presentation) struct MatrixPointerDownInput {
     pub pending_splay_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
     pub pending_anchor_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
     pub transform_inspector: objects::MatrixTransformInspectorMount,
-    pub canvas_interaction: CanvasInteractionArbiter,
-    pub mirrored_pair: objects::MirroredPairMount,
     pub split_focus: Signal<boardstudio_web_ui_model::split_focus::SplitHalf>,
     pub workspace: Signal<Workspace>,
     pub view_x: f64,
@@ -99,11 +112,11 @@ pub(in crate::presentation) struct MatrixPointerDownInput {
 pub(in crate::presentation) fn matrix_pointer_down_handler(
     input: MatrixPointerDownInput,
 ) -> EventHandler<layout_canvas::MatrixPointerDown> {
+    let canvas_interaction = use_context::<LayoutInteraction>();
     let MatrixPointerDownInput {
         runtime,
         adapter,
         svg,
-        space_down,
         scope,
         generation,
         range_ids,
@@ -113,8 +126,6 @@ pub(in crate::presentation) fn matrix_pointer_down_handler(
         mut pending_splay_pick,
         mut pending_anchor_pick,
         transform_inspector,
-        canvas_interaction,
-        mirrored_pair,
         mut split_focus,
         workspace,
         view_x,
@@ -126,24 +137,21 @@ pub(in crate::presentation) fn matrix_pointer_down_handler(
         let Some(pointer) = request.event.data().try_as_web_event() else {
             return;
         };
-        if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
-            && mirrored_pair.placement.is_some()
+        canvas_interaction.sync_control(pointer.ctrl_key());
+        if pointer.button() != 0
+            || (canvas_interaction.space_down() && canvas_interaction.current().is_none())
+            || !matches!(
+                canvas_interaction.current(),
+                None | Some(CanvasMode::PickingSplayOrigin | CanvasMode::PickingMatrixAnchor)
+            )
         {
-            return;
-        }
-        if canvas_interaction.current().is_some() {
-            pointer.prevent_default();
-            pointer.stop_propagation();
-            return;
-        }
-        if pointer.button() != 0 || space_down.get() {
             return;
         }
         if pending_splay_pick.peek().is_some()
             && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
         {
-            pointer.prevent_default();
-            pointer.stop_propagation();
+            prevent_and_focus(&pointer, &svg);
+            canvas_interaction.end(CanvasMode::PickingSplayOrigin);
             apply_pending_splay_origin_pick(
                 &runtime,
                 workspace,
@@ -163,8 +171,7 @@ pub(in crate::presentation) fn matrix_pointer_down_handler(
             // irrelevant, so no coordinate resolution can fail here. An
             // aggregate-armed pick appends to the pending parts instead and
             // stays armed for the next key.
-            pointer.prevent_default();
-            pointer.stop_propagation();
+            prevent_and_focus(&pointer, &svg);
             let aggregate_armed = transform_inspector.projection().is_some_and(
                 |projection| {
                     matches!(
@@ -186,6 +193,7 @@ pub(in crate::presentation) fn matrix_pointer_down_handler(
                 }
                 return;
             }
+            canvas_interaction.end(CanvasMode::PickingMatrixAnchor);
             apply_pending_anchor_pick(
                 &runtime,
                 workspace,
@@ -201,8 +209,7 @@ pub(in crate::presentation) fn matrix_pointer_down_handler(
             );
             return;
         }
-        pointer.prevent_default();
-        pointer.stop_propagation();
+        prevent_and_focus(&pointer, &svg);
         let current = runtime.model();
         if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
             return;
@@ -276,8 +283,6 @@ pub(in crate::presentation) struct PartPointerDownInput {
     pub runtime: Rc<Runtime>,
     pub svg: Rc<RefCell<Option<SvgElement>>>,
     pub drag: Rc<RefCell<Option<Drag>>>,
-    pub space_down: Rc<Cell<bool>>,
-    pub canvas_interaction: CanvasInteractionArbiter,
     pub navigation: CanvasNavigationState,
     pub adapter: SelectionAdapter,
     pub render_scope: Scope,
@@ -286,7 +291,6 @@ pub(in crate::presentation) struct PartPointerDownInput {
     pub selection_kind: Signal<objects::LayoutSelectionKind>,
     pub owner: LayoutOwnerIdentity,
     pub tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
-    pub mirrored_pair: objects::MirroredPairMount,
     pub pending_splay_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
     pub transform_inspector: objects::MatrixTransformInspectorMount,
     pub split_focus: Signal<boardstudio_web_ui_model::split_focus::SplitHalf>,
@@ -300,12 +304,11 @@ pub(in crate::presentation) struct PartPointerDownInput {
 pub(in crate::presentation) fn part_pointer_down_handler(
     input: PartPointerDownInput,
 ) -> EventHandler<layout_canvas::PartPointerDown> {
+    let canvas_interaction = use_context::<LayoutInteraction>();
     let PartPointerDownInput {
         runtime,
         svg,
         drag,
-        space_down,
-        canvas_interaction,
         navigation,
         adapter,
         render_scope,
@@ -314,7 +317,6 @@ pub(in crate::presentation) fn part_pointer_down_handler(
         selection_kind,
         owner,
         tree_cell_anchor,
-        mirrored_pair,
         mut pending_splay_pick,
         transform_inspector,
         mut split_focus,
@@ -330,17 +332,14 @@ pub(in crate::presentation) fn part_pointer_down_handler(
         let Some(pointer) = request.event.data().try_as_web_event() else {
             return;
         };
+        canvas_interaction.sync_control(pointer.ctrl_key());
         if pointer.button() != 0 {
             return;
         }
-        if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
-            && mirrored_pair.placement.is_some()
-        {
-            return;
-        }
-        if canvas_interaction.current().is_some() {
-            pointer.prevent_default();
-            pointer.stop_propagation();
+        if !matches!(
+            canvas_interaction.current(),
+            None | Some(CanvasMode::PickingSplayOrigin)
+        ) {
             return;
         }
         if runtime.scope().as_ref() != Some(&render_scope) || (adapter.generation)() != generation {
@@ -349,11 +348,11 @@ pub(in crate::presentation) fn part_pointer_down_handler(
         if drag.borrow().is_some() || runtime.model().gesture.is_some() {
             return;
         }
-        pointer.prevent_default();
-        pointer.stop_propagation();
+        prevent_and_focus(&pointer, &svg);
         if pending_splay_pick.peek().is_some()
             && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
         {
+            canvas_interaction.end(CanvasMode::PickingSplayOrigin);
             apply_pending_splay_origin_pick(
                 &runtime,
                 workspace,
@@ -368,20 +367,19 @@ pub(in crate::presentation) fn part_pointer_down_handler(
             );
             return;
         }
-        if space_down.get() {
-            if let Some(svg) = svg.borrow().as_ref() {
-                let _ = svg.set_pointer_capture(pointer.pointer_id());
-                let options = web_sys::FocusOptions::new();
-                options.set_prevent_scroll(true);
-                let _ = svg.focus_with_options(&options);
-            }
-            navigation.start_space_pan(boardstudio_web_ui_shared::canvas_navigation::PanStart {
-                pointer_id: i64::from(pointer.pointer_id()),
-                scope: render_scope.clone(),
+        if canvas_interaction.space_down() && canvas_interaction.current().is_none() {
+            workbench::editor_session::canvas_adapter::start_pan(
+                &runtime,
+                &navigation,
+                &svg,
+                &render_scope,
                 generation,
-                client: (f64::from(pointer.client_x()), f64::from(pointer.client_y())),
-                camera: runtime.model().camera.center,
-            });
+                &pointer,
+                canvas_interaction,
+            );
+            return;
+        }
+        if canvas_interaction.current().is_some() {
             return;
         }
         let Some(origin) = coordinates(&svg, &pointer, view_x, view_y, width, height) else {
@@ -510,11 +508,19 @@ pub(in crate::presentation) fn part_pointer_down_handler(
         if positions.is_empty() {
             return;
         }
-        if let Some(svg) = svg.borrow().as_ref() {
-            let _ = svg.set_pointer_capture(pointer.pointer_id());
-            let options = web_sys::FocusOptions::new();
-            options.set_prevent_scroll(true);
-            let _ = svg.focus_with_options(&options);
+        if !workbench::editor_session::canvas_adapter::capture_canvas_drag(
+            canvas_interaction,
+            workbench::editor_session::canvas_adapter::CanvasDragStart {
+                mode: CanvasMode::DraggingParts,
+                id: pointer.pointer_id(),
+                client: client_point(&pointer),
+                control: pointer.ctrl_key(),
+            },
+            &runtime,
+            &drag,
+            &svg,
+        ) {
+            return;
         }
         *drag.borrow_mut() = Some(Drag {
             pointer: i64::from(pointer.pointer_id()),
@@ -525,9 +531,18 @@ pub(in crate::presentation) fn part_pointer_down_handler(
             client_x: f64::from(pointer.client_x()),
             client_y: f64::from(pointer.client_y()),
             positions,
+            last_sample: None,
             active: false,
             pan: false,
             camera: Vec2::default(),
         });
     })
+}
+
+fn prevent_and_focus(pointer: &web_sys::PointerEvent, svg: &Rc<RefCell<Option<SvgElement>>>) {
+    pointer.prevent_default();
+    pointer.stop_propagation();
+    if let Some(surface) = svg.borrow().as_ref() {
+        focus_svg(surface);
+    }
 }

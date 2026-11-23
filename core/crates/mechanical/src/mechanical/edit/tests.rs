@@ -6,8 +6,7 @@ use crate::mechanical::features;
 use crate::model::{
     HardwareConfiguration, HardwareTopology, HardwareTransport, MechanicalConfiguration,
     MechanicalConstructionOwnership, MechanicalFeatureKind, MechanicalFeatureState,
-    MechanicalFeatureValue, MechanicalMirrorPair, Mount, MountKind, PhysicalBoardInstance, Pose2,
-    Vec2,
+    MechanicalFeatureValue, MechanicalMirrorPair, MountKind, PhysicalBoardInstance, Pose2, Vec2,
 };
 use crate::test_support::*;
 use serde_json::json;
@@ -186,19 +185,12 @@ fn reflected_feature_installation_preserves_each_members_identity() {
         height: 5.0,
         next_vertex_identity: 5,
     };
+    let mount = MechanicalFeatureValue::Mount {
+        mount: mount("left-feature", 8.0, 9.0),
+    };
     let values = [
-        (
-            MechanicalFeatureKind::Mount,
-            MechanicalFeatureValue::Mount {
-                mount: mount("left-feature", 8.0, 9.0),
-            },
-        ),
-        (
-            MechanicalFeatureKind::ClosureMount,
-            MechanicalFeatureValue::Mount {
-                mount: mount("left-feature", 8.0, 9.0),
-            },
-        ),
+        (MechanicalFeatureKind::Mount, mount.clone()),
+        (MechanicalFeatureKind::ClosureMount, mount),
         (
             MechanicalFeatureKind::Opening,
             MechanicalFeatureValue::Opening { opening },
@@ -446,9 +438,9 @@ fn a_missing_required_template_rolls_back_the_configuration() {
     assert_eq!(doc, before, "the configuration change rolled back");
 }
 
-fn mirror_instance(id: &str, mounts: Vec<Mount>) -> PhysicalBoardInstance {
+fn mirror_instance(id: &str, mount_x: f64) -> PhysicalBoardInstance {
     let mut mechanical = edit_configuration();
-    mechanical.mounts = mounts;
+    mechanical.mounts = vec![mount("mount-1", mount_x, 3.0)];
     PhysicalBoardInstance {
         id: id.into(),
         name: id.into(),
@@ -471,10 +463,7 @@ fn mirror_document() -> ProjectDoc {
     doc.hardware = Some(HardwareConfiguration {
         topology: HardwareTopology::Unibody,
         transport: HardwareTransport::None,
-        instances: vec![
-            mirror_instance("left", vec![mount("mount-1", 2.0, 3.0)]),
-            mirror_instance("right", vec![mount("mount-1", 7.0, 3.0)]),
-        ],
+        instances: vec![mirror_instance("left", 2.0), mirror_instance("right", 7.0)],
         boards: vec![],
         shared_construction: None,
         pairs: vec![],

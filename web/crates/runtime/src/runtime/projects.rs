@@ -345,7 +345,7 @@ impl Runtime {
     }
 
     pub(super) fn confirm_project_replacement(&self, document: &ProjectDoc) -> Result<(), String> {
-        (self.core_services.validate_open)(document)?;
+        CoreEngine::validate_open(document)?;
         let model = self.model();
         if matches!(model.durability, Durability::Saving { .. }) {
             return Err("Save the current keyboard before switching projects.".into());
