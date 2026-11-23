@@ -10,20 +10,6 @@ mod core_chunk1;
 mod core_chunk2;
 #[path = "core/core_chunk3.rs"]
 mod core_chunk3;
-fn rect(id: &str, x: f64, y: f64, width: f64, height: f64, operation: Operation) -> OutlineFeature {
-    OutlineFeature::Rect {
-        rotation: None,
-        anchor_part_id: None,
-        id: id.into(),
-        center: Vec2 { x, y },
-        size: Vec2 {
-            x: width,
-            y: height,
-        },
-        radius: 0.0,
-        operation,
-    }
-}
 fn preview(reply: CoreReply) -> SceneDelta {
     match reply {
         CoreReply::Preview { scene, .. } => scene,

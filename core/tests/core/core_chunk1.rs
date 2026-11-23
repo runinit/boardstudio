@@ -115,7 +115,7 @@ fn invalid_definition_geometry_blocks_own_board() {
     let mut doc = ProjectDoc::empty("p", "Project");
     for (id, x) in [("left", -20.0), ("right", 20.0)] {
         doc.outline
-            .push(rect(id, x, 0.0, 10.0, 10.0, Operation::Add));
+            .push(fixture::rect(id, x, 0.0, 10.0, 10.0, Operation::Add));
         doc.boards.push(Board {
             id: id.into(),
             name: id.into(),
@@ -193,7 +193,7 @@ fn case_readiness_uses_its_board() {
     let mut engine = CoreEngine::new();
     let mut doc = ProjectDoc::empty("p", "Project");
     doc.outline
-        .push(rect("edge", 0.0, 0.0, 20.0, 20.0, Operation::Add));
+        .push(fixture::rect("edge", 0.0, 0.0, 20.0, 20.0, Operation::Add));
     doc.boards.push(Board {
         outline_ids: vec!["edge".into()],
         ..fixture::board("case-board", "Case Board")
@@ -270,7 +270,7 @@ fn case_mounts_walls_and_gasket_are_validated() {
     let mut engine = CoreEngine::new();
     let mut doc = ProjectDoc::empty("p", "Project");
     doc.outline
-        .push(rect("edge", 0.0, 0.0, 20.0, 20.0, Operation::Add));
+        .push(fixture::rect("edge", 0.0, 0.0, 20.0, 20.0, Operation::Add));
     doc.boards.push(Board {
         outline_ids: vec!["edge".into()],
         ..fixture::board("board", "Board")

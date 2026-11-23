@@ -4,21 +4,8 @@
 //! Every step runs through the real routes (CoreEngine Open/Edit/Undo and the
 //! real archive pack/unpack), never test doubles.
 use crate::support::fixture::{self, key_part, part_pose, scene_and_document as scene};
+use crate::support::session::{commit_edit, open_engine};
 use boardstudio_core::{CoreEngine, archive, model::*};
-
-fn open(doc: ProjectDoc) -> (CoreEngine, SceneDelta, ProjectDoc) {
-    let mut engine = CoreEngine::new();
-    let (scene, doc) = scene(engine.handle(fixture::open(doc)));
-    (engine, scene, doc)
-}
-
-fn edit(
-    engine: &mut CoreEngine,
-    doc: &ProjectDoc,
-    operation: EditOperation,
-) -> (SceneDelta, ProjectDoc) {
-    scene(engine.handle(fixture::commit("edit", "edit", doc.revision, operation)))
-}
 
 fn preview(engine: &mut CoreEngine, doc: &ProjectDoc, operation: EditOperation) -> SceneDelta {
     match engine.handle(fixture::edit(
@@ -137,11 +124,7 @@ fn anchored_mirrored_doc() -> ProjectDoc {
 }
 
 fn scene_pose(scene: &SceneDelta, matrix_id: &str, row: u32, column: u32) -> Pose2 {
-    scene
-        .matrix_scenes
-        .iter()
-        .find(|item| item.matrix_id == matrix_id)
-        .unwrap_or_else(|| panic!("missing matrix scene {matrix_id}"))
+    fixture::matrix_scene(scene, matrix_id)
         .cells
         .iter()
         .find(|cell| cell.row == row && cell.column == column)
@@ -163,7 +146,7 @@ fn same_pose(a: &Pose2, b: &Pose2) -> bool {
 /// counterparts must ride every step unchanged relative to the preview.
 #[test]
 fn preview_commit_scene_archive_reopen_and_undo_carry_the_anchored_mirrored_group() {
-    let (mut engine, _, doc) = open(anchored_mirrored_doc());
+    let (mut engine, _, doc) = open_engine(anchored_mirrored_doc());
     let operation = EditOperation::SetMatrixPlacement {
         matrix_id: "main".into(),
         change: MatrixPlacementChange::ColumnStagger {
@@ -195,7 +178,7 @@ fn preview_commit_scene_archive_reopen_and_undo_carry_the_anchored_mirrored_grou
     );
 
     // Commit materializes exactly what the preview showed, in scene and parts.
-    let (committed_scene, committed) = edit(&mut engine, &doc, operation);
+    let (committed_scene, committed) = commit_edit(&mut engine, &doc, operation);
     for matrix in &committed.matrices {
         for column in 0..matrix.columns {
             for row in 0..matrix.rows {
@@ -255,7 +238,7 @@ fn preview_commit_scene_archive_reopen_and_undo_carry_the_anchored_mirrored_grou
     let reloaded: ProjectDoc = serde_json::from_str(&project_json).unwrap();
     assert_eq!(reloaded.matrices, committed.matrices);
     assert_eq!(reloaded.layouts, committed.layouts);
-    let (_, _, reopened) = open(reloaded);
+    let (_, _, reopened) = open_engine(reloaded);
     assert_eq!(reopened.matrices, committed.matrices);
     assert_eq!(reopened.layouts, committed.layouts);
     for part in &committed.parts {

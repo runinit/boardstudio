@@ -4,48 +4,21 @@
 use crate::support::fixture::{
     self, matrix_document as matrix_doc, part_at as at, scene_and_document as scene,
 };
+use crate::support::session::{commit_edit, open_engine};
 use boardstudio_core::{CoreEngine, model::*};
-
-fn open(doc: ProjectDoc) -> (CoreEngine, SceneDelta, ProjectDoc) {
-    let mut engine = CoreEngine::new();
-    let (scene, doc) = scene(engine.handle(fixture::open(doc)));
-    (engine, scene, doc)
-}
-
-fn edit(
-    engine: &mut CoreEngine,
-    doc: &ProjectDoc,
-    operation: EditOperation,
-) -> (SceneDelta, ProjectDoc) {
-    scene(engine.handle(fixture::commit("edit", "edit", doc.revision, operation)))
-}
 
 fn snapshot(engine: &mut CoreEngine) -> ProjectDoc {
     scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() })).1
 }
 
-fn definitions() -> Vec<PartDefinition> {
-    serde_json::from_value(serde_json::json!([
-        {"id":"switch","name":"Switch","kind":"switch","courtyard":[],"pads":[]},
-        {"id":"diode","name":"Diode","kind":"passive","courtyard":[],"pads":[]},
-        {"id":"led","name":"LED","kind":"passive","courtyard":[],"pads":[]},
-        {"id":"sensor","name":"Sensor","kind":"passive","courtyard":[],"pads":[]}
-    ]))
-    .unwrap()
-}
-
-fn matrix(id: &str, rows: u32, columns: u32) -> Matrix {
-    fixture::matrix(id, rows, columns)
-}
-
 fn fixture(rows: u32, columns: u32) -> (CoreEngine, SceneDelta, ProjectDoc) {
     let mut doc = ProjectDoc::empty("placement", "Placement");
-    doc.definitions = definitions();
-    let (mut engine, _, doc) = open(doc);
-    let (scene, doc) = edit(
+    doc.definitions = fixture::companion_definitions();
+    let (mut engine, _, doc) = open_engine(doc);
+    let (scene, doc) = commit_edit(
         &mut engine,
         &doc,
-        fixture::set_matrix(matrix("main", rows, columns)),
+        fixture::set_matrix(fixture::matrix("main", rows, columns)),
     );
     (engine, scene, doc)
 }
@@ -67,14 +40,6 @@ fn delta(before: Vec2, after: Vec2) -> Vec2 {
 
 fn close(a: Vec2, b: Vec2) -> bool {
     (a.x - b.x).abs() < 1e-9 && (a.y - b.y).abs() < 1e-9
-}
-
-fn piece<'a>(scene: &'a SceneDelta, id: &str) -> &'a MatrixScene {
-    scene
-        .matrix_scenes
-        .iter()
-        .find(|item| item.matrix_id == id)
-        .unwrap_or_else(|| panic!("missing matrix scene {id}"))
 }
 
 fn stagger(column: u32, value: f64) -> EditOperation {
@@ -112,10 +77,10 @@ fn axis_case(label: &str, configure: impl FnOnce(&mut Matrix)) {
     let (mut engine, _, mut doc) = fixture(1, 3);
     let mut matrix = doc.matrices[0].clone();
     configure(&mut matrix);
-    let (mut scene, doc_configured) = edit(&mut engine, &doc, fixture::set_matrix(matrix));
+    let (mut scene, doc_configured) = commit_edit(&mut engine, &doc, fixture::set_matrix(matrix));
     doc = doc_configured;
     for column in 0..3u32 {
-        let axis = piece(&scene, "main").columns[column as usize].stagger_axis;
+        let axis = fixture::matrix_scene(&scene, "main").columns[column as usize].stagger_axis;
         assert!(
             close(axis, expected_axis(&doc.matrices[0], column as usize)),
             "{label}: column {column} axis {axis:?} disagrees with the derived formula"
@@ -127,7 +92,7 @@ fn axis_case(label: &str, configure: impl FnOnce(&mut Matrix)) {
             .map(|record| &record.stagger)
             .copied()
             .unwrap_or(0.0);
-        let (next_scene, next_doc) = edit(&mut engine, &doc, stagger(column, current + 1.0));
+        let (next_scene, next_doc) = commit_edit(&mut engine, &doc, stagger(column, current + 1.0));
         let moved = delta(before, at(&next_doc, &member("main", 0, column)));
         assert!(
             close(moved, axis),
@@ -139,7 +104,7 @@ fn axis_case(label: &str, configure: impl FnOnce(&mut Matrix)) {
 }
 
 fn companion_matrix() -> Matrix {
-    let mut matrix = matrix("main", 1, 1);
+    let mut matrix = fixture::matrix("main", 1, 1);
     matrix.cells = vec![MatrixCell {
         shift: None,
         bend: None,
@@ -181,10 +146,10 @@ fn companion_matrix() -> Matrix {
 
 fn companion_fixture() -> (CoreEngine, ProjectDoc) {
     let mut doc = ProjectDoc::empty("companions", "Companions");
-    doc.definitions = definitions();
+    doc.definitions = fixture::companion_definitions();
     doc.parts.push(fixture::part("anchor", "switch", "ANCHOR"));
-    let (mut engine, _, doc) = open(doc);
-    let (_, mut doc) = edit(&mut engine, &doc, fixture::set_matrix(companion_matrix()));
+    let (mut engine, _, doc) = open_engine(doc);
+    let (_, mut doc) = commit_edit(&mut engine, &doc, fixture::set_matrix(companion_matrix()));
     doc.constraints.push(Constraint::Offset {
         id: "sensor-anchor".into(),
         source_part_id: "anchor".into(),
@@ -192,10 +157,10 @@ fn companion_fixture() -> (CoreEngine, ProjectDoc) {
         offset: Vec2 { x: 1.0, y: -4.0 },
         rotation: 0.0,
     });
-    let (mut engine, _, doc) = open(doc);
+    let (mut engine, _, doc) = open_engine(doc);
     // Author the LED away from its generated offset; the property is what makes
     // the companion authored, and the relative pose is what must survive.
-    let (_, doc) = edit(
+    let (_, doc) = commit_edit(
         &mut engine,
         &doc,
         EditOperation::MoveParts {
@@ -243,13 +208,13 @@ fn convert_case(label: &str, column: u32, configure: impl FnOnce(&mut Matrix)) -
     let (mut engine, _, doc) = fixture(2, 3);
     let mut matrix = doc.matrices[0].clone();
     configure(&mut matrix);
-    let (_, before) = edit(&mut engine, &doc, fixture::set_matrix(matrix));
+    let (_, before) = commit_edit(&mut engine, &doc, fixture::set_matrix(matrix));
     assert_eq!(
         convert_offset_available(&before.matrices[0], column),
         Ok(()),
         "{label}"
     );
-    let (_, after) = edit(
+    let (_, after) = commit_edit(
         &mut engine,
         &before,
         convert(&before.matrices[0].id, column),
@@ -296,7 +261,7 @@ fn internal_constraint_translation(column: Option<u32>) {
             ..Default::default()
         },
     ];
-    let (_, mut document) = edit(&mut engine, &document, fixture::set_matrix(matrix));
+    let (_, mut document) = commit_edit(&mut engine, &document, fixture::set_matrix(matrix));
     document.constraints.push(Constraint::Offset {
         id: "internal".into(),
         source_part_id: member("main", 0, 1),
@@ -304,7 +269,7 @@ fn internal_constraint_translation(column: Option<u32>) {
         offset: Vec2 { x: 2.0, y: 18.0 },
         rotation: 0.0,
     });
-    let (mut engine, _, before) = open(document);
+    let (mut engine, _, before) = open_engine(document);
     let requested = Vec2 { x: 4.0, y: -3.0 };
     let change = match column {
         Some(column) => MatrixPlacementChange::ColumnTranslation {
@@ -357,7 +322,7 @@ fn internal_constraint_translation(column: Option<u32>) {
         }
     };
     assert_translated(&preview);
-    let (committed, after) = edit(&mut engine, &before, operation);
+    let (committed, after) = commit_edit(&mut engine, &before, operation);
     assert_translated(&committed);
     assert_eq!(committed.matrix_scenes, preview.matrix_scenes);
     assert_eq!(after.constraints, before.constraints);

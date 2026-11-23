@@ -348,15 +348,14 @@ fn remove_member(document: &mut ProjectDoc, instance_id: &str) -> Result<Vec<Str
 
 /// Gives the fixture board a real outline so export readiness is meaningful.
 fn with_board_outline(document: &mut ProjectDoc) {
-    document.outline.push(OutlineFeature::Rect {
-        anchor_part_id: None,
-        id: "outline".into(),
-        center: Vec2 { x: 0.0, y: 0.0 },
-        size: Vec2 { x: 80.0, y: 60.0 },
-        radius: 0.0,
-        rotation: None,
-        operation: Operation::Add,
-    });
+    document.outline.push(fixture::rect(
+        "outline",
+        0.0,
+        0.0,
+        80.0,
+        60.0,
+        Operation::Add,
+    ));
     document.boards[0].outline_ids = vec!["outline".into()];
     document.case_bodies.push(CaseBody {
         features: None,

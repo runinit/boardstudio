@@ -7,7 +7,7 @@ fn add_anchored_matrix_creates_1x3_in_same_layout_and_follows_its_anchor_key() {
     let before = at(&doc, &anchor_key);
     assert_eq!(before, Vec2 { x: 38.0, y: 0.0 });
 
-    let (_, doc) = edit(
+    let (_, doc) = commit_edit(
         &mut engine,
         &doc,
         add_anchored("thumb", key_anchor("main", 0, 2)),
@@ -27,7 +27,7 @@ fn add_anchored_matrix_creates_1x3_in_same_layout_and_follows_its_anchor_key() {
     assert_at(&doc, &member("thumb", 0, 2), 76.0, -19.0);
 
     // Moving the anchor key moves the anchored members with it.
-    let (_, doc) = edit(
+    let (_, doc) = commit_edit(
         &mut engine,
         &doc,
         move_part(anchor_key.clone(), Vec2 { x: 43.0, y: 7.0 }),
@@ -40,7 +40,7 @@ fn add_anchored_matrix_creates_1x3_in_same_layout_and_follows_its_anchor_key() {
 #[test]
 fn anchoring_to_a_constraint_driven_key_is_refused() {
     let (mut engine, doc) = rich_fixture();
-    let (_, doc) = edit(
+    let (_, doc) = commit_edit(
         &mut engine,
         &doc,
         EditOperation::SetConstraint {
@@ -68,7 +68,7 @@ fn anchoring_to_a_constraint_driven_key_is_refused() {
 #[test]
 fn anchor_follow_rotation_filters_the_completed_heading() {
     let (mut engine, doc) = anchored_fixture();
-    let (_, doc) = edit(
+    let (_, doc) = commit_edit(
         &mut engine,
         &doc,
         change_matrix(&doc, "main", |matrix| matrix.rotation = Some(30.0)),
@@ -111,7 +111,7 @@ fn anchored_matrix_translation_respects_follow_and_refuses_impossible_drags() {
     );
     assert_eq!(snapshot(&mut engine), doc);
     // A drag along the followed Y succeeds and moves every member.
-    let (_, moved) = edit(
+    let (_, moved) = commit_edit(
         &mut engine,
         &doc,
         EditOperation::SetMatrixPlacement {
@@ -144,7 +144,7 @@ fn anchored_frame_edits_refuse_unfollowed_components() {
 #[test]
 fn constraints_consume_final_anchored_poses() {
     let (mut engine, doc) = anchored_fixture();
-    let (_, doc) = edit(
+    let (_, doc) = commit_edit(
         &mut engine,
         &doc,
         EditOperation::SetConstraint {

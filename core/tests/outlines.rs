@@ -1,4 +1,5 @@
 use crate::support::fixture;
+use crate::support::query;
 use crate::support::session::Session;
 use boardstudio_core::model::*;
 use serde_json::json;
@@ -32,28 +33,11 @@ fn scene(reply: CoreReply) -> SceneDelta {
         other => panic!("{other:?}"),
     }
 }
-// Independent oracle: deliberately not the production predicate it checks.
-fn contains(contours: &[Contour], x: f64, y: f64) -> bool {
-    contours.iter().fold(false, |inside, c| {
-        let mut hit = false;
-        for (a, b) in c
-            .points
-            .iter()
-            .zip(c.points.iter().cycle().skip(1))
-            .take(c.points.len())
-        {
-            if (a.y > y) != (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x {
-                hit = !hit;
-            }
-        }
-        inside ^ hit
-    })
-}
 #[test]
 fn deleting_corner_creates_notch_and_retains_neighbors() {
     let mut core = Session::default();
     let before = scene(core.open(document()));
-    assert!(contains(&before.contours, 0.0, 0.0));
+    assert!(query::contains(&before.contours, 0.0, 0.0));
     let after = scene(core.send(CoreRequest::Edit {
         id: "delete".into(),
         command: EditCommand {
@@ -67,11 +51,11 @@ fn deleting_corner_creates_notch_and_retains_neighbors() {
         },
     }));
     assert!(
-        !contains(&after.contours, 0.0, 0.0),
+        !query::contains(&after.contours, 0.0, 0.0),
         "deleted corner must be outside the contour"
     );
-    assert!(contains(&after.contours, 19.05, 0.0));
-    assert!(contains(&after.contours, 0.0, 19.05));
+    assert!(query::contains(&after.contours, 19.05, 0.0));
+    assert!(query::contains(&after.contours, 0.0, 19.05));
 }
 
 #[test]
@@ -99,8 +83,8 @@ fn automatic_part_envelopes_exclude_nonphysical_utilities() {
     }
     let mut core = Session::default();
     let resolved = scene(core.open(doc));
-    assert!(contains(&resolved.contours, 19.05, 0.0));
-    assert!(!contains(&resolved.contours, 100.0, 0.0));
+    assert!(query::contains(&resolved.contours, 19.05, 0.0));
+    assert!(!query::contains(&resolved.contours, 100.0, 0.0));
 }
 
 #[test]
@@ -145,8 +129,8 @@ fn automatic_envelope_reflects_asymmetric_back_side_footprints() {
         id: "open-back".into(),
         document: doc,
     }));
-    assert!(contains(&resolved.contours, -3.0, 1.0));
-    assert!(!contains(&resolved.contours, 3.0, 1.0));
+    assert!(query::contains(&resolved.contours, -3.0, 1.0));
+    assert!(!query::contains(&resolved.contours, 3.0, 1.0));
 }
 
 fn commit(core: &mut Session, revision: u64, operation: serde_json::Value) -> SceneDelta {
@@ -209,9 +193,9 @@ fn finishing_modes_and_holes_are_shared_with_board_contours() {
             "{:?}",
             result.findings
         );
-        assert!(!contains(&result.contours, 19.05, 19.05));
+        assert!(!query::contains(&result.contours, 19.05, 19.05));
         assert_eq!(result.board_contours[0].contours, result.contours);
-        assert!(contains(&result.contours, 0.0, 0.0));
+        assert!(query::contains(&result.contours, 0.0, 0.0));
         if corners != "sharp" {
             assert!(result.contours[0].points.len() > 4);
         }
@@ -243,8 +227,8 @@ fn components_can_use_zero_margin_or_be_excluded() {
     });
     let mut core = Session::default();
     let result = scene(core.open(doc.clone()));
-    assert!(!contains(&result.contours, 10.0, 0.0));
-    assert!(contains(&result.contours, 8.0, 0.0));
+    assert!(!query::contains(&result.contours, 10.0, 0.0));
+    assert!(query::contains(&result.contours, 8.0, 0.0));
     doc.parts[0].outline.as_mut().unwrap().excluded = true;
     let result = scene(core.open(doc));
     assert!(!result.readiness.outline);
@@ -260,8 +244,8 @@ fn keycap_dimensions_rotation_and_settings_roundtrip() {
     let restored: ProjectDoc = serde_json::from_str(&saved).unwrap();
     assert_eq!(restored, doc);
     let result = scene(Session::default().open(restored));
-    assert!(contains(&result.contours, 0.0, 22.0));
-    assert!(!contains(&result.contours, 22.0, 0.0));
+    assert!(query::contains(&result.contours, 0.0, 22.0));
+    assert!(!query::contains(&result.contours, 22.0, 0.0));
 }
 #[test]
 fn islands_bridge_interior_gaps_fill_and_undo_restores_corner() {
@@ -269,9 +253,9 @@ fn islands_bridge_interior_gaps_fill_and_undo_restores_corner() {
     doc.parts.retain(|p| p.id != "k4");
     let mut core = Session::default();
     let before = scene(core.open(doc));
-    assert!(contains(&before.contours, 19.05, 19.05));
+    assert!(query::contains(&before.contours, 19.05, 19.05));
     let after = commit(&mut core, 0, json!({"kind":"remove-parts","ids":["k0"]}));
-    assert!(!contains(&after.contours, 0.0, 0.0));
+    assert!(!query::contains(&after.contours, 0.0, 0.0));
     let undone = scene(core.undo());
     assert_eq!(undone.contours, before.contours);
     let redone = scene(core.redo());
@@ -281,7 +265,7 @@ fn islands_bridge_interior_gaps_fill_and_undo_restores_corner() {
     doc.parts[1].pose.at.x = 80.0;
     let result = scene(core.open(doc));
     assert_eq!(result.contours.len(), 1);
-    assert!(contains(&result.contours, 40.0, 0.0));
+    assert!(query::contains(&result.contours, 40.0, 0.0));
 }
 
 #[test]
@@ -324,7 +308,7 @@ fn separate_boards_are_not_bridged_and_mixed_membership_is_rejected() {
         serde_json::from_value(json!({"id":"right-edge","kind":"part-envelope","partIds":["k1"],"margin":4,"operation":"add"})).unwrap()];
     let result = scene(Session::default().open(doc.clone()));
     assert_eq!(result.board_contours.len(), 2);
-    assert!(!contains(&result.contours, 50.0, 0.0));
+    assert!(!query::contains(&result.contours, 50.0, 0.0));
     if let OutlineFeature::PartEnvelope { part_ids, .. } = &mut doc.outline[0] {
         part_ids.push("k1".into());
     }
@@ -340,14 +324,14 @@ fn definition_edits_invalidate_geometry_and_preserve_manual_additions() {
     doc.boards[0].outline_ids.push("tab".into());
     let mut core = Session::default();
     let before = scene(core.open(doc.clone()));
-    assert!(contains(&before.contours, 19.0, 0.0));
+    assert!(query::contains(&before.contours, 19.0, 0.0));
     doc.definitions[0].keycap = Some(Vec2 { x: 50.0, y: 18.0 });
     let after = commit(
         &mut core,
         0,
         json!({"kind":"replace-document","document":doc}),
     );
-    assert!(contains(&after.contours, 28.0, 0.0));
+    assert!(query::contains(&after.contours, 28.0, 0.0));
     let undone = scene(core.undo());
     assert_eq!(undone.contours, before.contours);
 }
@@ -401,9 +385,9 @@ fn edge_notch_is_preserved_and_interior_deletion_is_filled() {
     }
     let result = scene(Session::default().open(doc));
     // This void reaches the perimeter, so it is not an incidental enclosed gap.
-    assert!(!contains(&result.contours, 19.05, 0.0));
-    assert!(!contains(&result.contours, 19.05, 19.05));
-    assert!(contains(&result.contours, 0.0, 19.05));
+    assert!(!query::contains(&result.contours, 19.05, 0.0));
+    assert!(!query::contains(&result.contours, 19.05, 19.05));
+    assert!(query::contains(&result.contours, 0.0, 19.05));
 }
 
 #[test]
@@ -416,8 +400,8 @@ fn matrices_follow_stagger_rotation_growth_and_shrink() {
     let mut matrix = json!({"id":"keys","boardId":"board","rows":3,"columns":3,"pitch":{"x":19.05,"y":19.05},"origin":{"x":0,"y":0},"definitionId":"switch","partIds":[],"rotation":30,"rowLayout": [{"offset": {"x": 0, "y": 0}}, {"offset": {"x": 5, "y": 0}}, {"offset": {"x": 10, "y": 0}}],
 "cells":[{"row":0,"column":0,"enabled":false}]});
     let rotated = commit(&mut core, 0, json!({"kind":"set-matrix","matrix":matrix}));
-    assert!(!contains(&rotated.contours, 0.0, 0.0));
-    assert!(contains(
+    assert!(!query::contains(&rotated.contours, 0.0, 0.0));
+    assert!(query::contains(
         &rotated.contours,
         19.05 * 30f64.to_radians().cos(),
         19.05 * 30f64.to_radians().sin()
@@ -425,10 +409,10 @@ fn matrices_follow_stagger_rotation_growth_and_shrink() {
     matrix["rows"] = json!(4);
     matrix["columns"] = json!(4);
     let grown = commit(&mut core, 1, json!({"kind":"set-matrix","matrix":matrix}));
-    assert!(!contains(&grown.contours, 0.0, 0.0));
+    assert!(!query::contains(&grown.contours, 0.0, 0.0));
     let p = 57.15;
     let (sin, cos) = 30f64.to_radians().sin_cos();
-    assert!(contains(
+    assert!(query::contains(
         &grown.contours,
         p * cos - p * sin,
         p * sin + p * cos
@@ -436,7 +420,7 @@ fn matrices_follow_stagger_rotation_growth_and_shrink() {
     matrix["rows"] = json!(2);
     matrix["columns"] = json!(2);
     let shrunk = commit(&mut core, 2, json!({"kind":"set-matrix","matrix":matrix}));
-    assert!(!contains(
+    assert!(!query::contains(
         &shrunk.contours,
         p * cos - p * sin,
         p * sin + p * cos
@@ -444,7 +428,7 @@ fn matrices_follow_stagger_rotation_growth_and_shrink() {
     let second = json!({"id":"right","boardId":"board","rows":1,"columns":1,"pitch":{"x":19.05,"y":19.05},"origin":{"x":120,"y":0},"definitionId":"switch","partIds":[]});
     let joined = commit(&mut core, 3, json!({"kind":"set-matrix","matrix":second}));
     assert_eq!(joined.board_contours[0].contours.len(), 1);
-    assert!(contains(&joined.contours, 120.0, 0.0));
+    assert!(query::contains(&joined.contours, 120.0, 0.0));
 }
 
 #[test]
@@ -458,7 +442,7 @@ fn touching_islands_get_a_finite_width_bridge() {
     let result = scene(Session::default().open(doc));
     assert!(result.board_readiness[0].outline, "{:?}", result.findings);
     assert_eq!(result.contours.len(), 1);
-    assert!(contains(&result.contours, 8.0, 10.0));
+    assert!(query::contains(&result.contours, 8.0, 10.0));
 }
 
 #[test]
@@ -519,8 +503,8 @@ fn current_matrix_deletions_record_disabled_cells_before_resizing() {
     let mut matrix = doc.matrices[0].clone();
     matrix.columns = 4;
     let grown = commit(&mut core, 2, json!({"kind":"set-matrix","matrix":matrix}));
-    assert!(!contains(&grown.contours, 0.0, 0.0));
-    assert!(!contains(&grown.contours, 19.05, 0.0));
+    assert!(!query::contains(&grown.contours, 0.0, 0.0));
+    assert!(!query::contains(&grown.contours, 19.05, 0.0));
 }
 
 #[test]
@@ -605,8 +589,8 @@ fn manual_connection_precedes_automatic_bridging() {
     .unwrap();
     let result = scene(Session::default().open(doc));
     assert!(result.readiness.outline, "{:?}", result.findings);
-    assert!(contains(&result.contours, 40.0, 40.0));
-    assert!(!contains(&result.contours, 40.0, 0.0));
+    assert!(query::contains(&result.contours, 40.0, 40.0));
+    assert!(!query::contains(&result.contours, 40.0, 0.0));
 }
 
 #[test]
@@ -623,7 +607,7 @@ fn attached_addition_moves_and_detaches_on_anchor_deletion() {
     );
     doc.boards[0].outline_ids.push("tab".into());
     let opened = scene(core.open(doc));
-    assert!(contains(&opened.contours, 125.0, 0.0));
+    assert!(query::contains(&opened.contours, 125.0, 0.0));
     let moved = scene(core.send(CoreRequest::Edit {
         id: "move".into(),
         command: EditCommand {
@@ -639,7 +623,7 @@ fn attached_addition_moves_and_detaches_on_anchor_deletion() {
             },
         },
     }));
-    assert!(contains(&moved.contours, 145.0, 0.0));
+    assert!(query::contains(&moved.contours, 145.0, 0.0));
     let removed = core.send(CoreRequest::Edit {
         id: "remove".into(),
         command: EditCommand {
@@ -658,7 +642,7 @@ fn attached_addition_moves_and_detaches_on_anchor_deletion() {
     else {
         panic!("Expected scene")
     };
-    assert!(contains(&scene.contours, 145.0, 0.0));
+    assert!(query::contains(&scene.contours, 145.0, 0.0));
     let tab =
         serde_json::to_value(document.outline.iter().find(|f| f.id() == "tab").unwrap()).unwrap();
     assert!(tab.get("anchorPartId").is_none());
@@ -748,8 +732,8 @@ fn rotated_back_side_rectangle_detaches_with_radius_and_roundtrips_history() {
     for x in 70..110 {
         for y in 80..110 {
             assert_eq!(
-                contains(&before.contours, x as f64 + 0.123, y as f64 + 0.123),
-                contains(&after.contours, x as f64 + 0.123, y as f64 + 0.123)
+                query::contains(&before.contours, x as f64 + 0.123, y as f64 + 0.123),
+                query::contains(&after.contours, x as f64 + 0.123, y as f64 + 0.123)
             );
         }
     }
@@ -786,7 +770,7 @@ fn shrinking_matrix_preview_and_commit_detach_outline_at_the_same_position() {
         id: "preview".into(),
         command: command.clone(),
     }));
-    assert!(contains(&preview.contours, 63.0, 38.1));
+    assert!(query::contains(&preview.contours, 63.0, 38.1));
     let committed = scene(core.send(CoreRequest::Edit {
         id: "commit".into(),
         command: EditCommand {
@@ -821,7 +805,7 @@ fn connection_endpoints_follow_moves_and_detach_atomically() {
         0,
         json!({"kind":"move-parts","positions":[{"id":"k0","at":{"x":-20,"y":0}}]}),
     );
-    assert!(contains(&moved.contours, -10.0, 22.5));
+    assert!(query::contains(&moved.contours, -10.0, 22.5));
     let removed = core.send(fixture::commit(
         "delete",
         "delete",
@@ -845,7 +829,7 @@ fn connection_endpoints_follow_moves_and_detach_atomically() {
     assert!(point.part_id.is_none());
     assert!((point.at.x + 20.0).abs() < 1e-8);
     assert!((point.at.y - 5.0).abs() < 1e-8);
-    assert!(contains(&after.contours, -10.0, 22.5));
+    assert!(query::contains(&after.contours, -10.0, 22.5));
     let undone = scene(core.undo());
     assert_eq!(undone.contours, moved.contours);
 }
@@ -874,7 +858,7 @@ fn drawing_addition_closes_recess_without_creating_an_incidental_hole() {
         document: doc.clone(),
     }));
     assert!(
-        !contains(&legacy.contours, 25.0, 30.0),
+        !query::contains(&legacy.contours, 25.0, 30.0),
         "Legacy script composition retains its explicit union topology"
     );
     // Exercise the fixed-copy ownership used by Draw addition; leave legacy
@@ -908,11 +892,11 @@ fn drawing_addition_closes_recess_without_creating_an_incidental_hole() {
         document: doc,
     }));
     assert!(
-        contains(&result.contours, 25.0, 30.0),
+        query::contains(&result.contours, 25.0, 30.0),
         "Addition must fill a newly enclosed recess, not turn it into a cutout"
     );
     assert!(
-        !contains(&result.contours, 10.0, 10.0),
+        !query::contains(&result.contours, 10.0, 10.0),
         "Existing authored cutouts must remain"
     );
     assert_eq!(result.contours.iter().filter(|c| c.hole).count(), 1);

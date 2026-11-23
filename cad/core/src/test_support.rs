@@ -66,3 +66,24 @@ pub fn build_profile(input: ProfileInput) -> Result<ExactModel, String> {
     };
     build_case(&case)
 }
+
+/// Axis-aligned bounds of 3D points, shared by the mesh test assertions.
+pub fn bounds_of(points: impl IntoIterator<Item = [f64; 3]>) -> [[f64; 3]; 2] {
+    let mut bounds = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
+    for point in points {
+        for axis in 0..3 {
+            bounds[0][axis] = bounds[0][axis].min(point[axis]);
+            bounds[1][axis] = bounds[1][axis].max(point[axis]);
+        }
+    }
+    bounds
+}
+
+/// Asserts a builder rejects its input with an error containing `fragment`.
+/// `context` names the rejected case for the failure message.
+pub fn assert_rejected<T>(result: Result<T, String>, fragment: &str, context: &str) {
+    match result {
+        Ok(_) => panic!("{context}"),
+        Err(error) => assert!(error.contains(fragment), "{error}"),
+    }
+}

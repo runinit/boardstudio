@@ -39,14 +39,7 @@ pub(super) fn mesh_winding<'a>(
 }
 
 pub(super) fn point_bounds(points: impl IntoIterator<Item = Point3>) -> [[f64; 3]; 2] {
-    let mut bounds = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
-    for p in points {
-        for axis in 0..3 {
-            bounds[0][axis] = bounds[0][axis].min(p[axis]);
-            bounds[1][axis] = bounds[1][axis].max(p[axis]);
-        }
-    }
-    bounds
+    crate::test_support::bounds_of(points.into_iter().map(|p| [p[0], p[1], p[2]]))
 }
 
 pub(super) fn check_solid<'a>(solid: impl std::borrow::Borrow<Solid<'a>>) {
@@ -509,10 +502,11 @@ fn boss_no_wider_than_its_hole_is_rejected() {
     mount.kind = MountKind::Boss;
     mount.boss_diameter = Some(mount.hole_diameter);
     mount.height = Some(3.);
-    let Err(error) = build_layered_case(&input) else {
-        panic!("boss without a wall was built");
-    };
-    assert!(error.contains("wider than its hole"), "{error}");
+    crate::test_support::assert_rejected(
+        build_layered_case(&input),
+        "wider than its hole",
+        "boss without a wall was built",
+    );
 }
 #[test]
 fn far_near_collinear_hole_is_an_error_not_a_panic() {
@@ -531,10 +525,11 @@ fn far_near_collinear_hole_is_an_error_not_a_panic() {
         v(hole_x, lower_y),
         v(hole_x, upper_y),
     ]];
-    let Err(error) = build_layered_case(&input) else {
-        panic!("out-of-range ring was built");
-    };
-    assert!(error.contains("'plate'"), "{error}");
+    crate::test_support::assert_rejected(
+        build_layered_case(&input),
+        "'plate'",
+        "out-of-range ring was built",
+    );
 }
 #[test]
 fn non_finite_ring_point_is_rejected() {
@@ -553,20 +548,22 @@ fn out_of_range_hole_point_is_rejected() {
         },
         Vec2 { x: 1., y: 2. },
     ]];
-    let Err(error) = build_layered_case(&input) else {
-        panic!("out-of-range hole was built");
-    };
-    assert!(error.contains("'plate'"), "{error}");
+    crate::test_support::assert_rejected(
+        build_layered_case(&input),
+        "'plate'",
+        "out-of-range hole was built",
+    );
 }
 #[test]
 fn invalid_mount_positions_are_rejected() {
     for (x, y) in [(f64::NAN, 8.), (10., 2_000_000.)] {
         let mut input = plate();
         input.regions[0].mounts[0].at = Vec2 { x, y };
-        let Err(error) = build_layered_case(&input) else {
-            panic!("invalid mount was built: {x:?}, {y:?}");
-        };
-        assert!(error.contains("'plate'"), "{error}");
+        crate::test_support::assert_rejected(
+            build_layered_case(&input),
+            "'plate'",
+            &format!("invalid mount was built: {x:?}, {y:?}"),
+        );
     }
 }
 #[test]

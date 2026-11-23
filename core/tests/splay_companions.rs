@@ -39,28 +39,6 @@ fn matrix() -> Matrix {
     }
 }
 
-fn part<'a>(doc: &'a ProjectDoc, id: &str) -> &'a Part {
-    doc.parts
-        .iter()
-        .find(|part| part.id == id)
-        .unwrap_or_else(|| panic!("missing part {id}"))
-}
-
-/// The companion's pose in its key's frame: where the key's own turn leaves it.
-fn relative(doc: &ProjectDoc, key: &str, companion: &str) -> (Vec2, f64) {
-    let key = part(doc, key).pose;
-    let companion = part(doc, companion).pose;
-    let (sin, cos) = (-key.rotation).to_radians().sin_cos();
-    let (dx, dy) = (companion.at.x - key.at.x, companion.at.y - key.at.y);
-    (
-        Vec2 {
-            x: dx * cos - dy * sin,
-            y: dx * sin + dy * cos,
-        },
-        companion.rotation - key.rotation,
-    )
-}
-
 fn fixture() -> (CoreEngine, ProjectDoc) {
     let mut doc = ProjectDoc::empty("splay-companions", "Splay companions");
     doc.definitions = serde_json::from_value(serde_json::json!([
@@ -117,13 +95,14 @@ fn a_column_splay_carries_following_and_authored_companions_with_their_keys() {
             },
         },
     );
-    let turned = part(&after, key).pose.rotation - part(&before, key).pose.rotation;
+    let turned = fixture::part_by_id(&after, key).pose.rotation
+        - fixture::part_by_id(&before, key).pose.rotation;
     assert!((turned - 30.0).abs() < 1e-9, "key turned {turned}");
     let mut failures = Vec::new();
     for name in ["follow", "authored"] {
         let id = format!("{key}/{name}");
-        let (was_at, was_turn) = relative(&before, key, &id);
-        let (now_at, now_turn) = relative(&after, key, &id);
+        let (was_at, was_turn) = fixture::relative_pose(&before, key, &id);
+        let (now_at, now_turn) = fixture::relative_pose(&after, key, &id);
         if (was_at.x - now_at.x).abs() > 1e-9
             || (was_at.y - now_at.y).abs() > 1e-9
             || (was_turn - now_turn).abs() > 1e-9
@@ -135,8 +114,8 @@ fn a_column_splay_carries_following_and_authored_companions_with_their_keys() {
     }
     // A constrained companion stays where its constraint puts it: the offset is a
     // translation from the key and the turn is relative to the key's turn.
-    let key_pose = part(&after, key).pose;
-    let held = part(&after, "matrix/m/r0c1/held").pose;
+    let key_pose = fixture::part_by_id(&after, key).pose;
+    let held = fixture::part_by_id(&after, "matrix/m/r0c1/held").pose;
     assert!(
         (held.at.x - (key_pose.at.x + 1.0)).abs() < 1e-9
             && (held.at.y - (key_pose.at.y - 4.0)).abs() < 1e-9
@@ -166,9 +145,15 @@ fn a_translation_carries_an_authored_companion_by_exactly_the_keys_delta() {
             },
         },
     );
-    let (was_key, now_key) = (part(&before, key).pose, part(&after, key).pose);
+    let (was_key, now_key) = (
+        fixture::part_by_id(&before, key).pose,
+        fixture::part_by_id(&after, key).pose,
+    );
     assert_ne!(was_key.at, now_key.at, "the stagger must move the key");
-    let (was, now) = (part(&before, authored).pose, part(&after, authored).pose);
+    let (was, now) = (
+        fixture::part_by_id(&before, authored).pose,
+        fixture::part_by_id(&after, authored).pose,
+    );
     // The same additions the carry always did, so saved poses do not shift by an ulp.
     assert_eq!(now.at.x, was.at.x + (now_key.at.x - was_key.at.x));
     assert_eq!(now.at.y, was.at.y + (now_key.at.y - was_key.at.y));

@@ -13,8 +13,7 @@ confidence-threshold = 0.9
 # MPL dependency still fails the check.
 exceptions = [
     { allow = ["MPL-2.0"], crate = "smartstring" },
-    # CAD transitive dependencies for STEP identifiers and printable keycap geometry.
-    { allow = ["BSD-2-Clause"], crate = "Inflector@=0.11.4" },
+    # CAD transitive dependency for printable keycap geometry.
     { allow = ["BSL-1.0"], crate = "clipper2-rust@=1.2.0" },
 ]
 

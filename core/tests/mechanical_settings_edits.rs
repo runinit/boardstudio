@@ -24,9 +24,9 @@ use boardstudio_core::model::{
     MechanicalBuiltinProfile, MechanicalConfiguration, MechanicalConstructionOwnership,
     MechanicalGasketAnchor, MechanicalMount, MechanicalPartProcess, MechanicalPartProfile,
     MechanicalProfileSource, MechanicalStabilizerKind, MechanicalStabilizerOverride,
-    MechanicalSwitchFamily, MountKind, Operation, OutlineFeature, Part, PartDefinition,
-    PartGenerator, PartKind, PhysicalBoardInstance, PlateMethod, ProjectDoc, ScrewDrive,
-    ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
+    MechanicalSwitchFamily, MountKind, Operation, Part, PartDefinition, PartGenerator, PartKind,
+    PhysicalBoardInstance, PlateMethod, ProjectDoc, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum,
+    Vec2, Vec3,
 };
 use std::collections::BTreeMap;
 
@@ -54,15 +54,14 @@ fn document() -> ProjectDoc {
 /// A board whose outline yields at least one suggested closure mount.
 fn document_with_outline() -> ProjectDoc {
     let mut document = ProjectDoc::empty("doc", "Fixture");
-    document.outline.push(OutlineFeature::Rect {
-        anchor_part_id: None,
-        id: "outline".into(),
-        center: Vec2 { x: 0.0, y: 0.0 },
-        size: Vec2 { x: 80.0, y: 60.0 },
-        radius: 0.0,
-        rotation: None,
-        operation: Operation::Add,
-    });
+    document.outline.push(fixture::rect(
+        "outline",
+        0.0,
+        0.0,
+        80.0,
+        60.0,
+        Operation::Add,
+    ));
     document.boards.push(board("board", vec![]));
     document.boards[0].outline_ids = vec!["outline".into()];
     document.mechanical = Some(configuration_without_closures());
