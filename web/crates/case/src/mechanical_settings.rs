@@ -428,12 +428,23 @@ pub fn use_mechanical_settings(
     });
 
     // Closure mounts are suggested once generation finds them; adopt them as soon as the
-    // accepted snapshot is editable.
+    // accepted snapshot is saved and editable.
     let init_key = key
         .clone()
         .filter(|key| editable && needs_closures && key.hole_loaded);
+    let durability_version = try_use_context::<boardstudio_web_ui_shared::DurabilityVersion>();
+    let runtime_for_closures = runtime.clone();
     use_effect(use_reactive((&init_key,), move |(init,)| {
+        let _ = durability_version.map(|d| d.0());
         let Some(key) = init else { return };
+        if !runtime_for_closures.with_model(|m| {
+            m.durability
+                == (Durability::Saved {
+                    revision: key.revision,
+                })
+        }) {
+            return;
+        }
         let id = request_sequence.peek().saturating_add(1);
         request_sequence.set(id);
         on_request.call(MechanicalSettingsRequest {
@@ -461,10 +472,11 @@ pub fn use_mechanical_settings(
                 scope.instance_id.as_deref(),
             )
             && model.lifecycle == Lifecycle::Ready
-            && model.durability
-                == (Durability::Saved {
-                    revision: accepted.document.revision,
-                })
+            && matches!(
+                model.durability,
+                Durability::Saved { revision } | Durability::Saving { revision }
+                    if revision == accepted.document.revision
+            )
             && model.display_preview.is_none()
             && model.gesture.is_none()
             && !needs_closures

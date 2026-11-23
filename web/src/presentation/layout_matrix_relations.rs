@@ -171,6 +171,7 @@ fn DepartureActionButton(
     parameter: String,
     mount: objects::MatrixTransformInspectorMount,
 ) -> Element {
+    let _ = try_use_context::<boardstudio_web_ui_shared::DurabilityVersion>().map(|d| d.0());
     let mut error = use_signal(|| None::<String>);
     let Some(control) = mount.departure_control(action) else {
         return rsx! {};

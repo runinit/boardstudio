@@ -146,7 +146,7 @@ pub fn use_existing_half(
         },
     ));
 
-    let current_source = existing_half_source(&runtime, workspace());
+    let current_source = existing_half_source_with_durability(&runtime, workspace(), true);
     let options = current_source
         .as_ref()
         .map(|(snapshot, scope)| eligible_options(&snapshot.document, &scope.board_id))
@@ -433,22 +433,39 @@ fn existing_half_source(
     runtime: &Runtime,
     workspace: &'static str,
 ) -> Option<(AcceptedSnapshot, Scope)> {
+    existing_half_source_with_durability(runtime, workspace, false)
+}
+
+fn existing_half_source_with_durability(
+    runtime: &Runtime,
+    workspace: &'static str,
+    allow_saving: bool,
+) -> Option<(AcceptedSnapshot, Scope)> {
     if workspace != "Layout" {
         return None;
     }
     let model = runtime.model();
     let scope = runtime.scope()?;
     let snapshot = model.accepted.as_ref()?;
+    let durability_ready = if allow_saving {
+        matches!(
+            model.durability,
+            Durability::Saved { revision } | Durability::Saving { revision }
+                if revision == snapshot.document.revision
+        )
+    } else {
+        model.durability
+            == (Durability::Saved {
+                revision: snapshot.document.revision,
+            })
+    };
     if runtime.scope().as_ref() != Some(&scope)
         || snapshot.session_epoch != scope.session_epoch
         || snapshot.document.id != scope.document_id
         || model.active_board_id != scope.board_id
         || model.active_instance_id != scope.instance_id
         || model.lifecycle != Lifecycle::Ready
-        || model.durability
-            != (Durability::Saved {
-                revision: snapshot.document.revision,
-            })
+        || !durability_ready
         || model.display_preview.is_some()
         || model.gesture.is_some()
         || !snapshot

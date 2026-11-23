@@ -459,10 +459,11 @@ fn project(
         selected_reference.as_deref(),
     );
     let active = model.lifecycle == Lifecycle::Ready
-        && model.durability
-            == (Durability::Saved {
-                revision: snapshot.document.revision,
-            })
+        && matches!(
+            model.durability,
+            Durability::Saved { revision } | Durability::Saving { revision }
+                if revision == snapshot.document.revision
+        )
         && model.display_preview.is_none()
         && model.gesture.is_none();
     let disabled_reason = if locked_or_driven {

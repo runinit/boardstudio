@@ -26,6 +26,16 @@ pub fn CasePanel(
     let instance_selection = use_context::<crate::presentation::InstanceSelection>();
     let runtime_version = use_context::<Signal<u64>>();
     let _ = runtime_version();
+    let _ = try_use_context::<boardstudio_web_ui_shared::DurabilityVersion>().map(|d| d.0());
+    let generation_ready = generation_ready
+        && runtime.with_model(|model| {
+            model.accepted.as_ref().is_some_and(|snapshot| {
+                model.durability
+                    == boardstudio_application::Durability::Saved {
+                        revision: snapshot.document.revision,
+                    }
+            })
+        });
     crate::case_preview_lifecycle::use_native_case_preview(
         runtime.clone(),
         runtime.native_case_preview_key(),

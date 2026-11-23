@@ -779,6 +779,7 @@ pub fn MatrixTransformInspector(
     on_navigate_anchor_part: EventHandler<TreeContext>,
 ) -> Element {
     let _ = use_context::<Signal<u64>>()();
+    let _ = try_use_context::<boardstudio_web_ui_shared::DurabilityVersion>().map(|d| d.0());
     let error = use_signal(|| None::<String>);
     let Some((_, _, fields)) = mount.parts() else {
         return rsx! {};

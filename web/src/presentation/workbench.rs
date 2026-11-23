@@ -58,14 +58,17 @@ pub(crate) fn use_workbench_runtime(runtime: Rc<Runtime>) -> RuntimeBundle {
         );
         move || {
             let act_d = act.clone();
+            let rt_d = rt.clone();
             rt.subscribe_durability(Rc::new(move || {
                 if !act_d.get() {
                     return;
                 }
                 let mut dv = durability_version;
                 dv += 1;
-                let mut v = version;
-                v += 1;
+                if rt_d.with_model(|m| matches!(m.durability, Durability::Failed { .. })) {
+                    let mut v = version;
+                    v += 1;
+                }
             }));
             rt.subscribe(Rc::new(move || {
                 if !act.get() {

@@ -690,6 +690,7 @@ pub(super) fn use_physical_setup_reconcile(
     } = input;
     let preference_version = instance_preference();
     let physical_setup_busy_value = physical_setup_busy();
+    let durability_version = try_use_context::<boardstudio_web_ui_shared::DurabilityVersion>();
     use_effect(use_reactive(
         (
             &observed_version,
@@ -699,6 +700,7 @@ pub(super) fn use_physical_setup_reconcile(
         ),
         {
             move |_| {
+                let _ = durability_version.map(|d| d.0());
                 let model = runtime.model();
                 if runtime.scope().as_ref() != Some(&scope)
                     || (adapter.generation)() != generation
