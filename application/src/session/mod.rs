@@ -434,11 +434,13 @@ impl Session {
                 mode,
             } => self.select_matrix_cell(
                 operation_id,
-                scope,
-                matrix_id,
-                target_part_id,
-                part_ids,
-                mode,
+                selection::MatrixCellSelection {
+                    scope,
+                    matrix_id,
+                    target_part_id,
+                    part_ids,
+                    mode,
+                },
                 &mut effects,
             ),
             Event::Navigate {

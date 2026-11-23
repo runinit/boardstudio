@@ -1,6 +1,14 @@
 use super::*;
 use std::collections::HashSet;
 
+pub(super) struct MatrixCellSelection {
+    pub(super) scope: Scope,
+    pub(super) matrix_id: String,
+    pub(super) target_part_id: String,
+    pub(super) part_ids: Vec<String>,
+    pub(super) mode: SelectionMode,
+}
+
 impl Session {
     pub(super) fn select_parts(
         &mut self,
@@ -60,13 +68,16 @@ impl Session {
     pub(super) fn select_matrix_cell(
         &mut self,
         operation_id: OperationId,
-        scope: Scope,
-        matrix_id: String,
-        target_part_id: String,
-        part_ids: Vec<String>,
-        mode: SelectionMode,
+        selection: MatrixCellSelection,
         effects: &mut Vec<Effect>,
     ) {
+        let MatrixCellSelection {
+            scope,
+            matrix_id,
+            target_part_id,
+            part_ids,
+            mode,
+        } = selection;
         let Some(snapshot) = self.model.accepted.as_ref() else {
             self.reject(operation_id, "no accepted document is open", effects);
             return;

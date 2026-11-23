@@ -52,7 +52,7 @@ fn haptic_pullup_repair_is_an_explicit_source_preserving_variant() {
     let supply = nets.iter().find(|net| net["name"] == "+3V3").unwrap();
     for reference in ["R1", "R2", "JP1"] {
         assert!(
-            any(&supply, "pins", |pin| pin["partId"] == reference),
+            any(supply, "pins", |pin| pin["partId"] == reference),
             "{reference} pullup supply must reach 3.3V"
         );
     }
@@ -246,7 +246,7 @@ fn two_embedded_circuits_own_their_definitions_and_internal_nets_and_undo_atomic
             .unwrap();
         for number in ["5", "10"] {
             let physical = &u1def["terminals"][number][0];
-            assert!(any(&vdd, "pins", |p| p["partId"] == format!("{prefix}U1")
+            assert!(any(vdd, "pins", |p| p["partId"] == format!("{prefix}U1")
                 && p["padId"] == *physical));
         }
         assert!(
@@ -897,7 +897,7 @@ fn pinned_splitter_import_preserves_real_outline_mounts_and_reversed_interface_c
     assert_eq!(reply["kind"], "import-module-board", "{reply}");
     let imported = &reply["result"];
     assert!(
-        !any(&imported, "gates", |gate| gate["code"]
+        !any(imported, "gates", |gate| gate["code"]
             == "board-hole-geometry"),
         "valid unlocked source text must not prevent importing board drills: {}",
         imported["gates"]
