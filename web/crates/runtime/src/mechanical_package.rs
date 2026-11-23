@@ -31,14 +31,18 @@ pub(crate) fn push_mechanical_file(
 }
 
 pub(crate) fn mechanical_filename_component(value: &str) -> String {
+    filename_component(value, "_-", '-')
+}
+
+pub(crate) fn filename_component(value: &str, punctuation: &str, replacement: char) -> String {
     let mut result = String::with_capacity(value.len());
     let mut in_replacement = false;
     for character in value.chars() {
-        if character.is_ascii_alphanumeric() || matches!(character, '_' | '-') {
+        if character.is_ascii_alphanumeric() || punctuation.contains(character) {
             result.push(character);
             in_replacement = false;
         } else if !in_replacement {
-            result.push('-');
+            result.push(replacement);
             in_replacement = true;
         }
     }

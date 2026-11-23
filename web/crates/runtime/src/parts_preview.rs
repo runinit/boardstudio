@@ -5,12 +5,15 @@
 //! reuse the live document as the renderer scene or map sample IDs back into
 //! the project.
 
+use crate::model_delivery::{
+    PreviewLease, PreviewSlot, PreviewSnapshot, authored_board_preview_request,
+};
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
 use boardstudio_model::model::{
     Asset, Board, Contour, ExportTarget, Part, PartDefinition, Pose2, PrepareExportRequest,
     ProjectDoc, Side, Vec2,
 };
-use std::{cell::Cell, collections::BTreeMap, rc::Rc};
+use std::{collections::BTreeMap, rc::Rc};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PartsPreviewOwnerIdentity {
@@ -35,32 +38,7 @@ pub struct PartsPreviewRecipeMember {
     pub generator_parameters: BTreeMap<String, serde_json::Value>,
 }
 
-#[derive(Debug)]
-pub struct PartsPreviewOwnerLease {
-    active: Cell<bool>,
-    identity: PartsPreviewOwnerIdentity,
-}
-
-impl PartsPreviewOwnerLease {
-    fn new(identity: PartsPreviewOwnerIdentity) -> Rc<Self> {
-        Rc::new(Self {
-            active: Cell::new(true),
-            identity,
-        })
-    }
-
-    pub fn is_active(&self) -> bool {
-        self.active.get()
-    }
-
-    pub fn matches(&self, identity: &PartsPreviewOwnerIdentity) -> bool {
-        self.is_active() && self.identity == *identity
-    }
-
-    pub fn invalidate(&self) {
-        self.active.set(false);
-    }
-}
+pub type PartsPreviewOwnerLease = PreviewLease<PartsPreviewOwnerIdentity>;
 
 #[derive(Clone, Debug)]
 pub struct PartsPreviewCapture {
@@ -83,56 +61,49 @@ pub struct PartsPreviewSnapshot {
     pub model_rows: Option<crate::model_delivery::ModelDeliveryRows>,
 }
 
-#[derive(Default)]
-pub struct PartsPreviewLeaseSlot {
-    current: std::cell::RefCell<Option<Rc<PartsPreviewOwnerLease>>>,
-    active_generation: Cell<u64>,
+impl PreviewSnapshot<PartsPreviewOwnerIdentity> for PartsPreviewSnapshot {
+    fn source(
+        &self,
+    ) -> (
+        &PartsPreviewOwnerIdentity,
+        &Rc<PreviewLease<PartsPreviewOwnerIdentity>>,
+    ) {
+        (&self.owner, &self.lease)
+    }
 }
+
+pub type PartsPreviewLeaseSlot = PreviewSlot<PartsPreviewOwnerIdentity, PartsPreviewSnapshot>;
 
 impl PartsPreviewLeaseSlot {
     pub fn select_generation(&self, generation: u64) {
-        self.active_generation.set(generation);
-        let obsolete = self
-            .current
-            .borrow()
-            .as_ref()
-            .is_some_and(|lease| lease.identity.source_generation != generation);
-        if obsolete {
+        self.set_generation(generation);
+        if self
+            .pending()
+            .is_some_and(|lease| lease.identity().source_generation != generation)
+        {
             self.invalidate();
         }
     }
 
     pub fn replace(&self, lease: Rc<PartsPreviewOwnerLease>) {
-        if lease.identity.source_generation != self.active_generation.get() {
+        if lease.identity().source_generation == self.generation() {
+            self.begin(lease);
+        } else {
             lease.invalidate();
-            return;
-        }
-        if let Some(previous) = self.current.replace(Some(lease)) {
-            previous.invalidate();
         }
     }
 
     pub fn invalidate_generation(&self, generation: u64) {
-        let matches = self
-            .current
-            .borrow()
-            .as_ref()
-            .is_some_and(|lease| lease.identity.source_generation == generation);
-        if matches {
+        if self
+            .pending()
+            .is_some_and(|lease| lease.identity().source_generation == generation)
+        {
             self.invalidate();
         }
     }
 
     pub fn invalidate(&self) {
-        if let Some(current) = self.current.borrow_mut().take() {
-            current.invalidate();
-        }
-    }
-}
-
-impl Drop for PartsPreviewLeaseSlot {
-    fn drop(&mut self) {
-        self.invalidate();
+        self.retire();
     }
 }
 
@@ -253,16 +224,13 @@ impl PartsPreviewCapture {
             instance_id: None,
         };
         let path_assets = crate::case_preview::preview_model_paths(&sample_document);
-        let request = PrepareExportRequest {
-            snapshot_token: request_token,
-            expected_revision: sample_document.revision,
-            document: sample_document.clone(),
-            target: ExportTarget::Board {
-                board_id: sample_scope.board_id.clone(),
-            },
-            contours: contours.clone(),
-            model_paths: path_assets.clone(),
-        };
+        let request = authored_board_preview_request(
+            &sample_document,
+            &sample_scope.board_id,
+            &contours,
+            &path_assets,
+            request_token,
+        );
         let lease = PartsPreviewOwnerLease::new(owner.clone());
         Ok(Self {
             owner,
@@ -422,8 +390,7 @@ mod tests {
             "the old deferred effect must not revoke the new lease"
         );
         assert!(
-            slot.current
-                .borrow()
+            slot.pending()
                 .as_ref()
                 .is_some_and(|lease| Rc::ptr_eq(lease, &current))
         );

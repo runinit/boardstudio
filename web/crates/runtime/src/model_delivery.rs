@@ -4,15 +4,16 @@
 //! renderer scene submission are supplied by the page owners. In particular,
 //! model-batch liveness is independent of the renderer's scene sequence.
 
-use super::layout_viewer_source::{LayoutPreviewSnapshot, LayoutSourceLease};
-use crate::case_preview::CasePreviewOwnerLease;
-use crate::parts_preview::PartsPreviewOwnerLease;
+use crate::layout_viewer_source::LayoutPreviewSnapshot;
 #[cfg(any(test, target_arch = "wasm32"))]
 use boardstudio_application::SnapshotToken;
 use boardstudio_core_kernel::hash::sha256_hex;
-use boardstudio_model::model::{Asset, BoardReference, ModuleModelPlacement, PcbModel, ProjectDoc};
+use boardstudio_model::model::{
+    Asset, BoardReference, Contour, ExportTarget, ModuleModelPlacement, PcbModel,
+    PrepareExportRequest, ProjectDoc,
+};
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::{BTreeMap, VecDeque},
     future::{Future, poll_fn},
     pin::Pin,
@@ -23,25 +24,295 @@ use std::{
 const MESH_CACHE_CAPACITY: usize = 80;
 const MAX_MODEL_BYTES: usize = 32 * 1024 * 1024;
 
+/// A producer owns the lease. Model batches only hold a weak reference to its liveness.
+#[derive(Debug)]
+pub struct PreviewLease<Id> {
+    active: Cell<bool>,
+    identity: Id,
+}
+
+impl<Id> PreviewLease<Id> {
+    pub(crate) fn new(identity: Id) -> Rc<Self> {
+        Rc::new(Self {
+            active: Cell::new(true),
+            identity,
+        })
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.active.get()
+    }
+
+    pub fn invalidate(&self) {
+        self.active.set(false);
+    }
+
+    pub(crate) fn identity(&self) -> &Id {
+        &self.identity
+    }
+}
+
+impl<Id: PartialEq> PreviewLease<Id> {
+    pub fn matches(&self, identity: &Id) -> bool {
+        self.is_active() && self.identity == *identity
+    }
+}
+
+impl<Id> PartialEq for PreviewLease<Id> {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self, other)
+    }
+}
+
+pub trait PreviewSnapshot<Id> {
+    fn source(&self) -> (&Id, &Rc<PreviewLease<Id>>);
+}
+
+pub struct PreviewSlot<Id: PartialEq, Snapshot: PreviewSnapshot<Id>> {
+    state: RefCell<PreviewState<Id, Snapshot>>,
+    generation: Cell<u64>,
+}
+
+struct PreviewState<Id, Snapshot> {
+    published: Option<Rc<Snapshot>>,
+    pending: Option<Rc<PreviewLease<Id>>>,
+    error: Option<(Id, String)>,
+}
+
+impl<Id: PartialEq, Snapshot: PreviewSnapshot<Id>> Default for PreviewSlot<Id, Snapshot> {
+    fn default() -> Self {
+        Self {
+            state: RefCell::new(PreviewState {
+                published: None,
+                pending: None,
+                error: None,
+            }),
+            generation: Cell::new(0),
+        }
+    }
+}
+
+impl<Id: PartialEq, Snapshot: PreviewSnapshot<Id>> PreviewSlot<Id, Snapshot> {
+    pub fn generation(&self) -> u64 {
+        self.generation.get()
+    }
+
+    pub(crate) fn set_generation(&self, generation: u64) {
+        self.generation.set(generation);
+    }
+
+    pub fn next_generation(&self, exhausted: &str) -> Result<u64, String> {
+        let generation = self
+            .generation()
+            .checked_add(1)
+            .ok_or_else(|| exhausted.to_owned())?;
+        self.set_generation(generation);
+        Ok(generation)
+    }
+
+    pub fn pending(&self) -> Option<Rc<PreviewLease<Id>>> {
+        self.state.borrow().pending.clone()
+    }
+
+    pub fn published(&self) -> Option<Rc<Snapshot>> {
+        self.state.borrow().published.clone()
+    }
+
+    pub fn begin(&self, lease: Rc<PreviewLease<Id>>) {
+        self.retire();
+        self.state.borrow_mut().pending = Some(lease);
+    }
+
+    pub fn owns(&self, owner: &Id) -> bool {
+        let state = self.state.borrow();
+        state
+            .published
+            .as_ref()
+            .is_some_and(|snapshot| snapshot.source().1.matches(owner))
+            || state
+                .pending
+                .as_ref()
+                .is_some_and(|lease| lease.matches(owner))
+    }
+
+    pub fn with_owner<T>(&self, read: impl FnOnce(&Id) -> T) -> Option<T> {
+        let state = self.state.borrow();
+        state
+            .published
+            .as_ref()
+            .map(|snapshot| snapshot.source().0)
+            .or_else(|| state.pending.as_ref().map(|lease| lease.identity()))
+            .or_else(|| state.error.as_ref().map(|(owner, _)| owner))
+            .map(read)
+    }
+
+    pub fn is_stale(&self, is_current: impl Fn(&Id) -> bool) -> bool {
+        let state = self.state.borrow();
+        state
+            .published
+            .as_ref()
+            .is_some_and(|snapshot| !is_current(snapshot.source().0))
+            || state
+                .pending
+                .as_ref()
+                .is_some_and(|lease| !is_current(lease.identity()))
+            || state
+                .error
+                .as_ref()
+                .is_some_and(|(owner, _)| !is_current(owner))
+    }
+
+    pub fn current_error(&self, is_current: impl FnOnce(&Id) -> bool) -> Option<String> {
+        let state = self.state.borrow();
+        let (owner, error) = state.error.as_ref()?;
+        is_current(owner).then(|| error.clone())
+    }
+
+    pub fn publish(
+        &self,
+        snapshot: Snapshot,
+        generation: u64,
+        cancelled: &str,
+    ) -> Result<(), String> {
+        let (owner, lease) = snapshot.source();
+        let mut state = self.state.borrow_mut();
+        if self.generation() != generation
+            || !state
+                .pending
+                .as_ref()
+                .is_some_and(|pending| Rc::ptr_eq(pending, lease) && pending.matches(owner))
+        {
+            lease.invalidate();
+            return Err(cancelled.into());
+        }
+        state.pending = None;
+        state.error = None;
+        state.published = Some(Rc::new(snapshot));
+        Ok(())
+    }
+
+    pub fn fail(&self, lease: &Rc<PreviewLease<Id>>, error: String)
+    where
+        Id: Clone,
+    {
+        let mut state = self.state.borrow_mut();
+        if let Some(pending) = state.pending.take_if(|pending| Rc::ptr_eq(pending, lease)) {
+            pending.invalidate();
+            state.error = Some((pending.identity().clone(), error));
+        }
+    }
+
+    pub fn fail_before_begin(&self, owner: Id, error: String) {
+        self.state.borrow_mut().error = Some((owner, error));
+    }
+
+    pub fn retire_generation(&self, generation: u64) -> bool {
+        if generation != self.generation() {
+            return false;
+        }
+        self.retire();
+        self.set_generation(generation.saturating_add(1));
+        true
+    }
+
+    pub(crate) fn retire(&self) {
+        let mut state = self.state.borrow_mut();
+        if let Some(snapshot) = state.published.take() {
+            snapshot.source().1.invalidate();
+        }
+        if let Some(lease) = state.pending.take() {
+            lease.invalidate();
+        }
+        state.error = None;
+    }
+}
+
+impl<Id: PartialEq, Snapshot: PreviewSnapshot<Id>> Drop for PreviewSlot<Id, Snapshot> {
+    fn drop(&mut self) {
+        self.retire();
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum BoardPreviewRequest {
+    Authored(Box<PrepareExportRequest>),
+    Imported {
+        reference: BoardReference,
+        asset: Asset,
+    },
+}
+
+pub(crate) fn capture_board_preview_request(
+    document: &ProjectDoc,
+    board_id: &str,
+    contours: &[Contour],
+    model_paths: &BTreeMap<String, String>,
+    request_token: String,
+    source: &str,
+) -> Result<BoardPreviewRequest, String> {
+    let mut references = document
+        .board_references
+        .iter()
+        .filter(|reference| reference.board_id == board_id && reference.enabled);
+    let Some(reference) = references.next() else {
+        return Ok(BoardPreviewRequest::Authored(Box::new(
+            authored_board_preview_request(
+                document,
+                board_id,
+                contours,
+                model_paths,
+                request_token,
+            ),
+        )));
+    };
+    if references.next().is_some() {
+        return Err("Selected board has multiple enabled imported-board sources".into());
+    }
+    let mut assets = document
+        .assets
+        .iter()
+        .filter(|asset| asset.id == reference.asset_id);
+    let asset = assets
+        .next()
+        .filter(|asset| !asset.sha256.is_empty())
+        .ok_or_else(|| format!("Imported board asset is unavailable in the {source}"))?;
+    if assets.next().is_some() {
+        return Err(format!(
+            "Imported board asset identity is ambiguous in the {source}"
+        ));
+    }
+    Ok(BoardPreviewRequest::Imported {
+        reference: reference.clone(),
+        asset: asset.clone(),
+    })
+}
+
+pub(crate) fn authored_board_preview_request(
+    document: &ProjectDoc,
+    board_id: &str,
+    contours: &[Contour],
+    model_paths: &BTreeMap<String, String>,
+    request_token: String,
+) -> PrepareExportRequest {
+    PrepareExportRequest {
+        snapshot_token: request_token,
+        expected_revision: document.revision,
+        document: document.clone(),
+        target: ExportTarget::Board {
+            board_id: board_id.to_owned(),
+        },
+        contours: contours.to_vec(),
+        model_paths: model_paths.clone(),
+    }
+}
+
 pub(crate) trait ModelSourceLease {
     fn is_active(&self) -> bool;
 }
 
-impl ModelSourceLease for CasePreviewOwnerLease {
+impl<Id> ModelSourceLease for PreviewLease<Id> {
     fn is_active(&self) -> bool {
-        CasePreviewOwnerLease::is_active(self)
-    }
-}
-
-impl ModelSourceLease for LayoutSourceLease {
-    fn is_active(&self) -> bool {
-        LayoutSourceLease::is_active(self)
-    }
-}
-
-impl ModelSourceLease for PartsPreviewOwnerLease {
-    fn is_active(&self) -> bool {
-        PartsPreviewOwnerLease::is_active(self)
+        self.is_active()
     }
 }
 

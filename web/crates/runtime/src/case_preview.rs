@@ -4,14 +4,13 @@
 //! a mechanical `CadScene`. Authored and imported boards share the physical Case
 //! owner while retaining their existing, distinct Core preview producers.
 
-use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
-use boardstudio_model::model::{
-    ArtifactRequest, Asset, BoardReference, ExportTarget, PcbPreview, PrepareExportRequest,
-    ProjectDoc,
+use crate::model_delivery::{
+    PreviewLease, PreviewSlot, PreviewSnapshot, capture_board_preview_request,
 };
+use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
+use boardstudio_model::model::{ArtifactRequest, BoardReference, PcbPreview, ProjectDoc};
 use boardstudio_web_host::cad_jobs::{captured_case_document, captured_case_scene};
 use std::{
-    cell::Cell,
     collections::{BTreeMap, BTreeSet},
     rc::Rc,
 };
@@ -45,44 +44,8 @@ impl CasePreviewOwnerIdentity {
     }
 }
 
-#[derive(Clone, Debug)]
-pub enum CasePreviewRequest {
-    Authored(Box<PrepareExportRequest>),
-    Imported {
-        reference: BoardReference,
-        asset: Asset,
-    },
-}
-
-/// The producer-owned lease is independent of mechanical `CadScene` lifetime.
-/// Model deliveries retain only a weak handle and are invalid when the accepted
-/// Case source is superseded or its preview owner is replaced.
-#[derive(Debug)]
-pub struct CasePreviewOwnerLease {
-    active: Cell<bool>,
-    identity: CasePreviewOwnerIdentity,
-}
-
-impl CasePreviewOwnerLease {
-    fn new(identity: CasePreviewOwnerIdentity) -> Rc<Self> {
-        Rc::new(Self {
-            active: Cell::new(true),
-            identity,
-        })
-    }
-
-    pub fn is_active(&self) -> bool {
-        self.active.get()
-    }
-
-    pub fn matches(&self, identity: &CasePreviewOwnerIdentity) -> bool {
-        self.is_active() && self.identity == *identity
-    }
-
-    pub fn invalidate(&self) {
-        self.active.set(false);
-    }
-}
+pub use crate::model_delivery::BoardPreviewRequest as CasePreviewRequest;
+pub type CasePreviewOwnerLease = PreviewLease<CasePreviewOwnerIdentity>;
 
 #[derive(Clone, Debug)]
 pub struct NativePreviewCapture {
@@ -196,7 +159,7 @@ mod native_preview_pick_tests {
     use boardstudio_application::SessionEpoch;
     use boardstudio_model::model::{Board, Part, PcbModel, Pose2, Side, Vec2, Vec3};
 
-    fn source() -> (ProjectDoc, PcbPreview) {
+    pub(super) fn source() -> (ProjectDoc, PcbPreview) {
         let mut document = ProjectDoc::empty("doc", "Sofle");
         document.revision = 12;
         document.parts.push(Part {
@@ -235,21 +198,10 @@ mod native_preview_pick_tests {
                 id: "left-U1:0".into(),
                 reference: "left-U1".into(),
                 path: "models/mcu.step".into(),
-                pose: Pose2 {
-                    at: Vec2 { x: 0.0, y: 0.0 },
-                    rotation: 0.0,
-                },
+                pose: document.parts[0].pose,
                 side: Side::Front,
-                offset: Vec3 {
-                    x: 0.0,
-                    y: 0.0,
-                    z: 0.0,
-                },
-                rotation: Vec3 {
-                    x: 0.0,
-                    y: 0.0,
-                    z: 0.0,
-                },
+                offset: Vec3::default(),
+                rotation: Vec3::default(),
                 scale: Vec3 {
                     x: 1.0,
                     y: 1.0,
@@ -304,7 +256,7 @@ mod native_preview_pick_tests {
     }
 
     #[test]
-    fn native_pick_requires_the_current_preview_owner_source_identity() {
+    fn native_preview_picks_and_publication_require_the_current_source_owner() {
         let (document, board_preview) = source();
         let scope = Scope {
             session_epoch: SessionEpoch(2),
@@ -337,103 +289,48 @@ mod native_preview_pick_tests {
         );
         let mut stale_scope = scope.clone();
         stale_scope.instance_id = Some("right-half".into());
-        assert!(
-            native_preview_pick_part_id(&preview, &stale_scope, SnapshotToken(43), 12, "left-U1")
+        for (scope, token, revision, reference) in [
+            (&stale_scope, 43, 12, "left-U1"),
+            (&scope, 44, 12, "left-U1"),
+            (&scope, 43, 13, "left-U1"),
+            (&scope, 43, 12, "another-model"),
+        ] {
+            assert!(
+                native_preview_pick_part_id(
+                    &preview,
+                    scope,
+                    SnapshotToken(token),
+                    revision,
+                    reference
+                )
                 .is_none()
-        );
-        assert!(
-            native_preview_pick_part_id(&preview, &scope, SnapshotToken(44), 12, "left-U1")
-                .is_none()
-        );
-        assert!(
-            native_preview_pick_part_id(&preview, &scope, SnapshotToken(43), 13, "left-U1")
-                .is_none()
-        );
-        assert!(
-            native_preview_pick_part_id(&preview, &scope, SnapshotToken(43), 12, "another-model")
-                .is_none()
-        );
+            );
+        }
+
+        let state = NativePreviewState::default();
+        state.set_generation(preview.owner.projection_generation);
+        state.begin(preview.lease.clone());
+        state.begin(CasePreviewOwnerLease::new(preview.owner.clone()));
+        assert!(state.publish(preview.clone(), 5, "cancelled").is_err());
+        assert!(!preview.lease.is_active());
+        state.fail(&preview.lease, "late error".into());
+        assert!(state.published().is_none() && state.current_error(|_| true).is_none());
+        assert!(state.owns(&preview.owner));
     }
 }
 
-/// One owner for pending, accepted and failed native preview state.
-#[derive(Default)]
-pub struct NativePreviewState {
-    pub published: Option<Rc<NativePreviewSnapshot>>,
-    pub pending: Option<(CasePreviewOwnerIdentity, Rc<CasePreviewOwnerLease>)>,
-    pub error: Option<(CasePreviewOwnerIdentity, String)>,
-    pub generation: u64,
-}
-
-impl NativePreviewState {
-    pub fn begin(&mut self, owner: CasePreviewOwnerIdentity, lease: Rc<CasePreviewOwnerLease>) {
-        self.retire_leases();
-        self.pending = Some((owner, lease));
-    }
-
-    pub fn owns(&self, owner: &CasePreviewOwnerIdentity) -> bool {
-        self.published
-            .as_ref()
-            .is_some_and(|preview| preview.lease.matches(owner))
-            || self
-                .pending
-                .as_ref()
-                .is_some_and(|(pending, lease)| pending == owner && lease.matches(owner))
-    }
-
-    #[cfg(any(test, target_arch = "wasm32"))]
-    pub(crate) fn current_error(
+impl PreviewSnapshot<CasePreviewOwnerIdentity> for NativePreviewSnapshot {
+    fn source(
         &self,
-        is_current: impl FnOnce(&CasePreviewOwnerIdentity) -> bool,
-    ) -> Option<String> {
-        let (owner, error) = self.error.as_ref()?;
-        is_current(owner).then(|| error.clone())
-    }
-
-    pub fn is_stale(&self, is_current: impl Fn(&CasePreviewOwnerIdentity) -> bool) -> bool {
-        self.published
-            .as_ref()
-            .is_some_and(|preview| !is_current(&preview.owner))
-            || self
-                .pending
-                .as_ref()
-                .is_some_and(|(owner, _)| !is_current(owner))
-            || self
-                .error
-                .as_ref()
-                .is_some_and(|(owner, _)| !is_current(owner))
-    }
-
-    pub fn cancel(&mut self) {
-        self.retire_leases();
-        self.generation = self.generation.saturating_add(1);
-    }
-
-    fn retire_leases(&mut self) {
-        if let Some(preview) = self.published.take() {
-            preview.lease.invalidate();
-        }
-        if let Some((_, lease)) = self.pending.take() {
-            lease.invalidate();
-        }
-        self.error.take();
-    }
-
-    pub fn publish(&mut self, preview: NativePreviewSnapshot) -> Result<(), String> {
-        if !self.pending.as_ref().is_some_and(|(owner, lease)| {
-            owner == &preview.owner && lease.matches(owner) && Rc::ptr_eq(lease, &preview.lease)
-        }) || self.generation != preview.owner.projection_generation
-        {
-            preview.lease.invalidate();
-            return Err("The Case preview owner was cancelled before publication".into());
-        }
-        self.published = Some(Rc::new(preview));
-        // The accepted snapshot now owns the same lease as the retired pending slot.
-        self.pending.take();
-        self.error.take();
-        Ok(())
+    ) -> (
+        &CasePreviewOwnerIdentity,
+        &Rc<PreviewLease<CasePreviewOwnerIdentity>>,
+    ) {
+        (&self.owner, &self.lease)
     }
 }
+
+pub type NativePreviewState = PreviewSlot<CasePreviewOwnerIdentity, NativePreviewSnapshot>;
 
 /// Capture the physical document and contours used by the native preview from
 /// the accepted source projection before mechanical Case preparation/CAD.
@@ -455,11 +352,13 @@ pub fn capture_native_preview(
     if document.physical_instance_id.as_deref() != scope.instance_id.as_deref() {
         return Err("Physical Case projection selected another instance".into());
     }
-    let board = document
+    if !document
         .boards
         .iter()
-        .find(|board| board.id == scope.board_id)
-        .ok_or_else(|| "Selected board is unavailable in the accepted Case document".to_owned())?;
+        .any(|board| board.id == scope.board_id)
+    {
+        return Err("Selected board is unavailable in the accepted Case document".into());
+    }
     let scene = captured_case_scene(snapshot, scope)
         .map_err(|error| format!("Could not capture accepted physical Case contours: {error:?}"))?;
     let contours = scene
@@ -475,46 +374,14 @@ pub fn capture_native_preview(
         projection_generation,
         request_token.clone(),
     );
-    let mut references = document
-        .board_references
-        .iter()
-        .filter(|reference| reference.board_id == scope.board_id && reference.enabled);
-    let request = if let Some(reference) = references.next() {
-        if references.next().is_some() {
-            return Err("Selected board has multiple enabled imported-board sources".into());
-        }
-        let mut assets = document
-            .assets
-            .iter()
-            .filter(|asset| asset.id == reference.asset_id);
-        let asset = assets
-            .next()
-            .filter(|asset| !asset.sha256.is_empty())
-            .cloned()
-            .ok_or_else(|| {
-                "Imported board asset is unavailable in the accepted Case document".to_owned()
-            })?;
-        if assets.next().is_some() {
-            return Err(
-                "Imported board asset identity is ambiguous in the accepted Case document".into(),
-            );
-        }
-        CasePreviewRequest::Imported {
-            reference: reference.clone(),
-            asset,
-        }
-    } else {
-        CasePreviewRequest::Authored(Box::new(PrepareExportRequest {
-            snapshot_token: request_token,
-            expected_revision: document.revision,
-            document: document.clone(),
-            target: ExportTarget::Board {
-                board_id: board.id.clone(),
-            },
-            contours: contours.clone(),
-            model_paths: path_assets.clone(),
-        }))
-    };
+    let request = capture_board_preview_request(
+        &document,
+        &scope.board_id,
+        &contours,
+        &path_assets,
+        request_token,
+        "accepted Case document",
+    )?;
 
     let lease = CasePreviewOwnerLease::new(owner.clone());
     Ok(NativePreviewCapture {
@@ -607,25 +474,16 @@ pub fn preview_model_paths(document: &ProjectDoc) -> BTreeMap<String, String> {
 mod capture_error_tests {
     use super::*;
     use boardstudio_application::Event;
-    use boardstudio_model::model::Board;
 
     #[test]
     fn missing_board_source_only_reports_to_the_captured_owner() {
         let runtime = crate::runtime::Runtime::new();
-        let mut document = ProjectDoc::empty("source", "Imported source");
-        document.boards.push(Board {
-            id: "board".into(),
-            name: "Board".into(),
-            outline_ids: vec![],
-            part_ids: vec![],
-            net_ids: vec![],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
+        let (mut document, _) = super::native_preview_pick_tests::source();
+        document.parts.clear();
+        document.boards[0].part_ids.clear();
         document.board_references.push(BoardReference {
             id: "reference".into(),
-            board_id: "board".into(),
+            board_id: document.boards[0].id.clone(),
             asset_id: "missing-asset".into(),
             enabled: true,
             pose: boardstudio_model::model::Pose2 {
@@ -649,15 +507,13 @@ mod capture_error_tests {
             "{error}"
         );
         let owner = CasePreviewOwnerIdentity::capture(&snapshot, &scope, 1, "capture".into());
-        let state = NativePreviewState {
-            error: Some((owner, error.clone())),
-            ..Default::default()
-        };
+        let state = NativePreviewState::default();
+        state.fail_before_begin(owner, error.clone());
         assert_eq!(
             state.current_error(|owner| owner.scope == scope),
             Some(error)
         );
-        assert!(state.pending.is_none() && state.published.is_none());
+        assert!(state.pending().is_none() && state.published().is_none());
         assert_eq!(
             state.current_error(|owner| owner.scope.board_id == "another-board"),
             None

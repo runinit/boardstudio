@@ -268,16 +268,10 @@ impl Runtime {
             }
         }
 
-        let worker_url = resource_url("assets/cad-worker/entry.js")?;
-        let worker = Rc::new(CadWorker::new(&worker_url).map_err(|error| error.to_string())?);
-        self.export_workers
-            .borrow_mut()
-            .insert(operation_id, worker.clone());
-        let cad_output = async {
-            worker.ready().await.map_err(|error| error.to_string())?;
+        self.with_export_worker(operation_id, async |worker| {
             ensure_current()?;
             let assembled = request_exact_cad(
-                &worker,
+                worker,
                 operation_id,
                 "assembly",
                 &prepared.identity,
@@ -315,7 +309,7 @@ impl Runtime {
                     mechanical_filename_component(&source.body.name)
                 );
                 let result = request_exact_cad(
-                    &worker,
+                    worker,
                     operation_id,
                     &format!("part-{index}"),
                     &prepared.identity,
@@ -398,12 +392,9 @@ impl Runtime {
                     )?;
                 }
             }
-            Ok::<(), String>(())
-        }
-        .await;
-        worker.close();
-        self.export_workers.borrow_mut().remove(&operation_id);
-        cad_output?;
+            Ok(())
+        })
+        .await?;
         ensure_current()?;
 
         push_mechanical_file(
@@ -541,19 +532,13 @@ async fn request_exact_cad(
     prepared: boardstudio_model::model::PreparedCaseAssemblyIR,
 ) -> Result<CadResult, String> {
     let request_id = format!("mechanical-exact-{}-{name}", operation_id.0);
-    let request = CadRequest {
+    let request = prepared_cad_request(
         request_id,
-        job_id: format!("mechanical-job-{}-{name}", operation_id.0),
-        identity: identity.clone(),
-        operation: CadOperation::Exact,
-        prepared: Some(prepared),
-        source_sha256: None,
-        step_import_options: None,
-        collision_query: None,
-        generated_analysis_request: None,
-        collision_meshes: None,
-        input_bytes: Vec::new(),
-    };
+        format!("mechanical-job-{}-{name}", operation_id.0),
+        identity,
+        CadOperation::Exact,
+        prepared,
+    );
     let reply = worker
         .request(request.clone())
         .await
@@ -570,23 +555,13 @@ pub(super) fn authored_case_filename(document: &ProjectDoc, scope: &Scope) -> St
             .boards
             .iter()
             .find(|board| board.id == scope.board_id)
-            .map(|board| format!("-{}", authored_case_filename_component(&board.name)))
+            .map(|board| {
+                format!(
+                    "-{}",
+                    crate::mechanical_package::filename_component(&board.name, "_.-", '_')
+                )
+            })
             .unwrap_or_default()
     };
     format!("{}{suffix}-case.step", document.name)
-}
-
-fn authored_case_filename_component(value: &str) -> String {
-    let mut result = String::with_capacity(value.len());
-    let mut in_replacement = false;
-    for character in value.chars() {
-        if character.is_ascii_alphanumeric() || matches!(character, '_' | '.' | '-') {
-            result.push(character);
-            in_replacement = false;
-        } else if !in_replacement {
-            result.push('_');
-            in_replacement = true;
-        }
-    }
-    result
 }

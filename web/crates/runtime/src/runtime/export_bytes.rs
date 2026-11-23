@@ -2,20 +2,22 @@
 use super::*;
 
 impl Runtime {
-    fn export_worker(&self, operation: OperationId) -> Result<Rc<CadWorker>, String> {
-        let worker = Rc::new(
-            CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
-                .map_err(|error| error.to_string())?,
-        );
+    pub(super) async fn with_export_worker<T>(
+        &self,
+        operation: OperationId,
+        build: impl AsyncFnOnce(&CadWorker) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let worker = new_cad_worker()?;
         self.export_workers
             .borrow_mut()
             .insert(operation, worker.clone());
-        Ok(worker)
-    }
-
-    fn close_export_worker(&self, operation: OperationId, worker: Rc<CadWorker>) {
+        let result = match worker.ready().await {
+            Ok(()) => build(&worker).await,
+            Err(error) => Err(error.to_string()),
+        };
         self.export_workers.borrow_mut().remove(&operation);
         worker.close();
+        result
     }
 
     pub(super) async fn step_bytes(
@@ -74,23 +76,15 @@ impl Runtime {
             return Err("Core prepared no authored case bodies.".into());
         }
         let identity = snapshot_identity(snapshot, scope);
-        let worker = self.export_worker(operation_id)?;
-        let result = async {
-            worker.ready().await.map_err(|e| e.to_string())?;
+        self.with_export_worker(operation_id, async |worker| {
             guard()?;
-            let request = CadRequest {
-                request_id: format!("authored-case-step-{}", operation_id.0),
-                job_id: format!("authored-case-step-{}", operation_id.0),
-                identity: identity.clone(),
-                operation: CadOperation::ExportStep,
-                prepared: Some(prepared),
-                source_sha256: None,
-                step_import_options: None,
-                collision_query: None,
-                generated_analysis_request: None,
-                collision_meshes: None,
-                input_bytes: vec![],
-            };
+            let request = prepared_cad_request(
+                request_id.clone(),
+                request_id,
+                &identity,
+                CadOperation::ExportStep,
+                prepared,
+            );
             let reply = worker
                 .request(request.clone())
                 .await
@@ -99,10 +93,8 @@ impl Runtime {
             validate_reply(&request, reply, &identity)
                 .map(|result| result.step)
                 .map_err(|e| format!("{e:?}"))
-        }
-        .await;
-        self.close_export_worker(operation_id, worker);
-        result
+        })
+        .await
     }
 
     pub(super) async fn keycaps_stl_bytes(
@@ -132,25 +124,22 @@ impl Runtime {
             return Err("Choose a keycap profile before exporting keycap STLs.".into());
         }
         let identity = snapshot_identity(snapshot, scope);
-        let worker = self.export_worker(operation_id)?;
-        let result = async {
-            worker.ready().await.map_err(|error| error.to_string())?;
-            guard()?;
-            let result = worker
-                .request_keycaps_print(
-                    format!("keycaps-stl-{}", operation_id.0),
-                    format!("keycaps-print-{}", operation_id.0),
-                    identity,
-                    resolution.specs,
-                )
-                .await
-                .map_err(|error| error.to_string())?;
-            guard()?;
-            crate::keycap_package::files(result)
-        }
-        .await;
-        self.close_export_worker(operation_id, worker);
-        let files = result?;
+        let files = self
+            .with_export_worker(operation_id, async |worker| {
+                guard()?;
+                let result = worker
+                    .request_keycaps_print(
+                        format!("keycaps-stl-{}", operation_id.0),
+                        format!("keycaps-print-{}", operation_id.0),
+                        identity,
+                        resolution.specs,
+                    )
+                    .await
+                    .map_err(|error| error.to_string())?;
+                guard()?;
+                crate::keycap_package::files(result)
+            })
+            .await?;
         guard()?;
         crate::portable_archive::pack_files(files)
     }

@@ -226,7 +226,7 @@ pub async fn bundled_model_bytes(id: &str) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::{BUNDLED_MODELS, BundledModel, bundled_model};
-    use sha2::{Digest, Sha256};
+    use boardstudio_core_kernel::hash::sha256_hex;
     use std::collections::BTreeSet;
 
     #[test]
@@ -269,12 +269,7 @@ mod tests {
         for model in BUNDLED_MODELS {
             let bytes = std::fs::read(vendor_root.join(model.source_relative_path))
                 .expect("catalogue source file is available");
-            let digest = Sha256::digest(&bytes);
-            let digest = digest
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect::<String>();
-            assert_eq!(model.sha256, digest, "{}", model.id);
+            assert_eq!(model.sha256, sha256_hex(&bytes), "{}", model.id);
         }
     }
 

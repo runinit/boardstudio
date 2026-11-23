@@ -4,50 +4,24 @@ use super::*;
 impl Runtime {
     pub fn layout_preview(&self) -> Option<Rc<crate::layout_viewer_source::LayoutPreviewSnapshot>> {
         self.layout_preview
-            .borrow()
-            .published
-            .as_ref()
+            .published()
             .filter(|preview| self.layout_source_owner_is_current(&preview.owner))
-            .cloned()
     }
 
     pub fn layout_preview_pending(&self) -> bool {
-        self.layout_preview
-            .borrow()
-            .pending
-            .as_ref()
-            .is_some_and(|(owner, lease)| {
-                lease.matches(owner) && self.layout_source_owner_is_current(owner)
-            })
+        self.layout_preview.pending().is_some_and(|lease| {
+            lease.is_active() && self.layout_source_owner_is_current(lease.identity())
+        })
     }
 
     pub fn layout_preview_error(&self) -> Option<String> {
         self.layout_preview
-            .borrow()
-            .error
-            .as_ref()
-            .filter(|(owner, _)| self.snapshot_current(owner.snapshot_token, &owner.scope))
-            .map(|(_, error)| error.clone())
+            .current_error(|owner| self.snapshot_current(owner.snapshot_token, &owner.scope))
     }
 
     pub fn layout_source_generation(&self) -> Option<u64> {
-        let state = self.layout_preview.borrow();
-        state
-            .published
-            .as_ref()
-            .map(|preview| preview.owner.source_generation)
-            .or_else(|| {
-                state
-                    .pending
-                    .as_ref()
-                    .map(|(owner, _)| owner.source_generation)
-            })
-            .or_else(|| {
-                state
-                    .error
-                    .as_ref()
-                    .map(|(owner, _)| owner.source_generation)
-            })
+        self.layout_preview
+            .with_owner(|owner| owner.source_generation)
     }
 
     pub fn layout_model_delivery(
@@ -66,24 +40,24 @@ impl Runtime {
     }
 
     pub fn retire_layout_source(&self, source_generation: u64) {
-        let retired = self
-            .layout_preview
-            .borrow_mut()
-            .retire_generation(source_generation);
-        if retired {
+        if self.layout_preview.retire_generation(source_generation) {
             self.layout_model_rows.borrow_mut().take();
             self.changed();
         }
     }
 
     pub fn reconcile_layout_source_request(&self, expected: Option<(&Scope, SnapshotToken)>) {
-        let retired = self
+        let stale_generation = self
             .layout_preview
-            .borrow_mut()
-            .retire_unless_request_matches(expected);
-        if retired {
-            self.layout_model_rows.borrow_mut().take();
-            self.changed();
+            .with_owner(|owner| {
+                (!expected.is_some_and(|(scope, token)| {
+                    owner.scope == *scope && owner.snapshot_token == token
+                }))
+                .then_some(owner.source_generation)
+            })
+            .flatten();
+        if let Some(generation) = stale_generation {
+            self.retire_layout_source(generation);
         }
     }
 
@@ -91,8 +65,7 @@ impl Runtime {
         &self,
         owner: &crate::layout_viewer_source::LayoutSourceIdentity,
     ) -> bool {
-        self.snapshot_current(owner.snapshot_token, &owner.scope)
-            && self.layout_preview.borrow().owns(owner)
+        self.snapshot_current(owner.snapshot_token, &owner.scope) && self.layout_preview.owns(owner)
     }
 
     pub(super) async fn deliver_layout_models(
@@ -110,10 +83,6 @@ impl Runtime {
         {
             return Ok(());
         }
-        let owner = crate::model_delivery::ModelOwnerIdentity::capture(
-            preview.owner.snapshot_token,
-            preview.lease.clone(),
-        );
         let source_is_current = {
             let weak = Rc::downgrade(self);
             let preview = preview.clone();
@@ -124,6 +93,13 @@ impl Runtime {
                 })
             }) as Rc<dyn Fn() -> bool>
         };
+        let batch = self.preview_model_batch(
+            &preview.owner.scope,
+            preview.owner.snapshot_token,
+            preview.document.revision,
+            preview.lease.clone(),
+            source_is_current.clone(),
+        );
         let module_request_id = format!(
             "layout-module-models-{}-{}-{}",
             preview.owner.snapshot_token.0,
@@ -153,38 +129,19 @@ impl Runtime {
             }
             _ => return Err("Core returned an unexpected mounted-module model reply".into()),
         };
-        let native_paths = crate::model_delivery::native_model_path_assets(&preview.path_assets);
         let bundled_ids_by_path = bundled_preview_paths(&preview.preview.models).await?;
         if !source_is_current() {
             return Ok(());
         }
-        let selections = crate::model_delivery::resolve_preview_assets(
-            &preview.preview.models,
-            preview.board_reference.as_ref(),
-            &native_paths,
-            &preview.document,
-            |path| bundled_ids_by_path.get(path).cloned().flatten(),
-            packaged_model_asset,
-        )
-        .into_iter()
-        .collect::<BTreeMap<_, _>>();
-        let ports = self.model_delivery_ports(
-            preview.owner.scope.clone(),
-            preview.owner.snapshot_token,
-            preview.document.revision,
-            source_is_current.clone(),
-        );
-        let board_results = self
-            .case_model_delivery
-            .deliver_models(
+        let mut rows = batch
+            .deliver_board_models(
                 &preview.preview.models,
-                &selections,
-                &ports,
-                &owner,
-                source_is_current.clone(),
+                preview.board_reference.as_ref(),
+                &preview.path_assets,
+                &preview.document,
+                &bundled_ids_by_path,
             )
             .await;
-        let mut rows = board_results;
         if !module_placements.is_empty() {
             let selections = module_placements
                 .iter()
@@ -197,13 +154,13 @@ impl Runtime {
                     (placement.id.clone(), selection)
                 })
                 .collect::<BTreeMap<_, _>>();
-            let module_results = self
-                .case_model_delivery
+            let module_results = batch
+                .adapter
                 .deliver_module_placements(
                     &module_placements,
                     &selections,
-                    &ports,
-                    &owner,
+                    &batch.ports,
+                    &batch.owner,
                     source_is_current.clone(),
                 )
                 .await;
@@ -245,11 +202,14 @@ impl Runtime {
             return Ok(());
         }
 
-        let source_generation = self.layout_preview.borrow_mut().next_generation()?;
+        self.layout_preview.retire();
+        let source_generation = self
+            .layout_preview
+            .next_generation("Layout source generation exhausted")?;
         let operation = self.operation().0;
         if operation == 0 || operation > MAX_SAFE_INTEGER {
             let error = "Layout preview operation identity is outside the safe integer range";
-            self.layout_preview.borrow_mut().fail_before_begin(
+            self.layout_preview.fail_before_begin(
                 crate::layout_viewer_source::LayoutSourceIdentity::from_accepted(
                     &accepted,
                     &expected_scope,
@@ -274,7 +234,7 @@ impl Runtime {
         ) {
             Ok(capture) => capture,
             Err(error) => {
-                self.layout_preview.borrow_mut().fail_before_begin(
+                self.layout_preview.fail_before_begin(
                     crate::layout_viewer_source::LayoutSourceIdentity::from_accepted(
                         &accepted,
                         &expected_scope,
@@ -286,7 +246,7 @@ impl Runtime {
                 return Err(error);
             }
         };
-        self.layout_preview.borrow_mut().begin(&capture);
+        self.layout_preview.begin(capture.lease.clone());
         self.layout_model_rows.borrow_mut().take();
         self.changed();
 
@@ -314,7 +274,11 @@ impl Runtime {
         };
         match result.and_then(|preview| capture.accept_preview(preview)) {
             Ok(preview) if is_current() => {
-                self.layout_preview.borrow_mut().publish(preview)?;
+                self.layout_preview.publish(
+                    preview,
+                    source_generation,
+                    "Layout source owner changed before preview publication",
+                )?;
                 let published = self.layout_preview();
                 self.changed();
                 if let Some(published) = published {
@@ -346,9 +310,7 @@ impl Runtime {
             Err(error) => {
                 let still_current = is_current();
                 if still_current {
-                    self.layout_preview
-                        .borrow_mut()
-                        .fail(capture.owner.clone(), error.clone());
+                    self.layout_preview.fail(&capture.lease, error.clone());
                     self.changed();
                 } else {
                     capture.lease.invalidate();
@@ -433,17 +395,10 @@ impl Runtime {
         if asset.sha256.is_empty() || !is_current() {
             return Err("Imported board asset identity is missing or stale".into());
         }
-        let cached = self.assets.borrow().get(&asset.sha256).cloned();
-        let bytes = if let Some(bytes) = cached {
-            bytes
-        } else {
-            self.store
-                .load_asset(asset.sha256.clone())
-                .await
-                .map_err(|error| error.to_string())?
-                .ok_or_else(|| format!("Imported board asset {} is not stored", asset.id))?
-                .to_vec()
-        };
+        let bytes = self
+            .load_document_asset(&asset.sha256)
+            .await?
+            .ok_or_else(|| format!("Imported board asset {} is not stored", asset.id))?;
         if !is_current() {
             return Err("Imported board asset request became stale after loading".into());
         }

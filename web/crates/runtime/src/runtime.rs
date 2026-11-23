@@ -4,6 +4,10 @@ use crate::mechanical_package::{
     critical_fit_drawing, mechanical_fabrication_notes, mechanical_filename_component,
     mechanical_stl, push_mechanical_file,
 };
+use crate::model_delivery::{
+    ModelDeliveryAdapter, ModelDeliveryPorts, ModelDeliveryRows, ModelOwnerIdentity,
+    ModelSourceLease,
+};
 use crate::native_model_mapping::{NativeModelDeliveryState, resolve_native_model_paths};
 use crate::physical_pcb::{artifact_reply, install_source_pcb, verify_source_digest};
 pub use crate::runtime_report::RuntimeNotification;
@@ -16,11 +20,11 @@ use boardstudio_core_mechanical::electrical::{
     ElectricalMode, ElectricalPlan, ElectricalPlanRequest,
 };
 use boardstudio_model::model::{
-    ArchiveReply, ArtifactReply, ArtifactRequest, Board, CaseAssemblyIR, CaseIR, CompiledFootprint,
-    CoreReply, CoreRequest, HardwareTopology, KeycapSpec, Material, MechanicalAssembly,
-    MechanicalBuiltinProfile, MechanicalConfiguration, MechanicalExtraction, MechanicalPartProfile,
-    MechanicalPurposeMapping, MechanicalSwitchFamily, Operation, OutlineFeature, OutlineSettings,
-    PcbPreview, PrepareExportRequest, ProjectDoc,
+    ArchiveReply, ArtifactReply, ArtifactRequest, Board, BoardReference, CaseAssemblyIR, CaseIR,
+    CompiledFootprint, CoreReply, CoreRequest, HardwareTopology, KeycapSpec, Material,
+    MechanicalAssembly, MechanicalBuiltinProfile, MechanicalConfiguration, MechanicalExtraction,
+    MechanicalPartProfile, MechanicalPurposeMapping, MechanicalSwitchFamily, Operation,
+    OutlineFeature, OutlineSettings, PcbModel, PcbPreview, PrepareExportRequest, ProjectDoc,
 };
 
 use boardstudio_web_host::browser::browser_uuid;
@@ -36,19 +40,34 @@ use boardstudio_web_host::{
     cad_worker::CadWorker,
 };
 
-#[cfg(any(test, feature = "test-support"))]
-type CaseGesturePreviewTestExecutor = dyn Fn(AcceptedSnapshot, Scope) -> Result<CadScene, String>;
+fn new_cad_worker() -> Result<Rc<CadWorker>, String> {
+    let url = resource_url("assets/cad-worker/entry.js")?;
+    CadWorker::new(&url)
+        .map(Rc::new)
+        .map_err(|error| error.to_string())
+}
 
-#[cfg(any(test, feature = "test-support"))]
-type KeycapsPreviewTestExecutor = dyn Fn(
-    KeycapsPreviewInput,
-) -> std::pin::Pin<
-    Box<
-        dyn std::future::Future<
-                Output = Result<Vec<boardstudio_web_host::cad_jobs::CadBodyMesh>, String>,
-            >,
-    >,
->;
+fn prepared_cad_request(
+    request_id: String,
+    job_id: String,
+    identity: &CadSnapshotIdentity,
+    operation: CadOperation,
+    prepared: boardstudio_model::model::PreparedCaseAssemblyIR,
+) -> CadRequest {
+    CadRequest {
+        request_id,
+        job_id,
+        identity: identity.clone(),
+        operation,
+        prepared: Some(prepared),
+        source_sha256: None,
+        step_import_options: None,
+        collision_query: None,
+        generated_analysis_request: None,
+        collision_meshes: None,
+        input_bytes: Vec::new(),
+    }
+}
 
 struct PhysicalStepAssembly {
     prepared: boardstudio_web_host::cad_jobs::PreparedCadSnapshot,
@@ -286,12 +305,12 @@ pub struct Runtime {
     cad_jobs: RefCell<BTreeMap<JobId, Rc<Cell<bool>>>>,
     latest_firmware_export: Cell<Option<OperationId>>,
     export_workers: RefCell<BTreeMap<OperationId, Rc<CadWorker>>>,
-    native_case_preview: RefCell<crate::case_preview::NativePreviewState>,
-    case_model_delivery: crate::model_delivery::ModelDeliveryAdapter,
+    native_case_preview: crate::case_preview::NativePreviewState,
+    case_model_delivery: ModelDeliveryAdapter,
     // Tight preparation must not consume the separate missing-evidence retry.
     collision_vendor_refinement: crate::model_delivery::ModelDeliveryAdapter,
     native_model_delivery: RefCell<NativeModelDeliveryState>,
-    layout_preview: RefCell<crate::layout_viewer_source::LayoutPreviewState>,
+    layout_preview: crate::layout_viewer_source::LayoutPreviewState,
     layout_model_rows: RefCell<
         Option<(
             crate::layout_viewer_source::LayoutSourceIdentity,
@@ -309,15 +328,87 @@ pub struct Runtime {
     collision_generated_attempts: RefCell<BTreeSet<String>>,
     embed_used_models: Cell<bool>,
     #[cfg(any(test, feature = "test-support"))]
+    test: TestRuntimeState,
+}
+
+#[cfg(any(test, feature = "test-support"))]
+type CaseGesturePreviewTestExecutor = dyn Fn(AcceptedSnapshot, Scope) -> Result<CadScene, String>;
+
+#[cfg(any(test, feature = "test-support"))]
+type KeycapsPreviewTestExecutor = dyn Fn(
+    KeycapsPreviewInput,
+) -> crate::model_delivery::ModelFuture<
+    Vec<boardstudio_web_host::cad_jobs::CadBodyMesh>,
+>;
+
+#[cfg(any(test, feature = "test-support"))]
+#[derive(Default)]
+struct TestRuntimeState {
     case_gesture_preview_test_executor: RefCell<Option<Rc<CaseGesturePreviewTestExecutor>>>,
-    #[cfg(any(test, feature = "test-support"))]
     keycaps_preview_test_executor: RefCell<Option<Rc<KeycapsPreviewTestExecutor>>>,
-    #[cfg(any(test, feature = "test-support"))]
     in_process_adapters: RefCell<Option<Rc<dyn test_hooks::InstalledAdapters>>>,
-    #[cfg(any(test, feature = "test-support"))]
     held_effects: RefCell<Vec<Effect>>,
-    #[cfg(any(test, feature = "test-support"))]
     in_process_drives: RefCell<Vec<futures_channel::oneshot::Receiver<()>>>,
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl Runtime {
+    pub fn set_case_gesture_preview_executor_test(
+        &self,
+        executor: Rc<CaseGesturePreviewTestExecutor>,
+    ) {
+        *self.test.case_gesture_preview_test_executor.borrow_mut() = Some(executor);
+    }
+
+    pub fn case_gesture_preview_active_test(&self) -> bool {
+        self.case_gesture_preview.borrow().active_owner().is_some()
+    }
+
+    pub fn set_cad_scene_test(&self, scene: Option<Rc<CadScene>>) {
+        *self.cad_scene.borrow_mut() = scene;
+    }
+
+    pub fn set_keycaps_preview_executor_test(&self, executor: Rc<KeycapsPreviewTestExecutor>) {
+        *self.test.keycaps_preview_test_executor.borrow_mut() = Some(executor);
+    }
+
+    pub fn install_case_pcb_preview_test(&self) {
+        let accepted = self.accepted_snapshot().expect("accepted preview fixture");
+        let scope = self.scope().expect("selected physical fixture scope");
+        let generation = self
+            .native_case_preview
+            .next_generation("Case preview generation identity exhausted")
+            .unwrap();
+        let capture = crate::case_preview::capture_native_preview(
+            &accepted,
+            &scope,
+            generation,
+            format!("case-keycaps-test-{generation}"),
+        )
+        .expect("valid accepted Case preview input");
+        self.set_native_preview_pending(capture.lease.clone());
+        let preview = crate::case_preview::accept_native_preview(
+            capture,
+            PcbPreview {
+                revision: accepted.document.revision,
+                thickness: 1.6,
+                contours: vec![],
+                surfaces: vec![],
+                holes: vec![],
+                models: vec![],
+                diagnostics: vec![],
+            },
+        )
+        .expect("controlled PCB payload preserves the accepted preview owner");
+        self.native_case_preview
+            .publish(
+                preview,
+                generation,
+                "fixture owner changed before publication",
+            )
+            .unwrap();
+        self.changed();
+    }
 }
 
 struct ProjectDeletionLease {
@@ -348,15 +439,19 @@ fn packaged_model_asset(asset_id: &str) -> Option<crate::model_delivery::Resolve
     })
 }
 
-async fn bundled_preview_paths(
-    models: &[boardstudio_model::model::PcbModel],
-) -> Result<BTreeMap<String, Option<String>>, String> {
-    let paths: Vec<_> = models
+fn unique_model_paths(models: &[PcbModel]) -> Vec<String> {
+    models
         .iter()
         .map(|model| model.path.clone())
         .collect::<BTreeSet<_>>()
         .into_iter()
-        .collect();
+        .collect()
+}
+
+async fn bundled_preview_paths(
+    models: &[PcbModel],
+) -> Result<BTreeMap<String, Option<String>>, String> {
+    let paths = unique_model_paths(models);
     if paths.is_empty() {
         return Ok(BTreeMap::new());
     }
@@ -365,6 +460,45 @@ async fn bundled_preview_paths(
         return Err("Model path resolver returned an incomplete mapping".into());
     }
     Ok(paths.into_iter().zip(ids).collect())
+}
+
+struct PreviewModelBatch<'a> {
+    adapter: &'a ModelDeliveryAdapter,
+    owner: ModelOwnerIdentity,
+    ports: ModelDeliveryPorts,
+    is_current: Rc<dyn Fn() -> bool>,
+}
+
+impl PreviewModelBatch<'_> {
+    async fn deliver_board_models(
+        &self,
+        models: &[PcbModel],
+        reference: Option<&BoardReference>,
+        path_assets: &BTreeMap<String, String>,
+        document: &ProjectDoc,
+        bundled_ids_by_path: &BTreeMap<String, Option<String>>,
+    ) -> Option<ModelDeliveryRows> {
+        let native_paths = crate::model_delivery::native_model_path_assets(path_assets);
+        let selections = crate::model_delivery::resolve_preview_assets(
+            models,
+            reference,
+            &native_paths,
+            document,
+            |path| bundled_ids_by_path.get(path).cloned().flatten(),
+            packaged_model_asset,
+        )
+        .into_iter()
+        .collect();
+        self.adapter
+            .deliver_models(
+                models,
+                &selections,
+                &self.ports,
+                &self.owner,
+                self.is_current.clone(),
+            )
+            .await
+    }
 }
 
 mod layout_preview;
@@ -376,6 +510,53 @@ mod sources;
 use mechanical_export::authored_case_filename;
 
 impl Runtime {
+    fn preview_model_batch(
+        self: &Rc<Self>,
+        scope: &Scope,
+        token: SnapshotToken,
+        revision: u64,
+        lease: Rc<dyn ModelSourceLease>,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> PreviewModelBatch<'_> {
+        PreviewModelBatch {
+            adapter: &self.case_model_delivery,
+            owner: ModelOwnerIdentity::capture(token, lease),
+            ports: self.model_delivery_ports(scope.clone(), token, revision, is_current.clone()),
+            is_current,
+        }
+    }
+
+    fn case_cad_worker(
+        &self,
+        scope: &Scope,
+        close_replaced: bool,
+    ) -> Result<Rc<CadWorker>, String> {
+        crate::case_model_lifecycle::case_model_worker(
+            &self.cad_worker,
+            scope,
+            |worker| !worker.is_closed(),
+            || {
+                // A replaced gesture worker must cancel its in-flight requests immediately.
+                if close_replaced && let Some((_, previous)) = self.cad_worker.borrow_mut().take() {
+                    previous.close();
+                }
+                new_cad_worker()
+            },
+        )
+    }
+
+    async fn load_document_asset(&self, sha256: &str) -> Result<Option<Vec<u8>>, String> {
+        let cached = self.assets.borrow().get(sha256).cloned();
+        if cached.is_some() {
+            return Ok(cached);
+        }
+        self.store
+            .load_asset(sha256.to_owned())
+            .await
+            .map(|bytes| bytes.map(|bytes| bytes.to_vec()))
+            .map_err(|error| error.to_string())
+    }
+
     /// Keep one injected engine for the document; scratch probes create their own engines.
     /// Archive and artifact operations also execute in process.
     pub fn new(core_services: CoreServices) -> Result<Rc<Self>, String> {
@@ -436,11 +617,11 @@ impl Runtime {
             cad_jobs: RefCell::new(BTreeMap::new()),
             latest_firmware_export: Cell::new(None),
             export_workers: RefCell::new(BTreeMap::new()),
-            native_case_preview: RefCell::new(Default::default()),
+            native_case_preview: Default::default(),
             case_model_delivery: Default::default(),
             collision_vendor_refinement: Default::default(),
             native_model_delivery: RefCell::new(Default::default()),
-            layout_preview: RefCell::new(Default::default()),
+            layout_preview: Default::default(),
             layout_model_rows: RefCell::new(None),
             native_model_jobs: RefCell::new(BTreeSet::new()),
             generated_analysis_cache: RefCell::new(BTreeMap::new()),
@@ -451,15 +632,7 @@ impl Runtime {
             collision_generated_attempts: RefCell::new(BTreeSet::new()),
             embed_used_models: Cell::new(true),
             #[cfg(any(test, feature = "test-support"))]
-            case_gesture_preview_test_executor: RefCell::new(None),
-            #[cfg(any(test, feature = "test-support"))]
-            keycaps_preview_test_executor: RefCell::new(None),
-            #[cfg(any(test, feature = "test-support"))]
-            in_process_adapters: RefCell::new(None),
-            #[cfg(any(test, feature = "test-support"))]
-            held_effects: RefCell::new(Vec::new()),
-            #[cfg(any(test, feature = "test-support"))]
-            in_process_drives: RefCell::new(Vec::new()),
+            test: Default::default(),
         });
         // Storage cleanup finishes before any editor, import, or restored history can use assets.
         if restore_active_project {
@@ -733,7 +906,6 @@ impl Runtime {
     fn invalidate_stale_native_case_preview(&self) {
         let stale = self
             .native_case_preview
-            .borrow()
             .is_stale(|owner| self.preview_owner_is_current(owner));
         if stale {
             self.cancel_native_case_preview();
@@ -786,7 +958,8 @@ impl Runtime {
     }
 
     pub fn cancel_native_case_preview(&self) {
-        self.native_case_preview.borrow_mut().cancel();
+        self.native_case_preview
+            .retire_generation(self.native_case_preview.generation());
         self.cancel_native_model_jobs();
     }
 
