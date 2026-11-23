@@ -45,7 +45,8 @@ impl LayoutInput {
         let Some(key) = event.data().try_as_web_event() else {
             return;
         };
-        let typing = event_target(&key).is_some_and(|element| {
+        let target = event_target(&key);
+        let typing = target.as_ref().is_some_and(|element| {
             element
                 .closest(
                     "input, textarea, select, [contenteditable]:not([contenteditable='false'])",
@@ -55,6 +56,16 @@ impl LayoutInput {
                 .is_some()
         });
         let code = CanvasKey::new(&key.key(), &key.code());
+        let canvas = layout
+            || (canvas
+                && (code == CanvasKey::Escape
+                    || target.as_ref().is_some_and(|element| {
+                        element
+                            .closest("svg[role='group']")
+                            .ok()
+                            .flatten()
+                            .is_some()
+                    })));
         let prevented = key.default_prevented() || !event.default_action_enabled();
         if self
             .dispatch(CanvasEvent::KeyDown {
@@ -126,9 +137,8 @@ impl LayoutInput {
         if pointer.button() != 0 {
             return;
         }
-        let target = event_target(&pointer);
         if self.menu.peek().is_some()
-            && !target.as_ref().is_some_and(|target| {
+            && !event_target(&pointer).is_some_and(|target| {
                 target
                     .closest(
                         "#m1-layout-command-pill, [data-slot='collapsible']:has(#m1-layout-snap-trigger)",
@@ -140,15 +150,6 @@ impl LayoutInput {
         {
             self.menu.set(None);
         }
-        if !target.as_ref().is_some_and(|target| {
-            target
-                .closest("button, a, input, textarea, select, [tabindex], [contenteditable]")
-                .ok()
-                .flatten()
-                .is_some()
-        }) {
-            focus_workbench_if_body();
-        }
     }
 }
 
@@ -159,7 +160,9 @@ pub(super) fn focus_workbench_if_body() {
     // An open modal owns focus even when the click inside it left `<body>` active;
     // recovering the workbench then would strand keyboard input behind the dialog.
     if document
-        .query_selector("[aria-modal='true'][data-state='open'], dialog[open]")
+        .query_selector(
+            "[data-state='open'] [aria-modal='true'], [aria-modal='true'][data-state='open'], dialog[open]",
+        )
         .ok()
         .flatten()
         .is_some()
@@ -186,53 +189,24 @@ fn event_target(event: &web_sys::Event) -> Option<web_sys::Element> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_web_ui_shared::test_wait::wait_until;
+    use boardstudio_web_ui_shared::{
+        test_wait::wait_until,
+        ui::dialog::{Dialog, DialogTitle},
+    };
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
-    #[component]
-    fn SpaceHost() -> Element {
-        let input = use_layout_input();
-        rsx! {
-            main { id: "m1-workbench", tabindex: "-1",
-                onkeydown: move |event| input.keydown(&event, true, true),
-                onkeyup: move |event| input.keyup(event),
-                input { id: "typing-control" }
-                button { id: "layout-control", "Layout" }
-                button { id: "canvas-control", onkeydown: move |event| { event.stop_propagation(); input.keydown(&event, false, true); }, "Canvas" }
-            }
-        }
-    }
-
     #[wasm_bindgen_test]
     async fn space_pan_prevents_scroll_on_layout_controls_but_allows_typing() {
-        let root = test_mount_helpers::mount(VirtualDom::new(SpaceHost), None);
-        wait_until("workbench keyboard target", || {
-            root.query_selector("#layout-control")
-                .ok()
-                .flatten()
-                .is_some()
-        })
-        .await;
-        let init = web_sys::KeyboardEventInit::new();
-        init.set_key(" ");
-        init.set_code("Space");
-        init.set_bubbles(true);
-        init.set_cancelable(true);
-        let space =
-            || web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap();
+        let root = test_mount_helpers::mount(VirtualDom::new(CanvasHost), None);
+        expect_state(&root, "None|false|false").await;
         for (target, prevents_scroll) in [
             ("#typing-control", false),
-            ("#layout-control", true),
-            ("#canvas-control", true),
+            ("#arm-pan", true),
+            ("#canvas-panel-key", false),
+            ("#canvas-key", true),
         ] {
-            let key = space();
-            root.query_selector(target)
-                .unwrap()
-                .unwrap()
-                .dispatch_event(&key)
-                .unwrap();
-            assert_eq!(key.default_prevented(), prevents_scroll);
+            assert_eq!(keydown(&root, target, " ", "Space"), prevents_scroll);
         }
     }
 
@@ -241,8 +215,8 @@ mod tests {
         let input = use_layout_input();
         let interaction = use_context::<super::super::LayoutInteraction>();
         let mut refresh = use_signal(|| 0u64);
-        let _ = refresh();
-        let _ = interaction.version();
+        let mut modal_open = use_signal(|| false);
+        let _ = (refresh(), interaction.version());
         let state = format!(
             "{:?}|{}|{}",
             interaction.current(),
@@ -263,14 +237,20 @@ mod tests {
                 onkeydown: move |event| input.keydown(&event, true, true),
                 onkeyup: move |event| input.keyup(event),
                 onpointerdown: move |event| input.pointerdown(event),
-                button { id: "canvas-key", onkeydown: move |event| { event.stop_propagation(); input.keydown(&event, false, true); }, "Canvas" }
+                input { id: "typing-control" }
+                div { onkeydown: move |event| { event.stop_propagation(); input.keydown(&event, false, true); },
+                    svg { id: "canvas-key", role: "group", tabindex: "0" }
+                    button { id: "canvas-panel-key", "Panel" }
+                }
                 button { id: "plain-key", onkeydown: move |event| { event.stop_propagation(); input.keydown(&event, false, false); }, "Plain" }
                 button { id: "arm-pan", onclick: move |_| arm(CanvasMode::Panning), "Arm pan" }
                 button { id: "arm-drag", onclick: move |_| arm(CanvasMode::DraggingParts), "Arm drag" }
                 button { id: "set-control", onclick: move |_| { interaction.sync_control(true); refresh += 1; }, "Set control" }
+                button { id: "open-modal", onclick: move |_| modal_open.set(true), "Modal" }
                 button { id: "refresh", onclick: move |_| refresh += 1, "Refresh" }
                 div { id: "pointer-sync", "Sync target" }
                 output { id: "interaction-state", "{state}" }
+                Dialog { open: Some(modal_open()), on_open_change: move |next| modal_open.set(next), DialogTitle { "Modal" } }
             }
         }
     }
@@ -324,6 +304,7 @@ mod tests {
     async fn non_layout_canvas_admits_space_pan_and_escape_without_control() {
         let root = test_mount_helpers::mount(VirtualDom::new(CanvasHost), None);
         expect_state(&root, "None|false|false").await;
+        assert!(!keydown(&root, "#canvas-panel-key", " ", "Space"));
         assert!(keydown(&root, "#canvas-key", " ", "Space"));
         click(&root, "#refresh");
         expect_state(&root, "None|true|false").await;
@@ -332,7 +313,7 @@ mod tests {
         assert!(!keydown(&root, "#canvas-key", "Control", "ControlLeft"));
         click(&root, "#refresh");
         expect_state(&root, "Some(Panning)|true|false").await;
-        assert!(keydown(&root, "#canvas-key", "Escape", "Escape"));
+        assert!(keydown(&root, "#canvas-panel-key", "Escape", "Escape"));
         expect_state(&root, "None|true|false").await;
         click(&root, "#arm-drag");
         expect_state(&root, "Some(DraggingParts)|true|false").await;
@@ -361,5 +342,30 @@ mod tests {
             .dispatch_event(&pointer)
             .unwrap();
         expect_state(&root, "None|false|false").await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let blur = || {
+            if let Some(el) = document
+                .active_element()
+                .and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok())
+            {
+                let _ = el.blur();
+            }
+            assert_eq!(document.active_element().unwrap().tag_name(), "BODY");
+        };
+        blur();
+        focus_workbench_if_body();
+        assert_eq!(document.active_element().unwrap().id(), "m1-workbench");
+        click(&root, "#open-modal");
+        wait_until("open dialog", || {
+            document
+                .query_selector("[data-state='open'] [aria-modal='true']")
+                .ok()
+                .flatten()
+                .is_some()
+        })
+        .await;
+        blur();
+        focus_workbench_if_body();
+        assert_eq!(document.active_element().unwrap().tag_name(), "BODY");
     }
 }

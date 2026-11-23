@@ -197,13 +197,23 @@ fn assembly_edits_reject_unresolved_or_misscoped_inputs() {
         assets: Vec::new(),
     };
     let placed = || part("placed/member", "placed/definition/member", "Placed member");
-    let reject = |operation: EditOperation, expected: &str| {
-        let mut document = base.clone();
-        let error = apply(&mut document, &[], &operation).unwrap_err();
+    let mut core = CoreEngine::new();
+    let opened = core.open(base.clone()).unwrap().document;
+    let mut reject = |operation: EditOperation, expected: &str| {
+        let error = core
+            .commit_edit(EditCommand {
+                base_revision: opened.revision,
+                transaction_id: "err".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec![],
+                operation,
+            })
+            .unwrap_err();
         assert!(
             error.contains(expected),
             "{error} should mention {expected}"
         );
+        assert_eq!(core.snapshot().unwrap().document, opened);
     };
     reject(
         assembly(Some("ghost"), None),
