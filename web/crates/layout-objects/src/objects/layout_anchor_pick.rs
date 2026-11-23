@@ -172,10 +172,10 @@ pub fn LayoutAnchorPickOverlay(
     };
     // A stale arm (owner or selection moved on) drops without writing.
     use_effect(use_reactive((&context,), move |_| disarm()));
+    // Without a document the guard is inert; dropping it removes the listener.
     use_hook(move || {
-        let document = web_sys::window().and_then(|window| window.document());
-        let listener =
-            wasm_bindgen::closure::Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
+        Rc::new(super::layout_rail::DocumentKeydown::install(
+            move |event: web_sys::KeyboardEvent| {
                 if !event.default_prevented()
                     && event.key() == "Escape"
                     && armed.try_peek().is_ok_and(|armed| *armed)
@@ -183,13 +183,8 @@ pub fn LayoutAnchorPickOverlay(
                     event.prevent_default();
                     disarm();
                 }
-            }) as Box<dyn FnMut(_)>);
-        use wasm_bindgen::JsCast;
-        if let Some(document) = &document {
-            let _ = document
-                .add_event_listener_with_callback("keydown", listener.as_ref().unchecked_ref());
-        }
-        Rc::new(EscapeGuard { document, listener })
+            },
+        ))
     });
 
     let Some(accepted) = runtime.model().accepted else {
@@ -226,18 +221,7 @@ pub fn LayoutAnchorPickOverlay(
             let Some(part) = document.parts.iter().find(|part| part.id == *part_id) else {
                 return rsx! {};
             };
-            let top = document
-                .definitions
-                .iter()
-                .find(|d| d.id == part.definition_id)
-                .map(|d| {
-                    d.courtyard
-                        .iter()
-                        .map(|p| p.y)
-                        .fold(f64::NEG_INFINITY, f64::max)
-                })
-                .filter(|top| top.is_finite())
-                .unwrap_or(0.0);
+            let top = super::layout_rail::part_courtyard_top(&document, &part.definition_id);
             let at = evaluated_part_pose(&document, part).at;
             vec![Vec2 {
                 x: at.x,
@@ -462,24 +446,6 @@ pub fn LayoutAnchorPickOverlay(
             {pinned_popup(popup_rows, (view_x, view_y, width), px)}
         }
         {feedback_chrome(&feedback_state, !armed(), None, Some(&layout), px, (view_x, view_y, width))}
-    }
-}
-
-/// Removes the document Escape listener with the overlay.
-struct EscapeGuard {
-    document: Option<web_sys::Document>,
-    listener: wasm_bindgen::closure::Closure<dyn FnMut(web_sys::KeyboardEvent)>,
-}
-
-impl Drop for EscapeGuard {
-    fn drop(&mut self) {
-        use wasm_bindgen::JsCast;
-        if let Some(document) = &self.document {
-            let _ = document.remove_event_listener_with_callback(
-                "keydown",
-                self.listener.as_ref().unchecked_ref(),
-            );
-        }
     }
 }
 

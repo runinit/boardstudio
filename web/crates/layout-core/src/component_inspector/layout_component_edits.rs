@@ -18,6 +18,28 @@ fn commit(command: EditOperation, target_ids: Vec<String>) -> Resolution {
     Resolution::submit(target_ids, command)
 }
 
+/// The constraint driving `part_id`, or the shared verification failure.
+fn driving_constraint<'a>(
+    document: &'a ProjectDoc,
+    part_id: &str,
+) -> Result<Option<&'a Constraint>, &'static str> {
+    document
+        .constraint_driving_part(part_id)
+        .map_err(|_| "The saved placement relationship could not be verified.")
+}
+
+/// `Some(Retire)` when a saved constraint drives the part: the typed value would be
+/// overwritten, so every guarded edit shares this refusal.
+fn driven_retire(document: &ProjectDoc, part_id: &str) -> Option<Resolution> {
+    match driving_constraint(document, part_id) {
+        Ok(Some(_)) => Some(Resolution::Retire(
+            "This part is driven by a relationship.".into(),
+        )),
+        Ok(None) => None,
+        Err(message) => Some(Resolution::Retire(message.into())),
+    }
+}
+
 fn part_of<'a>(document: &'a ProjectDoc, part_id: &str) -> Option<&'a Part> {
     document.parts.iter().find(|part| part.id == part_id)
 }
@@ -43,10 +65,10 @@ fn position_ineligible_reason(
     if board_of(document, board_id).is_none() {
         return Some("The board is unavailable.");
     }
-    match document.constraint_driving_part(part_id) {
+    match driving_constraint(document, part_id) {
         Ok(Some(_)) => Some("This part is driven by a relationship."),
         Ok(None) => None,
-        Err(_) => Some("The saved placement relationship could not be verified."),
+        Err(message) => Some(message),
     }
 }
 
@@ -238,13 +260,9 @@ pub fn constraint_resolver(
             let Some(board) = board_of(document, &board_id) else {
                 return Resolution::Retire("The board no longer exists.".into());
             };
-            let existing = match document.constraint_driving_part(&part_id) {
+            let existing = match driving_constraint(document, &part_id) {
                 Ok(existing) => existing,
-                Err(_) => {
-                    return Resolution::Retire(
-                        "The saved placement relationship could not be verified.".into(),
-                    );
-                }
+                Err(message) => return Resolution::Retire(message.into()),
             };
             let source_is_existing_endpoint = existing.is_some_and(|constraint| match constraint {
                 Constraint::Framed { source, .. } => match source {
@@ -395,16 +413,12 @@ pub fn offset_axes_resolver(
         "layout-inspector-offset-axes",
         move |accepted: &AcceptedSnapshot| {
             let document = &accepted.document;
-            let constraint = match document.constraint_driving_part(&part_id) {
+            let constraint = match driving_constraint(document, &part_id) {
                 Ok(Some(constraint)) if constraint.id() == constraint_id => constraint,
                 Ok(_) => {
                     return Resolution::Retire("The constraint no longer drives this part.".into());
                 }
-                Err(_) => {
-                    return Resolution::Retire(
-                        "The saved placement relationship could not be verified.".into(),
-                    );
-                }
+                Err(message) => return Resolution::Retire(message.into()),
             };
             if let Constraint::Framed {
                 id,
@@ -467,14 +481,10 @@ pub fn remove_constraint_resolver(part_id: String, constraint_id: String) -> Edi
             if part_of(document, &part_id).is_none() {
                 return Resolution::Retire("The selected part no longer exists.".into());
             }
-            match document.constraint_driving_part(&part_id) {
+            match driving_constraint(document, &part_id) {
                 Ok(Some(constraint)) if constraint.id() == constraint_id => {}
                 Ok(_) => return Resolution::Retire("The relationship no longer exists.".into()),
-                Err(_) => {
-                    return Resolution::Retire(
-                        "The saved placement relationship could not be verified.".into(),
-                    );
-                }
+                Err(message) => return Resolution::Retire(message.into()),
             }
             commit(
                 EditOperation::RemoveConstraint {
@@ -523,15 +533,7 @@ fn anchor_guard(
     if needs_anchor && part.anchor.is_none() {
         return Some(Resolution::Retire("The part is no longer anchored.".into()));
     }
-    match document.constraint_driving_part(part_id) {
-        Ok(Some(_)) => Some(Resolution::Retire(
-            "This part is driven by a relationship.".into(),
-        )),
-        Ok(None) => None,
-        Err(_) => Some(Resolution::Retire(
-            "The saved placement relationship could not be verified.".into(),
-        )),
-    }
+    driven_retire(document, part_id)
 }
 
 /// Ticket 13: edit one carried or local anchor value in one Undo entry via

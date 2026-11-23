@@ -89,6 +89,41 @@ pub struct TreeItem {
     pub expandable: bool,
 }
 
+/// One expandable group row. Macros, not helpers: every row below shrinks to its
+/// varying fields.
+macro_rules! group_row {
+    ($id:expr, $label:expr, $detail:expr, $level:expr, $kind:expr, $ctx:expr, $open:expr) => {
+        TreeItem {
+            id: $id,
+            label: $label,
+            detail: $detail,
+            level: $level,
+            kind: $kind,
+            context: $ctx,
+            expanded: Some($open),
+            primary_id: None,
+            expandable: true,
+        }
+    };
+}
+
+/// One leaf row: never expandable.
+macro_rules! leaf_row {
+    ($id:expr, $label:expr, $detail:expr, $level:expr, $kind:expr, $ctx:expr, $primary:expr) => {
+        TreeItem {
+            id: $id,
+            label: $label,
+            detail: $detail,
+            level: $level,
+            kind: $kind,
+            context: $ctx,
+            expanded: None,
+            primary_id: $primary,
+            expandable: false,
+        }
+    };
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Grouping {
     Column,
@@ -219,23 +254,21 @@ pub fn build_pcb_tree(
             boardstudio_model::model::Side::Front => "front",
             boardstudio_model::model::Side::Back => "back",
         };
-        rows.push(TreeItem {
-            id: format!("pcb:{}", part.id),
-            label: part.reference.clone(),
-            detail: Some(format!("{name} · {side}")),
-            level: 1,
-            kind: TreeKind::Component,
-            context: Some(TreeContext::Component {
+        rows.push(leaf_row!(
+            format!("pcb:{}", part.id),
+            part.reference.clone(),
+            Some(format!("{name} · {side}")),
+            1,
+            TreeKind::Component,
+            Some(TreeContext::Component {
                 part_id: Some(part.id.clone()),
                 matrix_id: None,
                 row: None,
                 column: None,
-                assembly_id: None,
+                assembly_id: None
             }),
-            expanded: None,
-            primary_id: Some(part.id.clone()),
-            expandable: false,
-        });
+            Some(part.id.clone())
+        ));
     }
     rows
 }
@@ -292,19 +325,17 @@ pub fn build_tree(
         .iter()
         .filter(|id| live_parts.contains_key(id.as_str()))
         .count();
-    let mut tree = vec![TreeItem {
-        id: board_key,
-        label: board.name.clone(),
-        detail: Some(format!("{live_board_count} parts")),
-        level: 0,
-        kind: TreeKind::Board,
-        context: Some(TreeContext::Board {
-            board_id: board_id.to_owned(),
+    let mut tree = vec![group_row!(
+        board_key,
+        board.name.clone(),
+        Some(format!("{live_board_count} parts")),
+        0,
+        TreeKind::Board,
+        Some(TreeContext::Board {
+            board_id: board_id.to_owned()
         }),
-        expanded: Some(board_open),
-        primary_id: None,
-        expandable: true,
-    }];
+        board_open
+    )];
     if !board_open {
         return tree;
     }
@@ -358,19 +389,17 @@ fn append_outline(
         .map_or("Generated", |version| version.name.as_str());
     let outline_key = format!("outline:{board_id}");
     let outline_open = expanded.contains(&outline_key);
-    tree.push(TreeItem {
-        id: outline_key,
-        label: "Outline".into(),
-        detail: Some(active_name.into()),
-        level: 1,
-        kind: TreeKind::Outline,
-        context: Some(TreeContext::Outline {
-            board_id: board_id.into(),
+    tree.push(group_row!(
+        outline_key,
+        "Outline".into(),
+        Some(active_name.into()),
+        1,
+        TreeKind::Outline,
+        Some(TreeContext::Outline {
+            board_id: board_id.into()
         }),
-        expanded: Some(outline_open),
-        primary_id: None,
-        expandable: true,
-    });
+        outline_open
+    ));
     if !outline_open {
         return;
     }
@@ -382,23 +411,21 @@ fn append_outline(
             None => "Follows layout",
             Some(_) => "Fixed",
         };
-        tree.push(TreeItem {
-            id: match version_id {
+        tree.push(leaf_row!(
+            match version_id {
                 Some(id) => format!("outline:{board_id}:version:{id}"),
                 None => format!("outline:{board_id}:generated"),
             },
-            label: version.map_or_else(|| "Generated".into(), |version| version.name.clone()),
-            detail: Some(detail.into()),
-            level: 2,
-            kind: TreeKind::OutlineVersion,
-            context: Some(TreeContext::OutlineVersion {
+            version.map_or_else(|| "Generated".into(), |version| version.name.clone()),
+            Some(detail.into()),
+            2,
+            TreeKind::OutlineVersion,
+            Some(TreeContext::OutlineVersion {
                 board_id: board_id.into(),
-                version_id: version_id.map(str::to_owned),
+                version_id: version_id.map(str::to_owned)
             }),
-            expanded: None,
-            primary_id: None,
-            expandable: false,
-        });
+            None
+        ));
     }
     if let Some(scene) = outline_scenes
         .iter()
@@ -564,17 +591,15 @@ impl LayoutTree<'_> {
         }
         let id = format!("layout:{}", self.board_id);
         let is_open = self.expanded.contains(&id);
-        tree.push(TreeItem {
+        tree.push(group_row!(
             id,
-            label: "Layout".into(),
-            detail: None,
-            level: 1,
-            kind: TreeKind::Layout,
-            context: None,
-            expanded: Some(is_open),
-            primary_id: None,
-            expandable: true,
-        });
+            "Layout".into(),
+            None,
+            1,
+            TreeKind::Layout,
+            None,
+            is_open
+        ));
         if is_open {
             for matrix in unowned {
                 append_matrix(
@@ -618,20 +643,18 @@ impl LayoutTree<'_> {
     ) -> bool {
         let id = format!("half-group:{}:{label}", self.board_id);
         let open = !self.expanded.contains(&id);
-        tree.push(TreeItem {
+        tree.push(group_row!(
             id,
-            label: label.into(),
-            detail: None,
-            level: 1,
-            kind: TreeKind::HalfGroup,
-            context: Some(TreeContext::LayoutGroup {
+            label.into(),
+            None,
+            1,
+            TreeKind::HalfGroup,
+            Some(TreeContext::LayoutGroup {
                 board_id: self.board_id.to_owned(),
-                layout_ids: layouts.iter().map(|layout| layout.id.clone()).collect(),
+                layout_ids: layouts.iter().map(|layout| layout.id.clone()).collect()
             }),
-            expanded: Some(open),
-            primary_id: None,
-            expandable: true,
-        });
+            open
+        ));
         if open {
             let parts: Vec<_> = layouts
                 .iter()
@@ -650,17 +673,15 @@ impl LayoutTree<'_> {
         }
         let id = format!("components:{}:{half}", self.board_id);
         let is_open = !self.expanded.contains(&id);
-        tree.push(TreeItem {
+        tree.push(group_row!(
             id,
-            label: "Components".into(),
-            detail: Some(format!("{} parts", parts.len())),
-            level: 2,
-            kind: TreeKind::Components,
-            context: None,
-            expanded: Some(is_open),
-            primary_id: None,
-            expandable: true,
-        });
+            "Components".into(),
+            Some(format!("{} parts", parts.len())),
+            2,
+            TreeKind::Components,
+            None,
+            is_open
+        ));
         if is_open {
             for part in parts {
                 append_component(tree, part, &self.definitions, 3);
@@ -680,13 +701,13 @@ impl LayoutTree<'_> {
         let open = self.expanded.contains(&id);
         let level = 1 + usize::from(split);
         let linked = layout_is_linked(self.document, layout, layouts);
-        tree.push(TreeItem {
-            id: id.clone(),
-            label: layout.name.clone(),
-            detail: Some(if linked { "Linked" } else { "Independent" }.into()),
+        tree.push(group_row!(
+            id.clone(),
+            layout.name.clone(),
+            Some(if linked { "Linked" } else { "Independent" }.into()),
             level,
-            kind: TreeKind::Layout,
-            context: Some(if let [matrix_id] = layout.matrix_ids.as_slice() {
+            TreeKind::Layout,
+            Some(if let [matrix_id] = layout.matrix_ids.as_slice() {
                 TreeContext::Matrix {
                     matrix_id: matrix_id.clone(),
                 }
@@ -696,10 +717,8 @@ impl LayoutTree<'_> {
                     layout_ids: vec![layout.id.clone()],
                 }
             }),
-            expanded: Some(open),
-            primary_id: None,
-            expandable: true,
-        });
+            open
+        ));
         if !open {
             return;
         }
@@ -736,26 +755,24 @@ fn append_component(
         .get(part.definition_id.as_str())
         .copied()
         .unwrap_or("Part");
-    tree.push(TreeItem {
-        id: format!("component:{}", part.id),
-        label: part.reference.clone(),
-        detail: Some(format!(
+    tree.push(leaf_row!(
+        format!("component:{}", part.id),
+        part.reference.clone(),
+        Some(format!(
             "{name} · {:.1}, {:.1}",
             part.pose.at.x, part.pose.at.y
         )),
         level,
-        kind: TreeKind::Component,
-        context: Some(TreeContext::Component {
+        TreeKind::Component,
+        Some(TreeContext::Component {
             part_id: Some(part.id.clone()),
             matrix_id: None,
             row: None,
             column: None,
-            assembly_id: None,
+            assembly_id: None
         }),
-        expanded: None,
-        primary_id: Some(part.id.clone()),
-        expandable: false,
-    });
+        Some(part.id.clone())
+    ));
 }
 
 fn matrix_origin_x(matrices: &[&Matrix], id: &str) -> f64 {
@@ -800,10 +817,10 @@ fn append_matrix(
             .filter_map(|cell| cell.member_id.as_deref())
             .filter(|id| layout.live_parts.contains_key(id))
             .count();
-        tree.push(TreeItem {
-            id: item_id,
-            label: matrix_display_name(layout.document, matrix),
-            detail: Some(if let Some(anchor) = &matrix.anchor {
+        tree.push(group_row!(
+            item_id,
+            matrix_display_name(layout.document, matrix),
+            Some(if let Some(anchor) = &matrix.anchor {
                 let target = layout
                     .document
                     .matrices
@@ -822,14 +839,12 @@ fn append_matrix(
                 format!("{} keys", primary_count)
             }),
             level,
-            kind: TreeKind::Matrix,
-            context: Some(TreeContext::Matrix {
-                matrix_id: matrix.id.clone(),
+            TreeKind::Matrix,
+            Some(TreeContext::Matrix {
+                matrix_id: matrix.id.clone()
             }),
-            expanded: Some(is_open),
-            primary_id: None,
-            expandable: true,
-        });
+            is_open
+        ));
     }
     let child_level = level + usize::from(include_header);
     if !is_open {
@@ -884,17 +899,15 @@ fn append_matrix(
                 actual_member(row, column).is_some()
             })
             .count();
-        tree.push(TreeItem {
-            id: id.clone(),
+        tree.push(group_row!(
+            id.clone(),
             label,
-            detail: Some(format!("{key_count_live} keys")),
-            level: child_level,
+            Some(format!("{key_count_live} keys")),
+            child_level,
             kind,
-            context: Some(context),
-            expanded: Some(is_open),
-            primary_id: None,
-            expandable: true,
-        });
+            Some(context),
+            is_open
+        ));
         if !is_open {
             continue;
         }
@@ -949,33 +962,31 @@ fn append_matrix(
                                 .copied()
                         })
                         .unwrap_or("Component");
-                    tree.push(TreeItem {
-                        id: format!(
+                    tree.push(leaf_row!(
+                        format!(
                             "component:matrix/{}/r{row}c{column}/{}",
                             matrix.id, assembly.id
                         ),
-                        label: definition.into(),
-                        detail: Some(
+                        definition.into(),
+                        Some(
                             if assembly.id == "diode" {
                                 "Automatic companion"
                             } else {
                                 "Cell component"
                             }
-                            .into(),
+                            .into()
                         ),
-                        level: child_level + 2,
-                        kind: TreeKind::Component,
-                        context: Some(TreeContext::Component {
+                        child_level + 2,
+                        TreeKind::Component,
+                        Some(TreeContext::Component {
                             part_id: actual.clone(),
                             matrix_id: Some(matrix.id.clone()),
                             row: Some(row),
                             column: Some(column),
-                            assembly_id: Some(assembly.id.clone()),
+                            assembly_id: Some(assembly.id.clone())
                         }),
-                        expanded: None,
-                        primary_id: actual,
-                        expandable: false,
-                    });
+                        actual
+                    ));
                 }
             }
         }
@@ -1019,20 +1030,18 @@ fn bridge_item(
     level: usize,
     detail: String,
 ) -> TreeItem {
-    TreeItem {
-        id: format!("{parent}:bridge:{bridge_id}"),
-        label: format!("Bridge {number}"),
-        detail: Some(detail),
+    leaf_row!(
+        format!("{parent}:bridge:{bridge_id}"),
+        format!("Bridge {number}"),
+        Some(detail),
         level,
-        kind: TreeKind::Bridge,
-        context: Some(TreeContext::Bridge {
+        TreeKind::Bridge,
+        Some(TreeContext::Bridge {
             board_id: board_id.into(),
-            bridge_id: bridge_id.into(),
+            bridge_id: bridge_id.into()
         }),
-        expanded: None,
-        primary_id: None,
-        expandable: false,
-    }
+        None
+    )
 }
 
 fn matrix_for_board<'a>(

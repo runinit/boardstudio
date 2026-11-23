@@ -261,13 +261,7 @@ pub fn Objects(
         .unwrap_or_default();
     let active_instance = model.active_instance_id.clone().unwrap_or_default();
     let current_expanded = expanded.read().clone();
-    let mut by_part = use_signal(|| {
-        web_sys::window()
-            .and_then(|w| w.local_storage().ok().flatten())
-            .and_then(|s| s.get_item("boardstudio:v2:object-view").ok().flatten())
-            .as_deref()
-            == Some("part")
-    });
+    let mut by_part = use_signal(stored_object_view);
     let source = AcceptedSource(snapshot.clone());
     let grouping_choice = use_memo(move || if by_part() { "part" } else { "layout" }.to_owned());
     let group_by_part = by_part();
@@ -420,12 +414,7 @@ pub fn Objects(
                             on_commit: move |choice: String| {
                                 let next = choice == "part";
                                 by_part.set(next);
-                                if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
-                                    let _ = storage.set_item(
-                                        "boardstudio:v2:object-view",
-                                        if next { "part" } else { "layout" },
-                                    );
-                                }
+                                store_object_view(next);
                             },
                         }
                         div { class: "grid gap-[7px] border-b border-border px-2.5 py-[9px] empty:hidden",
@@ -765,7 +754,9 @@ fn AddObjectEntry(
                                                                         outline_action: None,
                                                                     });
                                                                 }
-                                                                report_grow(&mount, mount.grow(&matrix_id, rows));
+                                                                if let Err(message) = mount.grow(&matrix_id, rows) {
+                                                                    mount.runtime.0.report(message);
+                                                                }
                                                             },
                                                         }
                                                     }
@@ -897,6 +888,24 @@ fn focus_add_object() {
     }
 }
 
+/// The stored Objects grouping.
+fn stored_object_view() -> bool {
+    web_sys::window()
+        .and_then(|w| w.local_storage().ok().flatten())
+        .and_then(|s| s.get_item("boardstudio:v2:object-view").ok().flatten())
+        .as_deref()
+        == Some("part")
+}
+
+fn store_object_view(by_part: bool) {
+    if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
+        let _ = storage.set_item(
+            "boardstudio:v2:object-view",
+            if by_part { "part" } else { "layout" },
+        );
+    }
+}
+
 fn toggle_tree(mut expanded: Signal<BTreeSet<String>>, id: &str) {
     let mut state = expanded.write();
     if !state.remove(id) {
@@ -998,9 +1007,3 @@ fn tree_glyph(kind: TreeKind) -> Element {
 
 use tree_projection_logic::AcceptedSource;
 pub(crate) use tree_projection_logic::grouped_part_tree;
-
-fn report_grow(mount: &MatrixInspectorMount, result: Result<(), String>) {
-    if let Err(message) = result {
-        mount.runtime.0.report(message);
-    }
-}
