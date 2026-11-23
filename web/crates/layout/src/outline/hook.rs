@@ -423,9 +423,7 @@ pub fn use_outline_lifecycle(
                 | crate::objects::TreeContext::OutlineVersion { board_id, .. } => Some(board_id),
                 _ => None,
             })?;
-        active_outline(snapshot, board_id)
-            .1
-            .map(|version| version.id.clone())
+        outline_state(snapshot, board_id).and_then(|state| state.active_version_id.clone())
     });
     let draft_scope = runtime.scope();
     use_effect(use_reactive(

@@ -307,9 +307,6 @@ pub fn snap_world_origin(
     }
 }
 
-/// The grid a drag snaps against: none with Alt, else the pitch fraction. A Stagger drag
-/// snaps on the dominant stagger-axis component, so a mostly-horizontal stagger axis steps
-/// in X even when the pitch is square.
 impl RailInput<'_> {
     /// The grid this sample snaps against: none with Alt, else the pitch fraction, with a
     /// Stagger drag stepping in X when its stagger axis runs mostly horizontal.

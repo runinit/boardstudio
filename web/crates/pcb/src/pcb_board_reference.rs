@@ -186,12 +186,12 @@ impl BoardReferenceContext {
 
     /// Run `task` under the next request epoch (unless busy) and settle
     /// busy/error via `on_ok`, keeping the `request_generation` epoch gating.
-    fn spawn_request<T: 'static>(
+    fn spawn_request<T: 'static, Fut: Future<Output = Result<T, String>> + 'static>(
         mut self,
         mut busy: Signal<bool>,
         mut error: Signal<Option<String>>,
-        task: impl Future<Output = Result<T, String>> + 'static,
-        on_ok: impl FnOnce(T) + 'static,
+        task: impl FnOnce(Self) -> Fut,
+        on_ok: impl FnOnce(&Self, T) + 'static,
     ) {
         if busy() {
             return;
@@ -201,14 +201,15 @@ impl BoardReferenceContext {
         busy.set(true);
         error.set(None);
         self.request_generation = epoch;
+        let fut = task(self.clone());
         spawn(async move {
-            let result = task.await;
+            let result = fut.await;
             if (self.generation)() != epoch {
                 return;
             }
             busy.set(false);
             match result {
-                Ok(value) => on_ok(value),
+                Ok(value) => on_ok(&self, value),
                 Err(message) if !message.is_empty() => {
                     error.set(Some(super::board_reference_effect::retryable_error(
                         message,
@@ -485,12 +486,11 @@ fn begin_board_import(
     mut paths: Signal<Vec<String>>,
     mut paths_asset_id: Signal<Option<String>>,
 ) {
-    let task_ctx = ctx.clone();
     ctx.spawn_request(
         busy,
         error,
-        async move { import_routed_board(&task_ctx, reference.as_ref(), file).await },
-        move |(asset_id, discovered)| {
+        move |task_ctx| async move { import_routed_board(&task_ctx, reference.as_ref(), file).await },
+        move |_, (asset_id, discovered)| {
             paths.set(discovered);
             paths_asset_id.set(Some(asset_id));
         },
@@ -508,12 +508,13 @@ fn begin_model_attachment(
     let Some(reference) = reference else {
         return;
     };
-    let task_ctx = ctx.clone();
     ctx.spawn_request(
         busy,
         error,
-        async move { attach_model_files(&task_ctx, &reference, &paths, attachment).await },
-        |()| {},
+        move |task_ctx| async move {
+            attach_model_files(&task_ctx, &reference, &paths, attachment).await
+        },
+        |_, ()| {},
     );
 }
 
@@ -589,13 +590,11 @@ pub fn Editor(
                     request_generation,
                 );
                 let source_asset_id = reference.asset_id.clone();
-                let task_ctx = ctx.clone();
-                let done_ctx = ctx.clone();
                 ctx.spawn_request(
                     busy_signal,
                     error,
-                    async move { discover_stored_paths(&task_ctx, &reference).await },
-                    move |paths| {
+                    move |task_ctx| async move { discover_stored_paths(&task_ctx, &reference).await },
+                    move |done_ctx, paths| {
                         if done_ctx.lineage_is_current() {
                             model_paths.set(paths);
                             paths_asset_id.set(Some(source_asset_id));

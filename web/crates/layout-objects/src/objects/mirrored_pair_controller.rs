@@ -363,6 +363,15 @@ pub fn use_mirrored_pair(
                 if !alive.get() {
                     return;
                 }
+                let fail_setup =
+                    |form_state: &mut Signal<PairFormState<MirroredPairFormValues>>,
+                     preparing: &mut Signal<Option<MirroredPairOwner>>,
+                     error: &mut Signal<Option<String>>,
+                     status: &mut Signal<Option<String>>,
+                     message: String| {
+                        form_state.write().stage = PairFormStage::Setup;
+                        fail_creation(preparing, error, status, message);
+                    };
                 let owner_is_current = || {
                     alive.get()
                         && pair_owner_is_current(
@@ -391,8 +400,13 @@ pub fn use_mirrored_pair(
                 let prepared = match prepared {
                     Ok(Some(prepared)) if owner_is_current() => prepared,
                     Err(message) if owner_is_current() => {
-                        form_state.write().stage = PairFormStage::Setup;
-                        fail_creation(&mut preparing, &mut error, &mut status, message);
+                        fail_setup(
+                            &mut form_state,
+                            &mut preparing,
+                            &mut error,
+                            &mut status,
+                            message,
+                        );
                         return;
                     }
                     _ => {
@@ -436,8 +450,13 @@ pub fn use_mirrored_pair(
                 ) {
                     Ok(pair) => pair,
                     Err(message) => {
-                        form_state.write().stage = PairFormStage::Setup;
-                        fail_creation(&mut preparing, &mut error, &mut status, message);
+                        fail_setup(
+                            &mut form_state,
+                            &mut preparing,
+                            &mut error,
+                            &mut status,
+                            message,
+                        );
                         return;
                     }
                 };
@@ -453,8 +472,13 @@ pub fn use_mirrored_pair(
                     ) {
                         Ok(gap) => gap,
                         Err(message) => {
-                            form_state.write().stage = PairFormStage::Setup;
-                            fail_creation(&mut preparing, &mut error, &mut status, message);
+                            fail_setup(
+                                &mut form_state,
+                                &mut preparing,
+                                &mut error,
+                                &mut status,
+                                message,
+                            );
                             return;
                         }
                     };
@@ -473,8 +497,13 @@ pub fn use_mirrored_pair(
                     ) {
                         Ok(pair) => pair,
                         Err(message) => {
-                            form_state.write().stage = PairFormStage::Setup;
-                            fail_creation(&mut preparing, &mut error, &mut status, message);
+                            fail_setup(
+                                &mut form_state,
+                                &mut preparing,
+                                &mut error,
+                                &mut status,
+                                message,
+                            );
                             return;
                         }
                     }
@@ -496,8 +525,13 @@ pub fn use_mirrored_pair(
                                 &open,
                             )
                         {
-                            form_state.write().stage = PairFormStage::Setup;
-                            fail_creation(&mut preparing, &mut error, &mut status, message);
+                            fail_setup(
+                                &mut form_state,
+                                &mut preparing,
+                                &mut error,
+                                &mut status,
+                                message,
+                            );
                         } else if alive.get() {
                             clear_preparing(
                                 &mut preparing,
@@ -527,8 +561,8 @@ pub fn use_mirrored_pair(
                     return;
                 }
                 let [left_scene, right_scene] = preview_scenes.as_slice() else {
-                    form_state.write().stage = PairFormStage::Setup;
-                    fail_creation(
+                    fail_setup(
+                        &mut form_state,
                         &mut preparing,
                         &mut error,
                         &mut status,

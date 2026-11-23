@@ -317,7 +317,7 @@ pub fn ComponentModelEditor(
                 &runtime,
                 &[],
                 is_current.clone(),
-                "The selected component changed while storing the model.",
+                "The selected component changed while importing the model.",
             )
             .await;
             if !alive.get() || request_generation.get() != generation {
@@ -334,22 +334,32 @@ pub fn ComponentModelEditor(
                 original,
                 project_owned_at_start,
                 move |definition, document| {
-                    let mut asset = asset.clone();
-                    // Re-assert uniqueness against the commit-time document.
-                    asset.id = crate::parts_custom_definition::unique_suffixed_id_capped(
-                        &asset.id,
-                        |id| document.assets.iter().any(|existing| existing.id == id),
-                    )
-                    .unwrap_or_else(|| format!("{}-new", asset.id));
+                    let asset_id = if let Some(existing) = document
+                        .assets
+                        .iter()
+                        .find(|existing| existing.sha256 == asset.sha256)
+                    {
+                        existing.id.clone()
+                    } else {
+                        let mut asset = asset.clone();
+                        // Re-assert uniqueness against the commit-time document.
+                        asset.id = crate::parts_custom_definition::unique_suffixed_id_capped(
+                            &asset.id,
+                            |id| document.assets.iter().any(|existing| existing.id == id),
+                        )
+                        .unwrap_or_else(|| format!("{}-new", asset.id));
+                        let id = asset.id.clone();
+                        document.assets.push(asset);
+                        id
+                    };
                     let mut models = definition.models.clone().unwrap_or_default();
-                    let new_model = new_model(asset.id.clone());
+                    let new_model = new_model(asset_id);
                     if models.is_empty() {
                         models.push(new_model);
                     } else {
                         models[0] = new_model;
                     }
                     definition.models = Some(models);
-                    document.assets.push(asset.clone());
                     Ok(())
                 },
             );

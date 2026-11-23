@@ -249,7 +249,7 @@ fn AssemblyMemberFields(
             let mut import_pending = import_pending;
             let mut import_feedback = import_feedback;
             spawn(async move {
-                let stale = "The project or Parts scope changed while storing the model.";
+                let stale = "The project or Parts scope changed while importing the model.";
                 let result = upload_model_asset(
                     file,
                     &runtime,

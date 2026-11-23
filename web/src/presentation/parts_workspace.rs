@@ -151,14 +151,8 @@ pub(in crate::presentation) struct OnOpenModulePlacementInput {
     pub parts_selection: parts::PartsSelection,
 }
 
-/// Shared admission for a mounted module into the PCB workspace: currency,
-/// accepted-revision and module-ownership checks, then the workspace switch
-/// with the Inspector revealed. Returns whether the navigation ran.
-#[allow(clippy::too_many_arguments)]
-pub(in crate::presentation) fn admit_mounted_module_to_pcb(
-    mut workspace: Signal<Workspace>,
-    mut objects_open: Signal<bool>,
-    mut inspect_open: Signal<bool>,
+/// Verify whether a mounted module may be admitted into the PCB workspace.
+pub(in crate::presentation) fn can_admit_mounted_module_to_pcb(
     instance_selection: &InstanceSelection,
     model: &ReadModel,
     scope: &Scope,
@@ -177,17 +171,21 @@ pub(in crate::presentation) fn admit_mounted_module_to_pcb(
     else {
         return false;
     };
-    if !accepted.document.modules.iter().any(|module| {
+    accepted.document.modules.iter().any(|module| {
         module.id == module_id
             && module.definition_id == definition_id
             && module.host_board_id == scope.board_id
-    }) {
-        return false;
-    }
+    })
+}
+
+fn open_pcb_inspector(
+    mut workspace: Signal<Workspace>,
+    mut objects_open: Signal<bool>,
+    mut inspect_open: Signal<bool>,
+) {
     workspace.set(Workspace::Pcb);
     objects_open.set(false);
     inspect_open.set(true);
-    true
 }
 
 pub(in crate::presentation) fn on_open_module_placement_handler(
@@ -235,10 +233,7 @@ pub(in crate::presentation) fn on_open_module_placement_handler(
         }) else {
             return;
         };
-        admit_mounted_module_to_pcb(
-            workspace,
-            objects_open,
-            inspect_open,
+        if can_admit_mounted_module_to_pcb(
             &instance_selection,
             &model,
             &scope,
@@ -246,7 +241,9 @@ pub(in crate::presentation) fn on_open_module_placement_handler(
             &definition_id,
             token,
             revision,
-        );
+        ) {
+            open_pcb_inspector(workspace, objects_open, inspect_open);
+        }
     })
 }
 
@@ -291,7 +288,17 @@ pub(in crate::presentation) fn on_module_attached_handler(
             board_id: request.scope.board_id.clone(),
             module_id: request.module_id.clone(),
         };
-        if !selection::context_is_current(&model, &request.scope, &context) {
+        if !selection::context_is_current(&model, &request.scope, &context)
+            || !can_admit_mounted_module_to_pcb(
+                &instance_selection,
+                &model,
+                &request.scope,
+                &request.module_id,
+                &request.definition_id,
+                request.snapshot_token,
+                request.revision,
+            )
+        {
             return;
         }
         adapter
@@ -307,17 +314,6 @@ pub(in crate::presentation) fn on_module_attached_handler(
             range_part_ids: Vec::new(),
             mode: SelectionMode::Replace,
         });
-        admit_mounted_module_to_pcb(
-            workspace,
-            objects_open,
-            inspect_open,
-            &instance_selection,
-            &model,
-            &request.scope,
-            &request.module_id,
-            &request.definition_id,
-            request.snapshot_token,
-            request.revision,
-        );
+        open_pcb_inspector(workspace, objects_open, inspect_open);
     })
 }

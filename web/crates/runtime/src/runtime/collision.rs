@@ -182,19 +182,22 @@ impl Runtime {
         let requested_accuracy_mm = query.requested_accuracy_mm;
         let batch = self.collision_batch.get();
         use crate::model_delivery::assess_subject_collision_observation;
-        use boardstudio_web_host::cad_jobs::{
-            CadCollisionMeshPair, validate_collision_mesh_pair_buffers,
-        };
+        use boardstudio_web_host::cad_jobs::{CadCollisionMeshPair, MAX_COLLISION_QUERY_BYTES};
         if !is_current() || !self.snapshot_current(token, &scope) {
             return Err("collision request became stale before worker setup".into());
         }
         let (left_positions, left_tags) = left.mesh().ok_or("left analysis mesh is unavailable")?;
         let (right_positions, right_tags) =
             right.mesh().ok_or("right analysis mesh is unavailable")?;
-        validate_collision_mesh_pair_buffers([
-            (left_positions, left_tags),
-            (right_positions, right_tags),
-        ])?;
+        let pair_bytes = left_positions
+            .len()
+            .saturating_mul(8)
+            .saturating_add(left_tags.len().saturating_mul(4))
+            .saturating_add(right_positions.len().saturating_mul(8))
+            .saturating_add(right_tags.len().saturating_mul(4));
+        if pair_bytes > MAX_COLLISION_QUERY_BYTES {
+            return Err("collision pair exceeds the 64 MiB limit before copying".into());
+        }
         let worker = self.model_worker(&scope).await?;
         if self.collision_batch.get() != batch
             || !is_current()

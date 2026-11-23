@@ -724,8 +724,7 @@ impl Drop for DocumentKeydown {
 /// The document key listener one overlay keeps while mounted: Control (quick offset), Escape.
 struct KeyListener {
     /// Owns the `keydown` subscription: never read, dropped with the listener.
-    #[allow(dead_code)]
-    down: DocumentKeydown,
+    _down: DocumentKeydown,
     document: web_sys::Document,
     window: web_sys::Window,
     up: Closure<dyn FnMut(web_sys::KeyboardEvent)>,
@@ -765,7 +764,7 @@ impl KeyListener {
             .add_event_listener_with_callback("blur", blur.as_ref().unchecked_ref())
             .ok()?;
         Some(Self {
-            down,
+            _down: down,
             document,
             window,
             up,
