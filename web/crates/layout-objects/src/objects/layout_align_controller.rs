@@ -219,10 +219,11 @@ pub fn use_canvas_align(
             };
             if runtime.scope().as_ref() != Some(&selected.scope)
                 || model.lifecycle != Lifecycle::Ready
-                || model.durability
-                    != (Durability::Saved {
-                        revision: snapshot.document.revision,
-                    })
+                || !matches!(
+                    model.durability,
+                    Durability::Saved { revision } | Durability::Saving { revision }
+                        if revision == snapshot.document.revision
+                )
                 || model.display_preview.is_some()
                 || model.gesture.is_some()
                 || model.active_board_id != selected.scope.board_id

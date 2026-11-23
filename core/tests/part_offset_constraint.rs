@@ -569,13 +569,8 @@ fn dragging_a_held_companion_keeps_the_exact_stored_rotation_of_either_kind() {
     }
 }
 
-/// Holding the right mirror to its own key with a turn of 10 degrees settles that mirror at
-/// -20 degrees (its key is at -30), so the left component is back-solved to 180 - (-20) = 200
-/// degrees. Its key stands at 30, so its constraint must now store a turn of 170.
-///
-/// The mirror is a genuine independent part, so it keeps ADR-0010's half turn; the stored
-/// heading is normalized to `[0, 360)` by the shared mirror-heading helper, i.e. 340 for
-/// -20, matching the long-standing `derive::pose` convention.
+/// Dragging an authoritative part retunes a saved `Constraint::Framed` whose target binds to a
+/// live linked-mirror endpoint while preserving the stored `-0.0` rotation bits.
 #[test]
 fn dragging_the_authority_retunes_a_saved_linked_target() {
     // The saved target is on the beta half, but alpha/T owns its placement.

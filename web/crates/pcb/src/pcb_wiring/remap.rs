@@ -2,7 +2,7 @@
 use super::mode::{BoardWiringModeFeedbackTarget, BoardWiringModeIdentity};
 use super::{
     PcbWiringSource,
-    mode::{current_snapshot, mode_identity},
+    mode::{current_edit_snapshot, mode_identity},
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{Event, TerminalOutcome};
@@ -51,7 +51,7 @@ pub fn use_protected_remap_review(
         let runtime = runtime.clone();
         let instance_is_current = instance_is_current.clone();
         move |request: ProtectedRemapIdentity| {
-            let Some(snapshot) = current_snapshot(
+            let Some(snapshot) = current_edit_snapshot(
                 &runtime,
                 &request.wiring,
                 workspace(),
@@ -99,7 +99,7 @@ pub fn use_protected_remap_review(
         });
     let editable = identity.as_ref().is_some_and(|identity| {
         workspace() == "PCB"
-            && current_snapshot(
+            && current_edit_snapshot(
                 &runtime,
                 &identity.wiring,
                 workspace(),

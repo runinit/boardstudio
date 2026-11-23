@@ -335,12 +335,11 @@ pub fn use_matrix_setup(
     let can_open = !create_pending
         && preparing.read().is_none()
         && open.read().is_none()
-        && setup_source_with_durability(
+        && setup_source(
             &runtime,
             &current_model,
             runtime.scope().as_ref(),
             workspace(),
-            true,
         )
         .is_some();
     MatrixSetupMount {
@@ -378,16 +377,6 @@ fn setup_source<'a>(
     scope: Option<&Scope>,
     workspace: &'static str,
 ) -> Option<(&'a AcceptedSnapshot, Scope, String)> {
-    setup_source_with_durability(runtime, model, scope, workspace, false)
-}
-
-fn setup_source_with_durability<'a>(
-    runtime: &Runtime,
-    model: &'a boardstudio_application::ReadModel,
-    scope: Option<&Scope>,
-    workspace: &'static str,
-    allow_saving: bool,
-) -> Option<(&'a AcceptedSnapshot, Scope, String)> {
     if workspace != "Layout" {
         return None;
     }
@@ -396,18 +385,11 @@ fn setup_source_with_durability<'a>(
         return None;
     }
     let snapshot = model.accepted.as_ref()?;
-    let durability_ready = if allow_saving {
-        matches!(
-            model.durability,
-            Durability::Saved { revision } | Durability::Saving { revision }
-                if revision == snapshot.document.revision
-        )
-    } else {
-        model.durability
-            == (Durability::Saved {
-                revision: snapshot.document.revision,
-            })
-    };
+    let durability_ready = matches!(
+        model.durability,
+        Durability::Saved { revision } | Durability::Saving { revision }
+            if revision == snapshot.document.revision
+    );
     if snapshot.session_epoch != scope.session_epoch
         || snapshot.document.id != scope.document_id
         || model.active_board_id != scope.board_id

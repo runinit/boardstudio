@@ -65,7 +65,10 @@ pub(crate) fn pcb_add_layout_owner_is_current(
     };
     let m = runtime.model();
     m.lifecycle == Lifecycle::Ready
-        && m.durability == (Durability::Saved { revision: rev })
+        && matches!(
+            m.durability,
+            Durability::Saved { revision } | Durability::Saving { revision } if revision == rev
+        )
         && m.display_preview.is_none()
         && m.gesture.is_none()
         && m.accepted.as_ref().is_some_and(|s| {

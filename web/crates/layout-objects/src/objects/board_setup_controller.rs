@@ -107,7 +107,7 @@ pub fn use_board_setup(
         }
     }));
     let busy = waiting.read().is_some();
-    let owner = board_source_ready(&runtime, workspace(), generation(), true).filter(|_| !busy);
+    let owner = board_source(&runtime, workspace(), generation()).filter(|_| !busy);
     let on_add = use_callback({
         let runtime = runtime.clone();
         let mut waiting = waiting;
@@ -160,33 +160,17 @@ fn board_source(
     workspace: &'static str,
     generation: u64,
 ) -> Option<BoardCreateOwner> {
-    board_source_ready(runtime, workspace, generation, false)
-}
-
-fn board_source_ready(
-    runtime: &Runtime,
-    workspace: &'static str,
-    generation: u64,
-    allow_saving: bool,
-) -> Option<BoardCreateOwner> {
     if !matches!(workspace, "Layout" | "PCB" | "Keymap" | "Keycaps") {
         return None;
     }
     let model = runtime.model();
     let snapshot = model.accepted.as_ref()?;
     let scope = runtime.scope()?;
-    let durability_ready = if allow_saving {
-        matches!(
-            model.durability,
-            Durability::Saved { revision } | Durability::Saving { revision }
-                if revision == snapshot.document.revision
-        )
-    } else {
-        model.durability
-            == (Durability::Saved {
-                revision: snapshot.document.revision,
-            })
-    };
+    let durability_ready = matches!(
+        model.durability,
+        Durability::Saved { revision } | Durability::Saving { revision }
+            if revision == snapshot.document.revision
+    );
     if model.lifecycle != Lifecycle::Ready
         || !durability_ready
         || model.gesture.is_some()

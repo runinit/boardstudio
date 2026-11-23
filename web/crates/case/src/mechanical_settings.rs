@@ -434,6 +434,7 @@ pub fn use_mechanical_settings(
         .filter(|key| editable && needs_closures && key.hole_loaded);
     let durability_version = try_use_context::<boardstudio_web_ui_shared::DurabilityVersion>();
     let runtime_for_closures = runtime.clone();
+    let mut last_closure_init = use_signal(|| None::<SourceKey>);
     use_effect(use_reactive((&init_key,), move |(init,)| {
         let _ = durability_version.map(|d| d.0());
         let Some(key) = init else { return };
@@ -445,6 +446,10 @@ pub fn use_mechanical_settings(
         }) {
             return;
         }
+        if last_closure_init.peek().as_ref() == Some(&key) {
+            return;
+        }
+        last_closure_init.set(Some(key.clone()));
         let id = request_sequence.peek().saturating_add(1);
         request_sequence.set(id);
         on_request.call(MechanicalSettingsRequest {

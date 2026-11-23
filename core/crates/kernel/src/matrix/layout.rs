@@ -425,6 +425,9 @@ pub fn retune_driven_constraint(
     board: crate::model::Pose2,
     turn: Option<f64>,
 ) -> Result<bool, String> {
+    if !doc.parts.iter().any(|part| part.id == id) {
+        return Ok(false);
+    }
     match crate::constraints::retune_offset(doc, id, board.at, turn)? {
         None => Ok(false),
         Some(crate::constraints::Retune::Applied) => Ok(true),

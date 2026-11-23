@@ -827,14 +827,7 @@ pub fn use_mirrored_pair(
         && preparing.read().is_none()
         && placement.read().is_none()
         && open.read().is_none()
-        && pair_source_with_durability(
-            &runtime,
-            &model,
-            runtime.scope().as_ref(),
-            workspace(),
-            true,
-        )
-        .is_some();
+        && pair_source(&runtime, &model, runtime.scope().as_ref(), workspace()).is_some();
     let owns_canvas = open.read().is_some()
         || preparing.read().is_some()
         || placement.read().is_some()
@@ -896,16 +889,6 @@ fn pair_source<'a>(
     scope: Option<&Scope>,
     workspace: &'static str,
 ) -> Option<(&'a AcceptedSnapshot, Scope, String)> {
-    pair_source_with_durability(runtime, model, scope, workspace, false)
-}
-
-fn pair_source_with_durability<'a>(
-    runtime: &Runtime,
-    model: &'a boardstudio_application::ReadModel,
-    scope: Option<&Scope>,
-    workspace: &'static str,
-    allow_saving: bool,
-) -> Option<(&'a AcceptedSnapshot, Scope, String)> {
     if workspace != "Layout" {
         return None;
     }
@@ -914,18 +897,11 @@ fn pair_source_with_durability<'a>(
         return None;
     }
     let snapshot = model.accepted.as_ref()?;
-    let durability_ready = if allow_saving {
-        matches!(
-            model.durability,
-            Durability::Saved { revision } | Durability::Saving { revision }
-                if revision == snapshot.document.revision
-        )
-    } else {
-        model.durability
-            == (Durability::Saved {
-                revision: snapshot.document.revision,
-            })
-    };
+    let durability_ready = matches!(
+        model.durability,
+        Durability::Saved { revision } | Durability::Saving { revision }
+            if revision == snapshot.document.revision
+    );
     if snapshot.session_epoch != scope.session_epoch
         || snapshot.document.id != scope.document_id
         || model.active_board_id != scope.board_id

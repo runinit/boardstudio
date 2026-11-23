@@ -373,10 +373,11 @@ pub(super) fn use_matrix_pair_wiring(input: MatrixPairWiringInput<'_>) -> Matrix
                 || model.active_board_id != created.owner.board_id
                 || model.active_instance_id != created.owner.scope.instance_id
                 || model.lifecycle != Lifecycle::Ready
-                || model.durability
-                    != (Durability::Saved {
-                        revision: created.result_revision,
-                    })
+                || !matches!(
+                    model.durability,
+                    Durability::Saved { revision } | Durability::Saving { revision }
+                        if revision == created.result_revision
+                )
                 || !snapshot
                     .document
                     .matrices

@@ -226,27 +226,6 @@ pub(super) fn pcb_source(
     Some((snapshot, source))
 }
 
-pub fn current_snapshot(
-    runtime: &Runtime,
-    identity: &BoardWiringModeIdentity,
-    workspace: &str,
-    scope_generation: u64,
-    instance_is_current: bool,
-) -> Option<AcceptedSnapshot> {
-    let snapshot = current_edit_snapshot(
-        runtime,
-        identity,
-        workspace,
-        scope_generation,
-        instance_is_current,
-    )?;
-    (runtime.model().durability
-        == Durability::Saved {
-            revision: snapshot.document.revision,
-        })
-    .then_some(snapshot)
-}
-
 pub(super) fn current_edit_snapshot(
     runtime: &Runtime,
     identity: &BoardWiringModeIdentity,
