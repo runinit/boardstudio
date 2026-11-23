@@ -340,7 +340,9 @@ fn eligible_options(document: &ProjectDoc, board_id: &str) -> Vec<ExistingHalfOp
     {
         let layout =
             super::mirror_links::layout_for_matrix(&document.layouts, board_id, &matrix.id);
-        if layout.is_some_and(|layout| !super::mirror_links::layout_is_linked(&document.layouts, layout)) {
+        if layout
+            .is_some_and(|layout| !super::mirror_links::layout_is_linked(&document.layouts, layout))
+        {
             options.push(ExistingHalfOption {
                 matrix_id: matrix.id.clone(),
                 label: matrix

@@ -1,8 +1,8 @@
 //! Layout Inspector controls for accepted keycap size.
 use super::keycap_resize::ResizeAxis;
 use super::keycap_size_controller::{KeySizeMount, KeySizeOwner, KeySizeRequest};
-use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
 use boardstudio_web_ui_shared::inspector_fields::{SelectField, ToggleField};
+use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
 use boardstudio_web_ui_shared::ui::field::FieldError;
 
 use dioxus::prelude::*;

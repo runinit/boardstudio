@@ -54,7 +54,10 @@ mod objects {
     /// crates (inline test modules cannot `#[path]`-include it through a virtual directory).
     #[cfg(test)]
     mod test_fixtures {
-        use boardstudio_core::model::{PartDefinition, PartGenerator, PartKind};
+        use super::super::runtime::Runtime;
+        use boardstudio_application::Event;
+        use boardstudio_core::model::{Board, PartDefinition, PartGenerator, PartKind, ProjectDoc};
+        use boardstudio_web_runtime::core_services::CoreServices;
         use std::collections::BTreeMap;
 
         pub fn definition(id: &str, source: &str, kind: PartKind) -> PartDefinition {
@@ -105,6 +108,56 @@ mod objects {
                     PartKind::Passive,
                 ),
             ]
+        }
+
+        /// Headless Core services for native lifecycle tests: validation plus a
+        /// scratch engine per open, mirroring production's CoreServices shape.
+        pub fn test_services() -> CoreServices {
+            CoreServices {
+                validate_open: boardstudio_core::CoreEngine::validate_open,
+                open_scratch: || {
+                    let mut engine = boardstudio_core::CoreEngine::new();
+                    Box::new(move |request| engine.handle(request))
+                },
+            }
+        }
+
+        /// An empty saved document with one board, optionally carrying the
+        /// single configured physical instance the setup owners admit.
+        pub fn board_document(id: &str, revision: u64, with_instance: bool) -> ProjectDoc {
+            let mut document = ProjectDoc::empty(id, id);
+            document.revision = revision;
+            document.boards.push(Board {
+                id: "board".into(),
+                name: "Board".into(),
+                outline_ids: vec![],
+                part_ids: vec![],
+                net_ids: vec![],
+                thickness: 1.6,
+                traces: vec![],
+                vias: vec![],
+            });
+            if with_instance {
+                document.hardware = Some(
+                    serde_json::from_value(serde_json::json!({"instances":[{
+                        "id":"primary", "name":"Primary", "boardId":"board", "half":"single", "role":"standalone", "flipped":false, "constructionLinked":false
+                    }]})).unwrap(),
+                );
+            }
+            document
+        }
+
+        /// Open `board_document` on the headless test Runtime.
+        pub fn open_board_document(
+            runtime: &Runtime,
+            id: &str,
+            revision: u64,
+            with_instance: bool,
+        ) {
+            runtime.submit(Event::Open {
+                operation_id: runtime.operation(),
+                document: board_document(id, revision, with_instance),
+            });
         }
     }
 

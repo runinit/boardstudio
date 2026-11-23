@@ -267,8 +267,7 @@ pub fn Objects(
             == Some("part")
     });
     let source = AcceptedSource(snapshot.clone());
-    let grouping_choice =
-        use_memo(move || if by_part() { "part" } else { "layout" }.to_owned());
+    let grouping_choice = use_memo(move || if by_part() { "part" } else { "layout" }.to_owned());
     let group_by_part = by_part();
     let items = use_memo(use_reactive(
         (&source, &board_id, &current_expanded, &group_by_part),

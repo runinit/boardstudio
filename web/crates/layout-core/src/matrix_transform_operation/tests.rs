@@ -745,8 +745,7 @@ fn transformed_scene() -> MatrixScene {
     }]);
     document["boards"] = json!([{ "id": "board", "name": "Board",
         "outlineIds": [], "partIds": [], "netIds": [], "thickness": 1.6 }]);
-    let (mut engine, _, opened) =
-        open_engine(serde_json::from_value(document).unwrap());
+    let (mut engine, _, opened) = open_engine(serde_json::from_value(document).unwrap());
     let matrix: Matrix = serde_json::from_value(json!({
         "id": "m", "rows": 3, "columns": 4,
         "pitch": { "x": 19.0, "y": 19.0 }, "origin": { "x": 10.0, "y": 5.0 },

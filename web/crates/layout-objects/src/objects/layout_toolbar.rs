@@ -167,14 +167,16 @@ pub fn LayoutCommandPill(
     let mut commands = Vec::new();
     if workspace.is_some_and(|w| w.0() == Workspace::Layout) {
         use boardstudio_web_ui_shared::ui::command::Command;
-        let workspace_command = |label: String, reason: Option<String>, on_select: EventHandler<()>| Command {
-            group: "Current Workspace",
-            label,
-            reason,
-            hint: None,
-            on_select,
-        };
-        const PROPERTIES_REASON: &str = "Select a matrix, row, column, key or part to open its current transform properties.";
+        let workspace_command =
+            |label: String, reason: Option<String>, on_select: EventHandler<()>| Command {
+                group: "Current Workspace",
+                label,
+                reason,
+                hint: None,
+                on_select,
+            };
+        const PROPERTIES_REASON: &str =
+            "Select a matrix, row, column, key or part to open its current transform properties.";
         for kind in LayoutSelectionKind::ALL {
             commands.push(workspace_command(
                 format!("Select {}", kind.label()),

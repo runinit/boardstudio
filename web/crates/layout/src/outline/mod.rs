@@ -19,9 +19,7 @@ pub use hook::{
 pub use inspector::OutlineVersionInspector;
 #[cfg(target_arch = "wasm32")]
 pub use overlays::{OutlineDraftCanvasOverlay, OutlinePointCanvasOverlay, OutlineRuntimeHandle};
-pub use planner::{
-    OutlineAction, OutlineActionEnvelope, OutlineActionKind, OutlinePointTarget,
-};
+pub use planner::{OutlineAction, OutlineActionEnvelope, OutlineActionKind, OutlinePointTarget};
 
 #[cfg(target_arch = "wasm32")]
 #[allow(unused_imports)]

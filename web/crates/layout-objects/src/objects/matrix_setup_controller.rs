@@ -541,52 +541,12 @@ mod native_tests {
     use super::*;
     use crate::matrix_setup_operation::MatrixSetupPreset;
     use boardstudio_application::SelectionMode;
-    use boardstudio_core::model::{Board, ProjectDoc};
-    use boardstudio_web_runtime::core_services::CoreServices;
     use std::cell::RefCell;
     use std::task::{Context, Waker};
 
-    use super::super::test_fixtures::catalogue;
-
-    fn services() -> CoreServices {
-        CoreServices {
-            validate_open: boardstudio_core::CoreEngine::validate_open,
-            open_scratch: || {
-                let mut engine = boardstudio_core::CoreEngine::new();
-                Box::new(move |request| engine.handle(request))
-            },
-        }
-    }
-
-    fn document(id: &str, revision: u64, with_instance: bool) -> ProjectDoc {
-        let mut document = ProjectDoc::empty(id, id);
-        document.revision = revision;
-        document.boards.push(Board {
-            id: "board".into(),
-            name: "Board".into(),
-            outline_ids: vec![],
-            part_ids: vec![],
-            net_ids: vec![],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
-        if with_instance {
-            document.hardware = Some(
-                serde_json::from_value(serde_json::json!({"instances":[{
-                    "id":"primary", "name":"Primary", "boardId":"board", "half":"single", "role":"standalone", "flipped":false, "constructionLinked":false
-                }]})).unwrap(),
-            );
-        }
-        document
-    }
-
-    fn open_document(runtime: &Runtime, id: &str, revision: u64, with_instance: bool) {
-        runtime.submit(Event::Open {
-            operation_id: runtime.operation(),
-            document: document(id, revision, with_instance),
-        });
-    }
+    use super::super::test_fixtures::{
+        catalogue, open_board_document as open_document, test_services as services,
+    };
 
     #[derive(Clone)]
     struct Probe {

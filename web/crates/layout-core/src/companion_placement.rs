@@ -108,11 +108,13 @@ pub fn companion_placement_projection(
                 {
                     continue;
                 }
-                if let Some(reason) = boardstudio_core_mirrored_half::companion_placement_disabled_reason(
-                    document,
-                    &pair.id,
-                    &link.source_id,
-                ) {
+                if let Some(reason) =
+                    boardstudio_core_mirrored_half::companion_placement_disabled_reason(
+                        document,
+                        &pair.id,
+                        &link.source_id,
+                    )
+                {
                     disabled_reason = Some(reason);
                     continue;
                 }
@@ -244,9 +246,11 @@ pub fn companion_links_for_selection<'a>(
             else {
                 continue;
             };
-            if let Some(reason) = boardstudio_core_mirrored_half::companion_placement_disabled_reason(
-                document, &pair.id, &source_id,
-            ) {
+            if let Some(reason) =
+                boardstudio_core_mirrored_half::companion_placement_disabled_reason(
+                    document, &pair.id, &source_id,
+                )
+            {
                 disabled_reason = Some(reason);
             } else if !links.iter().any(
                 |existing: &&boardstudio_model::model::MirroredCorrespondence| {

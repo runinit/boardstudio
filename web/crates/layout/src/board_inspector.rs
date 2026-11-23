@@ -286,39 +286,37 @@ pub fn BoardInspector(mount: BoardInspectorMount) -> Element {
     let owner = projection.owner.clone();
     let accepted_name = projection.owner.accepted_name.clone();
     rsx! {
-            section { class: "grid content-start gap-2.5 min-w-0 px-4 pt-3 pb-5 text-foreground", aria_label: "Board Inspector",
-                p { class: "m-0 mb-[5px] text-muted-foreground text-[11px] leading-[1.6]",
-                    "Select a key, component, or matrix to edit it."
-                }
-                TextCommitField {
-                    label: "Board name".to_owned(),
-                    value: accepted_name.clone(),
-                    id: format!(
-                        "layout-input-{}-1",
-                        dioxus::core::current_scope_id().0,
-                    ),
-                    aria_label: "Board name",
-                    disabled_reason: (!projection.editable).then(|| "Editing is unavailable".to_owned()),
-                    on_commit: move |name: String| {
-                        on_rename.call(BoardRenameAction {
-                            owner: owner.clone(),
-                            name,
-                        });
-                    },
-                }
-                if let Some(message) = failure() {
-                    FieldError { "{message}" }
-                }
-                div { class: "flex justify-between py-2 border-b border-border text-muted-foreground text-[10px]",
-                    span { "Outline" }
-                    strong { class: "text-foreground font-mono text-[10px] font-normal", "{projection.outline_status}" }
-                }
-                div { class: "flex justify-between py-2 border-b border-border text-muted-foreground text-[10px]",
-                    span { "Placed parts" }
-                    strong { class: "text-foreground font-mono text-[10px] font-normal", "{projection.placed_parts}" }
-                }
+        section { class: "grid content-start gap-2.5 min-w-0 px-4 pt-3 pb-5 text-foreground", aria_label: "Board Inspector",
+            p { class: "m-0 mb-[5px] text-muted-foreground text-[11px] leading-[1.6]",
+                "Select a key, component, or matrix to edit it."
+            }
+            TextCommitField {
+                label: "Board name".to_owned(),
+                value: accepted_name.clone(),
+                id: format!(
+                    "layout-input-{}-1",
+                    dioxus::core::current_scope_id().0,
+                ),
+                aria_label: "Board name",
+                disabled_reason: (!projection.editable).then(|| "Editing is unavailable".to_owned()),
+                on_commit: move |name: String| {
+                    on_rename.call(BoardRenameAction {
+                        owner: owner.clone(),
+                        name,
+                    });
+                },
+            }
+            if let Some(message) = failure() {
+                FieldError { "{message}" }
+            }
+            div { class: "flex justify-between py-2 border-b border-border text-muted-foreground text-[10px]",
+                span { "Outline" }
+                strong { class: "text-foreground font-mono text-[10px] font-normal", "{projection.outline_status}" }
+            }
+            div { class: "flex justify-between py-2 border-b border-border text-muted-foreground text-[10px]",
+                span { "Placed parts" }
+                strong { class: "text-foreground font-mono text-[10px] font-normal", "{projection.placed_parts}" }
             }
         }
+    }
 }
-
-

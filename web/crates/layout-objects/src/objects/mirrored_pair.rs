@@ -12,7 +12,6 @@ use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
 use dioxus::prelude::*;
-use dioxus_web::WebEventExt;
 use std::collections::HashSet;
 
 mod canvas_overlay;
@@ -189,12 +188,7 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
         section {
             class: "pointer-events-auto relative box-border flex max-h-full w-[min(380px,100%)] flex-col gap-0 overflow-y-auto rounded-md border border-border-strong bg-card p-6 text-foreground shadow-md max-[760px]:w-[min(380px,calc(100%-8px))] max-[760px]:p-[18px]",
             aria_label: "New mirrored pair",
-            onkeydown: move |event: KeyboardEvent| {
-                if event.key().to_string() == " " {
-                    event.stop_propagation();
-                    if let Some(raw) = event.data().try_as_web_event() { raw.stop_propagation(); }
-                }
-            },
+            onkeydown: super::stop_space_pan,
             header { class: "flex items-baseline justify-between gap-2 [&_h2]:m-0 [&_h2]:text-xl!", h2 { "Mirrored pair" } }
             p { class: "mt-2.5 mb-5 text-[13px] leading-normal text-muted-foreground",
                 "Linked key assemblies, diode settings and components. Substitute a component on either half when needed."

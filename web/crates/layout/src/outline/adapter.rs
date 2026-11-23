@@ -113,11 +113,7 @@ fn update(
         if active_version.is_some() {
             return None;
         }
-        Some((
-            board_target(board_id),
-            change,
-            None,
-        ))
+        Some((board_target(board_id), change, None))
     };
     let version_or_generated = |change: OutlineChange| -> Plan {
         (settings_target(board_id, active_version), change, None)
@@ -225,11 +221,7 @@ fn update(
                     None,
                 )
             };
-            Some((
-                board_target(board_id),
-                change,
-                reviewed,
-            ))
+            Some((board_target(board_id), change, reviewed))
         }
         OutlineSettingEdit::RemoveProtectedGap { gap_id } => {
             generated_only(OutlineChange::RemoveProtectedGap {

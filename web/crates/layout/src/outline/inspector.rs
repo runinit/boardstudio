@@ -93,10 +93,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                     let scope = projection.scope.clone();
                                     let board_id = projection.board_id.clone();
                                     move |event: KeyboardEvent| {
-                                        if event.key().to_string() == " " {
-                                            event.stop_propagation();
-                                            if let Some(raw) = event.data().try_as_web_event() { raw.stop_propagation(); }
-                                        }
+                                        crate::objects::stop_space_pan(event.clone());
                                         if event.data().key().to_string() != "Escape" {
                                             return;
                                         }

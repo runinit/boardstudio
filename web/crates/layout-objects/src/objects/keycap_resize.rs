@@ -219,8 +219,7 @@ pub fn plan_resize(input: KeycapResizeInput<'_>) -> Option<KeycapResizePlan> {
         updated_sizes.insert(source.id.clone(), next_size);
 
         if let Some(canonical_layout) = canonical_layout
-            && let Some(paired) =
-                super::mirror_links::partner_layout(layouts, canonical_layout)
+            && let Some(paired) = super::mirror_links::partner_layout(layouts, canonical_layout)
             && let Some(paired_matrix_id) = paired
                 .mirror_link
                 .as_ref()

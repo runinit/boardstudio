@@ -1,9 +1,9 @@
 //! Relations projection tests: scenes come from a real `CoreEngine`, never hand-built.
 
-use super::*;
 use super::super::engine_test_support::{edit_json, open_engine};
-use boardstudio_model::model::{ConstraintEndpoint, ConstraintRelation};
+use super::*;
 use boardstudio_model::model::SceneDelta;
+use boardstudio_model::model::{ConstraintEndpoint, ConstraintRelation};
 use serde_json::json;
 
 const MATRIX: &str = "main";
@@ -95,8 +95,7 @@ fn anchored_pair() -> (World, World) {
     document["matrices"] = json!([main, thumb]);
     document["layouts"] = json!([{ "id": "layout", "name": "Layout",
         "boardId": "board", "matrixIds": ["main", "thumb"], "partIds": [] }]);
-    let (_, scene, document) =
-        open_engine(serde_json::from_value(document).unwrap());
+    let (_, scene, document) = open_engine(serde_json::from_value(document).unwrap());
     (
         world_of(scene.clone(), document.clone(), MATRIX),
         world_of(scene, document, "thumb"),
@@ -846,8 +845,7 @@ fn an_anchor_key_names_the_parts_anchored_to_it() {
           "follow": ["x", "y", "rotation"],
           "spread": 0.0, "stagger": 0.0, "splay": 0.0,
           "offset": { "x": 0.0, "y": 0.0 }, "rotation": 0.0 } }]);
-    let (_, scene, document) =
-        open_engine(serde_json::from_value(document).unwrap());
+    let (_, scene, document) = open_engine(serde_json::from_value(document).unwrap());
     let world = world_of(scene, document, MATRIX);
     let anchored = relations(&world, key(0, 1)).expect("the anchor key has a chain");
     let item = anchored

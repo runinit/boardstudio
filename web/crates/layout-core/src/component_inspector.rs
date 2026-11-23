@@ -263,8 +263,8 @@ pub fn part_mirror_projection(
     // Ticket 12: Part correspondences live on the layout mirror links, next
     // to the matrices they mirror — not on the hardware halves. The toggle
     // reads mirrored only while both ends of the record still exist.
-    let mirrored =
-        boardstudio_core_kernel::matrix::layout::part_correspondence(document, part_id).is_some_and(|(_, record)| {
+    let mirrored = boardstudio_core_kernel::matrix::layout::part_correspondence(document, part_id)
+        .is_some_and(|(_, record)| {
             document
                 .parts
                 .iter()

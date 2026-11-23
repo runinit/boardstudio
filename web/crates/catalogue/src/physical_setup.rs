@@ -807,7 +807,9 @@ fn find_feature(
     feature_id: &str,
 ) -> Option<()> {
     match kind {
-        MechanicalFeatureKind::Mount => contains_id(&configuration.mounts, |mount| mount.id.as_str(), feature_id),
+        MechanicalFeatureKind::Mount => {
+            contains_id(&configuration.mounts, |mount| mount.id.as_str(), feature_id)
+        }
         MechanicalFeatureKind::ClosureMount => contains_id(
             configuration.closure_mounts.as_deref().unwrap_or_default(),
             |mount| mount.id.as_str(),

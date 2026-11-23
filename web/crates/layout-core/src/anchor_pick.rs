@@ -17,8 +17,8 @@
 
 use boardstudio_core_kernel::matrix::layout::evaluated_part_pose;
 use boardstudio_model::model::{
-    CoreReply, CoreRequest, EditOperation, Follow, MatrixAnchor, PartAnchor, Pose2,
-    ProjectDoc, Vec2,
+    CoreReply, CoreRequest, EditOperation, Follow, MatrixAnchor, PartAnchor, Pose2, ProjectDoc,
+    Vec2,
 };
 use boardstudio_web_runtime::core_services::OpenScratchCore;
 use boardstudio_web_ui_model::tree::TreeContext;

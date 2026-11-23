@@ -314,9 +314,19 @@ pub fn ProjectSetupGuide(
     let stage_change = on_stage_change;
     let (footer, next_stage, previous_stage) = match stage {
         SetupGuideStage::Project => ("Continue to layout", Some(SetupGuideStage::Layout), None),
-        SetupGuideStage::Layout => ("Continue to wiring", Some(SetupGuideStage::Wiring), Some(SetupGuideStage::Project)),
-        SetupGuideStage::Wiring => ("Continue to case", Some(SetupGuideStage::Case), Some(SetupGuideStage::Layout)),
-        SetupGuideStage::Case | SetupGuideStage::Review => ("Continue to layout", None, Some(SetupGuideStage::Wiring)),
+        SetupGuideStage::Layout => (
+            "Continue to wiring",
+            Some(SetupGuideStage::Wiring),
+            Some(SetupGuideStage::Project),
+        ),
+        SetupGuideStage::Wiring => (
+            "Continue to case",
+            Some(SetupGuideStage::Case),
+            Some(SetupGuideStage::Layout),
+        ),
+        SetupGuideStage::Case | SetupGuideStage::Review => {
+            ("Continue to layout", None, Some(SetupGuideStage::Wiring))
+        }
     };
     let mut expanded_for_trigger = expanded;
     rsx! {

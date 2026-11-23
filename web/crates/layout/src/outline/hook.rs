@@ -11,8 +11,8 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Scope,
 };
 use boardstudio_model::model::{
-    BoardOutline, Contour, EditOperation, EditPhase, Operation, OutlineConnection,
-    OutlineFeature, OutlineGap, OutlineRepairSettings, OutlineSettings, Part, Side, Vec2,
+    BoardOutline, Contour, EditOperation, EditPhase, Operation, OutlineConnection, OutlineFeature,
+    OutlineGap, OutlineRepairSettings, OutlineSettings, Part, Side, Vec2,
 };
 use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;

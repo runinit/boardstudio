@@ -9,7 +9,6 @@ use super::matrix_setup::{MatrixSetup, MatrixSetupMount};
 use super::mirrored_pair::{MirroredPairCanvasOverlay, MirroredPairMount};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use dioxus::prelude::*;
-use dioxus_web::WebEventExt;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AddMatrixMode {
@@ -78,12 +77,7 @@ pub fn AddMatrixSurface(props: AddMatrixSurfaceProps) -> Element {
     rsx! {
         div { class: "contents",
             div { class: "absolute top-2 left-2 z-13 flex gap-1 rounded-md bg-card p-1 shadow-md", role: "group", aria_label: "Add matrix mode",
-                onkeydown: move |event: KeyboardEvent| {
-                    if event.key().to_string() == " " {
-                        event.stop_propagation();
-                        if let Some(raw) = event.data().try_as_web_event() { raw.stop_propagation(); }
-                    }
-                },
+                onkeydown: super::stop_space_pan,
                 Button {
                     variant: ButtonVariant::Secondary,
                     button_type: "button",
