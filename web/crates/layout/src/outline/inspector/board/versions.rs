@@ -1,0 +1,194 @@
+use super::*;
+use crate::outline::hook::OutlineVersionChoice;
+use boardstudio_web_ui_shared::inspector_fields::TextField;
+
+pub(super) fn version_controls(
+    view: &BoardInspectorView,
+    active_choice: Option<&OutlineVersionChoice>,
+    active_ownership: OutlineVersionOwnership,
+) -> Element {
+    let projection = &view.projection;
+    let active_selection = view.active_selection;
+    let mut version_name = projection.version_name_draft;
+    let name_draft = version_name();
+    let active_version = projection.active_version_id.clone();
+    let accepted_name = projection.version_name.clone();
+    let name_failure = projection.version_name_failure.read().clone();
+    let on_action = projection.on_action;
+    let action_context = projection.action_context.clone();
+    let enabled = projection.enabled;
+    let active_problem = active_choice.filter(|item| item.problem_message.is_some());
+    // Alternatives that cannot resolve are listed without pretending the active outline
+    // is blocked: Core decides the affected exports and the current output stays valid.
+    let blocked_alternatives = projection
+        .versions
+        .iter()
+        .filter(|item| item.problem_message.is_some())
+        .filter(|item| Some(&item.id) != projection.active_version_id.as_ref())
+        .cloned()
+        .collect::<Vec<_>>();
+    rsx! {
+            {
+                let control_label = "Active outline".to_owned();
+                let control_aria_label = "Active outline".to_owned();
+                let control_id = format!(
+                    "layout-choice-{}-{}",
+                    dioxus::core::current_scope_id().0,
+                    control_aria_label.replace(' ', "-"),
+                );
+
+                let mut control_choices: Vec<(String, String, bool)> = Vec::new();
+                control_choices.push(("".to_owned(), "Generated".to_owned(), false));
+                for item in projection.versions.iter() {
+                    control_choices
+                        .push((item.id.to_string(), item.label().to_string(), false));
+                }
+                let on_value_change = EventHandler::new({
+                    let action_context = action_context.clone();
+                    move |choice: Option<String>| {
+                        let Some(choice) = choice else {
+    return;
+                        };
+                        let value = choice;
+                        on_action.call(action_context.activate_action((!value.is_empty()).then_some(value)));
+                    }
+                });
+                rsx! {
+
+                    Field { class: "grid gap-[5px] text-xs text-muted-foreground",
+                        FieldLabel { html_for: control_id.clone(), "{control_label}" }
+                        if control_choices.len() > 12 {
+                            Combobox::<String> {
+                                id: control_id.clone(),
+                                aria_label: control_aria_label.clone(),
+                                list_aria_label: control_aria_label.clone(),
+                                value: Some(active_selection.into()),
+                                disabled: !enabled,
+                                on_value_change,
+                                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                                    ComboboxOption::<String> {
+                                        index,
+                                        value: value.clone(),
+                                        text_value: label.clone(),
+                                        disabled: *disabled,
+                                        "{label}"
+                                    }
+                                }
+                            }
+                        } else {
+                            Select::<String> {
+                                id: control_id.clone(),
+                                aria_label: control_aria_label.clone(),
+                                value: Some(active_selection.into()),
+                                disabled: !enabled,
+                                on_value_change,
+                                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                                    SelectOption::<String> {
+                                        index,
+                                        value: value.clone(),
+                                        text_value: label.clone(),
+                                        disabled: *disabled,
+                                        "{label}"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if let Some(version_id) = active_version.as_ref() {
+                {
+                    let control_input_id = format!(
+                        "layout-input-{}-1",
+                        dioxus::core::current_scope_id().0,
+                    );
+                    rsx! {
+                        TextField {
+                            id: control_input_id, label: "Version name", aria_label: "Outline version name",
+                            class: "grid gap-[5px] text-xs text-muted-foreground", control_class: "",
+                            maxlength: Some("120".to_owned()), aria_invalid: Some(name_draft.trim().is_empty()),
+                            value: "{name_draft}", disabled: !enabled,
+                            oninput: move |event: FormEvent| version_name.set(event.value()),
+                            onblur: {
+                                let version_id = version_id.clone();
+                                let accepted_name = accepted_name.clone();
+                                let action_context = action_context.clone();
+                                move |_| {
+                                    let draft = version_name();
+                                    let name = draft.trim().to_owned();
+                                    version_name.set(name.clone());
+                                    if !name.is_empty() && name.len() <= 120 && name != accepted_name {
+                                        on_action.call(action_context.action(OutlineEdit::RenameVersion { version_id: version_id.clone(), name }));
+                                    }
+                                }
+                            },
+                            onkeydown: {
+                                let accepted_name = accepted_name.clone();
+                                move |event: KeyboardEvent| match event.data().key().to_string().as_str() {
+                                    "Enter" => {
+                                        event.prevent_default();
+                                        if let Some(input) = event.data().try_as_web_event()
+                                            .and_then(|event| event.target())
+                                            .and_then(|target| target.dyn_into::<web_sys::HtmlInputElement>().ok())
+                                        { let _ = input.blur(); }
+                                    }
+                                    "Escape" => {
+                                        event.prevent_default();
+                                        version_name.set(accepted_name.clone());
+                                    }
+                                    _ => {}
+                                }
+                            },
+                        }
+                    }
+                }
+                if let Some(message) = name_failure.as_ref() {
+                        FieldError { "{message}" }
+                }
+            }
+            if let Some(problem) = active_problem {
+                div {
+                    "data-finding-id": "{problem.problem_finding_id.clone().unwrap_or_default()}",
+                    "data-ownership": "{active_ownership.label()}",
+                        Alert { variant: AlertVariant::Destructive,
+                            AlertDescription {
+                    p { "{problem.problem_message.clone().unwrap_or_default()}" }
+                    p {
+                        if !problem.blocked_exports.is_empty() {
+                            "Disabled while this refinement cannot resolve: {problem.blocked_exports.join(\", \")}. Saving and further editing stay available."
+                        } else {
+                            "This refinement is not selected, so it does not block current output. Saving and further editing stay available."
+                        }
+                    }
+                    if problem.problem_selectable {
+                        p {
+                            "Select the located finding on the canvas to inspect it."
+                        }
+                    }
+                }
+            }
+                    }
+                }
+            for blocked in blocked_alternatives.iter() {
+                    div {
+                    "data-finding-id": "{blocked.problem_finding_id.clone().unwrap_or_default()}",
+                    "data-ownership": "{blocked.ownership.label()}",
+                        Callout { variant: CalloutVariant::Info,
+                    "{blocked.ownership.label()} \u{201c}{blocked.name}\u{201d}: {blocked.problem_message.clone().unwrap_or_default()}"
+                        }
+                }
+            }
+            if !projection.has_generated && projection.active_version_id.is_none() {
+                Button { variant: ButtonVariant::Secondary,
+        disabled: !enabled,
+        onclick: {
+                let action_context = action_context.clone();
+                move |_| on_action.call(action_context.action(OutlineEdit::CreateAutomatic))
+            },
+
+                    "Generate automatic outline"
+
+                 }
+            }
+        }
+}

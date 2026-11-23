@@ -1,11 +1,12 @@
 //! Owner-checked Layout action for linking copies of existing unpaired matrices.
+use super::matrix_preparation::PendingSettlement;
 use crate::mirror_existing_half::prepare_existing_half;
 use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_model::model::{EditOperation, PartKind, ProjectDoc, Vec2};
-use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
+use boardstudio_web_runtime::operation_outcomes::Settlement;
 use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::inspector_fields::TextField;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
@@ -116,7 +117,7 @@ pub fn use_existing_half(
     let error = use_signal(|| None::<String>);
     // The committed mirror is observed through its ticket; the waiting entry is the
     // pending state. Availability derives from it, so no separate disabled flag is kept.
-    let waiting = use_signal(|| None::<(EditOutcome, ExistingHalfOwner)>);
+    let waiting = use_signal(|| None::<PendingSettlement<ExistingHalfOwner>>);
 
     use_effect(use_reactive(
         (&version(), &workspace(), &scope_generation()),
@@ -301,7 +302,10 @@ pub fn use_existing_half(
                     id_pool,
                 ),
             );
-            waiting.set(Some((ticket, request.owner.clone())));
+            waiting.set(Some(PendingSettlement {
+                ticket,
+                owner: request.owner,
+            }));
             error.set(None);
         }
     });
@@ -500,27 +504,26 @@ fn owner_is_current(
 fn settle_pending(
     runtime: &Rc<Runtime>,
     (workspace, scope_generation, editor_instance_id): (Workspace, u64, u64),
-    waiting: &mut Signal<Option<(EditOutcome, ExistingHalfOwner)>>,
+    waiting: &mut Signal<Option<PendingSettlement<ExistingHalfOwner>>>,
     open: &mut Signal<Option<ExistingHalfOwner>>,
     error: &mut Signal<Option<String>>,
 ) {
-    let Some((ticket, owner)) = waiting.read().clone() else {
+    let Some((owner, settlement)) = PendingSettlement::finish(waiting, |owner| {
+        owner.editor_instance_id == editor_instance_id
+            && workspace == Workspace::Layout
+            && scope_generation == owner.scope_generation
+    }) else {
         return;
     };
     let model = runtime.model();
-    let owner_is_live = owner.editor_instance_id == editor_instance_id
-        && workspace == Workspace::Layout
-        && scope_generation == owner.scope_generation;
-    match ticket.settlement(owner_is_live) {
+    match settlement {
         Settlement::Retired => {
-            waiting.set(None);
             if open.read().as_ref() == Some(&owner) {
                 open.set(None);
                 error.set(None);
             }
         }
         Settlement::Landed { .. } => {
-            waiting.set(None);
             let current_owner = workspace == Workspace::Layout
                 && scope_generation == owner.scope_generation
                 && model.active_board_id == owner.scope.board_id
@@ -536,7 +539,6 @@ fn settle_pending(
             }
         }
         Settlement::Failed { message } => {
-            waiting.set(None);
             if open.read().as_ref() == Some(&owner) {
                 error.set(Some(message));
             }
