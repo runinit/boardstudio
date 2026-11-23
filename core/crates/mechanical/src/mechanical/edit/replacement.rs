@@ -389,27 +389,7 @@ mod tests {
         MountKind, PhysicalBoardInstance, Pose2, Vec2,
     };
     use serde_json::json;
-
-    fn config(board_id: &str) -> MechanicalConfiguration {
-        serde_json::from_value(json!({
-            "boardId": board_id,
-            "method": "printed",
-            "mount": "rigid",
-            "plateThickness": 1.5,
-            "plateFoamThickness": 0.5,
-            "pcbThickness": 1.6,
-            "bottomFoamThickness": 0.4,
-            "batteryHeight": 4.0,
-            "bottomThickness": 3.0,
-            "plateToPcb": 3.5,
-            "wallThickness": 2.0,
-            "clearance": 0.3,
-            "mounts": [],
-            "closureMounts": [],
-            "profiles": []
-        }))
-        .expect("valid mechanical fixture")
-    }
+    use crate::test_support::*;
 
     fn mount(id: &str, x: f64) -> Mount {
         Mount {
@@ -492,35 +472,13 @@ mod tests {
         }
     }
 
-    fn gasket_anchor(id: &str, anchor: f64) -> MechanicalGasketAnchor {
-        MechanicalGasketAnchor {
-            length: Some(12.0),
-            width: Some(3.0),
-            placement: Some(GasketPlacement::User),
-            id: id.into(),
-            region_id: "region".into(),
-            outline_key: "outline".into(),
-            anchor,
-            unlinked: false,
-        }
-    }
-
     fn document(with_pair: bool) -> ProjectDoc {
         let mut document = ProjectDoc::empty("doc", "replacement fixture");
         document
             .boards
-            .extend(["left-board", "right-board"].map(|id| Board {
-                id: id.into(),
-                name: id.into(),
-                outline_ids: Vec::new(),
-                part_ids: Vec::new(),
-                net_ids: Vec::new(),
-                thickness: 1.6,
-                traces: Vec::new(),
-                vias: Vec::new(),
-            }));
-        let left = config("left-board");
-        let mut right = config("right-board");
+            .extend(["left-board", "right-board"].map(|id| board(id, Vec::new(), 1.6)));
+        let left = rigid_configuration("left-board");
+        let mut right = rigid_configuration("right-board");
         let feature = with_pair.then(linked_mount);
         if let Some(feature) = &feature {
             document.hardware = Some(HardwareConfiguration {
@@ -772,7 +730,7 @@ mod tests {
         let hardware = document.hardware.as_mut().unwrap();
         hardware.instances[0].mechanical = None;
         hardware.instances[0].construction_ownership = MechanicalConstructionOwnership::Legacy;
-        hardware.shared_construction = Some(config("shared-board"));
+        hardware.shared_construction = Some(rigid_configuration("shared-board"));
         hardware.pairs = vec![pair(None)];
 
         replace(&mut document, "left", None).expect("pair-owned legacy stack disables");
@@ -885,7 +843,7 @@ mod tests {
             next_hardware_identity: 0,
             next_mount_identity: 0,
         });
-        let mut requested = config("right-board");
+        let mut requested = rigid_configuration("right-board");
         requested.battery_height = 9.25;
         requested.plate_thickness = 2.75;
         requested.next_opening_identity = 1;
@@ -904,7 +862,7 @@ mod tests {
         let hardware = document.hardware.as_mut().unwrap();
         hardware.instances[1].mechanical = None;
         hardware.instances[1].construction_ownership = MechanicalConstructionOwnership::Legacy;
-        hardware.shared_construction = Some(config("right-board"));
+        hardware.shared_construction = Some(rigid_configuration("right-board"));
         let mut requested = effective(&document, "right");
         requested.wall_thickness = 2.75;
 
@@ -958,7 +916,7 @@ mod tests {
                 kind: MechanicalFeatureKind::GasketSupport,
                 author: "left".into(),
                 value: MechanicalFeatureValue::GasketSupport {
-                    anchor: gasket_anchor("left-support", 0.5),
+                    anchor: anchor_at("left-support", 0.5),
                 },
                 members: vec![
                     MechanicalFeatureMember {
@@ -1022,7 +980,7 @@ mod tests {
         right.mechanical = None;
         right.construction_ownership = MechanicalConstructionOwnership::Local;
         let before = document.clone();
-        let requested = config("wrong-board");
+        let requested = rigid_configuration("wrong-board");
 
         let error = replace(&mut document, "right", Some(requested)).unwrap_err();
 
@@ -1040,7 +998,7 @@ mod tests {
         right.mechanical = None;
         right.construction_ownership = MechanicalConstructionOwnership::Local;
         let before = document.clone();
-        let mut requested = config("right-board");
+        let mut requested = rigid_configuration("right-board");
         requested.mounts.push(mount("invalid-mount", f64::NAN));
 
         let error = replace(&mut document, "right", Some(requested)).unwrap_err();

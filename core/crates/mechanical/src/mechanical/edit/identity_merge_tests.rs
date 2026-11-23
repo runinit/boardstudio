@@ -1,16 +1,5 @@
 use super::*;
-use serde_json::json;
-
-fn configuration() -> MechanicalConfiguration {
-    serde_json::from_value(json!({
-        "boardId":"board","method":"printed","mount":"rigid",
-        "plateThickness":1.5,"plateFoamThickness":0.5,"pcbThickness":1.6,
-        "bottomFoamThickness":0.4,"batteryHeight":4.0,"bottomThickness":3.0,
-        "plateToPcb":3.5,"wallThickness":2.0,"clearance":0.3,
-        "mounts":[],"closureMounts":[],"profiles":[]
-    }))
-    .unwrap()
-}
+use crate::test_support::*;
 
 #[test]
 fn reservation_merging_refuses_an_exhausted_floor() {
@@ -44,7 +33,7 @@ fn reservation_merging_refuses_an_exhausted_floor() {
             },
         ),
     ] {
-        let mut configuration = configuration();
+        let mut configuration = rigid_configuration("board");
         if label == "vertex" {
             configuration.openings = Some(vec![MechanicalOpening {
                 id: "opening-1".into(),
@@ -61,7 +50,7 @@ fn reservation_merging_refuses_an_exhausted_floor() {
 
 #[test]
 fn merging_an_already_exhausted_counter_is_a_no_op() {
-    let mut configuration = configuration();
+    let mut configuration = rigid_configuration("board");
     configuration.next_mount_identity = u64::MAX;
     merge_identity_floor(
         &mut configuration,

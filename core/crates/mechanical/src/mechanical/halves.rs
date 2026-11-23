@@ -702,9 +702,10 @@ fn item_exists(
             .any(|module| module.id == id && module.host_board_id == board_id),
         MirroredItemKind::ElectricalBoard => {
             id == board_id
-                && document.hardware.as_ref().is_some_and(|hardware| {
-                    hardware.boards.iter().any(|entry| entry.board_id == id)
-                })
+                && document
+                    .hardware
+                    .as_ref()
+                    .is_some_and(|hardware| hardware.board(id).is_some())
         }
         MirroredItemKind::OutlineVersion => document.board_outlines.iter().any(|outline| {
             outline.board_id == board_id && outline.versions.iter().any(|version| version.id == id)
@@ -736,10 +737,11 @@ fn kind_name(kind: MirroredItemKind) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::*;
     use serde_json::{Value, json};
 
     use super::validate_document;
-    use crate::model::{Board, HardwareConfiguration, MechanicalMirrorPair, Part, ProjectDoc};
+    use crate::model::{Board, HardwareConfiguration, MechanicalMirrorPair, ProjectDoc};
 
     fn construction() -> Value {
         json!({
@@ -780,14 +782,6 @@ mod tests {
         .unwrap()
     }
 
-    fn part(id: &str) -> Part {
-        serde_json::from_value(json!({
-            "id": id, "definitionId": "switch", "reference": id,
-            "pose": { "at": { "x": 0.0, "y": 0.0 }, "rotation": 0.0 }, "side": "front"
-        }))
-        .unwrap()
-    }
-
     fn document(pairs: Vec<MechanicalMirrorPair>) -> ProjectDoc {
         let mut document = ProjectDoc::empty("doc", "Doc");
         document.boards = vec![
@@ -806,7 +800,7 @@ mod tests {
         ];
         document.parts = ["l-key", "l-extra", "r-key", "r-extra"]
             .iter()
-            .map(|id| part(id))
+            .map(|id| part_at(id, "switch", 0.0, 0.0))
             .collect();
         document.hardware = Some(HardwareConfiguration {
             pairs,

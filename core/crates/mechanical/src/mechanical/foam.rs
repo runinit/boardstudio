@@ -140,7 +140,7 @@ pub(super) fn subtract_foam_exclusions(
         if shapes.is_empty() {
             *shapes = next;
         } else {
-            *shapes = geometry::overlay_shapes(shapes, &next, BooleanOverlayRule::Union);
+            *shapes = geometry::overlay(shapes, &next, BooleanOverlayRule::Union);
         }
     };
 
@@ -158,7 +158,7 @@ pub(super) fn subtract_foam_exclusions(
     if cuts.is_empty() {
         return Ok(base.to_vec());
     }
-    let output = geometry::overlay_shapes(&solids, &cuts, BooleanOverlayRule::Difference);
+    let output = geometry::overlay(&solids, &cuts, BooleanOverlayRule::Difference);
     if output.is_empty() {
         return Err("Foam clearances remove the complete sheet".into());
     }

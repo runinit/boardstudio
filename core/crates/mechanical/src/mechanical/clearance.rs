@@ -372,9 +372,10 @@ fn js_number_to_string(value: f64) -> String {
 mod tests {
     use super::*;
     use crate::model::{
-        Board, HardwareConfiguration, Layout, MechanicalConfiguration,
-        MechanicalConstructionOwnership, Mount, PhysicalBoardInstance,
+        HardwareConfiguration, Layout, MechanicalConfiguration, MechanicalConstructionOwnership,
+        Mount, PhysicalBoardInstance,
     };
+    use crate::test_support::*;
 
     fn configuration(
         board_id: &str,
@@ -405,16 +406,19 @@ mod tests {
         }
     }
 
-    fn hole_template() -> PartDefinition {
-        serde_json::from_value(serde_json::json!({
-            "id":"generator:ceoloide/mounting_hole_npth", "name":"mounting hole npth",
-            "kind":"custom", "pads":[{"id":"pad-0", "number":"", "at":{"x":0,"y":0},
-                "size":{"x":2.2,"y":2.2}, "shape":"circle", "drill":2.2,"plated":false,"rotation":0}],
-            "courtyard":[{"x":-1.1,"y":-1.1},{"x":1.1,"y":-1.1},{"x":1.1,"y":1.1},{"x":-1.1,"y":1.1}],
-            "envelopeSource":{"courtyard":"generated"},
-            "envelopeNotice":"No closed courtyard is available; the outline uses physical graphics and pad extents.",
-            "generator":{"source":"ceoloide/mounting_hole_npth", "version":"bundled-1", "parameters":{}}
-        })).unwrap()
+    fn flipped_instance(mechanical: Option<MechanicalConfiguration>) -> PhysicalBoardInstance {
+        PhysicalBoardInstance {
+            mechanical_identity_reservation: None,
+            id: "right".into(),
+            name: "Right".into(),
+            board_id: "board".into(),
+            half: "right".into(),
+            role: "peripheral".into(),
+            flipped: true,
+            controller_part_id: None,
+            construction_ownership: MechanicalConstructionOwnership::Legacy,
+            mechanical,
+        }
     }
 
     #[test]
@@ -430,46 +434,27 @@ mod tests {
     #[test]
     fn projects_canonical_and_flipped_instance_union_and_preserves_other_parts() {
         let mut document = ProjectDoc::empty("doc", "Doc");
-        document.boards.push(Board {
-            id: "board".into(),
-            name: "Board".into(),
-            outline_ids: vec![],
-            part_ids: vec!["authored".into(), "case-closure/stale".into()],
-            net_ids: vec![],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
-        document.boards.push(Board {
-            id: "other-board".into(),
-            name: "Other board".into(),
-            outline_ids: vec![],
-            part_ids: vec!["other-authored".into()],
-            net_ids: vec![],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
-        document.definitions.push(hole_template());
+        document.boards.push(board(
+            "board",
+            vec!["authored".into(), "case-closure/stale".into()],
+            1.6,
+        ));
+        document
+            .boards
+            .push(board("other-board", vec!["other-authored".into()], 1.6));
+        document.definitions.push(mounting_hole_template());
         document
             .parameters
             .insert("unrelated".into(), serde_json::json!({"preserve": true}));
-        document.parts.push(Part {
-            anchor: None,
-            id: "authored".into(),
-            definition_id: "authored-def".into(),
-            reference: "MH4294967295".into(),
-            pose: Pose2 {
-                at: Vec2 { x: 4.0, y: 5.0 },
-                rotation: 0.0,
-            },
-            side: Side::Front,
-            outline: None,
-            keycap: None,
-            locked: None,
-            properties: None,
-            generator_parameters: None,
-        });
+        document.parts.push(part_full(
+            "authored",
+            "authored-def",
+            "MH4294967295",
+            4.0,
+            5.0,
+            0.0,
+            Side::Front,
+        ));
         document.layouts.push(Layout {
             id: "layout".into(),
             name: "Layout".into(),
@@ -478,22 +463,15 @@ mod tests {
             part_ids: vec!["authored".into(), "case-closure/stale".into()],
             mirror_link: None,
         });
-        document.parts.push(Part {
-            anchor: None,
-            id: "case-closure/stale".into(),
-            definition_id: "stale".into(),
-            reference: "MH88".into(),
-            pose: Pose2 {
-                at: Vec2 { x: 0.0, y: 0.0 },
-                rotation: 0.0,
-            },
-            side: Side::Front,
-            outline: None,
-            keycap: None,
-            locked: None,
-            properties: None,
-            generator_parameters: None,
-        });
+        document.parts.push(part_full(
+            "case-closure/stale",
+            "stale",
+            "MH88",
+            0.0,
+            0.0,
+            0.0,
+            Side::Front,
+        ));
         document.mechanical = Some(configuration(
             "board",
             vec![mount(
@@ -505,34 +483,23 @@ mod tests {
             0.3,
         ));
         document.hardware = Some(HardwareConfiguration {
-            instances: vec![PhysicalBoardInstance {
-                mechanical_identity_reservation: None,
-                id: "right".into(),
-                name: "Right".into(),
-                board_id: "board".into(),
-                half: "right".into(),
-                role: "peripheral".into(),
-                flipped: true,
-                controller_part_id: None,
-                construction_ownership: MechanicalConstructionOwnership::Legacy,
-                mechanical: Some(configuration(
-                    "board",
-                    vec![mount(
-                        Vec2 {
-                            x: -10.000001,
-                            y: 20.000001,
-                        },
-                        MountKind::Boss,
-                        2.2,
-                        Some(7.0),
-                    )],
-                    0.3,
-                )),
-            }],
+            instances: vec![flipped_instance(Some(configuration(
+                "board",
+                vec![mount(
+                    Vec2 {
+                        x: -10.000001,
+                        y: 20.000001,
+                    },
+                    MountKind::Boss,
+                    2.2,
+                    Some(7.0),
+                )],
+                0.3,
+            )))],
             ..HardwareConfiguration::default()
         });
 
-        let template = hole_template();
+        let template = mounting_hole_template();
         let projected = project_closure_clearance(&document, &template).unwrap();
         let generated = projected
             .parts
@@ -595,16 +562,7 @@ mod tests {
     #[test]
     fn screw_clearance_uses_hole_diameter_and_empty_mounts_remove_owned_projection() {
         let mut document = ProjectDoc::empty("doc", "Doc");
-        document.boards.push(Board {
-            id: "board".into(),
-            name: "Board".into(),
-            outline_ids: vec![],
-            part_ids: vec![],
-            net_ids: vec![],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
+        document.boards.push(board("board", vec![], 1.6));
         document.mechanical = Some(configuration(
             "board",
             vec![mount(
@@ -615,7 +573,7 @@ mod tests {
             )],
             4.0,
         ));
-        let first = project_closure_clearance(&document, &hole_template()).unwrap();
+        let first = project_closure_clearance(&document, &mounting_hole_template()).unwrap();
         let part = first
             .parts
             .iter()
@@ -633,7 +591,7 @@ mod tests {
         );
         let mut explicit_empty = first.clone();
         explicit_empty.mechanical.as_mut().unwrap().closure_mounts = Some(vec![]);
-        let empty = project_closure_clearance(&explicit_empty, &hole_template()).unwrap();
+        let empty = project_closure_clearance(&explicit_empty, &mounting_hole_template()).unwrap();
         assert!(
             empty
                 .parts
@@ -652,42 +610,22 @@ mod tests {
     #[test]
     fn positive_and_negative_zero_deduplicate_to_one_js_compatible_key() {
         let mut document = ProjectDoc::empty("doc", "Doc");
-        document.boards.push(Board {
-            id: "board".into(),
-            name: "Board".into(),
-            outline_ids: vec![],
-            part_ids: vec![],
-            net_ids: vec![],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
+        document.boards.push(board("board", vec![], 1.6));
         document.mechanical = Some(configuration(
             "board",
             vec![mount(Vec2 { x: -0.0, y: 0.0 }, MountKind::Hole, 2.2, None)],
             0.0,
         ));
         document.hardware = Some(HardwareConfiguration {
-            instances: vec![PhysicalBoardInstance {
-                mechanical_identity_reservation: None,
-                id: "right".into(),
-                name: "Right".into(),
-                board_id: "board".into(),
-                half: "right".into(),
-                role: "peripheral".into(),
-                flipped: true,
-                controller_part_id: None,
-                construction_ownership: MechanicalConstructionOwnership::Legacy,
-                mechanical: Some(configuration(
-                    "board",
-                    vec![mount(Vec2 { x: 0.0, y: 0.0 }, MountKind::Hole, 2.2, None)],
-                    0.0,
-                )),
-            }],
+            instances: vec![flipped_instance(Some(configuration(
+                "board",
+                vec![mount(Vec2 { x: 0.0, y: 0.0 }, MountKind::Hole, 2.2, None)],
+                0.0,
+            )))],
             ..HardwareConfiguration::default()
         });
 
-        let projected = project_closure_clearance(&document, &hole_template()).unwrap();
+        let projected = project_closure_clearance(&document, &mounting_hole_template()).unwrap();
         let generated = projected
             .parts
             .iter()

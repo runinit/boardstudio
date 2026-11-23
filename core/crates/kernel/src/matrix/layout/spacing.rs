@@ -445,18 +445,7 @@ pub fn part_extents_at(
     keycap: Option<Vec2>,
     definition: &PartDefinition,
 ) -> (f64, f64) {
-    let (sin, cos) = pose.rotation.to_radians().sin_cos();
-    let project = |point: Vec2| {
-        let x = if side == Side::Back {
-            -point.x
-        } else {
-            point.x
-        };
-        Vec2 {
-            x: pose.at.x + x * cos - point.y * sin,
-            y: pose.at.y + x * sin + point.y * cos,
-        }
-    };
+    let project = |point: Vec2| crate::geometry::part_to_world(point, pose, side.clone());
     if !definition.courtyard.is_empty() {
         let mut min = f64::INFINITY;
         let mut max = f64::NEG_INFINITY;

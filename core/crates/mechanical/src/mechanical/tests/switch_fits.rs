@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::*;
 
 #[test]
 fn part_owned_profiles_supply_case_cutouts_without_case_assignment() {
@@ -23,7 +24,7 @@ fn part_owned_profiles_supply_case_cutouts_without_case_assignment() {
         }))
         .unwrap(),
     );
-    doc.boards.push(board(vec!["key".into()], 1.2));
+    doc.boards.push(board("board", vec!["key".into()], 1.2));
     doc.mechanical = Some(config());
     let outline = rectangle(0., 0., 40., 40.);
     let saved = doc.clone();
@@ -61,7 +62,7 @@ fn part_owned_profiles_supply_case_cutouts_without_case_assignment() {
 fn switch_profiles_drive_spacing_and_reject_incompatible_engagement() {
     let mut doc = ProjectDoc::empty("test", "test");
     doc.boards
-        .push(board(vec!["key".into(), "key2".into()], 1.6));
+        .push(board("board", vec!["key".into(), "key2".into()], 1.6));
     for (id, definition_id) in [("key", "switch"), ("key2", "switch2")] {
         doc.parts.push(serde_json::from_value(serde_json::json!({"id":id,"definitionId":definition_id,"reference":id,"pose":{"at":{"x":20,"y":20},"rotation":0},"side":"front"})).unwrap());
         doc.definitions.push(serde_json::from_value(serde_json::json!({"id":definition_id,"name":"Switch","kind":"switch","courtyard":[],"pads":[]})).unwrap());
@@ -231,8 +232,11 @@ fn canonical_switch_profiles_produce_seventy_square_openings() {
                 }
             }
         }
-        doc.boards
-            .push(board(doc.parts.iter().map(|p| p.id.clone()).collect(), 1.6));
+        doc.boards.push(board(
+            "board",
+            doc.parts.iter().map(|p| p.id.clone()).collect(),
+            1.6,
+        ));
         let mut settings = config();
         settings.plate_thickness = if source.ends_with("switch_mx") {
             1.5
@@ -314,7 +318,7 @@ fn generator_switches_derive_their_fit_and_plate_gap() {
         ),
     ] {
         let mut doc = ProjectDoc::empty("switch-fit", "switch-fit");
-        doc.boards.push(board(vec!["switch".into()], 1.6));
+        doc.boards.push(board("board", vec!["switch".into()], 1.6));
         doc.parts.push(
             serde_json::from_value(serde_json::json!({
                 "id":"switch", "definitionId":"switch-def", "reference":"SW1",
@@ -379,7 +383,7 @@ fn generator_switches_derive_their_fit_and_plate_gap() {
 #[test]
 fn unknown_switch_requires_a_fit_choice_before_plate_generation() {
     let mut doc = ProjectDoc::empty("unknown-switch", "unknown-switch");
-    doc.boards.push(board(vec!["switch".into()], 1.6));
+    doc.boards.push(board("board", vec!["switch".into()], 1.6));
     doc.parts.push(
         serde_json::from_value(serde_json::json!({
             "id":"switch", "definitionId":"imported", "reference":"SW1",
@@ -642,6 +646,7 @@ fn generator_definition(id: &str, source: &str, parameters: serde_json::Value) -
 fn switch_document(parts: Vec<Part>, definitions: Vec<PartDefinition>) -> ProjectDoc {
     let mut doc = ProjectDoc::empty("family", "family");
     doc.boards.push(board(
+        "board",
         parts.iter().map(|part| part.id.clone()).collect(),
         1.6,
     ));

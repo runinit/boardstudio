@@ -47,7 +47,7 @@ pub fn connection_findings(doc: &ProjectDoc, board_id: &str) -> Vec<Finding> {
     let controller_id = doc
         .hardware
         .as_ref()
-        .and_then(|h| h.boards.iter().find(|b| b.board_id == board_id))
+        .and_then(|h| h.board(board_id))
         .and_then(|b| b.controller_part_id.as_deref());
     let board = doc.boards.iter().find(|b| b.id == board_id);
     let controller = controller_id

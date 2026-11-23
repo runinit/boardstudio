@@ -23,28 +23,6 @@ fn definition<'a>(doc: &'a ProjectDoc, part: &Part) -> Option<&'a PartDefinition
         .iter()
         .find(|item| item.id == part.definition_id)
 }
-fn parameter<'a>(
-    part: &'a Part,
-    definition: &'a PartDefinition,
-    name: &str,
-) -> Option<&'a serde_json::Value> {
-    let value = part
-        .generator_parameters
-        .as_ref()
-        .and_then(|values| values.get(name))
-        .or_else(|| {
-            definition
-                .generator
-                .as_ref()
-                .and_then(|generator| generator.parameters.get(name))
-        })?;
-    Some(value.get("value").unwrap_or(value))
-}
-fn enabled(part: &Part, definition: &PartDefinition, name: &str, fallback: bool) -> bool {
-    parameter(part, definition, name)
-        .and_then(|value| value.as_bool())
-        .unwrap_or(fallback)
-}
 fn pins(definition: &PartDefinition, terminal: &str, part: &str) -> Vec<Pin> {
     let ids = definition
         .terminals
@@ -434,7 +412,7 @@ fn resolve_jumpers(
                 }
             }
             recipes.push(recipe);
-        } else if enabled(part, definition, "reversible", false)
+        } else if part.generator_flag(definition, "reversible", false)
             && definition
                 .generator
                 .as_ref()
@@ -776,12 +754,10 @@ pub fn resolve(mut request: ElectricalPlanRequest) -> ElectricalPlan {
         );
         return plan;
     };
-    let config = doc.hardware.as_ref().and_then(|hardware| {
-        hardware
-            .boards
-            .iter()
-            .find(|entry| entry.board_id == board.id)
-    });
+    let config = doc
+        .hardware
+        .as_ref()
+        .and_then(|hardware| hardware.board(&board.id));
     let selected = request
         .controller_part_id
         .as_ref()
@@ -852,10 +828,10 @@ pub fn resolve(mut request: ElectricalPlanRequest) -> ElectricalPlan {
     if let (Some(controller), Some(definition), Some(profile)) =
         (controller, controller_definition, profile.as_ref())
     {
-        let extras = enabled(controller, definition, "include_extra_pins", false);
-        let reversible = enabled(controller, definition, "reversible", false);
-        let reduced = enabled(controller, definition, "only_required_jumpers", false);
-        if enabled(controller, definition, "invert_jumpers_position", false) {
+        let extras = controller.generator_flag(definition, "include_extra_pins", false);
+        let reversible = controller.generator_flag(definition, "reversible", false);
+        let reduced = controller.generator_flag(definition, "only_required_jumpers", false);
+        if controller.generator_flag(definition, "invert_jumpers_position", false) {
             diagnostic(
                 &mut plan.diagnostics,
                 "unsupported-jumper-variant",
@@ -1227,26 +1203,16 @@ pub fn materialize_reviewed(
         .net_ids
         .extend(plan.nets.iter().map(|net| net.id.clone()));
     let hardware = document.hardware.get_or_insert_with(Default::default);
-    let index = hardware
-        .boards
-        .iter()
-        .position(|config| config.board_id == *board_id)
-        .unwrap_or_else(|| {
-            hardware.boards.push(ElectricalBoardConfiguration {
-                board_id: board_id.clone(),
-                ..Default::default()
-            });
-            hardware.boards.len() - 1
-        });
-    hardware.boards[index].assignments = handoff_assignments(plan);
+    let entry = hardware.board_mut_or_insert(board_id);
+    entry.assignments = handoff_assignments(plan);
     if plan.mode == ElectricalMode::Direct {
-        hardware.boards[index].assignments.extend(
+        entry.assignments.extend(
             plan.assignments
                 .iter()
                 .map(|assignment| (assignment.key_id.clone(), assignment.column_pin.clone())),
         );
     } else {
-        hardware.boards[index].assignments.extend(
+        entry.assignments.extend(
             plan.row_pins
                 .iter()
                 .enumerate()
@@ -1259,8 +1225,8 @@ pub fn materialize_reviewed(
                 ),
         );
     }
-    hardware.boards[index].mode = plan.mode;
-    hardware.boards[index].controller_part_id = plan.controller_part_id.clone();
+    entry.mode = plan.mode;
+    entry.controller_part_id = plan.controller_part_id.clone();
     Ok(())
 }
 
@@ -1348,18 +1314,8 @@ pub fn preserve_handoff(previous: &ProjectDoc, next: &mut ProjectDoc) {
             continue;
         };
         let hardware = next.hardware.get_or_insert_with(Default::default);
-        if let Some(current) = hardware
-            .boards
-            .iter_mut()
-            .find(|entry| entry.board_id == config.board_id)
-        {
-            current.protected_handoff = Some(baseline.clone());
-        } else {
-            hardware.boards.push(ElectricalBoardConfiguration {
-                board_id: config.board_id.clone(),
-                protected_handoff: Some(baseline.clone()),
-                ..Default::default()
-            });
-        }
+        hardware
+            .board_mut_or_insert(&config.board_id)
+            .protected_handoff = Some(baseline.clone());
     }
 }

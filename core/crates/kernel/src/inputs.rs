@@ -222,7 +222,7 @@ pub fn finding_markers(
     doc: &ProjectDoc,
     findings: &[crate::model::Finding],
 ) -> Vec<crate::model::FindingMarker> {
-    use crate::model::{Contour, FindingMarker, Side, Vec2};
+    use crate::model::{Contour, FindingMarker, Vec2};
     let mut result = Vec::new();
     for finding in findings
         .iter()
@@ -244,7 +244,6 @@ pub fn finding_markers(
             else {
                 continue;
             };
-            let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
             let contours: Vec<_> = def
                 .pads
                 .iter()
@@ -256,11 +255,11 @@ pub fn finding_markers(
                         .map(|(x, y)| {
                             let px = pad.at.x + x * pad.size.x * pc - y * pad.size.y * ps;
                             let py = pad.at.y + x * pad.size.x * ps + y * pad.size.y * pc;
-                            let px = if part.side == Side::Back { -px } else { px };
-                            Vec2 {
-                                x: part.pose.at.x + px * cos - py * sin,
-                                y: part.pose.at.y + px * sin + py * cos,
-                            }
+                            crate::geometry::part_to_world(
+                                Vec2 { x: px, y: py },
+                                &part.pose,
+                                part.side.clone(),
+                            )
                         })
                         .collect();
                     Contour {

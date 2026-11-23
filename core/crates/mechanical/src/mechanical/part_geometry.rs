@@ -301,7 +301,6 @@ pub(super) fn collect_part_geometry(
                 vec![part.id.clone()],
             );
         }
-        let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
         if let Some(source) = &profile.source_geometry {
             let hash = sha256_hex(source.text.as_bytes());
             if hash != source.sha256 {
@@ -327,15 +326,7 @@ pub(super) fn collect_part_geometry(
                 );
                 continue;
             }
-            let x = if part.side == Side::Back {
-                -hole.at.x
-            } else {
-                hole.at.x
-            };
-            let at = Vec2 {
-                x: part.pose.at.x + x * cos - hole.at.y * sin,
-                y: part.pose.at.y + x * sin + hole.at.y * cos,
-            };
+            let at = crate::geometry::part_to_world(hole.at, &part.pose, part.side.clone());
             let points = (0..64)
                 .map(|index| {
                     let angle = index as f64 * std::f64::consts::TAU / 64.0;
@@ -503,14 +494,7 @@ pub(super) fn collect_part_geometry(
                 hole: true,
                 points: polygon
                     .iter()
-                    .map(|p| Vec2 {
-                        x: part.pose.at.x
-                            + (if part.side == Side::Back { -p.x } else { p.x }) * cos
-                            - p.y * sin,
-                        y: part.pose.at.y
-                            + (if part.side == Side::Back { -p.x } else { p.x }) * sin
-                            + p.y * cos,
-                    })
+                    .map(|p| crate::geometry::part_to_world(*p, &part.pose, part.side.clone()))
                     .collect(),
             };
             if !plate_contours

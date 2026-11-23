@@ -5,30 +5,17 @@ use boardstudio_contracts::polygon_contains;
 mod edits;
 pub(crate) use edits::apply_edit;
 
+fn mount_for_family(family: MechanicalSwitchFamily) -> KeycapMount {
+    match family {
+        MechanicalSwitchFamily::ChocV1 => KeycapMount::ChocV1,
+        MechanicalSwitchFamily::ChocV2 => KeycapMount::ChocV2,
+        MechanicalSwitchFamily::Mx => KeycapMount::Mx,
+    }
+}
+
 fn catalog_mount(part: &Part, definition: &PartDefinition) -> Option<KeycapMount> {
-    let generator = definition.generator.as_ref()?;
-    if generator.source == "ceoloide/switch_mx" {
-        return Some(KeycapMount::Mx);
-    }
-    if !generator.source.ends_with("/switch_choc_v1_v2") {
-        return None;
-    }
-    let flag = |name: &str| {
-        part.generator_parameters
-            .as_ref()
-            .and_then(|p| p.get(name))
-            .or_else(|| generator.parameters.get(name))
-            .and_then(|v| {
-                v.as_bool()
-                    .or_else(|| v.get("value").and_then(serde_json::Value::as_bool))
-            })
-            .unwrap_or(true)
-    };
-    match (flag("choc_v1_support"), flag("choc_v2_support")) {
-        (true, false) => Some(KeycapMount::ChocV1),
-        (false, true) => Some(KeycapMount::ChocV2),
-        _ => None,
-    }
+    crate::mechanical::generator_switch_family(definition, part.generator_parameters.as_ref())
+        .map(mount_for_family)
 }
 
 fn finding(id: String, message: String, targets: Vec<String>, severity: Severity) -> Finding {
@@ -170,7 +157,7 @@ pub(crate) fn project(
     let bindings = doc
         .hardware
         .as_ref()
-        .and_then(|h| h.boards.iter().find(|b| b.board_id == board_id))
+        .and_then(|h| h.board(board_id))
         .map(|b| &b.key_bindings);
     for part in doc.parts.iter().filter(|p| board.part_ids.contains(&p.id)) {
         let Some(def) = doc.definitions.iter().find(|d| d.id == part.definition_id) else {
@@ -199,11 +186,7 @@ pub(crate) fn project(
                     .and_then(|p| p.switch_family)
             });
         let inferred = family
-            .map(|family| match family {
-                MechanicalSwitchFamily::ChocV1 => KeycapMount::ChocV1,
-                MechanicalSwitchFamily::ChocV2 => KeycapMount::ChocV2,
-                MechanicalSwitchFamily::Mx => KeycapMount::Mx,
-            })
+            .map(mount_for_family)
             .or_else(|| catalog_mount(part, def));
         if def.kind != PartKind::Switch && inferred.is_none() {
             result.findings.push(finding(
@@ -520,15 +503,15 @@ pub(crate) fn project(
     projection
 }
 fn envelope(s: &KeycapSpec) -> [Vec2; 4] {
-    let angle = s.pose.rotation.to_radians();
-    let (sin, cos) = (angle.sin(), angle.cos());
     [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)].map(|(x, y)| {
-        let x = x * s.size.x / 2.0;
-        let y = y * s.size.y / 2.0;
-        Vec2 {
-            x: s.pose.at.x + x * cos - y * sin,
-            y: s.pose.at.y + x * sin + y * cos,
-        }
+        crate::geometry::part_to_world(
+            Vec2 {
+                x: x * s.size.x / 2.0,
+                y: y * s.size.y / 2.0,
+            },
+            &s.pose,
+            Side::Front,
+        )
     })
 }
 fn point_segment(p: Vec2, a: Vec2, b: Vec2) -> f64 {
