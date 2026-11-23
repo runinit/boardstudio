@@ -153,6 +153,157 @@ pub fn native_preview_pick_part_id(
     )
 }
 
+impl PreviewSnapshot<CasePreviewOwnerIdentity> for NativePreviewSnapshot {
+    fn source(
+        &self,
+    ) -> (
+        &CasePreviewOwnerIdentity,
+        &Rc<PreviewLease<CasePreviewOwnerIdentity>>,
+    ) {
+        (&self.owner, &self.lease)
+    }
+}
+
+pub type NativePreviewState = PreviewSlot<CasePreviewOwnerIdentity, NativePreviewSnapshot>;
+
+/// Capture the physical document and contours used by the native preview from
+/// the accepted source projection before mechanical Case preparation/CAD.
+pub fn capture_native_preview(
+    snapshot: &AcceptedSnapshot,
+    scope: &Scope,
+    projection_generation: u64,
+
+    request_token: String,
+) -> Result<NativePreviewCapture, String> {
+    if request_token.is_empty() {
+        return Err("Case preview request token must not be empty".into());
+    }
+    let document = captured_case_document(snapshot, scope)
+        .map_err(|error| format!("Could not capture accepted physical Case document: {error:?}"))?;
+    if document.revision != snapshot.document.revision {
+        return Err("Physical Case projection changed the accepted revision".into());
+    }
+    if document.physical_instance_id.as_deref() != scope.instance_id.as_deref() {
+        return Err("Physical Case projection selected another instance".into());
+    }
+    if !document
+        .boards
+        .iter()
+        .any(|board| board.id == scope.board_id)
+    {
+        return Err("Selected board is unavailable in the accepted Case document".into());
+    }
+    let scene = captured_case_scene(snapshot, scope)
+        .map_err(|error| format!("Could not capture accepted physical Case contours: {error:?}"))?;
+    let contours = scene
+        .board_contours
+        .iter()
+        .find(|entry| entry.board_id == scope.board_id)
+        .map(|entry| entry.contours.clone())
+        .unwrap_or_default();
+    let path_assets = preview_model_paths(&document);
+    let owner = CasePreviewOwnerIdentity::capture(
+        snapshot,
+        scope,
+        projection_generation,
+        request_token.clone(),
+    );
+    let request = capture_board_preview_request(
+        &document,
+        &scope.board_id,
+        &contours,
+        &path_assets,
+        request_token,
+        "accepted Case document",
+    )?;
+
+    let lease = CasePreviewOwnerLease::new(owner.clone());
+    Ok(NativePreviewCapture {
+        owner,
+        lease,
+        document,
+        contours,
+        path_assets,
+        request,
+    })
+}
+
+pub fn accept_native_preview(
+    capture: NativePreviewCapture,
+    preview: PcbPreview,
+) -> Result<NativePreviewSnapshot, String> {
+    if preview.revision != capture.document.revision {
+        return Err("Core returned a Case board preview for another revision".into());
+    }
+    let board_reference = match &capture.request {
+        CasePreviewRequest::Authored(request) => {
+            if request.expected_revision != capture.document.revision
+                || request.snapshot_token != capture.owner.request_token
+            {
+                return Err(
+                    "Case preview request identity does not match its accepted source".into(),
+                );
+            }
+            None
+        }
+        CasePreviewRequest::Imported { reference, .. } => Some(reference.clone()),
+    };
+    let contours = if board_reference.is_some() {
+        preview.contours.clone()
+    } else {
+        capture.contours
+    };
+    Ok(NativePreviewSnapshot {
+        owner: capture.owner,
+        lease: capture.lease,
+        accepted_document: capture.document,
+        contours,
+        path_assets: capture.path_assets,
+        preview,
+        board_reference,
+    })
+}
+
+fn model_extension(filename: &str) -> Option<&'static str> {
+    match filename.rsplit_once('.')?.1.to_ascii_lowercase().as_str() {
+        "step" => Some("step"),
+        "stp" => Some("stp"),
+        "stl" => Some("stl"),
+        "wrl" => Some("wrl"),
+        _ => None,
+    }
+}
+
+/// Build the existing export-relative path table for preview model resolution.
+/// Layout and Case share this metadata rule; their accepted source projections
+/// and freshness owners remain separate.
+pub fn preview_model_paths(document: &ProjectDoc) -> BTreeMap<String, String> {
+    let mut path_assets = document
+        .assets
+        .iter()
+        .filter_map(|asset| {
+            let extension = model_extension(&asset.name)?;
+            (!asset.id.is_empty() && !asset.sha256.is_empty()).then(|| {
+                (
+                    asset.id.clone(),
+                    format!("models/{}.{extension}", asset.sha256),
+                )
+            })
+        })
+        .collect::<BTreeMap<_, _>>();
+    let document_asset_ids = document
+        .assets
+        .iter()
+        .map(|asset| asset.id.as_str())
+        .collect::<BTreeSet<_>>();
+    for (asset_id, path) in crate::bundled_models::preview_model_paths() {
+        if !document_asset_ids.contains(asset_id) {
+            path_assets.insert(asset_id.to_owned(), path.to_owned());
+        }
+    }
+    path_assets
+}
+
 #[cfg(test)]
 mod native_preview_pick_tests {
     use super::*;
@@ -317,157 +468,6 @@ mod native_preview_pick_tests {
         assert!(state.published().is_none() && state.current_error(|_| true).is_none());
         assert!(state.owns(&preview.owner));
     }
-}
-
-impl PreviewSnapshot<CasePreviewOwnerIdentity> for NativePreviewSnapshot {
-    fn source(
-        &self,
-    ) -> (
-        &CasePreviewOwnerIdentity,
-        &Rc<PreviewLease<CasePreviewOwnerIdentity>>,
-    ) {
-        (&self.owner, &self.lease)
-    }
-}
-
-pub type NativePreviewState = PreviewSlot<CasePreviewOwnerIdentity, NativePreviewSnapshot>;
-
-/// Capture the physical document and contours used by the native preview from
-/// the accepted source projection before mechanical Case preparation/CAD.
-pub fn capture_native_preview(
-    snapshot: &AcceptedSnapshot,
-    scope: &Scope,
-    projection_generation: u64,
-
-    request_token: String,
-) -> Result<NativePreviewCapture, String> {
-    if request_token.is_empty() {
-        return Err("Case preview request token must not be empty".into());
-    }
-    let document = captured_case_document(snapshot, scope)
-        .map_err(|error| format!("Could not capture accepted physical Case document: {error:?}"))?;
-    if document.revision != snapshot.document.revision {
-        return Err("Physical Case projection changed the accepted revision".into());
-    }
-    if document.physical_instance_id.as_deref() != scope.instance_id.as_deref() {
-        return Err("Physical Case projection selected another instance".into());
-    }
-    if !document
-        .boards
-        .iter()
-        .any(|board| board.id == scope.board_id)
-    {
-        return Err("Selected board is unavailable in the accepted Case document".into());
-    }
-    let scene = captured_case_scene(snapshot, scope)
-        .map_err(|error| format!("Could not capture accepted physical Case contours: {error:?}"))?;
-    let contours = scene
-        .board_contours
-        .iter()
-        .find(|entry| entry.board_id == scope.board_id)
-        .map(|entry| entry.contours.clone())
-        .unwrap_or_default();
-    let path_assets = preview_model_paths(&document);
-    let owner = CasePreviewOwnerIdentity::capture(
-        snapshot,
-        scope,
-        projection_generation,
-        request_token.clone(),
-    );
-    let request = capture_board_preview_request(
-        &document,
-        &scope.board_id,
-        &contours,
-        &path_assets,
-        request_token,
-        "accepted Case document",
-    )?;
-
-    let lease = CasePreviewOwnerLease::new(owner.clone());
-    Ok(NativePreviewCapture {
-        owner,
-        lease,
-        document,
-        contours,
-        path_assets,
-        request,
-    })
-}
-
-pub fn accept_native_preview(
-    capture: NativePreviewCapture,
-    preview: PcbPreview,
-) -> Result<NativePreviewSnapshot, String> {
-    if preview.revision != capture.document.revision {
-        return Err("Core returned a Case board preview for another revision".into());
-    }
-    let board_reference = match &capture.request {
-        CasePreviewRequest::Authored(request) => {
-            if request.expected_revision != capture.document.revision
-                || request.snapshot_token != capture.owner.request_token
-            {
-                return Err(
-                    "Case preview request identity does not match its accepted source".into(),
-                );
-            }
-            None
-        }
-        CasePreviewRequest::Imported { reference, .. } => Some(reference.clone()),
-    };
-    let contours = if board_reference.is_some() {
-        preview.contours.clone()
-    } else {
-        capture.contours
-    };
-    Ok(NativePreviewSnapshot {
-        owner: capture.owner,
-        lease: capture.lease,
-        accepted_document: capture.document,
-        contours,
-        path_assets: capture.path_assets,
-        preview,
-        board_reference,
-    })
-}
-
-fn model_extension(filename: &str) -> Option<&'static str> {
-    match filename.rsplit_once('.')?.1.to_ascii_lowercase().as_str() {
-        "step" => Some("step"),
-        "stp" => Some("stp"),
-        "stl" => Some("stl"),
-        "wrl" => Some("wrl"),
-        _ => None,
-    }
-}
-
-/// Build the existing export-relative path table for preview model resolution.
-/// Layout and Case share this metadata rule; their accepted source projections
-/// and freshness owners remain separate.
-pub fn preview_model_paths(document: &ProjectDoc) -> BTreeMap<String, String> {
-    let mut path_assets = document
-        .assets
-        .iter()
-        .filter_map(|asset| {
-            let extension = model_extension(&asset.name)?;
-            (!asset.id.is_empty() && !asset.sha256.is_empty()).then(|| {
-                (
-                    asset.id.clone(),
-                    format!("models/{}.{extension}", asset.sha256),
-                )
-            })
-        })
-        .collect::<BTreeMap<_, _>>();
-    let document_asset_ids = document
-        .assets
-        .iter()
-        .map(|asset| asset.id.as_str())
-        .collect::<BTreeSet<_>>();
-    for (asset_id, path) in crate::bundled_models::preview_model_paths() {
-        if !document_asset_ids.contains(asset_id) {
-            path_assets.insert(asset_id.to_owned(), path.to_owned());
-        }
-    }
-    path_assets
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
