@@ -2,6 +2,7 @@
 //! view-only focus while tree selection, workspace switches and spacing edits
 //! keep it. Mounted against the real Editor, Session and Core.
 use super::*;
+use crate::presentation::test_mount_helpers;
 use boardstudio_core::model::{Board, Layout, ProjectDoc};
 use boardstudio_web_test_runtime::project_name_test_support as support;
 use boardstudio_web_ui_model::Workspace;
@@ -76,10 +77,7 @@ fn split_document() -> ProjectDoc {
 
 fn host() -> Element {
     let workspace = use_signal(|| Workspace::Layout);
-    use_context_provider(|| WorkspaceState(workspace));
-    use_context_provider(|| ExportReturnWorkspace(workspace));
     let version = use_signal(|| 0u64);
-    use_context_provider(|| version);
     let runtime = use_context::<Rc<Runtime>>();
     use_hook(move || {
         runtime.subscribe(Rc::new(move || {
@@ -87,33 +85,11 @@ fn host() -> Element {
             version += 1;
         }))
     });
-    let created = use_signal(|| None::<SetupGuideRequest>);
-    use_context_provider(|| created);
-    let objects_open = use_signal(|| true);
-    let inspector_open = use_signal(|| true);
-    use_context_provider(|| CompactPanelState {
-        objects_open,
-        inspector_open,
-    });
-    let warning = use_signal(|| false);
-    use_context_provider(|| PreferenceStorageWarning(warning));
-    let theme = use_signal(|| "light");
-    use_context_provider(|| ThemeState(theme));
-    let resolved = use_memo(|| "light");
-    use_context_provider(|| ResolvedAppearance(resolved));
     let selected = use_signal(|| None);
     let anchor = use_signal(|| None);
     let generation = use_signal(|| 0u64);
-    use_context_provider(|| SelectionAdapter::new(selected, anchor, generation));
-    let hidden = use_signal(BTreeSet::new);
-    let modules_hidden = use_signal(BTreeSet::new);
-    let footprints = use_signal(|| false);
-    use_context_provider(|| LayerVisibility {
-        hidden,
-        modules_hidden,
-        footprints,
-    });
-    boardstudio_web_ui_model::state::use_test_case_generation_state();
+    let adapter = SelectionAdapter::new(selected, anchor, generation);
+    test_mount_helpers::use_editor_context(workspace, version, adapter);
     // The header workspace tabs live above `Editor` and write this same
     // signal; these buttons drive the identical switch for the test.
     let mut workspace_switch = workspace;
@@ -158,18 +134,11 @@ fn dim_label(root: &web_sys::Element) -> String {
 
 #[wasm_bindgen_test]
 async fn dimmed_half_click_focuses_and_tree_pcb_roundtrip_keeps_focus() {
-    let runtime = support::new_runtime();
-    support::open_document(&runtime, split_document()).await;
+    let runtime = test_mount_helpers::open_document(split_document()).await;
     let revision = runtime.model().accepted.as_ref().unwrap().document.revision;
-    let dom_document = web_sys::window().unwrap().document().unwrap();
-    let root = dom_document.create_element("div").unwrap();
-    dom_document.body().unwrap().append_child(&root).unwrap();
     let dom = VirtualDom::new(host);
     dom.provide_root_context(runtime.clone());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let root = test_mount_helpers::mount(dom, None);
 
     // Focus starts on the source half: the right half dims with variant B's
     // grey dashed outline and inline click-to-edit label.
@@ -260,5 +229,4 @@ async fn dimmed_half_click_focuses_and_tree_pcb_roundtrip_keeps_focus() {
             && dim_label(&root).contains("Left half · linked mirror · click to edit here")
     })
     .await;
-    root.remove();
 }

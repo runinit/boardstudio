@@ -1,5 +1,5 @@
 use super::{MatrixSetupPreset, MatrixSetupRequest, next_matrix_id, prepare_matrix};
-use boardstudio_core::model::{Part, PartKind, Pose2, ProjectDoc, Side, Vec2};
+use boardstudio_core::model::{Part, PartKind, Pose2, Side, Vec2};
 
 #[path = "test_catalogue.rs"]
 mod test_catalogue;

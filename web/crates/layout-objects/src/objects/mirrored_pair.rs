@@ -3,9 +3,9 @@ use super::matrix_setup_fields::{
     MatrixAssemblyPicker, MatrixDimensionSliders, MatrixPreview, matrix_setup_preset,
     parse_matrix_dimensions,
 };
+pub use super::workspace_state::{MirroredPairCreated, MirroredPairOwner};
 use crate::matrix_setup_operation::MatrixSetupPreset;
 use crate::mirrored_pair_geometry::MirroredPairProjection;
-use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_model::model::Vec2;
 use boardstudio_web_ui_shared::inspector_fields::TextField;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
@@ -30,17 +30,6 @@ pub struct MirroredPairRequest {
     pub columns: u32,
     pub preset: MatrixSetupPreset,
     pub gap_mm: f64,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MirroredPairOwner {
-    pub editor_instance_id: u64,
-    pub open_id: u64,
-    pub scope_generation: u64,
-    pub scope: Scope,
-    pub board_id: String,
-    pub snapshot_token: SnapshotToken,
-    pub revision: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -102,18 +91,6 @@ pub struct MirroredPairPlacement {
 pub struct MirroredPairMove {
     pub owner: MirroredPairOwner,
     pub center: Vec2,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MirroredPairCreated {
-    pub owner: MirroredPairOwner,
-    pub result_token: SnapshotToken,
-    pub result_revision: u64,
-    pub scope: Scope,
-    pub left_layout_id: String,
-    pub right_layout_id: String,
-    pub left_matrix_id: String,
-    pub right_matrix_id: String,
 }
 
 #[derive(Props, Clone, PartialEq)]

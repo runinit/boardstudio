@@ -1,4 +1,5 @@
 use super::*;
+use crate::presentation::test_mount_helpers::{self, MountedRoot};
 use crate::presentation::*;
 use crate::presentation::{
     SelectionAdapter, WorkspaceState,
@@ -169,7 +170,7 @@ fn fixture() -> (ProjectDoc, TreeContext) {
     )
 }
 
-async fn mount() -> (Probe, web_sys::Element) {
+async fn open_cross_matrix_selection() -> Rc<Runtime> {
     let (mut doc, _) = fixture();
     let mut other = doc.matrices[0].clone();
     other.id = "other".into();
@@ -190,6 +191,11 @@ async fn mount() -> (Probe, web_sys::Element) {
         mode: SelectionMode::Replace,
     });
     support::run_pending(&runtime).await;
+    runtime
+}
+
+async fn mount() -> (Probe, MountedRoot) {
+    let runtime = open_cross_matrix_selection().await;
     assert_eq!(
         runtime.model().selected_part_ids.len(),
         2,
@@ -201,15 +207,9 @@ async fn mount() -> (Probe, web_sys::Element) {
         adapter: Rc::default(),
         workspace: Rc::default(),
     };
-    let document = web_sys::window().unwrap().document().unwrap();
-    let root = document.create_element("div").unwrap();
-    document.body().unwrap().append_child(&root).unwrap();
     let dom = VirtualDom::new(host);
     dom.provide_root_context(probe.clone());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let root = test_mount_helpers::mount(dom, None);
     wait_until("the selected key actions mount", || {
         root.query_selector("button[aria-label='Disable selected keys']")
             .is_ok_and(|button| button.is_some())
@@ -272,7 +272,6 @@ async fn mixed_primary_and_companion_selection_never_filters_into_bulk_keys() {
             .unwrap()
             .is_none()
     );
-    root.remove();
 }
 
 fn editor_host() -> Element {
@@ -282,27 +281,10 @@ fn editor_host() -> Element {
     if probe.workspace.borrow().is_none() {
         *probe.workspace.borrow_mut() = Some(workspace);
     }
-    use_context_provider(|| WorkspaceState(workspace));
-    use_context_provider(|| ExportReturnWorkspace(workspace));
     let version = use_signal(|| 0u64);
     if probe.version.borrow().is_none() {
         *probe.version.borrow_mut() = Some(version);
     }
-    use_context_provider(|| version);
-    let created = use_signal(|| None::<SetupGuideRequest>);
-    use_context_provider(|| created);
-    let objects_open = use_signal(|| true);
-    let inspector_open = use_signal(|| true);
-    use_context_provider(|| CompactPanelState {
-        objects_open,
-        inspector_open,
-    });
-    let warning = use_signal(|| false);
-    use_context_provider(|| PreferenceStorageWarning(warning));
-    let theme = use_signal(|| "light");
-    use_context_provider(|| AppearanceState(theme));
-    let resolved = use_memo(|| "light");
-    use_context_provider(|| ResolvedAppearance(resolved));
     let selected = use_signal(|| {
         Some(ScopedTreeContext {
             scope: probe.runtime.scope().unwrap(),
@@ -319,7 +301,7 @@ fn editor_host() -> Element {
     if probe.adapter.borrow().is_none() {
         *probe.adapter.borrow_mut() = Some(adapter.clone());
     }
-    use_context_provider(|| adapter);
+    test_mount_helpers::use_editor_context(workspace, version, adapter);
     use_hook({
         let runtime = probe.runtime.clone();
         let weak = Rc::downgrade(&runtime);
@@ -343,15 +325,6 @@ fn editor_host() -> Element {
             }))
         }
     });
-    let hidden = use_signal(BTreeSet::new);
-    let modules_hidden = use_signal(BTreeSet::new);
-    let footprints = use_signal(|| false);
-    use_context_provider(|| LayerVisibility {
-        hidden,
-        modules_hidden,
-        footprints,
-    });
-    boardstudio_web_ui_model::state::use_test_case_generation_state();
     rsx! {
         notifications::NotificationProvider { Editor {} }
         output { class: "editor-selected-context-test-render", "{selected:?}" }
@@ -361,41 +334,16 @@ fn editor_host() -> Element {
 
 #[wasm_bindgen_test]
 async fn editor_cross_matrix_disable_reenable_survives_context_reconciliation() {
-    let (mut doc, _) = fixture();
-    let mut other = doc.matrices[0].clone();
-    other.id = "other".into();
-    other.part_ids = vec!["matrix/other/r0c0".into()];
-    other.origin.x = 60.0;
-    let mut other_part = doc.parts[0].clone();
-    other_part.id = "matrix/other/r0c0".into();
-    other_part.pose.at.x = 60.0;
-    doc.parts.push(other_part);
-    doc.boards[0].part_ids.push("matrix/other/r0c0".into());
-    doc.matrices.push(other);
-    let runtime = support::new_runtime();
-    support::open_document(&runtime, doc).await;
-    runtime.submit(Event::SelectParts {
-        operation_id: runtime.operation(),
-        part_ids: vec!["matrix/matrix/r0c0".into(), "matrix/other/r0c0".into()],
-        range_part_ids: vec![],
-        mode: SelectionMode::Replace,
-    });
-    support::run_pending(&runtime).await;
+    let runtime = open_cross_matrix_selection().await;
     let probe = Probe {
         runtime: runtime.clone(),
         version: Rc::default(),
         adapter: Rc::default(),
         workspace: Rc::default(),
     };
-    let document = web_sys::window().unwrap().document().unwrap();
-    let root = document.create_element("div").unwrap();
-    document.body().unwrap().append_child(&root).unwrap();
     let dom = VirtualDom::new(editor_host);
     dom.provide_root_context(probe.clone());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let root = test_mount_helpers::mount(dom, None);
     wait_until("the mounted Editor selection adapter is available", || {
         probe.adapter.borrow().is_some()
     })
@@ -456,7 +404,6 @@ async fn editor_cross_matrix_disable_reenable_survives_context_reconciliation() 
             .all(|matrix| matrix.cells[0].enabled)
     );
     runtime.unsubscribe();
-    root.remove();
 }
 
 #[wasm_bindgen_test]
@@ -489,7 +436,7 @@ async fn disabled_cross_matrix_targets_end_at_explicit_same_context_reselection(
             .is_none(),
         "an explicit same-context ghost selection cannot revive the previous cross-matrix group"
     );
-    root.remove();
+    drop(root);
 
     let (probe, root) = mount().await;
     button(&root, "Disable selected keys").click();
@@ -506,5 +453,4 @@ async fn disabled_cross_matrix_targets_end_at_explicit_same_context_reselection(
             .is_none(),
         "returning to Layout cannot revive the previous disabled selection"
     );
-    root.remove();
 }

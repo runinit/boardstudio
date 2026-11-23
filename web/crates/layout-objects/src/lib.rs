@@ -68,4 +68,7 @@ mod objects {
 
     #[cfg(test)]
     mod layout_rail_tool;
+
+    #[cfg(test)]
+    mod workspace_state;
 }

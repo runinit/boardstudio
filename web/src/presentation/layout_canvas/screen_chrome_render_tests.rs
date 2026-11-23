@@ -1,18 +1,13 @@
-use super::super::{
-    CompactPanelState, Editor, ExportReturnWorkspace, LayerVisibility, PreferenceStorageWarning,
-    ResolvedAppearance, SelectionAdapter, SetupGuideRequest, ThemeState, WorkspaceState, objects,
-    selection,
-};
+use super::super::objects;
 use super::*;
-use boardstudio_application::{Event, Session};
-use boardstudio_core::CoreEngine;
-use boardstudio_web_test_runtime::project_name_test_support as support;
-use boardstudio_web_ui_model::Workspace;
+use crate::presentation::test_mount_helpers::canvas::{
+    one_key_matrix, one_key_scene, scene, switch_document,
+};
+use crate::presentation::test_mount_helpers::{
+    self, EditorProbe, MountedRoot, mount, mount_editor,
+};
 use boardstudio_web_ui_shared::test_wait::wait_until;
 use serde_json::json;
-use std::cell::RefCell;
-use std::collections::BTreeSet;
-use std::rc::Rc;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -21,35 +16,16 @@ use wasm_bindgen_test::wasm_bindgen_test;
 /// origin so the canvas draws the dim label, the axis note, the ring
 /// and a part name together.
 fn chrome_fixture() -> (Arc<ProjectDoc>, Arc<SceneDelta>) {
-    let mut document = ProjectDoc::empty("chrome", "Chrome");
-    document.parts.push(
-        serde_json::from_value(json!({
-            "id": "matrix/left/r0c0", "definitionId": "switch", "reference": "SW1",
-            "pose": {"at": {"x": 0.0, "y": 0.0}, "rotation": 0.0}, "side": "front",
-            "keycap": {"x": 18.0, "y": 18.0}
-        }))
-        .unwrap(),
-    );
-    document.matrices.push(
-        serde_json::from_value(json!({
-            "id": "left", "rows": 1, "columns": 1,
-            "pitch": {"x": 19.05, "y": 19.05}, "origin": {"x": -30.0, "y": 0.0},
-            "definitionId": "switch", "partIds": ["matrix/left/r0c0"], "boardId": "board",
-            "cells": [{"row": 0, "column": 0, "enabled": true, "definitionId": "switch", "assemblies": []}]
-        }))
-        .unwrap(),
-    );
+    let mut document = switch_document("chrome", "Chrome", &["matrix/left/r0c0"]);
+    document
+        .matrices
+        .push(one_key_matrix("left", "matrix/left/r0c0", -30.0));
+    document.boards[0].part_ids.push("d1".into());
     document.parts.push(
         serde_json::from_value(json!({
             "id": "d1", "definitionId": "diode", "reference": "D1",
             "pose": {"at": {"x": -20.0, "y": 10.0}, "rotation": 0.0}, "side": "front",
             "keycap": null
-        }))
-        .unwrap(),
-    );
-    document.definitions.push(
-        serde_json::from_value(json!({
-            "id": "switch", "name": "Switch", "kind": "switch", "courtyard": [], "pads": []
         }))
         .unwrap(),
     );
@@ -61,14 +37,6 @@ fn chrome_fixture() -> (Arc<ProjectDoc>, Arc<SceneDelta>) {
                 {"x": 7.0, "y": 7.0}, {"x": -7.0, "y": 7.0}
             ],
             "pads": []
-        }))
-        .unwrap(),
-    );
-    document.boards.push(
-        serde_json::from_value(json!({
-            "id": "board", "name": "Board",
-            "partIds": ["matrix/left/r0c0", "d1"],
-            "outlineIds": [], "netIds": [], "thickness": 1.6
         }))
         .unwrap(),
     );
@@ -94,29 +62,11 @@ fn chrome_fixture() -> (Arc<ProjectDoc>, Arc<SceneDelta>) {
         "overrides": []
     }]))
     .unwrap();
-    let document = Arc::new(document);
-    let cell = |matrix: &str, x: f64| {
-        json!({
-            "row": 0, "column": 0, "enabled": true,
-            "memberId": format!("matrix/{matrix}/r0c0"),
-            "pose": {"at": {"x": x, "y": 0.0}, "rotation": 0.0},
-            "shiftFrame": {"origin": {"x": 0.0, "y": 0.0}, "rotation": 0.0, "axisX": {"x": 1.0, "y": 0.0}, "axisY": {"x": 0.0, "y": 1.0}},
-            "offsetFrame": {"origin": {"x": 0.0, "y": 0.0}, "rotation": 0.0, "axisX": {"x": 1.0, "y": 0.0}, "axisY": {"x": 0.0, "y": 1.0}}
-        })
-    };
-    let scene = Arc::new(
-        serde_json::from_value(json!({
-            "revision": 0, "transactionId": "fixture", "changedIds": [], "transforms": [],
-            "matrixScenes": [
-                {"matrixId": "left", "cells": [cell("left", -30.0)], "columns": []},
-                {"matrixId": "mirror_70616972_left", "cells": [cell("mirror_70616972_left", 30.0)], "columns": []}
-            ],
-            "contours": [], "boardContours": [], "boardReadiness": [], "findings": [],
-            "readiness": {"layout": true, "outline": false, "pcb": false, "case": false}
-        }))
-        .unwrap(),
-    );
-    (document, scene)
+    let scene = scene(&[
+        one_key_scene("left", -30.0, 0.0, &[]),
+        one_key_scene("mirror_70616972_left", 30.0, 0.0, &[]),
+    ]);
+    (Arc::new(document), scene)
 }
 
 fn chrome_badge() -> anchor_badge::AnchorBadge {
@@ -164,7 +114,7 @@ fn RenderChromeCase(props: ChromeCaseProps) -> Element {
     }
 }
 
-async fn mount_chrome(view_width: f64) -> web_sys::Element {
+async fn mount_chrome(view_width: f64) -> MountedRoot {
     let (document, scene) = chrome_fixture();
     let document = match boardstudio_application::resolved_document(&document) {
         std::borrow::Cow::Borrowed(_) => document,
@@ -175,21 +125,7 @@ async fn mount_chrome(view_width: f64) -> web_sys::Element {
         delta_mm: 10.0,
         axis_x: 0.0,
     };
-    let root = web_sys::window()
-        .unwrap()
-        .document()
-        .unwrap()
-        .create_element("div")
-        .unwrap();
-    web_sys::window()
-        .unwrap()
-        .document()
-        .unwrap()
-        .body()
-        .unwrap()
-        .append_child(&root)
-        .unwrap();
-    dioxus_web::launch::launch_virtual_dom(
+    let root = mount(
         VirtualDom::new_with_props(
             RenderChromeCase,
             ChromeCaseProps {
@@ -200,7 +136,7 @@ async fn mount_chrome(view_width: f64) -> web_sys::Element {
                 view_width,
             },
         ),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
+        None,
     );
     wait_until("the fixed-size chrome renders", || {
         root.query_selector("[data-focus-label='split']")
@@ -283,7 +219,6 @@ async fn labels_hold_eleven_px_across_zooms() {
                 .is_none(),
             "the canvas carries no badge label at view width {view_width}; it lives in the readout"
         );
-        root.remove();
     }
     // True pixels through the browser mapping: the same label measures
     // the same height at both zooms.
@@ -320,108 +255,22 @@ async fn anchor_ring_holds_seven_px_across_zooms() {
             (real - 7.0).abs() < 0.5,
             "the ring measures {real:.2} px across at view width {view_width}, want 7"
         );
-        root.remove();
     }
-}
-
-#[derive(Clone)]
-struct ChromeProbe {
-    runtime: Rc<crate::runtime::Runtime>,
-    adapter: Rc<RefCell<Option<SelectionAdapter>>>,
-}
-
-impl ChromeProbe {
-    fn select(&self, context: objects::TreeContext) {
-        selection::submit_context(
-            &self.runtime,
-            &self.adapter.borrow().clone().expect("mounted adapter"),
-            selection::ContextRequest {
-                scope: self.runtime.scope().expect("opened project scope"),
-                context,
-                mode: boardstudio_application::SelectionMode::Replace,
-            },
-        );
-    }
-}
-
-fn chrome_host() -> Element {
-    let probe = use_context::<ChromeProbe>();
-    let workspace = use_signal(|| Workspace::Layout);
-    use_context_provider(|| WorkspaceState(workspace));
-    use_context_provider(|| ExportReturnWorkspace(workspace));
-    let version = use_signal(|| 0u64);
-    use_context_provider(|| version);
-    let created = use_signal(|| None::<SetupGuideRequest>);
-    use_context_provider(|| created);
-    let objects_open = use_signal(|| true);
-    let inspector_open = use_signal(|| true);
-    use_context_provider(|| CompactPanelState {
-        objects_open,
-        inspector_open,
-    });
-    let warning = use_signal(|| false);
-    use_context_provider(|| PreferenceStorageWarning(warning));
-    let theme = use_signal(|| "light");
-    use_context_provider(|| ThemeState(theme));
-    let resolved = use_memo(|| "light");
-    use_context_provider(|| ResolvedAppearance(resolved));
-    let selected = use_signal(|| None);
-    let anchor = use_signal(|| None);
-    let generation = use_signal(|| 0u64);
-    let adapter = SelectionAdapter::new(selected, anchor, generation);
-    *probe.adapter.borrow_mut() = Some(adapter.clone());
-    use_context_provider(|| adapter);
-    let hidden = use_signal(BTreeSet::new);
-    let modules_hidden = use_signal(BTreeSet::new);
-    let footprints = use_signal(|| false);
-    use_context_provider(|| LayerVisibility {
-        hidden,
-        modules_hidden,
-        footprints,
-    });
-    boardstudio_web_ui_model::state::use_test_case_generation_state();
-    rsx! { boardstudio_web_ui_shared::ui::toast::ToastProvider { Editor {} } }
 }
 
 /// Mount the real Layout editor on the chrome document (empty matrix
 /// scenes: only the detached diode part draws).
-async fn mount_chrome_editor(root_id: &'static str) -> ChromeProbe {
+async fn mount_chrome_editor(root_id: &'static str) -> (EditorProbe, MountedRoot) {
     let (document, _) = chrome_fixture();
-    let runtime = support::new_runtime();
-    support::install(
-        &runtime,
-        Session::new(CoreEngine::validate_open),
-        CoreEngine::new(),
-    );
-    support::install_memory_persistence(&runtime);
-    runtime.submit(Event::Open {
-        operation_id: runtime.operation(),
-        document: (*document).clone(),
-    });
-    support::run_pending(&runtime).await;
-    let probe = ChromeProbe {
-        runtime: runtime.clone(),
-        adapter: Rc::default(),
-    };
-    let dom_document = web_sys::window().unwrap().document().unwrap();
-    let root = dom_document.create_element("div").unwrap();
-    root.set_id(root_id);
-    dom_document.body().unwrap().append_child(&root).unwrap();
-    let dom = VirtualDom::new(chrome_host);
-    dom.provide_root_context(runtime.clone());
-    dom.provide_root_context(probe.clone());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let runtime = test_mount_helpers::open_document((*document).clone()).await;
+    let (probe, root) = mount_editor(root_id, runtime);
     wait_until("the Layout canvas draws the diode part", || {
-        dom_document
-            .query_selector(&format!("#{root_id} [data-geometry='scene-part']"))
+        root.query_selector("[data-geometry='scene-part']")
             .unwrap()
             .is_some()
     })
     .await;
-    probe
+    (probe, root)
 }
 
 fn readout(root_id: &'static str) -> String {
@@ -440,7 +289,7 @@ fn readout(root_id: &'static str) -> String {
 #[wasm_bindgen_test]
 async fn part_selection_reads_placed_from_and_clears() {
     let root_id = "chrome-part-readout";
-    let probe = mount_chrome_editor(root_id).await;
+    let (probe, _root) = mount_chrome_editor(root_id).await;
     probe.select(objects::TreeContext::Component {
         part_id: Some("d1".into()),
         matrix_id: None,

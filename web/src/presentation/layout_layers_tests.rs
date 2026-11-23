@@ -1,7 +1,7 @@
 //! Exercise the actual Layout canvas and its layer controls together.
 use super::*;
+use crate::presentation::test_mount_helpers;
 use boardstudio_core::model::{Board, ProjectDoc};
-use boardstudio_web_test_runtime::project_name_test_support as support;
 use boardstudio_web_ui_model::Workspace;
 use wasm_bindgen_test::*;
 
@@ -46,10 +46,7 @@ fn document() -> ProjectDoc {
 
 fn host() -> Element {
     let workspace = use_signal(|| Workspace::Layout);
-    use_context_provider(|| WorkspaceState(workspace));
-    use_context_provider(|| ExportReturnWorkspace(workspace));
     let version = use_signal(|| 0u64);
-    use_context_provider(|| version);
     let runtime = use_context::<Rc<Runtime>>();
     use_hook(move || {
         runtime.subscribe(Rc::new(move || {
@@ -57,33 +54,11 @@ fn host() -> Element {
             version += 1;
         }))
     });
-    let created = use_signal(|| None::<SetupGuideRequest>);
-    use_context_provider(|| created);
-    let objects_open = use_signal(|| true);
-    let inspector_open = use_signal(|| true);
-    use_context_provider(|| CompactPanelState {
-        objects_open,
-        inspector_open,
-    });
-    let warning = use_signal(|| false);
-    use_context_provider(|| PreferenceStorageWarning(warning));
-    let theme = use_signal(|| "light");
-    use_context_provider(|| AppearanceState(theme));
-    let resolved = use_memo(|| "light");
-    use_context_provider(|| ResolvedAppearance(resolved));
     let selected = use_signal(|| None);
     let anchor = use_signal(|| None);
     let generation = use_signal(|| 0u64);
-    use_context_provider(|| SelectionAdapter::new(selected, anchor, generation));
-    let hidden = use_signal(BTreeSet::new);
-    let modules_hidden = use_signal(BTreeSet::new);
-    let footprints = use_signal(|| false);
-    use_context_provider(|| LayerVisibility {
-        hidden,
-        modules_hidden,
-        footprints,
-    });
-    boardstudio_web_ui_model::state::use_test_case_generation_state();
+    let adapter = SelectionAdapter::new(selected, anchor, generation);
+    test_mount_helpers::use_editor_context(workspace, version, adapter);
     rsx! { super::notifications::NotificationProvider { Editor {} } }
 }
 
@@ -101,18 +76,11 @@ fn click(root: &web_sys::Element, name: &str) {
 
 #[wasm_bindgen_test]
 async fn switch_visibility_keeps_keycaps_independent() {
-    let runtime = support::new_runtime();
-    support::open_document(&runtime, document()).await;
+    let runtime = test_mount_helpers::open_document(document()).await;
     let revision = runtime.model().accepted.as_ref().unwrap().document.revision;
-    let document = web_sys::window().unwrap().document().unwrap();
-    let root = document.create_element("div").unwrap();
-    document.body().unwrap().append_child(&root).unwrap();
     let dom = VirtualDom::new(host);
     dom.provide_root_context(runtime.clone());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let root = test_mount_helpers::mount(dom, None);
     wait_until("the scene shows its keycap and switch", || {
         count(&root, "[data-geometry='keycap']") == 1
             && count(
@@ -215,5 +183,4 @@ async fn switch_visibility_keeps_keycaps_independent() {
         runtime.model().accepted.as_ref().unwrap().document.revision,
         revision
     );
-    root.remove();
 }

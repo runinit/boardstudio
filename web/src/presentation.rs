@@ -43,6 +43,8 @@ mod layout_layers_tests;
 mod layout_remainder_tests;
 #[cfg(test)]
 mod layout_split_focus_tests;
+#[cfg(all(test, target_arch = "wasm32"))]
+mod test_mount_helpers;
 pub(crate) use boardstudio_web_layout::layout_findings;
 pub(crate) use boardstudio_web_layout::layout_findings_state::{
     ReturnTarget as LayoutFindingReturnTarget, layout_finding_is_live,

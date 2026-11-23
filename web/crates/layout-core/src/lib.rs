@@ -5,10 +5,13 @@
 
 pub mod anchor_badge;
 pub mod anchor_pick;
+pub mod canvas_projection;
 pub mod companion_placement;
 pub mod component_inspector;
 pub use component_inspector::layout_component_edits;
 pub mod component_offset;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod constraint_edit_tests;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod inspector_fixture;
 #[cfg(all(test, not(target_arch = "wasm32")))]

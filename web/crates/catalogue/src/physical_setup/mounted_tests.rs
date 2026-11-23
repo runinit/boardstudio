@@ -40,7 +40,6 @@ fn feature_instance(
     doc: &ProjectDoc,
     id: &str,
     board_id: &str,
-    half: &str,
     flipped: bool,
     mounts: Vec<Mount>,
     openings: Vec<MechanicalOpening>,
@@ -53,7 +52,7 @@ fn feature_instance(
         id: id.into(),
         name: id.into(),
         board_id: board_id.into(),
-        half: half.into(),
+        half: id.into(),
         role: "custom-role".into(),
         flipped,
         controller_part_id: None,
@@ -89,8 +88,7 @@ fn mounting_hole_template() -> PartDefinition {
     .unwrap()
 }
 
-#[test]
-fn a_reviewed_mapping_links_distinct_board_halves_with_no_representable_declared_transform() {
+fn two_board_document() -> ProjectDoc {
     let mut doc = document();
     doc.boards.push(Board {
         id: "board-b".into(),
@@ -102,13 +100,96 @@ fn a_reviewed_mapping_links_distinct_board_halves_with_no_representable_declared
         traces: vec![],
         vias: vec![],
     });
+    doc
+}
+
+fn split_hardware(
+    left: PhysicalBoardInstance,
+    right: PhysicalBoardInstance,
+) -> HardwareConfiguration {
+    HardwareConfiguration {
+        topology: HardwareTopology::Split,
+        transport: HardwareTransport::None,
+        instances: vec![left, right],
+        boards: vec![],
+        shared_construction: None,
+        pairs: vec![],
+    }
+}
+
+fn same_board_halves(doc: &ProjectDoc, with_opening: bool) -> [PhysicalBoardInstance; 2] {
+    [("left", false, 2.0), ("right", true, -2.0)].map(|(id, flipped, x)| {
+        feature_instance(
+            doc,
+            id,
+            "board-a",
+            flipped,
+            vec![mount("mount-1", x, 1.0)],
+            with_opening
+                .then(|| opening("opening-1"))
+                .into_iter()
+                .collect(),
+        )
+    })
+}
+
+fn reversible_document_with_mount() -> (ProjectDoc, MechanicalConfiguration) {
+    let mut doc = document();
+    doc.parameters
+        .insert("reversibleLayout".into(), Value::Bool(true));
+    let mut settings = mechanical(&doc, 4.2);
+    settings.mounts = vec![mount("mount-1", 12.0, 3.0)];
+    (doc, settings)
+}
+
+fn propose_split(doc: &ProjectDoc) -> PhysicalSetupProposal {
+    propose_with_mirror_pair(
+        doc,
+        SetupIntent::Topology {
+            board_id: "board-a".into(),
+            selected_instance_id: None,
+            split: true,
+            new_primary_id: "left-new".into(),
+            new_secondary_id: "right-new".into(),
+        },
+        keep_definition,
+    )
+    .unwrap()
+}
+
+fn shared_mount_and_opening(
+    mount_id: &str,
+    opening_id: &str,
+) -> Vec<MechanicalFeatureCorrespondence> {
+    [
+        (MechanicalFeatureKind::Mount, mount_id),
+        (MechanicalFeatureKind::Opening, opening_id),
+    ]
+    .map(|(kind, id)| MechanicalFeatureCorrespondence {
+        kind,
+        first_feature_id: id.into(),
+        second_feature_id: id.into(),
+        source_instance_id: None,
+    })
+    .into()
+}
+
+fn assert_reflection_round_trip(mapping: Pose2, point: Vec2, reflected: Vec2) {
+    let mapped = pair::forward(mapping, point);
+    assert_eq!(mapped, reflected);
+    assert_ne!(mapped, point, "the mapping is not the identity");
+    assert_eq!(pair::inverse(mapping, mapped), point, "round-trip");
+}
+
+#[test]
+fn a_reviewed_mapping_links_distinct_board_halves_with_no_representable_declared_transform() {
+    let mut doc = two_board_document();
     // Both halves are upright and scoped to different boards: the declared
     // transforms imply no map at all, so only a reviewed map can link them.
     let left = feature_instance(
         &doc,
         "left",
         "board-a",
-        "left",
         false,
         vec![mount("mount-a", 2.0, 1.0)],
         vec![],
@@ -117,19 +198,11 @@ fn a_reviewed_mapping_links_distinct_board_halves_with_no_representable_declared
         &doc,
         "right",
         "board-b",
-        "right",
         false,
         vec![mount("mount-b", 12.0, 4.0)],
         vec![],
     );
-    doc.hardware = Some(HardwareConfiguration {
-        topology: HardwareTopology::Split,
-        transport: HardwareTransport::None,
-        instances: vec![left, right],
-        boards: vec![],
-        shared_construction: None,
-        pairs: vec![],
-    });
+    doc.hardware = Some(split_hardware(left, right));
     let reviewed_mapping = Pose2 {
         at: Vec2 { x: 30.0, y: -5.0 },
         rotation: 180.0,
@@ -177,33 +250,8 @@ fn a_reviewed_mapping_links_distinct_board_halves_with_no_representable_declared
 #[test]
 fn a_malformed_reviewed_link_is_an_error_not_a_silently_different_pair() {
     let mut doc = document();
-    doc.hardware = Some(HardwareConfiguration {
-        topology: HardwareTopology::Split,
-        transport: HardwareTransport::None,
-        instances: vec![
-            feature_instance(
-                &doc,
-                "left",
-                "board-a",
-                "left",
-                false,
-                vec![mount("mount-1", 2.0, 1.0)],
-                vec![],
-            ),
-            feature_instance(
-                &doc,
-                "right",
-                "board-a",
-                "right",
-                true,
-                vec![mount("mount-1", -2.0, 1.0)],
-                vec![],
-            ),
-        ],
-        boards: vec![],
-        shared_construction: None,
-        pairs: vec![],
-    });
+    let [left, right] = same_board_halves(&doc, false);
+    doc.hardware = Some(split_hardware(left, right));
 
     let cases = [
         SetupIntent::LinkMirrorPair {
@@ -254,31 +302,11 @@ fn a_malformed_reviewed_link_is_an_error_not_a_silently_different_pair() {
 #[test]
 fn a_reviewed_candidate_link_lists_the_derived_map_and_durable_matches() {
     let doc = document();
-    let hardware = HardwareConfiguration {
-        instances: vec![
-            feature_instance(
-                &doc,
-                "left",
-                "board-a",
-                "left",
-                false,
-                vec![mount("mount-1", 2.0, 1.0)],
-                vec![opening("opening-1")],
-            ),
-            feature_instance(
-                &doc,
-                "right",
-                "board-a",
-                "right",
-                true,
-                vec![mount("mount-1", -2.0, 1.0)],
-                vec![opening("opening-1")],
-            ),
-        ],
-        ..Default::default()
-    };
     let mut with_hardware = doc.clone();
-    with_hardware.hardware = Some(hardware);
+    with_hardware.hardware = Some(HardwareConfiguration {
+        instances: same_board_halves(&doc, true).into(),
+        ..Default::default()
+    });
 
     let review = review_mirror_pair_link(&with_hardware, "pair-1", "left", "right")
         .unwrap()
@@ -295,20 +323,7 @@ fn a_reviewed_candidate_link_lists_the_derived_map_and_durable_matches() {
     assert_eq!(review.construction_source, "left");
     assert_eq!(
         review.correspondences,
-        vec![
-            MechanicalFeatureCorrespondence {
-                kind: MechanicalFeatureKind::Mount,
-                first_feature_id: "mount-1".into(),
-                second_feature_id: "mount-1".into(),
-                source_instance_id: None,
-            },
-            MechanicalFeatureCorrespondence {
-                kind: MechanicalFeatureKind::Opening,
-                first_feature_id: "opening-1".into(),
-                second_feature_id: "opening-1".into(),
-                source_instance_id: None,
-            },
-        ],
+        shared_mount_and_opening("mount-1", "opening-1"),
         "the candidate matches durable feature ids only"
     );
     assert!(
@@ -319,44 +334,24 @@ fn a_reviewed_candidate_link_lists_the_derived_map_and_durable_matches() {
 
 #[test]
 fn a_reviewed_candidate_for_translated_board_frames_still_lists_matches_without_a_map() {
-    let mut doc = document();
-    doc.boards.push(Board {
-        id: "board-b".into(),
-        name: "Board B".into(),
-        outline_ids: vec![],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
-    doc.hardware = Some(HardwareConfiguration {
-        topology: HardwareTopology::Split,
-        transport: HardwareTransport::None,
-        instances: vec![
-            feature_instance(
-                &doc,
-                "left",
-                "board-a",
-                "left",
-                false,
-                vec![mount("mount-shared", 2.0, 1.0)],
-                vec![],
-            ),
-            feature_instance(
-                &doc,
-                "right",
-                "board-b",
-                "right",
-                false,
-                vec![mount("mount-shared", 12.0, 4.0)],
-                vec![],
-            ),
-        ],
-        boards: vec![],
-        shared_construction: None,
-        pairs: vec![],
-    });
+    let mut doc = two_board_document();
+    let left = feature_instance(
+        &doc,
+        "left",
+        "board-a",
+        false,
+        vec![mount("mount-shared", 2.0, 1.0)],
+        vec![],
+    );
+    let right = feature_instance(
+        &doc,
+        "right",
+        "board-b",
+        false,
+        vec![mount("mount-shared", 12.0, 4.0)],
+        vec![],
+    );
+    doc.hardware = Some(split_hardware(left, right));
 
     let review = review_mirror_pair_link(&doc, "pair-1", "left", "right")
         .unwrap()
@@ -375,31 +370,11 @@ fn a_reviewed_candidate_for_translated_board_frames_still_lists_matches_without_
 #[test]
 fn a_reviewed_candidate_is_absent_for_ineligible_targets_and_blank_ids_are_malformed() {
     let doc = document();
-    let hardware = HardwareConfiguration {
-        instances: vec![
-            feature_instance(
-                &doc,
-                "left",
-                "board-a",
-                "left",
-                false,
-                vec![mount("mount-1", 2.0, 1.0)],
-                vec![],
-            ),
-            feature_instance(
-                &doc,
-                "right",
-                "board-a",
-                "right",
-                true,
-                vec![mount("mount-1", -2.0, 1.0)],
-                vec![],
-            ),
-        ],
-        ..Default::default()
-    };
     let mut with_hardware = doc.clone();
-    with_hardware.hardware = Some(hardware);
+    with_hardware.hardware = Some(HardwareConfiguration {
+        instances: same_board_halves(&doc, false).into(),
+        ..Default::default()
+    });
 
     assert!(
         review_mirror_pair_link(&with_hardware, "pair-1", "left", "left")
@@ -439,27 +414,12 @@ fn a_reviewed_candidate_is_absent_for_ineligible_targets_and_blank_ids_are_malfo
 
 #[test]
 fn an_eligible_setup_proposal_establishes_its_pair_on_the_proposed_document() {
-    let mut doc = document();
-    doc.parameters
-        .insert("reversibleLayout".into(), Value::Bool(true));
-    let mut settings = mechanical(&doc, 4.2);
-    settings.mounts = vec![mount("mount-1", 12.0, 3.0)];
+    let (mut doc, mut settings) = reversible_document_with_mount();
     settings.openings = Some(vec![opening("opening-1")]);
     doc.mechanical = Some(settings);
     let accepted = doc.clone();
 
-    let proposal = propose_with_mirror_pair(
-        &doc,
-        SetupIntent::Topology {
-            board_id: "board-a".into(),
-            selected_instance_id: None,
-            split: true,
-            new_primary_id: "left-new".into(),
-            new_secondary_id: "right-new".into(),
-        },
-        keep_definition,
-    )
-    .unwrap();
+    let proposal = propose_split(&doc);
     assert_eq!(doc, accepted, "accepted input remains immutable");
     let link = proposal
         .mirror_pair
@@ -481,26 +441,10 @@ fn an_eligible_setup_proposal_establishes_its_pair_on_the_proposed_document() {
     );
     // An asymmetric point so a symmetric fixture cannot hide a double reflection.
     let point = Vec2 { x: 4.5, y: -1.25 };
-    let mapped = pair::forward(link.mapping, point);
-    assert_eq!(mapped, Vec2 { x: -4.5, y: -1.25 });
-    assert_ne!(mapped, point, "the mapping is not the identity");
-    assert_eq!(pair::inverse(link.mapping, mapped), point, "round-trip");
+    assert_reflection_round_trip(link.mapping, point, Vec2 { x: -4.5, y: -1.25 });
     assert_eq!(
         link.correspondences,
-        vec![
-            MechanicalFeatureCorrespondence {
-                kind: MechanicalFeatureKind::Mount,
-                first_feature_id: "mount-1".into(),
-                second_feature_id: "mount-1".into(),
-                source_instance_id: None,
-            },
-            MechanicalFeatureCorrespondence {
-                kind: MechanicalFeatureKind::Opening,
-                first_feature_id: "opening-1".into(),
-                second_feature_id: "opening-1".into(),
-                source_instance_id: None,
-            },
-        ],
+        shared_mount_and_opening("mount-1", "opening-1"),
         "shared mounts and openings are covered by durable id"
     );
     let proposal_hardware = proposal.document.hardware.as_ref().unwrap();
@@ -630,18 +574,7 @@ fn a_setup_proposal_without_a_pair_needs_no_mounting_hole() {
         shared_construction: None,
         pairs: vec![],
     });
-    let proposal = propose_with_mirror_pair(
-        &doc,
-        SetupIntent::Topology {
-            board_id: "board-a".into(),
-            selected_instance_id: None,
-            split: true,
-            new_primary_id: "left-new".into(),
-            new_secondary_id: "right-new".into(),
-        },
-        keep_definition,
-    )
-    .unwrap();
+    let proposal = propose_split(&doc);
     assert!(proposal.mirror_pair.is_none());
     let expected = proposal.document.clone();
     assert!(proposal.into_mirrored_operation(None).unwrap().is_none());
@@ -650,24 +583,9 @@ fn a_setup_proposal_without_a_pair_needs_no_mounting_hole() {
 
 #[test]
 fn a_pair_application_failure_aborts_the_whole_proposal() {
-    let mut doc = document();
-    doc.parameters
-        .insert("reversibleLayout".into(), Value::Bool(true));
-    let mut settings = mechanical(&doc, 4.2);
-    settings.mounts = vec![mount("mount-1", 12.0, 3.0)];
+    let (mut doc, settings) = reversible_document_with_mount();
     doc.mechanical = Some(settings);
-    let proposal = propose_with_mirror_pair(
-        &doc,
-        SetupIntent::Topology {
-            board_id: "board-a".into(),
-            selected_instance_id: None,
-            split: true,
-            new_primary_id: "left-new".into(),
-            new_secondary_id: "right-new".into(),
-        },
-        keep_definition,
-    )
-    .unwrap();
+    let proposal = propose_split(&doc);
     assert!(proposal.mirror_pair.is_some());
     assert!(
         proposal.into_mirrored_operation(None).is_err(),
@@ -694,22 +612,11 @@ fn stored_pair(doc: &ProjectDoc, id: &str, first: &str, second: &str) -> Mechani
 
 #[test]
 fn distinct_pcb_halves_propose_an_explicit_non_identity_mapping_scoped_to_their_boards() {
-    let mut doc = document();
-    doc.boards.push(Board {
-        id: "board-b".into(),
-        name: "Board B".into(),
-        outline_ids: vec![],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
+    let mut doc = two_board_document();
     let left = feature_instance(
         &doc,
         "left",
         "board-a",
-        "left",
         false,
         vec![
             mount("mount-shared", 2.0, 1.0),
@@ -721,7 +628,6 @@ fn distinct_pcb_halves_propose_an_explicit_non_identity_mapping_scoped_to_their_
         &doc,
         "right",
         "board-b",
-        "right",
         true,
         vec![
             mount("mount-shared", -2.0, 1.0),
@@ -729,14 +635,7 @@ fn distinct_pcb_halves_propose_an_explicit_non_identity_mapping_scoped_to_their_
         ],
         vec![opening("opening-shared")],
     );
-    doc.hardware = Some(HardwareConfiguration {
-        topology: HardwareTopology::Split,
-        transport: HardwareTransport::None,
-        instances: vec![left, right],
-        boards: vec![],
-        shared_construction: None,
-        pairs: vec![],
-    });
+    doc.hardware = Some(split_hardware(left, right));
     let accepted = doc.clone();
 
     let proposal = propose_with_mirror_pair(
@@ -766,26 +665,10 @@ fn distinct_pcb_halves_propose_an_explicit_non_identity_mapping_scoped_to_their_
         }
     );
     let point = Vec2 { x: 2.75, y: 6.5 };
-    let mapped = pair::forward(link.mapping, point);
-    assert_ne!(mapped, point);
-    assert_eq!(mapped, Vec2 { x: -2.75, y: 6.5 });
-    assert_eq!(pair::inverse(link.mapping, mapped), point);
+    assert_reflection_round_trip(link.mapping, point, Vec2 { x: -2.75, y: 6.5 });
     assert_eq!(
         link.correspondences,
-        vec![
-            MechanicalFeatureCorrespondence {
-                kind: MechanicalFeatureKind::Mount,
-                first_feature_id: "mount-shared".into(),
-                second_feature_id: "mount-shared".into(),
-                source_instance_id: None,
-            },
-            MechanicalFeatureCorrespondence {
-                kind: MechanicalFeatureKind::Opening,
-                first_feature_id: "opening-shared".into(),
-                second_feature_id: "opening-shared".into(),
-                source_instance_id: None,
-            },
-        ],
+        shared_mount_and_opening("mount-shared", "opening-shared"),
         "only the shared durable ids are matched, never part coordinates"
     );
     let hardware = proposal.document.hardware.as_ref().unwrap();
@@ -841,11 +724,7 @@ fn a_layout_only_pair_proposes_no_mechanical_pair_and_invents_no_instances() {
 /// The accepted starting document: one board with reversible layout on, and the unibody
 /// instance a user has before splitting, carrying the board's linked mount and opening.
 fn reversible_split_start() -> ProjectDoc {
-    let mut doc = document();
-    doc.parameters
-        .insert("reversibleLayout".into(), Value::Bool(true));
-    let mut settings = mechanical(&doc, 4.2);
-    settings.mounts = vec![mount("mount-1", 12.0, 3.0)];
+    let (mut doc, mut settings) = reversible_document_with_mount();
     settings.openings = Some(vec![opening("opening-1")]);
     settings.closure_mounts = Some(vec![
         mount("closure-1", 4.0, 20.0),

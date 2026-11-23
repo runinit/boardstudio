@@ -1,6 +1,7 @@
 //! The matrix, row, column and key transform inspector: every field edit builds one
 //! `EditOperation` against the accepted matrix and commits it synchronously.
 use super::layout_rail::LayoutTransformRuntime;
+pub use super::workspace_state::MatrixTransformInspectorOwner;
 use super::{ScopedTreeContext, TreeContext};
 use crate::matrix_relations::DepartureAction;
 use crate::matrix_transform_operation::{
@@ -8,7 +9,7 @@ use crate::matrix_transform_operation::{
     attachment_component_choices, build_operation, column_angle, key_half_exception,
     key_half_exception_at_resolver, key_half_exception_omitted,
 };
-use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope};
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_model::model::{
     AggregateMethod, AnchorPart, EditOperation, Matrix, MatrixAnchor, MatrixSplayAffect, Mirror,
     PartDefinition, ProjectDoc, Vec2, convert_offset_available,
@@ -20,14 +21,6 @@ use boardstudio_web_ui_shared::inspector_fields::{
 };
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use dioxus::prelude::*;
-
-/// The selection a transform edit or armed canvas pick belongs to.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MatrixTransformInspectorOwner {
-    pub scope: Scope,
-    pub matrix_id: String,
-    pub context: TreeContext,
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatrixTransformProjection {

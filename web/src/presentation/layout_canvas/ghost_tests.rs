@@ -1,72 +1,24 @@
 use super::*;
+use crate::presentation::test_mount_helpers;
+use crate::presentation::test_mount_helpers::canvas::{
+    column_at_origin, one_key_matrix, one_key_scene, scene, switch_document,
+};
 use boardstudio_core::model::SceneDelta;
-use serde_json::json;
 use std::sync::Arc;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::wasm_bindgen_test;
 
 fn ghost_fixture() -> (Arc<ProjectDoc>, Arc<SceneDelta>, Arc<SceneDelta>) {
-    let mut document = ProjectDoc::empty("canvas", "Canvas");
-    document.parts.push(
-        serde_json::from_value(json!({
-            "id": "matrix/m/r0c0", "definitionId": "switch", "reference": "SW1",
-            "pose": {"at": {"x": 0.0, "y": 0.0}, "rotation": 0.0}, "side": "front",
-            "keycap": {"x": 18.0, "y": 18.0}
-        }))
-        .unwrap(),
-    );
-    document.definitions.push(
-        serde_json::from_value(json!({
-            "id": "switch", "name": "Switch", "kind": "switch", "courtyard": [], "pads": []
-        }))
-        .unwrap(),
-    );
-    document.boards.push(
-        serde_json::from_value(json!({
-            "id": "board", "name": "Board", "partIds": ["matrix/m/r0c0"],
-            "outlineIds": [], "netIds": [], "thickness": 1.6
-        }))
-        .unwrap(),
-    );
-    document.matrices.push(
-        serde_json::from_value(json!({
-            "id": "m", "rows": 1, "columns": 1,
-            "pitch": {"x": 19.05, "y": 19.05}, "origin": {"x": 0.0, "y": 0.0},
-            "definitionId": "switch", "partIds": ["matrix/m/r0c0"], "boardId": "board",
-            "cells": [{"row": 0, "column": 0, "enabled": true, "definitionId": "switch", "assemblies": []}]
-        }))
-        .unwrap(),
-    );
-    let document = Arc::new(document);
-    let cell = |x: f64, y: f64| {
-        json!({
-            "row": 0, "column": 0, "enabled": true, "memberId": "matrix/m/r0c0",
-            "pose": {"at": {"x": x, "y": y}, "rotation": 0.0},
-            "shiftFrame": {"origin": {"x": 0.0, "y": 0.0}, "rotation": 0.0, "axisX": {"x": 1.0, "y": 0.0}, "axisY": {"x": 0.0, "y": 1.0}},
-            "offsetFrame": {"origin": {"x": 0.0, "y": 0.0}, "rotation": 0.0, "axisX": {"x": 1.0, "y": 0.0}, "axisY": {"x": 0.0, "y": 1.0}}
-        })
-    };
-    let scene_with = |x: f64, y: f64| -> Arc<SceneDelta> {
-        Arc::new(
-            serde_json::from_value(json!({
-                "revision": 0, "transactionId": "fixture", "changedIds": [], "transforms": [],
-                "matrixScenes": [{
-                    "matrixId": "m", "cells": [cell(x, y)],
-                    "columns": [{
-                        "column": 0, "base": {"x": 0.0, "y": 0.0}, "rotation": 0.0,
-                        "relativeOrigin": {"x": 0.0, "y": 0.0},
-                        "splayOrigin": {"x": 0.0, "y": 0.0}, "splayAngle": 0.0, "customOrigin": false,
-                        "axisX": {"x": 1.0, "y": 0.0}, "axisY": {"x": 0.0, "y": 1.0},
-                        "staggerAxis": {"x": 0.0, "y": 1.0}
-                    }]
-                }],
-                "contours": [], "boardContours": [], "boardReadiness": [], "findings": [],
-                "readiness": {"layout": true, "outline": false, "pcb": false, "case": false}
-            }))
-            .unwrap(),
-        )
-    };
-    (document, scene_with(0.0, 0.0), scene_with(9.0, 4.0))
+    let mut document = switch_document("canvas", "Canvas", &["matrix/m/r0c0"]);
+    document
+        .matrices
+        .push(one_key_matrix("m", "matrix/m/r0c0", 0.0));
+    let scene_with = |x, y| scene(&[one_key_scene("m", x, y, &[column_at_origin()])]);
+    (
+        Arc::new(document),
+        scene_with(0.0, 0.0),
+        scene_with(9.0, 4.0),
+    )
 }
 
 fn render_ghost_fixture() -> Element {
@@ -100,13 +52,7 @@ fn render_ghost_fixture() -> Element {
 /// of every moved matrix key until the preview clears.
 #[wasm_bindgen_test]
 async fn transform_preview_ghosts_the_pre_drag_pose() {
-    let document = web_sys::window().unwrap().document().unwrap();
-    let root = document.create_element("div").unwrap();
-    document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(
-        VirtualDom::new(render_ghost_fixture),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let root = test_mount_helpers::mount(VirtualDom::new(render_ghost_fixture), None);
     gloo_timers::future::TimeoutFuture::new(5).await;
     let click = |selector: &str| {
         root.query_selector(selector)
@@ -144,5 +90,4 @@ async fn transform_preview_ghosts_the_pre_drag_pose() {
             .is_none(),
         "clearing the preview retires its ghosts"
     );
-    root.remove();
 }

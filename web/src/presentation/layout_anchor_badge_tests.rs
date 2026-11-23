@@ -3,15 +3,13 @@
 //! on that reference, and a dashed tie to the selection. The badge clears when
 //! the selection clears.
 use super::*;
-use boardstudio_application::{Event, Session};
-use boardstudio_core::CoreEngine;
+use crate::presentation::test_mount_helpers::{
+    self, EditorProbe, MountedRoot, matrix_part_definition, mount_editor,
+};
 use boardstudio_core::model::{EditCommand, EditPhase, ProjectDoc};
 use boardstudio_web_test_runtime::project_name_test_support as support;
-use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::test_wait::wait_until;
 use serde_json::json;
-use std::cell::RefCell;
-use std::rc::Rc;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 
@@ -19,47 +17,15 @@ const MATRIX: &str = "main";
 const ROWS: u32 = 2;
 const COLUMNS: u32 = 5;
 
-#[derive(Clone)]
-struct Probe {
-    runtime: Rc<crate::runtime::Runtime>,
-    root_id: &'static str,
-    adapter: Rc<RefCell<Option<SelectionAdapter>>>,
-    version: Rc<RefCell<Option<Signal<u64>>>>,
-    hidden: Rc<RefCell<Option<Signal<BTreeSet<String>>>>>,
-}
-
-impl Probe {
-    fn select(&self, context: objects::TreeContext) {
-        selection::submit_context(
-            &self.runtime,
-            &self.adapter.borrow().clone().expect("mounted adapter"),
-            selection::ContextRequest {
-                scope: self.runtime.scope().expect("opened project scope"),
-                context,
-                mode: boardstudio_application::SelectionMode::Replace,
-            },
-        );
-    }
-
-    fn revision(&self) -> u64 {
-        self.runtime
-            .model()
-            .accepted
-            .expect("accepted document")
-            .document
-            .revision
-    }
-
-    /// Ticket 02 renamed the canvas label class: the badge text now reads
-    /// from the "Placed from" readout, stripping its prefix.
-    fn badge_label(&self) -> String {
-        element(self.root_id, "[data-canvas-anchor-readout]")
-            .text_content()
-            .unwrap_or_default()
-            .strip_prefix("Placed from ")
-            .unwrap_or_default()
-            .to_owned()
-    }
+/// Ticket 02 renamed the canvas label class: the badge text now reads
+/// from the "Placed from" readout, stripping its prefix.
+fn badge_label(root_id: &str) -> String {
+    element(root_id, "[data-canvas-anchor-readout]")
+        .text_content()
+        .unwrap_or_default()
+        .strip_prefix("Placed from ")
+        .unwrap_or_default()
+        .to_owned()
 }
 
 fn set_matrix_command(base_revision: u64, matrix: serde_json::Value) -> EditCommand {
@@ -100,24 +66,13 @@ fn anchor_command(base_revision: u64, id: &str, anchor: serde_json::Value) -> Ed
     }
 }
 
-fn definition(id: &str, kind: &str) -> serde_json::Value {
-    json!({
-        "id": id, "name": id, "kind": kind,
-        "courtyard": [
-            { "x": -7.0, "y": -7.0 }, { "x": 7.0, "y": -7.0 },
-            { "x": 7.0, "y": 7.0 }, { "x": -7.0, "y": 7.0 }
-        ],
-        "pads": [{ "id": "p0", "number": "1", "at": { "x": 0.0, "y": 0.0 },
-                   "size": { "x": 2.0, "y": 2.0 }, "shape": "rect" }],
-    })
-}
-
 fn base() -> ProjectDoc {
     let mut document =
         serde_json::to_value(ProjectDoc::empty("anchor-badge", "Anchor badge")).unwrap();
+    let courtyard = [[-7.0, -7.0], [7.0, -7.0], [7.0, 7.0], [-7.0, 7.0]];
     document["definitions"] = json!([
-        definition("switch", "switch"),
-        definition("diode", "passive")
+        matrix_part_definition("switch", "switch", courtyard),
+        matrix_part_definition("diode", "passive", courtyard)
     ]);
     document["boards"] = json!([{ "id": "board", "name": "Board", "outlineIds": [],
         "partIds": [], "netIds": [], "thickness": 1.6 }]);
@@ -190,100 +145,26 @@ fn highlighted_keys(root_id: &str) -> Vec<(String, String)> {
         .collect()
 }
 
-fn host() -> Element {
-    let probe = use_context::<Probe>();
-    let workspace = use_signal(|| Workspace::Layout);
-    use_context_provider(|| WorkspaceState(workspace));
-    use_context_provider(|| ExportReturnWorkspace(workspace));
-    let version = use_signal(|| 0u64);
-    *probe.version.borrow_mut() = Some(version);
-    use_context_provider(|| version);
-    let created = use_signal(|| None::<SetupGuideRequest>);
-    use_context_provider(|| created);
-    let objects_open = use_signal(|| true);
-    let inspector_open = use_signal(|| true);
-    use_context_provider(|| CompactPanelState {
-        objects_open,
-        inspector_open,
-    });
-    let warning = use_signal(|| false);
-    use_context_provider(|| PreferenceStorageWarning(warning));
-    let theme = use_signal(|| "light");
-    use_context_provider(|| ThemeState(theme));
-    let resolved = use_memo(|| "light");
-    use_context_provider(|| ResolvedAppearance(resolved));
-    let selected = use_signal(|| None);
-    let anchor = use_signal(|| None);
-    let generation = use_signal(|| 0u64);
-    let adapter = SelectionAdapter::new(selected, anchor, generation);
-    *probe.adapter.borrow_mut() = Some(adapter.clone());
-    use_context_provider(|| adapter);
-    let hidden = use_signal(BTreeSet::new);
-    let modules_hidden = use_signal(BTreeSet::new);
-    let footprints = use_signal(|| false);
-    *probe.hidden.borrow_mut() = Some(hidden);
-    use_context_provider(|| LayerVisibility {
-        hidden,
-        modules_hidden,
-        footprints,
-    });
-    boardstudio_web_ui_model::state::use_test_case_generation_state();
-    rsx! { boardstudio_web_ui_shared::ui::toast::ToastProvider { Editor {} } }
-}
-
 /// Create the matrix through the Session and Core, then mount the real Layout editor.
-async fn mount(root_id: &'static str) -> Probe {
-    let runtime = support::new_runtime();
-    support::install(
-        &runtime,
-        Session::new(CoreEngine::validate_open),
-        CoreEngine::new(),
-    );
-    support::install_memory_persistence(&runtime);
-    runtime.submit(Event::Open {
-        operation_id: runtime.operation(),
-        document: base(),
-    });
-    support::run_pending(&runtime).await;
+async fn mount(root_id: &'static str) -> (EditorProbe, MountedRoot) {
+    let runtime = test_mount_helpers::open_document(base()).await;
     let revision = runtime.model().accepted.unwrap().document.revision;
     support::submit_fixed_command(
         &runtime,
         set_matrix_command(revision, matrix_json(json!({}))),
     );
     support::run_pending(&runtime).await;
-    let probe = launch_host(root_id, runtime);
+    let (probe, root) = mount_editor(root_id, runtime);
     wait_until("the Layout canvas draws the matrix keys", || {
         count(root_id, "[data-matrix-id][data-row][data-column]") > 0
     })
     .await;
-    probe
-}
-
-fn launch_host(root_id: &'static str, runtime: Rc<crate::runtime::Runtime>) -> Probe {
-    let probe = Probe {
-        runtime: runtime.clone(),
-        root_id,
-        adapter: Rc::default(),
-        version: Rc::default(),
-        hidden: Rc::default(),
-    };
-    let dom_document = web_sys::window().unwrap().document().unwrap();
-    let root = dom_document.create_element("div").unwrap();
-    root.set_id(root_id);
-    dom_document.body().unwrap().append_child(&root).unwrap();
-    let dom = VirtualDom::new(host);
-    dom.provide_root_context(runtime.clone());
-    dom.provide_root_context(probe.clone());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
-    probe
+    (probe, root)
 }
 
 /// Mount main, join it to a layout, and anchor a 1x1 thumb to its key (0, 0).
-async fn mount_anchored_thumb(root_id: &'static str) -> Probe {
-    let probe = mount(root_id).await;
+async fn mount_anchored_thumb(root_id: &'static str) -> (EditorProbe, MountedRoot) {
+    let (probe, root) = mount(root_id).await;
     let accepted = probe.runtime.model().accepted.expect("accepted document");
     let mut document = (*accepted.document).clone();
     document.layouts.push(
@@ -309,7 +190,7 @@ async fn mount_anchored_thumb(root_id: &'static str) -> Probe {
     support::run_pending(&probe.runtime).await;
     let mut version = probe.version.borrow().expect("mounted version signal");
     version += 1;
-    probe
+    (probe, root)
 }
 
 /// Ticket 17: selecting a column draws the badge for the previous column it
@@ -317,7 +198,7 @@ async fn mount_anchored_thumb(root_id: &'static str) -> Probe {
 #[wasm_bindgen_test]
 async fn column_selection_badges_the_previous_column_it_carries() {
     let root_id = "anchor-badge-column";
-    let probe = mount(root_id).await;
+    let (probe, _root) = mount(root_id).await;
     let before = probe.revision();
     probe.select(objects::TreeContext::Column {
         matrix_id: MATRIX.into(),
@@ -328,7 +209,7 @@ async fn column_selection_badges_the_previous_column_it_carries() {
     })
     .await;
     assert_eq!(
-        probe.badge_label(),
+        badge_label(root_id),
         "Column 2 · spread, stagger, splay carry",
         "the badge names what the column is placed from"
     );
@@ -352,7 +233,7 @@ async fn column_selection_badges_the_previous_column_it_carries() {
 #[wasm_bindgen_test]
 async fn anchored_matrix_badges_its_anchor_key() {
     let root_id = "anchor-badge-matrix";
-    let probe = mount_anchored_thumb(root_id).await;
+    let (probe, _root) = mount_anchored_thumb(root_id).await;
     probe.select(objects::TreeContext::Matrix {
         matrix_id: "thumb".into(),
     });
@@ -361,7 +242,7 @@ async fn anchored_matrix_badges_its_anchor_key() {
     })
     .await;
     assert_eq!(
-        probe.badge_label(),
+        badge_label(root_id),
         "main R1C1 · follows X, Y, rotation",
         "the badge names the anchor key"
     );
@@ -380,7 +261,7 @@ async fn anchored_matrix_badges_its_anchor_key() {
 #[wasm_bindgen_test]
 async fn key_selection_badges_the_key_below_it() {
     let root_id = "anchor-badge-key";
-    let probe = mount(root_id).await;
+    let (probe, _root) = mount(root_id).await;
     probe.select(objects::TreeContext::Key {
         matrix_id: MATRIX.into(),
         row: 1,
@@ -391,7 +272,7 @@ async fn key_selection_badges_the_key_below_it() {
     })
     .await;
     assert_eq!(
-        probe.badge_label(),
+        badge_label(root_id),
         "Key R1C3 · carried from below",
         "the badge names the key below"
     );
@@ -408,19 +289,8 @@ async fn key_selection_badges_the_key_below_it() {
 /// A split pair through edits: main on the left, paired on the right, joined
 /// by a legacy (board-coordinate) mirror link. Focus starts on the Left half,
 /// so the right half dims.
-async fn mount_split(root_id: &'static str) -> Probe {
-    let runtime = support::new_runtime();
-    support::install(
-        &runtime,
-        Session::new(CoreEngine::validate_open),
-        CoreEngine::new(),
-    );
-    support::install_memory_persistence(&runtime);
-    runtime.submit(Event::Open {
-        operation_id: runtime.operation(),
-        document: base(),
-    });
-    support::run_pending(&runtime).await;
+async fn mount_split(root_id: &'static str) -> (EditorProbe, MountedRoot) {
+    let runtime = test_mount_helpers::open_document(base()).await;
     let revision = runtime.model().accepted.unwrap().document.revision;
     support::submit_fixed_command(
         &runtime,
@@ -456,12 +326,12 @@ async fn mount_split(root_id: &'static str) -> Probe {
     .unwrap();
     support::submit_fixed_command(&runtime, replace_command(document.revision, document));
     support::run_pending(&runtime).await;
-    let probe = launch_host(root_id, runtime);
+    let (probe, root) = mount_editor(root_id, runtime);
     wait_until("the Layout canvas draws both halves", || {
         count(root_id, "[data-matrix-id][data-row][data-column]") == 8
     })
     .await;
-    probe
+    (probe, root)
 }
 
 /// Ticket 17: the badge draws on the selected half, including a dimmed one.
@@ -470,7 +340,7 @@ async fn mount_split(root_id: &'static str) -> Probe {
 #[wasm_bindgen_test]
 async fn badge_draws_on_the_dimmed_half() {
     let root_id = "anchor-badge-dimmed";
-    let probe = mount_split(root_id).await;
+    let (probe, _root) = mount_split(root_id).await;
     wait_until("the right half dims", || {
         query(root_id, "[data-focus-label='split']").is_some_and(|label| {
             label
@@ -490,7 +360,7 @@ async fn badge_draws_on_the_dimmed_half() {
     })
     .await;
     assert_eq!(
-        probe.badge_label(),
+        badge_label(root_id),
         "Key R1C2 · carried from below",
         "the badge names the anchor on the dimmed half"
     );
@@ -512,7 +382,7 @@ async fn badge_draws_on_the_dimmed_half() {
 #[wasm_bindgen_test]
 async fn clearing_the_selection_clears_the_badge() {
     let root_id = "anchor-badge-clear";
-    let probe = mount(root_id).await;
+    let (probe, _root) = mount(root_id).await;
     probe.select(objects::TreeContext::Column {
         matrix_id: MATRIX.into(),
         column: 2,

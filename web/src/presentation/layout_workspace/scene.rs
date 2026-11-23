@@ -508,7 +508,7 @@ pub(super) fn transform_overlays(input: TransformOverlaysInput<'_>) -> Element {
         {
             {
                 // The matrix rail ends in the Anchor token only while the matrix is anchored.
-                let tools: Vec<_> = layout_canvas::transform_tools(&context, layout_transform_tool(), layout_state.transform_handles()(), None)
+                let tools: Vec<_> = objects::transform_tools(&context, layout_transform_tool(), layout_state.transform_handles()(), None)
                     .into_iter()
                     .filter(|tool| *tool != objects::LayoutTransformTool::Anchor || matrix.anchor.is_some())
                     .collect();
@@ -596,7 +596,7 @@ pub(super) fn part_rail(input: PartRailInput<'_>) -> Element {
         {
             {
                 let part_context = selected.context.clone();
-                let tools = layout_canvas::transform_tools(&part_context, layout_transform_tool(), layout_state.transform_handles()(), Some(facts));
+                let tools = objects::transform_tools(&part_context, layout_transform_tool(), layout_state.transform_handles()(), Some(facts));
                 let slots = tools.len();
                 let anchored = tools.contains(&objects::LayoutTransformTool::Anchor);
                 let on_focus_half = {

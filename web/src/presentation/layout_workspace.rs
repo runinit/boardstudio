@@ -2,7 +2,6 @@
 use super::objects;
 use super::workspace_composition::SharedObjectsInput;
 use boardstudio_web_ui_model::Workspace;
-use boardstudio_web_ui_model::split_focus::SplitHalf;
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::collapsible::{
     Collapsible, CollapsibleContent, CollapsibleTrigger,
@@ -15,22 +14,10 @@ use boardstudio_web_ui_shared::ui::{
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
-use std::{cell::RefCell, rc::Rc};
+pub(super) use objects::{LayoutInspectorTab, LayoutWorkspaceState, use_layout_workspace_state};
+use std::rc::Rc;
 
 pub(super) mod scene;
-
-type TransformToolOwner = (
-    Option<boardstudio_application::Scope>,
-    u64,
-    Option<String>,
-    Workspace,
-    bool,
-);
-type InspectorFieldFailures = (
-    Signal<Option<String>>,
-    Signal<Option<String>>,
-    Signal<Option<String>>,
-);
 
 #[derive(Clone)]
 pub(super) struct ObjectsInput {
@@ -111,225 +98,6 @@ pub(super) struct InspectorInput {
     pub(super) on_findings_return: EventHandler<()>,
     pub(super) board_inspector_mount: super::board_inspector::BoardInspectorMount,
     pub(super) findings_page: Option<super::layout_findings::InspectorMount>,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum LayoutInspectorTab {
-    #[default]
-    Properties,
-    Relations,
-}
-
-/// Layout's selection, command, transform, and view state. Editor retains the
-/// cross-workspace owner and supplies the current selected tree context.
-#[derive(Clone, Copy)]
-pub(super) struct LayoutWorkspaceState {
-    selection_kind: Signal<objects::LayoutSelectionKind>,
-    snap_settings: Signal<objects::LayoutSnapSettings>,
-    inspector_tab: Signal<LayoutInspectorTab>,
-    command_menu: Signal<Option<objects::LayoutCommandMenu>>,
-    transform_tool: Signal<Option<objects::LayoutTransformTool>>,
-    transform_tool_owner: Signal<Option<TransformToolOwner>>,
-    transform_handles: Signal<bool>,
-    /// Split editing focus starts on the source half and survives workspace
-    /// switches and spacing changes without editing the document.
-    split_focus: Signal<SplitHalf>,
-    assembly_3d: Signal<bool>,
-    splay_affect: Signal<boardstudio_core::model::MatrixSplayAffect>,
-    pending_splay_origin_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
-    pending_anchor_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
-    pair_created_selection: Signal<Option<objects::MirroredPairCreated>>,
-    component_inspector_x: Signal<String>,
-    component_inspector_y: Signal<String>,
-    component_inspector_margin: Signal<String>,
-    component_inspector_error: Signal<Option<String>>,
-    component_inspector_x_failure: Signal<Option<String>>,
-    component_inspector_y_failure: Signal<Option<String>>,
-    component_inspector_margin_failure: Signal<Option<String>>,
-    companion_placement_error: Signal<Option<String>>,
-    add_object_menu_open: Signal<bool>,
-}
-
-pub(super) fn use_layout_workspace_state(
-    selected_context: Signal<Option<objects::ScopedTreeContext>>,
-    workspace: Signal<Workspace>,
-) -> LayoutWorkspaceState {
-    let mut state = LayoutWorkspaceState {
-        selection_kind: use_signal(objects::LayoutSelectionKind::default),
-        snap_settings: use_signal(objects::LayoutSnapSettings::default),
-        inspector_tab: use_signal(LayoutInspectorTab::default),
-        command_menu: use_signal(|| None),
-        transform_tool: use_signal(|| None),
-        transform_tool_owner: use_signal(|| None),
-        transform_handles: use_signal(|| true),
-        split_focus: use_signal(SplitHalf::default),
-        assembly_3d: use_signal(|| false),
-        splay_affect: use_signal(|| boardstudio_core::model::MatrixSplayAffect::Following),
-        pending_splay_origin_pick: use_signal(|| None),
-        pending_anchor_pick: use_signal(|| None),
-        pair_created_selection: use_signal(|| None),
-        component_inspector_x: use_signal(String::new),
-        component_inspector_y: use_signal(String::new),
-        component_inspector_margin: use_signal(String::new),
-        component_inspector_error: use_signal(|| None),
-        component_inspector_x_failure: use_signal(|| None),
-        component_inspector_y_failure: use_signal(|| None),
-        component_inspector_margin_failure: use_signal(|| None),
-        companion_placement_error: use_signal(|| None),
-        add_object_menu_open: use_signal(|| false),
-    };
-    use_contextual_inspector_tab_reset(selected_context, state.inspector_tab);
-    let observed_workspace = workspace();
-    use_effect(use_reactive!(|observed_workspace| {
-        if observed_workspace != Workspace::Layout {
-            state.transform_tool.set(None);
-        }
-    }));
-    let observed_assembly_3d = state.assembly_3d()();
-    use_effect(use_reactive!(|observed_assembly_3d| {
-        if observed_assembly_3d {
-            state.pending_splay_origin_pick.set(None);
-            state.pending_anchor_pick.set(None);
-        }
-    }));
-    state
-}
-
-impl LayoutWorkspaceState {
-    pub(super) fn add_object_menu_open(self) -> Signal<bool> {
-        self.add_object_menu_open
-    }
-    pub(super) fn selection_kind(self) -> Signal<objects::LayoutSelectionKind> {
-        self.selection_kind
-    }
-    pub(super) fn snap_settings(self) -> Signal<objects::LayoutSnapSettings> {
-        self.snap_settings
-    }
-    pub(super) fn inspector_tab(self) -> Signal<LayoutInspectorTab> {
-        self.inspector_tab
-    }
-    pub(super) fn command_menu(self) -> Signal<Option<objects::LayoutCommandMenu>> {
-        self.command_menu
-    }
-    pub(super) fn transform_tool(self) -> Signal<Option<objects::LayoutTransformTool>> {
-        self.transform_tool
-    }
-    pub(super) fn transform_handles(self) -> Signal<bool> {
-        self.transform_handles
-    }
-    pub(super) fn split_focus(self) -> Signal<SplitHalf> {
-        self.split_focus
-    }
-    pub(super) fn assembly_3d(self) -> Signal<bool> {
-        self.assembly_3d
-    }
-    pub(super) fn splay_affect(self) -> Signal<boardstudio_core::model::MatrixSplayAffect> {
-        self.splay_affect
-    }
-    pub(super) fn pending_splay_origin_pick(
-        self,
-    ) -> Signal<Option<objects::MatrixTransformInspectorOwner>> {
-        self.pending_splay_origin_pick
-    }
-    pub(super) fn pending_anchor_pick(
-        self,
-    ) -> Signal<Option<objects::MatrixTransformInspectorOwner>> {
-        self.pending_anchor_pick
-    }
-    pub(super) fn pair_created_selection(self) -> Signal<Option<objects::MirroredPairCreated>> {
-        self.pair_created_selection
-    }
-
-    pub(super) fn component_inspector_drafts(
-        self,
-    ) -> (
-        Signal<String>,
-        Signal<String>,
-        Signal<String>,
-        Signal<Option<String>>,
-    ) {
-        (
-            self.component_inspector_x,
-            self.component_inspector_y,
-            self.component_inspector_margin,
-            self.component_inspector_error,
-        )
-    }
-    pub(super) fn companion_placement_error(self) -> Signal<Option<String>> {
-        self.companion_placement_error
-    }
-
-    pub(super) fn component_inspector_field_failures(self) -> InspectorFieldFailures {
-        (
-            self.component_inspector_x_failure,
-            self.component_inspector_y_failure,
-            self.component_inspector_margin_failure,
-        )
-    }
-
-    pub(super) fn set_selection_kind_from_context(mut self, context: &objects::TreeContext) {
-        if let Some(kind) = selection_kind_for_tree_context(context) {
-            self.selection_kind.set(kind);
-        }
-    }
-
-    pub(super) fn set_assembly_3d(mut self, assembly_3d: bool) {
-        self.assembly_3d.set(assembly_3d);
-        if assembly_3d {
-            self.pending_splay_origin_pick.set(None);
-            self.pending_anchor_pick.set(None);
-        }
-    }
-
-    pub(super) fn observe_transform_tool_owner(self, owner: TransformToolOwner) {
-        let mut state = self;
-        let owner = owner.clone();
-        use_effect(use_reactive!(|owner| {
-            if state
-                .transform_tool_owner
-                .peek()
-                .as_ref()
-                .is_some_and(|previous| previous != &owner)
-            {
-                state.transform_tool.set(None);
-            }
-            state.transform_tool_owner.set(Some(owner));
-        }));
-    }
-}
-
-pub(super) fn selection_kind_for_tree_context(
-    context: &objects::TreeContext,
-) -> Option<objects::LayoutSelectionKind> {
-    match context {
-        objects::TreeContext::Matrix { .. } => Some(objects::LayoutSelectionKind::Matrix),
-        objects::TreeContext::Row { .. } => Some(objects::LayoutSelectionKind::Row),
-        objects::TreeContext::Column { .. } => Some(objects::LayoutSelectionKind::Column),
-        objects::TreeContext::Key { .. } => Some(objects::LayoutSelectionKind::Key),
-        objects::TreeContext::Component { .. } => Some(objects::LayoutSelectionKind::Part),
-        objects::TreeContext::Outline { .. }
-        | objects::TreeContext::OutlineVersion { .. }
-        | objects::TreeContext::Bridge { .. }
-        | objects::TreeContext::MountedModule { .. }
-        | objects::TreeContext::Board { .. }
-        | objects::TreeContext::LayoutGroup { .. } => None,
-    }
-}
-
-/// Reset the tab only when the selection changes, not on unrelated revisions.
-pub(super) fn use_contextual_inspector_tab_reset(
-    selected_context: Signal<Option<objects::ScopedTreeContext>>,
-    inspector_tab: Signal<LayoutInspectorTab>,
-) {
-    let observed_context = selected_context();
-    let previous_context = use_hook(|| Rc::new(RefCell::new(observed_context.clone())));
-    use_effect(use_reactive!(|observed_context| {
-        let mut inspector_tab = inspector_tab;
-        if previous_context.borrow().as_ref() != observed_context.as_ref() {
-            inspector_tab.set(LayoutInspectorTab::Properties);
-        }
-        *previous_context.borrow_mut() = observed_context.clone();
-    }));
 }
 
 pub(super) fn objects(input: ObjectsInput) -> Element {
@@ -519,10 +287,6 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
         }
     }
 }
-
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "layout_workspace/workspace_state_tests.rs"]
-mod workspace_state_tests;
 
 #[component]
 pub(super) fn LayoutInspector(input: ReadSignal<InspectorInput>) -> Element {
@@ -989,6 +753,7 @@ fn PendingSplayOriginPickEscape(pending: bool, on_cancel: EventHandler<()>) -> E
 #[cfg(all(test, target_arch = "wasm32"))]
 mod origin_pick_escape_regression_tests {
     use super::*;
+    use crate::presentation::test_mount_helpers;
     use boardstudio_web_ui_shared::test_wait::wait_until;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
@@ -1018,13 +783,7 @@ mod origin_pick_escape_regression_tests {
     #[wasm_bindgen_test]
     async fn escape_from_inspector_cancels_pending_origin_pick() {
         let document = web_sys::window().unwrap().document().unwrap();
-        let root = document.create_element("div").unwrap();
-        document.body().unwrap().append_child(&root).unwrap();
-        let dom = VirtualDom::new(pending_pick_host);
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let root = test_mount_helpers::mount(VirtualDom::new(pending_pick_host), None);
         wait_until("the origin-pick control renders", || {
             root.query_selector("#arm-origin-pick")
                 .is_ok_and(|button| button.is_some())
@@ -1069,13 +828,13 @@ mod origin_pick_escape_regression_tests {
             Some("false"),
             "Escape from the Inspector must clear the pending canvas pick"
         );
-        root.remove();
     }
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]
 mod relation_escape_regression_tests {
     use super::*;
+    use crate::presentation::test_mount_helpers;
     use boardstudio_application::{Scope, SelectionMode, SessionEpoch};
     use boardstudio_web_ui_shared::test_wait::wait_until;
     use wasm_bindgen_test::*;
@@ -1144,13 +903,7 @@ mod relation_escape_regression_tests {
     #[wasm_bindgen_test]
     async fn escape_from_matrix_relationship_component_returns_to_board_context() {
         let document = web_sys::window().unwrap().document().unwrap();
-        let root = document.create_element("div").unwrap();
-        document.body().unwrap().append_child(&root).unwrap();
-        let dom = VirtualDom::new(relation_escape_host);
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let root = test_mount_helpers::mount(VirtualDom::new(relation_escape_host), None);
         wait_until("the matrix relationship renders", || {
             root.query_selector("#selection-context")
                 .ok()
@@ -1185,7 +938,6 @@ mod relation_escape_regression_tests {
             Some("board"),
             "Escape after Edit placement relationship returns to the Board Inspector context"
         );
-        root.remove();
     }
 }
 

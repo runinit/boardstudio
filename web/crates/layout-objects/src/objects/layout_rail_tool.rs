@@ -1,6 +1,6 @@
 //! The rail tools and their activation rules. Plain logic: compiled natively for tests.
 use super::layout_selection_kind::LayoutSelectionKind;
-use crate::matrix_transform_operation::MatrixTransformField;
+use crate::{matrix_transform_operation::MatrixTransformField, part_rail::PartRailFacts};
 use boardstudio_web_ui_model::tree::TreeContext;
 
 /// The rail tools. Matrix selections offer the placement tools; an independent part offers Move,
@@ -120,6 +120,61 @@ pub fn activate_transform_tool(
     }
 }
 
+/// Ticket 07: `part` carries the mount site's part-rail facts for an
+/// independent part selection (a `Component` with a part id and no matrix).
+/// Matrix members and companions name themselves in the facts and keep their
+/// matrix's tools.
+pub fn transform_tools(
+    context: &TreeContext,
+    active: Option<LayoutTransformTool>,
+    handles_visible: bool,
+    part: Option<PartRailFacts>,
+) -> Vec<LayoutTransformTool> {
+    use crate::part_rail::part_rail_tools;
+    use LayoutTransformTool as Tool;
+    let part_tools = |facts: PartRailFacts| {
+        part_rail_tools(facts)
+            .into_iter()
+            .map(Tool::from)
+            .collect::<Vec<_>>()
+    };
+    if !handles_visible {
+        // View-only: every passive handle hides, but the active tool keeps
+        // the handle its gesture requires. Origin and Splay expose their
+        // origin through the active overlay itself, so no extra overlay is
+        // needed. With no active tool nothing draws.
+        return match (context, active) {
+            (TreeContext::Column { .. }, Some(tool))
+            | (TreeContext::Row { .. }, Some(tool @ (Tool::Offset | Tool::Shift | Tool::Bend)))
+            | (TreeContext::Key { .. }, Some(tool @ (Tool::Shift | Tool::Bend)))
+            | (TreeContext::Matrix { .. }, Some(tool @ (Tool::Move | Tool::Rotate))) => vec![tool],
+            // Ticket 07: a hidden part rail keeps only its active tool.
+            (TreeContext::Component { .. }, Some(tool)) => part
+                .filter(|facts| part_tools(*facts).contains(&tool))
+                .map_or_else(Vec::new, |_| vec![tool]),
+            _ => Vec::new(),
+        };
+    }
+    match context {
+        TreeContext::Column { .. } => match active {
+            Some(Tool::Offset) => vec![Tool::Offset, Tool::Splay],
+            Some(Tool::Origin) => vec![Tool::Stagger, Tool::Origin],
+            Some(Tool::Spread) => vec![Tool::Spread, Tool::Splay],
+            _ => vec![Tool::Stagger, Tool::Splay],
+        },
+        TreeContext::Row { .. } => vec![Tool::Offset, Tool::Shift, Tool::Bend],
+        TreeContext::Key { .. } => vec![Tool::Shift, Tool::Bend],
+        // Ticket 08: the rail of a matrix ends in the Anchor token. The
+        // mount site only mounts it while the matrix is anchored (the
+        // projection arms no pick without an anchor to retarget).
+        TreeContext::Matrix { .. } => vec![Tool::Move, Tool::Rotate, Tool::Anchor],
+        // Ticket 07: an independent part gets its own rail; without facts
+        // (a member or companion) nothing draws.
+        TreeContext::Component { .. } => part.map_or_else(Vec::new, part_tools),
+        _ => vec![],
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -224,5 +279,298 @@ mod tests {
             assert_eq!(tool.label(), label);
         }
         assert_eq!(Tool::Anchor.label(), "Anchor");
+    }
+
+    #[test]
+    fn explicit_offset_and_origin_activate_the_named_canvas_handle() {
+        use LayoutTransformTool as Tool;
+        let column = TreeContext::Column {
+            matrix_id: "matrix".into(),
+            column: 0,
+        };
+        assert_eq!(
+            transform_tools(&column, Some(Tool::Offset), true, None),
+            vec![Tool::Offset, Tool::Splay]
+        );
+        assert_eq!(
+            transform_tools(&column, Some(Tool::Origin), true, None),
+            vec![Tool::Stagger, Tool::Origin]
+        );
+        assert_eq!(
+            transform_tools(&column, None, true, None),
+            vec![Tool::Stagger, Tool::Splay]
+        );
+        // Ticket 05: a Row keeps its shipped Offset next to Shift and Bend;
+        // a Key offers Shift and Bend.
+        assert_eq!(
+            transform_tools(
+                &TreeContext::Row {
+                    matrix_id: "matrix".into(),
+                    row: 0
+                },
+                Some(Tool::Stagger),
+                true,
+                None,
+            ),
+            vec![Tool::Offset, Tool::Shift, Tool::Bend]
+        );
+        assert_eq!(
+            transform_tools(
+                &TreeContext::Row {
+                    matrix_id: "matrix".into(),
+                    row: 0
+                },
+                None,
+                true,
+                None,
+            ),
+            vec![Tool::Offset, Tool::Shift, Tool::Bend]
+        );
+        assert_eq!(
+            transform_tools(
+                &TreeContext::Key {
+                    matrix_id: "matrix".into(),
+                    row: 0,
+                    column: 1,
+                },
+                None,
+                true,
+                None,
+            ),
+            vec![Tool::Shift, Tool::Bend]
+        );
+        assert_eq!(
+            transform_tools(
+                &TreeContext::Matrix {
+                    matrix_id: "matrix".into()
+                },
+                None,
+                true,
+                None,
+            ),
+            vec![Tool::Move, Tool::Rotate, Tool::Anchor]
+        );
+        assert_eq!(
+            transform_tools(
+                &TreeContext::Matrix {
+                    matrix_id: "matrix".into()
+                },
+                Some(Tool::Move),
+                true,
+                None,
+            ),
+            vec![Tool::Move, Tool::Rotate, Tool::Anchor]
+        );
+        assert_eq!(
+            transform_tools(
+                &TreeContext::Matrix {
+                    matrix_id: "matrix".into()
+                },
+                Some(Tool::Move),
+                false,
+                None,
+            ),
+            vec![Tool::Move]
+        );
+        // Ticket 07: an independent part gets its own rail from the mount
+        // site's facts; without facts (a member or companion) nothing draws.
+        let part = TreeContext::Component {
+            part_id: Some("mcu".into()),
+            matrix_id: None,
+            row: None,
+            column: None,
+            assembly_id: None,
+        };
+        let anchored = || {
+            Some(PartRailFacts {
+                anchored: true,
+                anchor_column: 1,
+                locked: false,
+                member_or_companion: false,
+            })
+        };
+        assert_eq!(
+            transform_tools(&part, None, true, anchored()),
+            vec![
+                Tool::Move,
+                Tool::Rotate,
+                Tool::Spread,
+                Tool::Stagger,
+                Tool::Anchor,
+            ]
+        );
+        assert_eq!(
+            transform_tools(
+                &part,
+                None,
+                true,
+                Some(PartRailFacts {
+                    anchored: true,
+                    anchor_column: 0,
+                    locked: false,
+                    member_or_companion: false,
+                }),
+            ),
+            vec![Tool::Move, Tool::Rotate, Tool::Stagger, Tool::Anchor]
+        );
+        assert_eq!(
+            transform_tools(
+                &part,
+                None,
+                true,
+                Some(PartRailFacts {
+                    anchored: false,
+                    anchor_column: 0,
+                    locked: false,
+                    member_or_companion: false,
+                }),
+            ),
+            vec![Tool::Move, Tool::Rotate, Tool::Anchor]
+        );
+        assert_eq!(
+            transform_tools(
+                &part,
+                None,
+                true,
+                Some(PartRailFacts {
+                    anchored: true,
+                    anchor_column: 1,
+                    locked: true,
+                    member_or_companion: false,
+                }),
+            ),
+            Vec::new()
+        );
+        assert_eq!(transform_tools(&part, None, true, None), Vec::new());
+        // A matrix member or companion names itself in the facts and draws no
+        // part rail.
+        assert_eq!(
+            transform_tools(
+                &part,
+                None,
+                true,
+                Some(PartRailFacts {
+                    anchored: true,
+                    anchor_column: 1,
+                    locked: false,
+                    member_or_companion: true,
+                }),
+            ),
+            Vec::new()
+        );
+        // A matrix member keeps its matrix's key tools, never the part rail.
+        let member_key = TreeContext::Key {
+            matrix_id: "matrix".into(),
+            row: 0,
+            column: 1,
+        };
+        assert_eq!(
+            transform_tools(&member_key, None, true, anchored()),
+            vec![Tool::Shift, Tool::Bend]
+        );
+    }
+
+    /// Ticket 23: the Handles toggle is view-only. Hidden handles drop every
+    /// passive overlay but keep the active tool's required handle; with no
+    /// active tool nothing draws.
+    #[test]
+    fn hidden_handles_keep_only_the_active_tool() {
+        use LayoutTransformTool as Tool;
+        let column = TreeContext::Column {
+            matrix_id: "matrix".into(),
+            column: 1,
+        };
+        let row = TreeContext::Row {
+            matrix_id: "matrix".into(),
+            row: 0,
+        };
+        let key = TreeContext::Key {
+            matrix_id: "matrix".into(),
+            row: 0,
+            column: 1,
+        };
+        assert_eq!(transform_tools(&column, None, false, None), Vec::new());
+        assert_eq!(transform_tools(&row, None, false, None), Vec::new());
+        assert_eq!(transform_tools(&key, None, false, None), Vec::new());
+        assert_eq!(
+            transform_tools(&column, Some(Tool::Stagger), false, None),
+            vec![Tool::Stagger]
+        );
+        assert_eq!(
+            transform_tools(&column, Some(Tool::Spread), false, None),
+            vec![Tool::Spread]
+        );
+        assert_eq!(
+            transform_tools(&column, Some(Tool::Origin), false, None),
+            vec![Tool::Origin]
+        );
+        assert_eq!(
+            transform_tools(&row, Some(Tool::Offset), false, None),
+            vec![Tool::Offset]
+        );
+        assert_eq!(
+            transform_tools(&row, Some(Tool::Shift), false, None),
+            vec![Tool::Shift]
+        );
+        assert_eq!(
+            transform_tools(&row, Some(Tool::Bend), false, None),
+            vec![Tool::Bend]
+        );
+        // A Row selection never draws a Stagger handle, even hidden.
+        assert_eq!(
+            transform_tools(&row, Some(Tool::Stagger), false, None),
+            Vec::new()
+        );
+        assert_eq!(
+            transform_tools(&key, Some(Tool::Shift), false, None),
+            vec![Tool::Shift]
+        );
+        assert_eq!(
+            transform_tools(&key, Some(Tool::Bend), false, None),
+            vec![Tool::Bend]
+        );
+        // A Key selection never draws a Stagger handle, even hidden.
+        assert_eq!(
+            transform_tools(&key, Some(Tool::Stagger), false, None),
+            Vec::new()
+        );
+        // Ticket 07: a hidden part rail keeps only its active tool.
+        let part = TreeContext::Component {
+            part_id: Some("mcu".into()),
+            matrix_id: None,
+            row: None,
+            column: None,
+            assembly_id: None,
+        };
+        let anchored = || {
+            Some(PartRailFacts {
+                anchored: true,
+                anchor_column: 1,
+                locked: false,
+                member_or_companion: false,
+            })
+        };
+        let detached = || {
+            Some(PartRailFacts {
+                anchored: false,
+                anchor_column: 0,
+                locked: false,
+                member_or_companion: false,
+            })
+        };
+        assert_eq!(transform_tools(&part, None, false, anchored()), Vec::new());
+        assert_eq!(
+            transform_tools(&part, Some(Tool::Spread), false, anchored()),
+            vec![Tool::Spread]
+        );
+        assert_eq!(
+            transform_tools(&part, Some(Tool::Move), false, detached()),
+            vec![Tool::Move]
+        );
+        // Spread is not in the detached rail, even hidden.
+        assert_eq!(
+            transform_tools(&part, Some(Tool::Spread), false, detached()),
+            Vec::new()
+        );
     }
 }

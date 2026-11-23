@@ -29,15 +29,7 @@ use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{JsCast, closure::Closure};
 use web_sys::{Document, HtmlElement, Node, PointerEvent as WebPointerEvent};
 
-pub use super::layout_selection_kind::LayoutSelectionKind;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum LayoutCommandMenu {
-    Select,
-    Transform,
-    Align,
-    Snap,
-}
+pub use super::{layout_selection_kind::LayoutSelectionKind, workspace_state::LayoutCommandMenu};
 
 impl LayoutCommandMenu {
     const fn key(self) -> &'static str {

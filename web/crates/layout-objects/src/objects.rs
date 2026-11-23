@@ -39,6 +39,8 @@ mod layout_rail;
 mod layout_rail_chrome;
 mod layout_rail_menu;
 mod layout_rail_tool;
+mod workspace_state;
+pub use workspace_state::{LayoutInspectorTab, LayoutWorkspaceState, use_layout_workspace_state};
 mod layout_selection_kind;
 mod layout_toolbar;
 mod layout_toolbar_logic;
@@ -74,6 +76,7 @@ pub use layout_rail::{
 pub use layout_rail_menu::{
     LayoutContextActionToolbar, LayoutTransformMenuMount, LayoutTransformToolbar,
 };
+pub use layout_rail_tool::transform_tools;
 pub use layout_toolbar::{
     GestureSnapInputs, LayoutCanvasGridStyle, LayoutCommandMenu, LayoutCommandPill,
     LayoutSelectionKind, LayoutSnapDock, LayoutSnapIntent, LayoutSnapSettings, TreeCellAnchor,

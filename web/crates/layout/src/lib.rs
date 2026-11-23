@@ -29,10 +29,10 @@ pub(crate) use boardstudio_web_ui_model::svg_coordinates::coordinates;
 pub(crate) use boardstudio_web_ui_shared::panels;
 
 pub use boardstudio_web_layout_core::{
-    anchor_badge, anchor_pick, companion_placement, component_inspector, component_offset,
-    inspector_types, matrix_relations, matrix_transform_lifecycle, matrix_transform_operation,
-    mirror_existing_half, mirrored_pair_geometry, mirrored_pair_lifecycle, outline_settings,
-    part_rail, screen_scale, setup_guide_state,
+    anchor_badge, anchor_pick, canvas_projection, companion_placement, component_inspector,
+    component_offset, inspector_types, matrix_relations, matrix_transform_lifecycle,
+    matrix_transform_operation, mirror_existing_half, mirrored_pair_geometry,
+    mirrored_pair_lifecycle, outline_settings, part_rail, screen_scale, setup_guide_state,
 };
 mod findings_return;
 pub mod outline;

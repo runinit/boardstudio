@@ -1,81 +1,31 @@
 use super::*;
+use crate::presentation::test_mount_helpers::canvas::{
+    column_at_origin, one_key_matrix, one_key_scene, scene, switch_document,
+};
+use crate::presentation::test_mount_helpers::{MountedRoot, mount};
 use boardstudio_core::model::SceneDelta;
-use serde_json::json;
 use std::sync::Arc;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::wasm_bindgen_test;
 
 fn spacing_fixture() -> (Arc<ProjectDoc>, Arc<SceneDelta>, Arc<SceneDelta>) {
-    let mut document = ProjectDoc::empty("canvas", "Canvas");
-    for (half, part_id) in [("left", "matrix/left/r0c0"), ("right", "matrix/right/r0c0")] {
-        document.parts.push(
-            serde_json::from_value(json!({
-                "id": part_id, "definitionId": "switch", "reference": "SW1",
-                "pose": {"at": {"x": 0.0, "y": 0.0}, "rotation": 0.0}, "side": "front",
-                "keycap": {"x": 18.0, "y": 18.0}
-            }))
-            .unwrap(),
-        );
-        document.matrices.push(
-            serde_json::from_value(json!({
-                "id": half, "rows": 1, "columns": 1,
-                "pitch": {"x": 19.05, "y": 19.05}, "origin": {"x": 0.0, "y": 0.0},
-                "definitionId": "switch", "partIds": [part_id], "boardId": "board",
-                "cells": [{"row": 0, "column": 0, "enabled": true, "definitionId": "switch", "assemblies": []}]
-            }))
-            .unwrap(),
-        );
-    }
-    document.definitions.push(
-        serde_json::from_value(json!({
-            "id": "switch", "name": "Switch", "kind": "switch", "courtyard": [], "pads": []
-        }))
-        .unwrap(),
+    let mut document = switch_document(
+        "canvas",
+        "Canvas",
+        &["matrix/left/r0c0", "matrix/right/r0c0"],
     );
-    document.boards.push(
-        serde_json::from_value(json!({
-            "id": "board", "name": "Board",
-            "partIds": ["matrix/left/r0c0", "matrix/right/r0c0"],
-            "outlineIds": [], "netIds": [], "thickness": 1.6
-        }))
-        .unwrap(),
-    );
-    let document = Arc::new(document);
-    let cell = |matrix: &str, x: f64| {
-        json!({
-            "row": 0, "column": 0, "enabled": true,
-            "memberId": format!("matrix/{matrix}/r0c0"),
-            "pose": {"at": {"x": x, "y": 0.0}, "rotation": 0.0},
-            "shiftFrame": {"origin": {"x": 0.0, "y": 0.0}, "rotation": 0.0, "axisX": {"x": 1.0, "y": 0.0}, "axisY": {"x": 0.0, "y": 1.0}},
-            "offsetFrame": {"origin": {"x": 0.0, "y": 0.0}, "rotation": 0.0, "axisX": {"x": 1.0, "y": 0.0}, "axisY": {"x": 0.0, "y": 1.0}}
-        })
-    };
-    let scene_with = |half_gap: f64| -> Arc<SceneDelta> {
-        Arc::new(
-            serde_json::from_value(json!({
-                "revision": 0, "transactionId": "fixture", "changedIds": [], "transforms": [],
-                "matrixScenes": [
-                    {"matrixId": "left", "cells": [cell("left", -half_gap)],
-                     "columns": [{"column": 0, "base": {"x": 0.0, "y": 0.0}, "rotation": 0.0,
-                                  "relativeOrigin": {"x": 0.0, "y": 0.0},
-                                  "splayOrigin": {"x": 0.0, "y": 0.0}, "splayAngle": 0.0, "customOrigin": false,
-                                  "axisX": {"x": 1.0, "y": 0.0}, "axisY": {"x": 0.0, "y": 1.0},
-                                  "staggerAxis": {"x": 0.0, "y": 1.0}}]},
-                    {"matrixId": "right", "cells": [cell("right", half_gap)],
-                     "columns": [{"column": 0, "base": {"x": 0.0, "y": 0.0}, "rotation": 0.0,
-                                  "relativeOrigin": {"x": 0.0, "y": 0.0},
-                                  "splayOrigin": {"x": 0.0, "y": 0.0}, "splayAngle": 0.0, "customOrigin": false,
-                                  "axisX": {"x": 1.0, "y": 0.0}, "axisY": {"x": 0.0, "y": 1.0},
-                                  "staggerAxis": {"x": 0.0, "y": 1.0}}]}
-                ],
-                "contours": [], "boardContours": [], "boardReadiness": [], "findings": [],
-                "readiness": {"layout": true, "outline": false, "pcb": false, "case": false}
-            }))
-            .unwrap(),
-        )
+    document.matrices.extend([
+        one_key_matrix("left", "matrix/left/r0c0", 0.0),
+        one_key_matrix("right", "matrix/right/r0c0", 0.0),
+    ]);
+    let scene_with = |half_gap: f64| {
+        scene(&[
+            one_key_scene("left", -half_gap, 0.0, &[column_at_origin()]),
+            one_key_scene("right", half_gap, 0.0, &[column_at_origin()]),
+        ])
     };
     // Narrow spacing (keys at ±30) and the widened spacing (keys at ±35).
-    (document, scene_with(30.0), scene_with(35.0))
+    (Arc::new(document), scene_with(30.0), scene_with(35.0))
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -112,23 +62,9 @@ async fn mount_case(
     accepted: Option<Arc<SceneDelta>>,
     ghost: Option<SpacingGhost>,
     preview: bool,
-) -> web_sys::Element {
+) -> MountedRoot {
     let (document, _, _) = spacing_fixture();
-    let root = web_sys::window()
-        .unwrap()
-        .document()
-        .unwrap()
-        .create_element("div")
-        .unwrap();
-    web_sys::window()
-        .unwrap()
-        .document()
-        .unwrap()
-        .body()
-        .unwrap()
-        .append_child(&root)
-        .unwrap();
-    dioxus_web::launch::launch_virtual_dom(
+    let root = mount(
         VirtualDom::new_with_props(
             RenderSpacingCase,
             SpacingCaseProps {
@@ -139,7 +75,7 @@ async fn mount_case(
                 preview,
             },
         ),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
+        None,
     );
     gloo_timers::future::TimeoutFuture::new(5).await;
     root
@@ -205,7 +141,6 @@ async fn widening_ghosts_the_narrow_keys_with_a_plus_note() {
             .contains("translate(0 12.5"),
         "the note sits on the axis above the keys"
     );
-    root.remove();
 }
 
 /// RED: narrowing draws the previous (wide) keys dashed with a −N note.
@@ -236,7 +171,6 @@ async fn narrowing_ghosts_the_wide_keys_with_a_minus_note() {
         .unwrap()
         .expect("the axis carries the narrowing delta");
     assert_eq!(note.text_content().as_deref(), Some("−6.0 mm"));
-    root.remove();
 }
 
 /// RED: a settled scene with no ghost prop draws no ghost elements.
@@ -257,7 +191,6 @@ async fn settled_scene_without_ghost_draws_nothing() {
             .is_none(),
         "no ghost prop means no axis note"
     );
-    root.remove();
 }
 
 /// RED: a drag preview keeps the amber preview ghosts and hides the
@@ -295,5 +228,4 @@ async fn drag_preview_preempts_the_spacing_ghost() {
             .is_none(),
         "the axis note hides while a preview is up"
     );
-    root.remove();
 }
