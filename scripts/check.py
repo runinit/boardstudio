@@ -439,7 +439,7 @@ def run_browser(commands, environment, cwd, state, keep_going):
     started = time.monotonic()
     failed = False
     available = False
-    lanes, providers = [], []
+    lanes, support_checks = [], []
     with ExitStack() as configs:
         for command in commands:
             if is_crate_build(command):
@@ -461,14 +461,14 @@ def run_browser(commands, environment, cwd, state, keep_going):
             elif "scripts/run-wasm-tests.py" in command:
                 if command == PAGE_SUITE and state.get("page"):
                     command = [*command, "--test-binary", state["page"]]
-                spare = check_jobs() - len(lanes) - bool(providers)
+                spare = check_jobs() - len(lanes)
                 env = dict(env, BOARDSTUDIO_CHECK_JOBS=str(max(1, min(2, spare))))
-            if command in (CAD_BROWSER, *PROVIDER_CHECKS) and not keep_going:
-                providers.append((command, directory, env))
+            if not keep_going and (crate or command in (CAD_BROWSER, *PROVIDER_CHECKS)):
+                if not support_checks:
+                    lanes.append(support_checks)
+                support_checks.append((command, directory, env))
             else:
                 lanes.append([(command, directory, env)])
-        if providers:
-            lanes.insert(int(bool(lanes and lanes[0][0][0] == DRAG_SMOKE)), providers)
         if check_jobs() > 1:
             _, passed = run_parallel(lanes, environment)
             failed |= not passed
