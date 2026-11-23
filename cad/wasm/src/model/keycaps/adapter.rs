@@ -221,6 +221,7 @@ fn placed_mesh(mesh: &MeshData, spec: &Spec) -> Result<MeshData, String> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::test_support::assert_finite_mesh;
     use super::*;
     use boardstudio_contracts::{KeycapMount, KeycapProfile, Pose2, Vec2};
 
@@ -388,8 +389,7 @@ mod tests {
         let cached = build(&[moved]).expect("valid moved cache hit");
         assert_eq!(cached.len(), 2);
         for body in &cached {
-            assert!(body.mesh.positions.iter().all(|value| value.is_finite()));
-            assert!(body.mesh.normals.iter().all(|value| value.is_finite()));
+            assert_finite_mesh(&body.mesh);
         }
     }
 
@@ -403,8 +403,7 @@ mod tests {
         let warmed = build(std::slice::from_ref(&valid)).expect("warm valid template");
         assert_eq!(warmed.len(), 2);
         for body in &warmed {
-            assert!(body.mesh.positions.iter().all(|value| value.is_finite()));
-            assert!(body.mesh.normals.iter().all(|value| value.is_finite()));
+            assert_finite_mesh(&body.mesh);
         }
 
         let mut collapsed = valid.clone();

@@ -61,7 +61,6 @@ fn remember(entry: Rc<CachedBody>) {
             solids > CACHE_SOLIDS || topology > CACHE_TOPOLOGY || bytes > CACHE_BYTES
         } {
             cache.pop_front();
-            metrics::count("bodyCacheEvictions", 1);
         }
     });
 }
@@ -87,23 +86,18 @@ pub(super) fn body(
         .as_ref()
         .filter(|entry| !want_mesh || entry.mesh.is_some())
     {
-        metrics::count("bodyCacheHits", 1);
         return Ok(Rc::clone(entry));
     }
     let (model, complexity) = if let Some(entry) = cached {
         (Rc::clone(&entry.model), entry.complexity)
     } else {
-        metrics::count("bodyCacheMisses", 1);
         progress("building")?;
-        let _stage = Stage::new("caseConstruction");
         let model = Rc::new(boardstudio_cad::build_case(ir)?);
         let complexity = model.cache_complexity();
         (model, complexity)
     };
     let mesh = if want_mesh {
         progress("tessellating")?;
-        let _stage = Stage::new("tessellation");
-        metrics::count("tessellations", 1);
         let mesh = boardstudio_cad::mesh_profile(&model)?;
         Some(Rc::new(MeshData {
             positions: mesh.positions,

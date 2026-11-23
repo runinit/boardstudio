@@ -1,4 +1,11 @@
 use super::*;
+use boardstudio_model::model::PreparedCaseIR;
+
+type OperationError = (String, bool);
+
+fn failed(reason: impl Into<String>) -> OperationError {
+    (reason.into(), false)
+}
 
 #[allow(clippy::result_large_err)]
 pub(super) async fn run_request(
@@ -6,112 +13,150 @@ pub(super) async fn run_request(
     module: &JsValue,
     request: WireRequest,
     bytes: Vec<u8>,
-) -> Result<(WireReply, JsValue), (WireRequest, String, bool)> {
-    let canceled = || queue.borrow().cancelled.contains(&request.header.job_id);
-    if canceled() {
-        return Err((request, "CAD job cancelled".into(), true));
-    }
-    let invoke = |name: &str, args: &[JsValue]| -> Result<JsValue, String> {
-        let function = Reflect::get(module, &JsValue::from_str(name))
-            .map_err(js_message)?
-            .dyn_into::<Function>()
-            .map_err(js_message)?;
-        let args = Array::from_iter(args.iter());
-        function.apply(&JsValue::NULL, &args).map_err(js_message)
-    };
-    let prepared_value = || -> Result<JsValue, String> {
-        let prepared = request
-            .prepared
-            .as_ref()
-            .ok_or_else(|| "CAD request omitted prepared case".to_owned())?;
-        let text = serde_json::to_string(prepared).map_err(|error| error.to_string())?;
-        js_sys::JSON::parse(&text).map_err(js_message)
-    };
+) -> Result<(WireReply, JsValue), (CadEnvelope, String, bool)> {
     let mut staged = None;
     let mut pinned = Vec::new();
-    let result = match request.header.operation {
+    let result = async {
+        let result =
+            execute_operation(queue, module, &request, &bytes, &mut staged, &mut pinned).await?;
+        // Let queued cancel messages run after synchronous CAD calls before publishing.
+        yield_to_worker().await;
+        if queue.borrow().cancelled.contains(&request.header.job_id) {
+            return Err((
+                "CAD job cancelled after the synchronous kernel call".into(),
+                true,
+            ));
+        }
+        if queue
+            .borrow()
+            .latest_snapshot
+            .as_ref()
+            .is_some_and(|latest| latest != &request.header.identity)
+        {
+            return Err(failed("CAD result became stale after kernel yield"));
+        }
+        if let Some(entry) = staged {
+            queue.borrow_mut().retain_analysis(entry).map_err(failed)?;
+        }
+        drop(pinned);
+        let fields: &[(&str, &str)] = match request.header.operation {
+            CadOperation::ReadStep => &[
+                ("mesh", "mesh"),
+                ("bounds", "bounds"),
+                ("vendorStep", "vendorStep"),
+            ],
+            CadOperation::CollisionQuery => &[
+                ("collision", "observation"),
+                ("queryQualification", "queryQualification"),
+            ],
+            _ => return Ok(result),
+        };
+        let reply = revision_object(request.header.identity.revision)?;
+        for &(field, source) in fields {
+            js_set(&reply, field, &js_get(&result, source).map_err(failed)?)?;
+        }
+        Ok(reply.into())
+    }
+    .await
+    .map_err(|(reason, cancelled)| (request.header.clone(), reason, cancelled))?;
+    Ok((
+        WireReply {
+            header: request.header,
+            outcome: CadReplyOutcome::Completed,
+            error: None,
+        },
+        result,
+    ))
+}
+
+async fn execute_operation(
+    queue: &Rc<RefCell<WorkerQueue>>,
+    module: &JsValue,
+    request: &WireRequest,
+    bytes: &[u8],
+    staged: &mut Option<Rc<OwnedAnalysis>>,
+    pinned: &mut Vec<Rc<OwnedAnalysis>>,
+) -> Result<JsValue, OperationError> {
+    let identity = &request.header.identity;
+    let check_cancelled = || {
+        if queue.borrow().cancelled.contains(&request.header.job_id) {
+            Err(("CAD job cancelled".into(), true))
+        } else {
+            Ok(())
+        }
+    };
+    check_cancelled()?;
+    let get = |value: &JsValue, field: &str| js_get(value, field).map_err(failed);
+    let invoke = |name: &str, args: &[JsValue]| {
+        get(module, name)?
+            .dyn_into::<Function>()
+            .and_then(|function| function.apply(&JsValue::NULL, &Array::from_iter(args.iter())))
+            .map_err(|error| failed(js_message(error)))
+    };
+    let prepare = || {
+        request
+            .prepared
+            .as_ref()
+            .ok_or_else(|| failed("CAD request omitted prepared case"))
+    };
+    Ok(match request.header.operation {
         CadOperation::AnalyzeGeneratedBody => {
-            let metadata = request.generated_analysis_request.as_ref().ok_or_else(|| {
-                (
-                    request.clone(),
-                    "generated analysis omitted metadata".into(),
-                    false,
-                )
-            })?;
+            let metadata = request
+                .generated_analysis_request
+                .as_ref()
+                .ok_or_else(|| failed("generated analysis omitted metadata"))?;
             let body = crate::cad_jobs::validate_generated_analysis_request(
                 request.prepared.as_ref(),
-                request.header.identity.revision,
+                identity.revision,
                 metadata,
             )
-            .map_err(|error| (request.clone(), error, false))?;
-            let body_value = js_sys::JSON::parse(
-                &serde_json::to_string(body)
-                    .map_err(|error| (request.clone(), error.to_string(), false))?,
-            )
-            .map_err(|error| (request.clone(), js_message(error), false))?;
+            .map_err(failed)?;
             let options = Object::new();
             if let Some(target) = metadata.target_deflection_mm {
-                Reflect::set(&options, &"targetDeflectionMm".into(), &target.into())
-                    .map_err(|error| (request.clone(), js_message(error), false))?;
+                js_set(&options, "targetDeflectionMm", &target.into())?;
             }
-            let analysis = invoke("analyze_generated_body", &[body_value, options.into()])
-                .map_err(|error| (request.clone(), error, false))?;
-            staged = Some(
+            let analysis = invoke(
+                "analyze_generated_body",
+                &[json_to_js(body)?, options.into()],
+            )?;
+            *staged = Some(
                 stage_analysis(
                     queue,
                     module,
-                    &request,
+                    request,
                     &analysis,
                     Source::GeneratedBody {
                         body_id: metadata.body_id.clone(),
-                        revision: request.header.identity.revision,
+                        revision: identity.revision,
                         geometry_identity: metadata.geometry_identity.clone(),
                     },
                 )
-                .map_err(|error| (request.clone(), error, false))?,
+                .map_err(failed)?,
             );
             if string_field(&analysis, "bodyId").ok().as_deref() != Some(metadata.body_id.as_str())
-                || Reflect::get(&analysis, &"revision".into())
-                    .ok()
-                    .and_then(|v| v.as_f64())
-                    != Some(request.header.identity.revision as f64)
+                || get(&analysis, "revision").ok().and_then(|v| v.as_f64())
+                    != Some(identity.revision as f64)
             {
-                return Err((
-                    request.clone(),
-                    "generated provider returned another body or revision".into(),
-                    false,
+                return Err(failed(
+                    "generated provider returned another body or revision",
                 ));
             }
-            Reflect::set(
+            js_set(
                 &analysis,
-                &"geometryIdentity".into(),
-                &metadata.geometry_identity.clone().into(),
-            )
-            .map_err(|error| (request.clone(), js_message(error), false))?;
-            let decoded = decode_generated_analysis(analysis.clone())
-                .map_err(|error| (request.clone(), error, false))?;
-            crate::cad_jobs::validate_generated_analysis(
-                metadata,
-                request.header.identity.revision,
-                &decoded,
-            )
-            .map_err(|error| (request.clone(), error, false))?;
-            let wrapper = Object::new();
-            Reflect::set(
-                &wrapper,
-                &"revision".into(),
-                &(request.header.identity.revision as f64).into(),
-            )
-            .map_err(|error| (request.clone(), js_message(error), false))?;
-            Reflect::set(&wrapper, &"generatedAnalysis".into(), &analysis)
-                .map_err(|error| (request.clone(), js_message(error), false))?;
-            wrapper.into()
+                "geometryIdentity",
+                &JsValue::from_str(&metadata.geometry_identity),
+            )?;
+            let decoded = decode_generated_analysis(analysis.clone()).map_err(failed)?;
+            crate::cad_jobs::validate_generated_analysis(metadata, identity.revision, &decoded)
+                .map_err(failed)?;
+            let result = revision_object(identity.revision)?;
+            js_set(&result, "generatedAnalysis", &analysis)?;
+            result.into()
         }
         CadOperation::Preview | CadOperation::PrintKeycaps => {
-            if let Some(keycaps) = request.keycaps.as_ref() {
-                // Match React's buildKeycaps adapter: yield between groups so the
-                // dedicated worker can receive cancellation before starting more CAD.
-                let bodies = Array::new();
+            let bodies = Array::new();
+            let revision = if let Some(keycaps) = request.keycaps.as_ref() {
+                // Yield between batches so the worker can receive cancellation before more CAD.
                 let printable = request.header.operation == CadOperation::PrintKeycaps;
                 let batch_size = if printable {
                     1
@@ -119,188 +164,89 @@ pub(super) async fn run_request(
                     KEYCAPS_PREVIEW_BATCH_SIZE
                 };
                 for specs in keycaps.specs.chunks(batch_size) {
-                    if canceled() {
-                        return Err((request, "CAD job cancelled".into(), true));
-                    }
-                    let input = serde_json::to_string(&serde_json::json!({
+                    check_cancelled()?;
+                    let input = json_to_js(&serde_json::json!({
                         "revision": keycaps.revision,
                         "specs": specs,
                         "printable": printable,
-                    }))
-                    .map_err(|error| (request.clone(), error.to_string(), false))?;
-                    let input = js_sys::JSON::parse(&input)
-                        .map_err(|error| (request.clone(), js_message(error), false))?;
-                    let batch = invoke("build_keycaps", &[input])
-                        .map_err(|error| (request.clone(), error, false))?;
-                    let revision = Reflect::get(&batch, &"revision".into())
-                        .map_err(|error| (request.clone(), js_message(error), false))?
-                        .as_f64();
-                    if revision != Some(request.header.identity.revision as f64) {
-                        return Err((
-                            request,
-                            "Keycap preview provider returned another revision".into(),
-                            false,
-                        ));
+                    }))?;
+                    let batch = invoke("build_keycaps", &[input])?;
+                    if get(&batch, "revision")?.as_f64() != Some(identity.revision as f64) {
+                        return Err(failed("Keycap preview provider returned another revision"));
                     }
-                    let batch_bodies = Reflect::get(&batch, &"bodies".into())
-                        .map_err(|error| (request.clone(), js_message(error), false))?;
-                    for body in Array::from(&batch_bodies).iter() {
+                    for body in Array::from(&get(&batch, "bodies")?).iter() {
                         bodies.push(&body);
                     }
                     yield_to_worker().await;
                 }
-                if canceled() {
-                    return Err((request, "CAD job cancelled".into(), true));
-                }
-                let result = Object::new();
-                Reflect::set(
-                    &result,
-                    &"revision".into(),
-                    &JsValue::from_f64(request.header.identity.revision as f64),
-                )
-                .map_err(|error| (request.clone(), js_message(error), false))?;
-                Reflect::set(&result, &"bodies".into(), &bodies)
-                    .map_err(|error| (request.clone(), js_message(error), false))?;
-                result.into()
+                check_cancelled()?;
+                identity.revision
             } else {
-                let prepared = request.prepared.as_ref().ok_or_else(|| {
-                    (
-                        request.clone(),
-                        "CAD request omitted prepared case".to_owned(),
-                        false,
-                    )
-                })?;
-                let bodies = Array::new();
+                let prepared = prepare()?;
                 for body in &prepared.bodies {
-                    if canceled() {
-                        return Err((request, "CAD job cancelled".into(), true));
-                    }
-                    let body_json = serde_json::to_string(body)
-                        .map_err(|error| (request.clone(), error.to_string(), false))?;
-                    let body_value = js_sys::JSON::parse(&body_json)
-                        .map_err(|error| (request.clone(), js_message(error), false))?;
-                    let mut body_geometry = serde_json::to_value(&body.body)
-                        .map_err(|error| (request.clone(), error.to_string(), false))?;
-                    if let Some(fields) = body_geometry.as_object_mut() {
-                        fields.remove("id");
-                        fields.remove("name");
-                    }
-                    let cache_input = serde_json::to_vec(&serde_json::json!({
-                        "body": body_geometry,
-                        "regions": &body.regions,
-                    }))
-                    .map_err(|error| (request.clone(), error.to_string(), false))?;
-                    let digest = sha256_hex(&cache_input);
-                    let key = format!(
-                        "m1/{}/{}/{}/{}/{digest}",
-                        request.header.identity.session_epoch,
-                        request.header.identity.document_id,
-                        request.header.identity.board_id,
-                        request
-                            .header
-                            .identity
-                            .instance_id
-                            .as_deref()
-                            .unwrap_or("board")
-                    );
+                    check_cancelled()?;
+                    let key = prepared_body_cache_key(identity, body).map_err(failed)?;
                     let progress = Closure::<dyn FnMut(JsValue, JsValue)>::new(|_, _| {});
                     let output = invoke(
                         "preview_body",
                         &[
-                            body_value,
+                            json_to_js(body)?,
                             JsValue::from_str(&key),
                             progress.as_ref().clone(),
                         ],
-                    )
-                    .map_err(|error| (request.clone(), error, false))?;
+                    )?;
                     let object = Object::new();
-                    Reflect::set(&object, &"id".into(), &JsValue::from_str(&body.body.id))
-                        .map_err(|error| (request.clone(), js_message(error), false))?;
-                    Reflect::set(&object, &"name".into(), &JsValue::from_str(&body.body.name))
-                        .map_err(|error| (request.clone(), js_message(error), false))?;
+                    js_set(&object, "id", &JsValue::from_str(&body.body.id))?;
+                    js_set(&object, "name", &JsValue::from_str(&body.body.name))?;
                     for field in ["positions", "normals"] {
-                        let value = Reflect::get(&output, &field.into())
-                            .map_err(|error| (request.clone(), js_message(error), false))?;
-                        Reflect::set(&object, &field.into(), &value)
-                            .map_err(|error| (request.clone(), js_message(error), false))?;
+                        js_set(&object, field, &get(&output, field)?)?;
                     }
                     bodies.push(&object);
                     yield_to_worker().await;
                 }
-                let result = Object::new();
-                Reflect::set(
-                    &result,
-                    &"revision".into(),
-                    &JsValue::from_f64(prepared.revision as f64),
-                )
-                .map_err(|error| (request.clone(), js_message(error), false))?;
-                Reflect::set(&result, &"bodies".into(), &bodies)
-                    .map_err(|error| (request.clone(), js_message(error), false))?;
-                result.into()
-            }
+                prepared.revision
+            };
+            let result = revision_object(revision)?;
+            js_set(&result, "bodies", &bodies)?;
+            result.into()
         }
-        CadOperation::Exact => invoke(
-            "build_assembly",
-            &[prepared_value().map_err(|error| (request.clone(), error, false))?],
-        )
-        .map_err(|error| (request.clone(), error, false))?,
-        CadOperation::ExportStep => {
-            let prepared = prepared_value().map_err(|error| (request.clone(), error, false))?;
-            Reflect::set(&prepared, &"stepOnly".into(), &JsValue::TRUE)
-                .map_err(|error| (request.clone(), js_message(error), false))?;
-            let bodies = Array::from(
-                &Reflect::get(&prepared, &"bodies".into())
-                    .map_err(|error| (request.clone(), js_message(error), false))?,
-            );
-            // This worker owns a fresh module/cache. Empty keys intentionally
-            // miss preview meshes while the provider rebuilds exact solids
-            // from the same prepared regions without allocating triangulations.
-            let keys = Array::new_with_length(bodies.length());
-            for index in 0..bodies.length() {
-                keys.set(index, JsValue::from_str("m1-independent-step-cache-miss"));
+        CadOperation::Exact | CadOperation::ExportStep => {
+            let prepared = prepare()?;
+            let input = json_to_js(prepared)?;
+            let keys = Array::new();
+            let step_only = request.header.operation == CadOperation::ExportStep;
+            js_set(&input, "stepOnly", &JsValue::from_bool(step_only))?;
+            for body in &prepared.bodies {
+                // ADR-0016: STEP-only export runs independently and deliberately misses.
+                let key = if step_only {
+                    "m1-independent-step-cache-miss".into()
+                } else {
+                    prepared_body_cache_key(identity, body).map_err(failed)?
+                };
+                keys.push(&JsValue::from_str(&key));
             }
-            invoke("export_cached_assembly", &[prepared, keys.into()])
-                .map_err(|error| (request.clone(), error, false))?
+            invoke("export_cached_assembly", &[input, keys.into()])?
         }
         CadOperation::ReadStep => {
             if bytes.is_empty() || bytes.len() > MAX_STEP_BYTES {
-                return Err((
-                    request,
-                    "STEP import failed: invalid file size".into(),
-                    false,
-                ));
+                return Err(failed("STEP import failed: invalid file size"));
             }
             let expected = request.source_sha256.as_deref().unwrap_or_default();
-            if !crate::cad_jobs::is_sha256_hex(expected) || sha256_hex(&bytes) != expected {
-                return Err((
-                    request,
-                    "STEP source failed SHA-256 verification".into(),
-                    false,
-                ));
+            if !crate::cad_jobs::is_sha256_hex(expected) || sha256_hex(bytes) != expected {
+                return Err(failed("STEP source failed SHA-256 verification"));
             }
             let step_options = request
                 .step_import_options
                 .unwrap_or_default()
                 .validate()
-                .map_err(|error| (request.clone(), error, false))?;
+                .map_err(failed)?;
             let options = Object::new();
-            Reflect::set(
-                &options,
-                &"sourceSha256".into(),
-                &JsValue::from_str(expected),
-            )
-            .map_err(|error| (request.clone(), js_message(error), false))?;
+            js_set(&options, "sourceSha256", &expected.into())?;
             if let Some(budget) = step_options.preview_repair_budget_mm {
-                Reflect::set(
-                    &options,
-                    &"previewRepairBudgetMm".into(),
-                    &JsValue::from_f64(budget),
-                )
-                .map_err(|error| (request.clone(), js_message(error), false))?;
+                js_set(&options, "previewRepairBudgetMm", &budget.into())?;
             }
             if let Some(target) = step_options.target_deflection_mm {
-                Reflect::set(&options, &"targetDeflectionMm".into(), &target.into())
-                    .map_err(|error| (request.clone(), js_message(error), false))?;
+                js_set(&options, "targetDeflectionMm", &target.into())?;
             }
             let loader = queue.borrow().load_baked_step.clone();
             let baked = if request.packaged_step && step_options == CadStepImportOptions::default()
@@ -312,271 +258,166 @@ pub(super) async fn run_request(
             } else {
                 None
             };
-            if canceled() {
-                return Err((request, "CAD job cancelled".into(), true));
-            }
+            check_cancelled()?;
             let baked = baked
                 .and_then(|data| invoke("read_baked_step_model", &[data, expected.into()]).ok());
             let result = match baked {
                 Some(result) => result,
                 None => invoke(
                     "read_step_model",
-                    &[Uint8Array::from(bytes.as_slice()).into(), options.into()],
-                )
-                .map_err(|error| (request.clone(), error, false))?,
+                    &[Uint8Array::from(bytes).into(), options.into()],
+                )?,
             };
-            let vendor = Reflect::get(&result, &"vendorStep".into())
-                .map_err(|e| (request.clone(), js_message(e), false))?;
-            staged = Some(
+            let vendor = get(&result, "vendorStep")?;
+            *staged = Some(
                 stage_analysis(
                     queue,
                     module,
-                    &request,
+                    request,
                     &vendor,
                     Source::VendorStep {
                         source_sha256: expected.into(),
                         import_options: step_options.into(),
                     },
                 )
-                .map_err(|error| (request.clone(), error, false))?,
+                .map_err(failed)?,
             );
-            exact_fields(&result, &["mesh", "bounds", "vendorStep"])
-                .map_err(|error| (request.clone(), error, false))?;
-            let decoded =
-                decode_vendor_step(vendor).map_err(|error| (request.clone(), error, false))?;
-            let mesh = decode_mesh(
-                Reflect::get(&result, &"mesh".into())
-                    .map_err(|e| (request.clone(), js_message(e), false))?,
-            )
-            .map_err(|error| (request.clone(), error, false))?;
-            let bounds = strict_metadata(
-                Reflect::get(&result, &"bounds".into())
-                    .map_err(|e| (request.clone(), js_message(e), false))?,
-            )
-            .map_err(|error| (request.clone(), error, false))?;
+            exact_fields(&result, &["mesh", "bounds", "vendorStep"]).map_err(failed)?;
+            let decoded = decode_vendor_step(vendor).map_err(failed)?;
+            let mesh = decode_mesh(get(&result, "mesh")?).map_err(failed)?;
+            let bounds = strict_metadata(get(&result, "bounds")?).map_err(failed)?;
             crate::cad_jobs::validate_vendor_step(expected, step_options, &mesh, &bounds, &decoded)
-                .map_err(|error| (request.clone(), error, false))?;
+                .map_err(failed)?;
             result
         }
         CadOperation::CollisionQuery => {
-            let query = request.collision_query.as_ref().ok_or_else(|| {
-                (
-                    request.clone(),
-                    "collision query omitted metadata".into(),
-                    false,
-                )
-            })?;
-            validate_collision_query(query).map_err(|error| (request.clone(), error, false))?;
-            let meshes = request.collision_meshes.as_ref().ok_or_else(|| {
-                (
-                    request.clone(),
-                    "collision query omitted mesh buffers".into(),
-                    false,
-                )
-            })?;
-            validate_collision_mesh_pair(meshes)
-                .map_err(|error| (request.clone(), error, false))?;
-            let query_json = serde_json::to_string(query)
-                .map_err(|error| (request.clone(), error.to_string(), false))?;
-            let query_value = js_sys::JSON::parse(&query_json)
-                .map_err(|error| (request.clone(), js_message(error), false))?;
+            let query = request
+                .collision_query
+                .as_ref()
+                .ok_or_else(|| failed("collision query omitted metadata"))?;
+            validate_collision_query(query).map_err(failed)?;
+            let meshes = request
+                .collision_meshes
+                .as_ref()
+                .ok_or_else(|| failed("collision query omitted mesh buffers"))?;
             let left = queue
                 .borrow_mut()
                 .lookup(
                     &query.left,
-                    &request.header.identity,
+                    identity,
                     &meshes.left_positions_mm_f64,
                     &meshes.left_triangle_face_occurrence_indices,
                 )
-                .map_err(|error| (request.clone(), error, false))?;
+                .map_err(failed)?;
             let right = queue
                 .borrow_mut()
                 .lookup(
                     &query.right,
-                    &request.header.identity,
+                    identity,
                     &meshes.right_positions_mm_f64,
                     &meshes.right_triangle_face_occurrence_indices,
                 )
-                .map_err(|error| (request.clone(), error, false))?;
+                .map_err(failed)?;
             let generation = queue.borrow().generation.clone();
             let expected =
-                qualification::expected_binding(query, &request.header.identity, &generation)
-                    .map_err(|error| (request.clone(), error, false))?;
+                qualification::expected_binding(query, identity, &generation).map_err(failed)?;
+            let buffers = collision_mesh_buffers(meshes);
             let result = if let (Some(left), Some(right)) = (left, right) {
-                let buffers = Object::new();
-                for (key, value) in [
-                    (
-                        "leftPositions",
-                        Float64Array::from(meshes.left_positions_mm_f64.as_slice()).into(),
-                    ),
-                    (
-                        "leftTags",
-                        Uint32Array::from(meshes.left_triangle_face_occurrence_indices.as_slice())
-                            .into(),
-                    ),
-                    (
-                        "rightPositions",
-                        Float64Array::from(meshes.right_positions_mm_f64.as_slice()).into(),
-                    ),
-                    (
-                        "rightTags",
-                        Uint32Array::from(meshes.right_triangle_face_occurrence_indices.as_slice())
-                            .into(),
-                    ),
-                ] {
-                    Reflect::set(&buffers, &key.into(), &value)
-                        .map_err(|e| (request.clone(), js_message(e), false))?;
+                let object = Object::new();
+                for (field, array, _) in buffers {
+                    js_set(&object, field, &array)?;
                 }
-                let context = js_sys::JSON::parse(&serde_json::json!({"snapshot": qualification::Snapshot::from(&request.header.identity), "workerGeneration": generation}).to_string())
-                    .map_err(|e| (request.clone(), js_message(e), false))?;
+                let context = json_to_js(&serde_json::json!({
+                    "snapshot": qualification::Snapshot::from(identity),
+                    "workerGeneration": generation,
+                }))?;
                 let result = invoke(
                     "query_qualified_collision_mesh_pair",
                     &[
-                        buffers.into(),
-                        query_value,
+                        object.into(),
+                        json_to_js(query)?,
                         context,
                         left.handle.0.clone(),
                         right.handle.0.clone(),
                     ],
-                )
-                .map_err(|error| (request.clone(), error, false))?;
-                let report: qualification::QueryQualification = strict_metadata(
-                    Reflect::get(&result, &"queryQualification".into())
-                        .map_err(|e| (request.clone(), js_message(e), false))?,
-                )
-                .map_err(|error| (request.clone(), error, false))?;
-                qualification::validate_query_qualification(
+                )?;
+                let report =
+                    strict_metadata(get(&result, "queryQualification")?).map_err(failed)?;
+                qualification::validate_query_qualification_for_checked_meshes(
                     report,
                     &expected,
                     &query.qualification_limits,
                     meshes,
                     Some([&left.source, &right.source]),
                 )
-                .map_err(|error| (request.clone(), error, false))?;
+                .map_err(failed)?;
                 pinned.extend([left, right]);
                 result
             } else {
+                let [left_pos, left_tags, right_pos, right_tags] =
+                    buffers.map(|(_, array, _)| array);
                 let raw = invoke(
                     "query_collision_mesh_pair",
                     &[
-                        Float64Array::from(meshes.left_positions_mm_f64.as_slice()).into(),
-                        Uint32Array::from(meshes.left_triangle_face_occurrence_indices.as_slice())
-                            .into(),
-                        Float64Array::from(meshes.right_positions_mm_f64.as_slice()).into(),
-                        Uint32Array::from(meshes.right_triangle_face_occurrence_indices.as_slice())
-                            .into(),
-                        raw_query_metadata(query)
-                            .map_err(|error| (request.clone(), error, false))?,
+                        left_pos,
+                        left_tags,
+                        right_pos,
+                        right_tags,
+                        raw_query_metadata(query).map_err(failed)?,
                     ],
-                )
-                .map_err(|error| (request.clone(), error, false))?;
+                )?;
                 let result = Object::new();
-                Reflect::set(&result, &"observation".into(), &raw)
-                    .map_err(|e| (request.clone(), js_message(e), false))?;
-                let unknown =
+                js_set(&result, "observation", &raw)?;
+                let report =
                     qualification::unavailable(expected, query.qualification_limits.clone());
-                let report = js_sys::JSON::parse(
-                    &serde_json::to_string(&unknown)
-                        .map_err(|e| (request.clone(), e.to_string(), false))?,
-                )
-                .map_err(|e| (request.clone(), js_message(e), false))?;
-                Reflect::set(&result, &"queryQualification".into(), &report)
-                    .map_err(|e| (request.clone(), js_message(e), false))?;
+                js_set(&result, "queryQualification", &json_to_js(&report)?)?;
                 result.into()
             };
-            let object = result.dyn_ref::<Object>().ok_or_else(|| {
-                (
-                    request.clone(),
-                    "qualified result must be an object".into(),
-                    false,
-                )
-            })?;
-            if Object::keys(object).length() != 2
-                || !Object::has_own(object, &"observation".into())
-                || !Object::has_own(object, &"queryQualification".into())
-            {
-                return Err((
-                    request.clone(),
-                    "qualified provider result has unexpected keys".into(),
-                    false,
-                ));
-            }
+            exact_fields(&result, &["observation", "queryQualification"]).map_err(failed)?;
             result
         }
-    };
-    // Let queued cancel messages run after synchronous CAD calls before deciding
-    // whether their result may cross the worker boundary.
-    yield_to_worker().await;
-    if canceled() {
-        return Err((
-            request,
-            "CAD job cancelled after the synchronous kernel call".into(),
-            true,
-        ));
+    })
+}
+
+fn prepared_body_cache_key(
+    identity: &CadSnapshotIdentity,
+    body: &PreparedCaseIR,
+) -> Result<String, String> {
+    let mut geometry = serde_json::to_value(&body.body).map_err(|error| error.to_string())?;
+    if let Some(fields) = geometry.as_object_mut() {
+        fields.remove("id");
+        fields.remove("name");
     }
-    if queue
-        .borrow()
-        .latest_snapshot
-        .as_ref()
-        .is_some_and(|latest| latest != &request.header.identity)
-    {
-        return Err((
-            request,
-            "CAD result became stale after kernel yield".into(),
-            false,
-        ));
-    }
-    if let Some(entry) = staged {
-        queue
-            .borrow_mut()
-            .retain_analysis(entry)
-            .map_err(|e| (request.clone(), e, false))?;
-    }
-    drop(pinned);
-    let result = match request.header.operation {
-        CadOperation::ReadStep => {
-            let wrapper = Object::new();
-            Reflect::set(
-                &wrapper,
-                &"revision".into(),
-                &JsValue::from_f64(request.header.identity.revision as f64),
-            )
-            .map_err(|error| (request.clone(), js_message(error), false))?;
-            for field in ["mesh", "bounds", "vendorStep"] {
-                let value = Reflect::get(&result, &field.into())
-                    .map_err(|error| (request.clone(), js_message(error), false))?;
-                Reflect::set(&wrapper, &field.into(), &value)
-                    .map_err(|error| (request.clone(), js_message(error), false))?;
-            }
-            wrapper.into()
-        }
-        CadOperation::CollisionQuery => {
-            let wrapper = Object::new();
-            Reflect::set(
-                &wrapper,
-                &"revision".into(),
-                &JsValue::from_f64(request.header.identity.revision as f64),
-            )
-            .map_err(|error| (request.clone(), js_message(error), false))?;
-            for (target, source) in [
-                ("collision", "observation"),
-                ("queryQualification", "queryQualification"),
-            ] {
-                let value = Reflect::get(&result, &source.into())
-                    .map_err(|e| (request.clone(), js_message(e), false))?;
-                Reflect::set(&wrapper, &target.into(), &value)
-                    .map_err(|e| (request.clone(), js_message(e), false))?;
-            }
-            wrapper.into()
-        }
-        _ => result,
-    };
-    let wire = WireReply {
-        header: request.header,
-        outcome: CadReplyOutcome::Completed,
-        error: None,
-    };
-    Ok((wire, result))
+    let input = serde_json::to_vec(&serde_json::json!({
+        "body": geometry,
+        "regions": &body.regions,
+    }))
+    .map_err(|error| error.to_string())?;
+    let digest = sha256_hex(&input);
+    Ok(format!(
+        "m1/{}/{}/{}/{}/{digest}",
+        identity.session_epoch,
+        identity.document_id,
+        identity.board_id,
+        identity.instance_id.as_deref().unwrap_or("board"),
+    ))
+}
+
+fn js_set(target: &JsValue, field: &str, value: &JsValue) -> Result<(), OperationError> {
+    Reflect::set(target, &field.into(), value)
+        .map(|_| ())
+        .map_err(|error| failed(js_message(error)))
+}
+
+fn json_to_js(value: &impl Serialize) -> Result<JsValue, OperationError> {
+    let text = serde_json::to_string(value).map_err(|error| failed(error.to_string()))?;
+    js_sys::JSON::parse(&text).map_err(|error| failed(js_message(error)))
+}
+
+fn revision_object(revision: u64) -> Result<Object, OperationError> {
+    let object = Object::new();
+    js_set(&object, "revision", &JsValue::from_f64(revision as f64))?;
+    Ok(object)
 }
 
 pub(super) async fn yield_to_worker() {
