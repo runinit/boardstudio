@@ -3,7 +3,6 @@ mod qualified;
 pub use qualified::{query_qualified_collision_mesh_pair, AnalysisHandle};
 mod generated;
 mod keycaps;
-mod metrics;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod source_validation_tests;
 mod vendor_step;
@@ -16,27 +15,13 @@ pub use keycaps::build_keycaps;
 pub use vendor_step::{bake_bundled_step_model, read_baked_step_model, read_step_model};
 
 use js_sys::{Float32Array, Object, Reflect, Uint8Array};
-use metrics::Stage;
 use serde::Deserialize;
 use wasm_bindgen::prelude::*;
 
+#[derive(Clone)]
 pub(crate) struct MeshData {
     pub(crate) positions: Vec<f32>,
     pub(crate) normals: Vec<f32>,
-}
-
-impl Clone for MeshData {
-    fn clone(&self) -> Self {
-        let _stage = Stage::new("cacheMeshCopy");
-        metrics::count(
-            "copiedMeshBytes",
-            (self.positions.len() + self.normals.len()) * 4,
-        );
-        Self {
-            positions: self.positions.clone(),
-            normals: self.normals.clone(),
-        }
-    }
 }
 
 pub(crate) struct BodyMeshData {
@@ -67,11 +52,6 @@ fn set(target: &Object, key: &str, value: &JsValue) -> Result<(), JsValue> {
 }
 
 fn mesh_to_js(mesh: &MeshData) -> Result<JsValue, JsValue> {
-    let _stage = Stage::new("wasmMeshCopy");
-    metrics::count(
-        "copiedMeshBytes",
-        (mesh.positions.len() + mesh.normals.len()) * 4,
-    );
     let value = Object::new();
     set(
         &value,
@@ -93,20 +73,12 @@ fn case_result_to_js(result: CaseResultData) -> Result<JsValue, JsValue> {
         "revision",
         &JsValue::from_f64(result.revision as f64),
     )?;
-    {
-        let _stage = Stage::new("wasmStepCopy");
-        set(&value, "step", &Uint8Array::from(result.step.as_slice()))?;
-    }
+    set(&value, "step", &Uint8Array::from(result.step.as_slice()))?;
     set(&value, "mesh", &mesh_to_js(&result.mesh)?)?;
 
     if let Some(body_data) = result.bodies {
         let bodies = js_sys::Array::new();
         for body in body_data {
-            let _stage = Stage::new("wasmMeshCopy");
-            metrics::count(
-                "copiedMeshBytes",
-                (body.mesh.positions.len() + body.mesh.normals.len()) * 4,
-            );
             let value = Object::new();
             set(&value, "id", &JsValue::from_str(&body.id))?;
             set(&value, "name", &JsValue::from_str(&body.name))?;

@@ -9,17 +9,16 @@ use dispatch::*;
 use protocol::*;
 
 use crate::cad_jobs::{
-    CadBodyMesh, CadCollisionMeshPair, CadCollisionObservation, CadCollisionQuery, CadMesh,
-    CadOperation, CadReply, CadReplyOutcome, CadRequest, CadResult, CadSnapshotIdentity,
-    CadStepAccuracy, CadStepFaceOccurrence, CadStepImportOptions, CadStepLineOccurrence,
-    CadStepPrecision, CadStepSourceFace, CadVendorStep, MAX_COLLISION_QUERY_BYTES,
-    validate_collision_mesh_pair, validate_collision_query,
+    CadBodyMesh, CadCollisionMeshPair, CadCollisionQuery, CadMesh, CadOperation, CadReply,
+    CadReplyOutcome, CadRequest, CadResult, CadSnapshotIdentity, CadStepAccuracy,
+    CadStepImportOptions, CadStepLineOccurrence, CadVendorStep, MAX_COLLISION_QUERY_BYTES,
+    valid_mesh_parts, validate_collision_mesh_pair, validate_collision_query,
 };
 use crate::cad_qualification::{
     self as qualification, AnalysisMesh, AnalysisRef, Source, SourceQualification,
 };
 use boardstudio_core_kernel::hash::sha256_hex;
-use boardstudio_model::model::KeycapSpec;
+use boardstudio_model::model::{KeycapSpec, PreparedCaseAssemblyIR};
 use futures_channel::oneshot;
 use js_sys::{
     Array, Float32Array, Float64Array, Function, Object, Promise, Reflect, Uint8Array, Uint32Array,
@@ -74,10 +73,10 @@ struct WireReply {
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct WireRequest {
+struct WireRequest<P = PreparedCaseAssemblyIR> {
     #[serde(flatten)]
     header: CadEnvelope,
-    prepared: Option<boardstudio_model::model::PreparedCaseAssemblyIR>,
+    prepared: Option<P>,
     source_sha256: Option<String>,
     step_import_options: Option<CadStepImportOptions>,
     collision_query: Option<CadCollisionQuery>,
@@ -233,39 +232,43 @@ impl CadWorker {
             .map_err(|_| CadWorkerError("CAD worker readiness was abandoned".into()))?
     }
 
-    pub async fn request(&self, request: CadRequest) -> Result<CadReply, CadWorkerError> {
-        self.request_with_step_origin(request, false).await
+    pub async fn request(
+        &self,
+        request: impl std::borrow::Borrow<CadRequest>,
+    ) -> Result<CadReply, CadWorkerError> {
+        self.request_with_step_origin(std::borrow::Borrow::borrow(&request), false)
+            .await
     }
 
     pub async fn request_packaged_step(
         &self,
         request: CadRequest,
     ) -> Result<CadReply, CadWorkerError> {
-        self.request_with_step_origin(request, true).await
+        self.request_with_step_origin(&request, true).await
     }
 
     async fn request_with_step_origin(
         &self,
-        request: CadRequest,
+        request: &CadRequest,
         packaged_step: bool,
     ) -> Result<CadReply, CadWorkerError> {
-        validate_request(&request)?;
+        validate_request(request)?;
         self.ready().await?;
         let wire = WireRequest {
             header: CadEnvelope {
-                request_id: request.request_id,
-                job_id: request.job_id,
-                identity: request.identity,
+                request_id: request.request_id.clone(),
+                job_id: request.job_id.clone(),
+                identity: request.identity.clone(),
                 operation: request.operation,
             },
-            prepared: request.prepared,
-            source_sha256: request.source_sha256,
+            prepared: request.prepared.as_ref(),
+            source_sha256: request.source_sha256.clone(),
             step_import_options: request.step_import_options,
-            collision_query: request.collision_query,
-            generated_analysis_request: request.generated_analysis_request,
+            collision_query: request.collision_query.clone(),
+            generated_analysis_request: request.generated_analysis_request.clone(),
             keycaps: None,
-            collision_meshes: request.collision_meshes,
-            input_bytes: request.input_bytes,
+            collision_meshes: None,
+            input_bytes: Vec::new(),
             packaged_step,
         };
         let frame =
@@ -274,8 +277,8 @@ impl CadWorker {
             .request_frame_with_payloads(
                 &wire.header.request_id,
                 &frame,
-                &wire.input_bytes,
-                wire.collision_meshes.as_ref(),
+                &request.input_bytes,
+                request.collision_meshes.as_ref(),
             )
             .await;
         if reply.is_err() {
@@ -347,7 +350,9 @@ impl CadWorker {
             keycaps: KeycapsInput { revision, specs },
         })
         .map_err(|error| CadWorkerError(error.to_string()))?;
-        let reply = self.request_frame(&request_id, &frame, &[]).await?;
+        let reply = self
+            .request_frame_with_payloads(&request_id, &frame, &[], None)
+            .await?;
         if reply.request_id != request_id
             || reply.job_id != job_id
             || reply.identity != identity
@@ -373,21 +378,7 @@ impl CadWorker {
         let result = reply
             .result
             .ok_or_else(|| CadWorkerError("CAD worker returned no keycap meshes".into()))?;
-        let valid_mesh = |body: &CadBodyMesh| {
-            !body.id.is_empty()
-                && !body.name.is_empty()
-                && !body.positions.is_empty()
-                && body
-                    .positions
-                    .len()
-                    .is_multiple_of(if printable { 9 } else { 3 })
-                && body.positions.len() == body.normals.len()
-                && body
-                    .positions
-                    .iter()
-                    .chain(&body.normals)
-                    .all(|value| value.is_finite())
-        };
+        let stride = if printable { 9 } else { 3 };
         if result.revision != identity.revision
             || (printable && !result.step.is_empty())
             || result.bodies.len() != expected.len()
@@ -395,7 +386,11 @@ impl CadWorker {
                 .bodies
                 .iter()
                 .zip(expected)
-                .any(|(body, expected_id)| body.id != expected_id || !valid_mesh(body))
+                .any(|(body, expected_id)| {
+                    body.id != expected_id
+                        || body.name.is_empty()
+                        || !valid_mesh_parts(&body.positions, &body.normals, stride)
+                })
         {
             return Err(CadWorkerError(format!(
                 "Keycap CAD {kind} meshes are missing, malformed, or stale"
@@ -421,16 +416,6 @@ impl CadWorker {
         .await
     }
 
-    async fn request_frame(
-        &self,
-        request_id: &str,
-        frame: &str,
-        input_bytes: &[u8],
-    ) -> Result<CadReply, CadWorkerError> {
-        self.request_frame_with_payloads(request_id, frame, input_bytes, None)
-            .await
-    }
-
     async fn request_frame_with_payloads(
         &self,
         request_id: &str,
@@ -452,18 +437,7 @@ impl CadWorker {
             transfers.push(&buffer);
         }
         if let Some(meshes) = collision_meshes {
-            let left_pos = Float64Array::from(meshes.left_positions_mm_f64.as_slice());
-            let left_tags =
-                Uint32Array::from(meshes.left_triangle_face_occurrence_indices.as_slice());
-            let right_pos = Float64Array::from(meshes.right_positions_mm_f64.as_slice());
-            let right_tags =
-                Uint32Array::from(meshes.right_triangle_face_occurrence_indices.as_slice());
-            for (field, buffer) in [
-                ("leftPositions", left_pos.buffer()),
-                ("leftTags", left_tags.buffer()),
-                ("rightPositions", right_pos.buffer()),
-                ("rightTags", right_tags.buffer()),
-            ] {
+            for (field, _, buffer) in collision_mesh_buffers(meshes) {
                 Reflect::set(&object, &field.into(), &buffer).map_err(js_error)?;
                 transfers.push(&buffer);
             }
@@ -1199,12 +1173,12 @@ fn pump_worker(
             Ok((wire, result)) => {
                 let _ = post_owned_result(&queue, &scope, wire, result);
             }
-            Err((wire, reason, cancelled)) => {
+            Err((header, reason, cancelled)) => {
                 queue
                     .borrow_mut()
                     .remove_task_evidence(&completed_request_id);
                 let metadata = WireReply {
-                    header: wire.header,
+                    header,
                     outcome: if cancelled {
                         CadReplyOutcome::Cancelled
                     } else {

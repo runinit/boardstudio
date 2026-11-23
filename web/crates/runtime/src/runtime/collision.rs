@@ -249,7 +249,7 @@ impl Runtime {
         self.native_model_jobs
             .borrow_mut()
             .insert(request.job_id.clone());
-        let reply = worker.request(request.clone()).await;
+        let reply = worker.request(&request).await;
         let active = self.native_model_jobs.borrow_mut().remove(&request.job_id);
         let reply = reply.map_err(|error| error.to_string())?;
         if !active
@@ -259,39 +259,21 @@ impl Runtime {
         {
             return Err("collision request became stale after parsing".into());
         }
-        let result =
-            validate_reply(&request, reply, &identity).map_err(|error| format!("{error:?}"))?;
-        let query = request
-            .collision_query
-            .as_ref()
-            .ok_or("missing collision request")?;
-        let report = result
-            .query_qualification
-            .clone()
-            .ok_or("missing query qualification")?;
-        let expected = boardstudio_web_host::cad_qualification::expected_binding(
-            query,
+        let (result, validated) = boardstudio_web_host::cad_jobs::validate_collision_reply(
+            &request,
+            reply,
             &identity,
-            &report.binding.worker_generation,
-        )?;
-        let validated = boardstudio_web_host::cad_qualification::validate_query_qualification(
-            report,
-            &expected,
-            &query.qualification_limits,
-            request
-                .collision_meshes
-                .as_ref()
-                .ok_or("missing collision buffers")?,
             left.source_qualification()
                 .zip(right.source_qualification())
                 .map(|(left, right)| [left, right]),
-        )?;
+        )
+        .map_err(|error| format!("{error:?}"))?;
         Ok(assess_subject_collision_observation(
             left,
             right,
             clearance_threshold_mm,
             requested_accuracy_mm,
-            Some((&validated, &expected)),
+            Some((&validated, &validated.report().binding)),
             result
                 .collision
                 .ok_or("collision query returned no observation")?,

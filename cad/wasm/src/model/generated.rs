@@ -12,7 +12,6 @@ pub fn build_case(input: JsValue) -> Result<JsValue, JsValue> {
 
 fn build_case_data(ir: PreparedCaseIR) -> Result<CaseResultData, String> {
     let entry = cache::body(&ir, "", true, &mut |_| Ok(()))?;
-    let _stage = Stage::new("stepSerialization");
     let step = boardstudio_cad::export_step_bodies(&[boardstudio_cad::StepBody {
         id: &ir.body.id,
         name: &ir.body.name,
@@ -114,7 +113,6 @@ fn assembly_step(
             model: &entry.model,
         })
         .collect::<Vec<_>>();
-    let _stage = Stage::new("stepSerialization");
     boardstudio_cad::export_step_bodies(&bodies)
 }
 
@@ -142,16 +140,11 @@ fn full_assembly_data(
             })
         })
         .collect::<Result<Vec<_>, String>>()?;
-    let _stage = Stage::new("combinedMeshCopy");
     let mut mesh = MeshData {
         positions: Vec::new(),
         normals: Vec::new(),
     };
     for body in &bodies {
-        metrics::count(
-            "copiedMeshBytes",
-            (body.mesh.positions.len() + body.mesh.normals.len()) * 4,
-        );
         mesh.positions.extend_from_slice(&body.mesh.positions);
         mesh.normals.extend_from_slice(&body.mesh.normals);
     }
@@ -181,7 +174,6 @@ pub fn export_cached_assembly(input: JsValue, keys: JsValue) -> Result<JsValue, 
     let (revision, step) = step_only_data(&ir, &keys).map_err(js_error)?;
     let result = Object::new();
     set(&result, "revision", &JsValue::from_f64(revision as f64))?;
-    let _stage = Stage::new("wasmStepCopy");
     set(&result, "step", &Uint8Array::from(step.as_slice()))?;
     Ok(result.into())
 }

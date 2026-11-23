@@ -1,11 +1,46 @@
 use super::*;
 
+pub(super) fn js_get(value: &JsValue, field: &str) -> Result<JsValue, String> {
+    Reflect::get(value, &field.into()).map_err(js_message)
+}
+
+fn nullable_field<T>(
+    value: &JsValue,
+    field: &str,
+    decode: impl FnOnce(JsValue) -> Result<T, String>,
+) -> Result<Option<T>, String> {
+    let field = js_get(value, field)?;
+    if field.is_null() || field.is_undefined() {
+        Ok(None)
+    } else {
+        decode(field).map(Some)
+    }
+}
+
+fn decode_loose<T: serde::de::DeserializeOwned>(value: JsValue) -> Result<T, String> {
+    serde_wasm_bindgen::from_value(value).map_err(|error| error.to_string())
+}
+
+pub(super) fn collision_mesh_buffers(
+    meshes: &CadCollisionMeshPair,
+) -> [(&'static str, JsValue, js_sys::ArrayBuffer); 4] {
+    let left = Float64Array::from(meshes.left_positions_mm_f64.as_slice());
+    let left_tags = Uint32Array::from(meshes.left_triangle_face_occurrence_indices.as_slice());
+    let right = Float64Array::from(meshes.right_positions_mm_f64.as_slice());
+    let right_tags = Uint32Array::from(meshes.right_triangle_face_occurrence_indices.as_slice());
+    [
+        ("leftPositions", left.clone().into(), left.buffer()),
+        ("leftTags", left_tags.clone().into(), left_tags.buffer()),
+        ("rightPositions", right.clone().into(), right.buffer()),
+        ("rightTags", right_tags.clone().into(), right_tags.buffer()),
+    ]
+}
+
 pub(super) fn decode_result(value: JsValue) -> Result<CadResult, String> {
     if Reflect::has(&value, &"queryQualification".into()).map_err(js_message)? {
         exact_fields(&value, &["revision", "collision", "queryQualification"])?;
     }
-    let revision = Reflect::get(&value, &"revision".into())
-        .map_err(js_message)?
+    let revision = js_get(&value, "revision")?
         .as_f64()
         .ok_or_else(|| "CAD result omitted revision".to_string())?;
     if !revision.is_finite()
@@ -16,14 +51,9 @@ pub(super) fn decode_result(value: JsValue) -> Result<CadResult, String> {
         return Err("CAD result revision is not an exact u53".into());
     }
     let revision = revision as u64;
-    let step = read_u8_buffer(Reflect::get(&value, &"step".into()).map_err(js_message)?)?;
-    let mesh_value = Reflect::get(&value, &"mesh".into()).map_err(js_message)?;
-    let mesh = if mesh_value.is_null() || mesh_value.is_undefined() {
-        None
-    } else {
-        Some(decode_mesh(mesh_value)?)
-    };
-    let bodies_value = Reflect::get(&value, &"bodies".into()).map_err(js_message)?;
+    let step = nullable_field(&value, "step", read_u8_buffer)?.unwrap_or_default();
+    let mesh = nullable_field(&value, "mesh", decode_mesh)?;
+    let bodies_value = js_get(&value, "bodies")?;
     let body_values = if bodies_value.is_undefined() {
         Array::new()
     } else if Array::is_array(&bodies_value) {
@@ -33,36 +63,19 @@ pub(super) fn decode_result(value: JsValue) -> Result<CadResult, String> {
     };
     let mut bodies = Vec::with_capacity(body_values.length() as usize);
     for body in body_values.iter() {
+        let id = string_field(&body, "id")?;
+        let name = string_field(&body, "name")?;
+        let CadMesh { positions, normals } = decode_mesh(body)?;
         bodies.push(CadBodyMesh {
-            id: string_field(&body, "id")?,
-            name: string_field(&body, "name")?,
-            positions: read_f32_buffer(
-                Reflect::get(&body, &"positions".into()).map_err(js_message)?,
-            )?,
-            normals: read_f32_buffer(Reflect::get(&body, &"normals".into()).map_err(js_message)?)?,
+            id,
+            name,
+            positions,
+            normals,
         });
     }
-    let bounds_value = Reflect::get(&value, &"bounds".into()).map_err(js_message)?;
-    let bounds = if bounds_value.is_null() || bounds_value.is_undefined() {
-        None
-    } else {
-        Some(serde_wasm_bindgen::from_value(bounds_value).map_err(|error| error.to_string())?)
-    };
-    let vendor_step_value = Reflect::get(&value, &"vendorStep".into()).map_err(js_message)?;
-    let vendor_step = if vendor_step_value.is_null() || vendor_step_value.is_undefined() {
-        None
-    } else {
-        Some(decode_vendor_step(vendor_step_value)?)
-    };
-    let collision_value = Reflect::get(&value, &"collision".into()).map_err(js_message)?;
-    let collision = if collision_value.is_null() || collision_value.is_undefined() {
-        None
-    } else {
-        Some(
-            serde_wasm_bindgen::from_value::<CadCollisionObservation>(collision_value)
-                .map_err(|error| error.to_string())?,
-        )
-    };
+    let bounds = nullable_field(&value, "bounds", decode_loose)?;
+    let vendor_step = nullable_field(&value, "vendorStep", decode_vendor_step)?;
+    let collision = nullable_field(&value, "collision", decode_loose)?;
     Ok(CadResult {
         query_qualification: optional_strict_field(&value, "queryQualification")?,
         revision,
@@ -72,14 +85,7 @@ pub(super) fn decode_result(value: JsValue) -> Result<CadResult, String> {
         bounds,
         vendor_step,
         collision,
-        generated_analysis: {
-            let analysis = Reflect::get(&value, &"generatedAnalysis".into()).map_err(js_message)?;
-            if analysis.is_null() || analysis.is_undefined() {
-                None
-            } else {
-                Some(decode_generated_analysis(analysis)?)
-            }
-        },
+        generated_analysis: nullable_field(&value, "generatedAnalysis", decode_generated_analysis)?,
     })
 }
 
@@ -87,10 +93,8 @@ pub(super) fn decode_generated_analysis(
     value: JsValue,
 ) -> Result<crate::cad_jobs::CadGeneratedAnalysis, String> {
     validate_generated_payload_fields(&value, true)?;
-    let positions_value =
-        Reflect::get(&value, &"surfacePositionsMmF64".into()).map_err(js_message)?;
-    let tags_value =
-        Reflect::get(&value, &"triangleFaceOccurrenceIndices".into()).map_err(js_message)?;
+    let positions_value = js_get(&value, "surfacePositionsMmF64")?;
+    let tags_value = js_get(&value, "triangleFaceOccurrenceIndices")?;
     if !positions_value.is_instance_of::<Float64Array>()
         || !tags_value.is_instance_of::<Uint32Array>()
     {
@@ -101,46 +105,32 @@ pub(super) fn decode_generated_analysis(
     let positions = positions_value.unchecked_into::<Float64Array>();
     let tags = tags_value.unchecked_into::<Uint32Array>();
     validate_analysis_buffers(positions.as_ref(), tags.as_ref())?;
-    if (positions.byte_length() as usize).saturating_add(tags.byte_length() as usize)
-        > MAX_COLLISION_QUERY_BYTES
-    {
-        return Err("generated analysis exceeds the 64 MiB mesh limit".into());
-    }
     // Deserialize metadata separately so large typed arrays retain their transfer path.
     let metadata = Object::new();
     for field in [
         "bodyId",
         "revision",
         "geometryIdentity",
-        "sourceFaces",
-        "faceOccurrences",
         "analysisErrorBoundMm",
         "meshClosedOriented",
         "deflectionMm",
-        "analysisMesh",
-        "sourceQualification",
-        "analysisRef",
     ] {
-        if Reflect::get(&value, &field.into())
-            .map_err(js_message)?
-            .is_undefined()
-        {
-            continue;
-        }
+        let field = JsValue::from_str(field);
         Reflect::set(
             &metadata,
-            &field.into(),
-            &Reflect::get(&value, &field.into()).map_err(js_message)?,
+            &field,
+            &Reflect::get(&value, &field).map_err(js_message)?,
         )
         .map_err(js_message)?;
     }
-    Reflect::set(&metadata, &"surfacePositionsMmF64".into(), &Array::new()).map_err(js_message)?;
-    Reflect::set(
-        &metadata,
-        &"triangleFaceOccurrenceIndices".into(),
-        &Array::new(),
-    )
-    .map_err(js_message)?;
+    for field in [
+        "surfacePositionsMmF64",
+        "triangleFaceOccurrenceIndices",
+        "sourceFaces",
+        "faceOccurrences",
+    ] {
+        Reflect::set(&metadata, &field.into(), &Array::new()).map_err(js_message)?;
+    }
     let mut analysis: crate::cad_jobs::CadGeneratedAnalysis =
         serde_wasm_bindgen::from_value(metadata.into()).map_err(|error| error.to_string())?;
     analysis.analysis_mesh = optional_strict_field(&value, "analysisMesh")?;
@@ -148,10 +138,8 @@ pub(super) fn decode_generated_analysis(
     analysis.analysis_ref = optional_strict_field(&value, "analysisRef")?;
     analysis.surface_positions_mm_f64 = positions.to_vec();
     analysis.triangle_face_occurrence_indices = tags.to_vec();
-    analysis.source_faces =
-        strict_metadata(Reflect::get(&value, &"sourceFaces".into()).map_err(js_message)?)?;
-    analysis.face_occurrences =
-        strict_metadata(Reflect::get(&value, &"faceOccurrences".into()).map_err(js_message)?)?;
+    analysis.source_faces = strict_metadata(js_get(&value, "sourceFaces")?)?;
+    analysis.face_occurrences = strict_metadata(js_get(&value, "faceOccurrences")?)?;
     Ok(analysis)
 }
 
@@ -181,22 +169,8 @@ pub(super) fn validate_generated_payload_fields(
             "analysisHandle"
         });
     }
-    let object = value
-        .dyn_ref::<Object>()
-        .ok_or("generated analysis must be an object")?;
-    let keys = Object::keys(object);
-    if keys.length() as usize != fields.len()
-        || fields
-            .iter()
-            .any(|field| !Reflect::has(value, &(*field).into()).unwrap_or(false))
-        || keys.iter().any(|key| {
-            key.as_string()
-                .is_none_or(|key| !fields.contains(&key.as_str()))
-        })
-    {
-        return Err("generated analysis has missing or unexpected fields".into());
-    }
-    Ok(())
+    exact_fields(value, &fields)
+        .map_err(|_| "generated analysis has missing or unexpected fields".into())
 }
 
 pub(super) fn decode_vendor_step(value: JsValue) -> Result<CadVendorStep, String> {
@@ -223,54 +197,26 @@ pub(super) fn decode_vendor_step(value: JsValue) -> Result<CadVendorStep, String
             ],
         )?;
         validate_analysis_buffers(
-            &Reflect::get(&value, &"surfacePositionsMmF64".into()).map_err(js_message)?,
-            &Reflect::get(&value, &"triangleFaceOccurrenceIndices".into()).map_err(js_message)?,
+            &js_get(&value, "surfacePositionsMmF64")?,
+            &js_get(&value, "triangleFaceOccurrenceIndices")?,
         )?;
-        strict_metadata::<Vec<CadStepSourceFace>>(
-            Reflect::get(&value, &"sourceFaces".into()).map_err(js_message)?,
-        )?;
-        strict_metadata::<Vec<CadStepFaceOccurrence>>(
-            Reflect::get(&value, &"faceOccurrences".into()).map_err(js_message)?,
-        )?;
-        strict_metadata::<Vec<CadStepPrecision>>(
-            Reflect::get(&value, &"precision".into()).map_err(js_message)?,
-        )?;
-        strict_step_accuracy(Reflect::get(&value, &"accuracy".into()).map_err(js_message)?)?;
     }
     let source_sha256 = string_field(&value, "sourceSha256")?;
-    let options_value = Reflect::get(&value, &"importOptions".into()).map_err(js_message)?;
-    if v2 && !options_value.is_null() && !options_value.is_undefined() {
-        allowed_fields(
-            &options_value,
-            &["previewRepairBudgetMm", "targetDeflectionMm"],
-        )?;
-    }
-    let import_options = if options_value.is_null() || options_value.is_undefined() {
-        CadStepImportOptions::default()
-    } else {
-        serde_wasm_bindgen::from_value::<CadStepImportOptions>(options_value)
-            .map_err(|error| error.to_string())?
-    };
-    let surface_positions_mm_f64 = read_f64_buffer(
-        Reflect::get(&value, &"surfacePositionsMmF64".into()).map_err(js_message)?,
-    )?;
-    let source_faces: Vec<CadStepSourceFace> = serde_wasm_bindgen::from_value(
-        Reflect::get(&value, &"sourceFaces".into()).map_err(js_message)?,
-    )
-    .map_err(|error| error.to_string())?;
-    let face_occurrences: Vec<CadStepFaceOccurrence> = serde_wasm_bindgen::from_value(
-        Reflect::get(&value, &"faceOccurrences".into()).map_err(js_message)?,
-    )
-    .map_err(|error| error.to_string())?;
-    let triangle_face_occurrence_indices = read_u32_buffer(
-        Reflect::get(&value, &"triangleFaceOccurrenceIndices".into()).map_err(js_message)?,
-    )?;
-    let line_segments_mm_f64 =
-        read_f64_buffer(Reflect::get(&value, &"lineSegmentsMmF64".into()).map_err(js_message)?)?;
-    let line_render_positions =
-        read_f32_buffer(Reflect::get(&value, &"lineRenderPositions".into()).map_err(js_message)?)?;
-    let line_occurrences_value =
-        Reflect::get(&value, &"lineOccurrences".into()).map_err(js_message)?;
+    let import_options = nullable_field(&value, "importOptions", |options| {
+        if v2 {
+            allowed_fields(&options, &["previewRepairBudgetMm", "targetDeflectionMm"])?;
+        }
+        decode_loose(options)
+    })?
+    .unwrap_or_default();
+    let surface_positions_mm_f64 = read_f64_buffer(js_get(&value, "surfacePositionsMmF64")?)?;
+    let source_faces = metadata_field(&value, "sourceFaces", v2)?;
+    let face_occurrences = metadata_field(&value, "faceOccurrences", v2)?;
+    let triangle_face_occurrence_indices =
+        read_u32_buffer(js_get(&value, "triangleFaceOccurrenceIndices")?)?;
+    let line_segments_mm_f64 = read_f64_buffer(js_get(&value, "lineSegmentsMmF64")?)?;
+    let line_render_positions = read_f32_buffer(js_get(&value, "lineRenderPositions")?)?;
+    let line_occurrences_value = js_get(&value, "lineOccurrences")?;
     if !Array::is_array(&line_occurrences_value) {
         return Err("STEP vendorStep.lineOccurrences must be an array".into());
     }
@@ -292,13 +238,11 @@ pub(super) fn decode_vendor_step(value: JsValue) -> Result<CadVendorStep, String
                 ],
             )?;
         }
-        let placement_vec =
-            read_f64_buffer(Reflect::get(&item, &"placementF64".into()).map_err(js_message)?)?;
+        let placement_vec = read_f64_buffer(js_get(&item, "placementF64")?)?;
         let placement_f64: [f64; 16] = placement_vec
             .try_into()
             .map_err(|_| "STEP lineOccurrence placementF64 must have 16 values".to_string())?;
-        let line_occurrence_index = Reflect::get(&item, &"lineOccurrenceIndex".into())
-            .map_err(js_message)?
+        let line_occurrence_index = js_get(&item, "lineOccurrenceIndex")?
             .as_f64()
             .ok_or_else(|| "STEP lineOccurrence omitted lineOccurrenceIndex".to_string())?;
         if !line_occurrence_index.is_finite()
@@ -308,12 +252,10 @@ pub(super) fn decode_vendor_step(value: JsValue) -> Result<CadVendorStep, String
         {
             return Err("STEP lineOccurrence lineOccurrenceIndex is invalid".into());
         }
-        let source_unit_to_mm = Reflect::get(&item, &"sourceUnitToMm".into())
-            .map_err(js_message)?
+        let source_unit_to_mm = js_get(&item, "sourceUnitToMm")?
             .as_f64()
             .ok_or_else(|| "STEP lineOccurrence omitted sourceUnitToMm".to_string())?;
-        let declared_uncertainty_value =
-            Reflect::get(&item, &"declaredUncertaintyMm".into()).map_err(js_message)?;
+        let declared_uncertainty_value = js_get(&item, "declaredUncertaintyMm")?;
         let declared_uncertainty_mm =
             if declared_uncertainty_value.is_null() || declared_uncertainty_value.is_undefined() {
                 None
@@ -333,17 +275,15 @@ pub(super) fn decode_vendor_step(value: JsValue) -> Result<CadVendorStep, String
             declared_uncertainty_mm,
         });
     }
-    let segment_line_occurrence_indices = read_u32_buffer(
-        Reflect::get(&value, &"segmentLineOccurrenceIndices".into()).map_err(js_message)?,
-    )?;
-    let precision: Vec<CadStepPrecision> = serde_wasm_bindgen::from_value(
-        Reflect::get(&value, &"precision".into()).map_err(js_message)?,
-    )
-    .map_err(|error| error.to_string())?;
-    let accuracy: CadStepAccuracy = serde_wasm_bindgen::from_value(
-        Reflect::get(&value, &"accuracy".into()).map_err(js_message)?,
-    )
-    .map_err(|error| error.to_string())?;
+    let segment_line_occurrence_indices =
+        read_u32_buffer(js_get(&value, "segmentLineOccurrenceIndices")?)?;
+    let precision = metadata_field(&value, "precision", v2)?;
+    let accuracy = js_get(&value, "accuracy")?;
+    let accuracy = if v2 {
+        strict_step_accuracy(accuracy)?
+    } else {
+        decode_loose(accuracy)?
+    };
     Ok(CadVendorStep {
         analysis_ref: optional_strict_field(&value, "analysisRef")?,
         analysis_mesh: optional_strict_field(&value, "analysisMesh")?,
@@ -361,6 +301,19 @@ pub(super) fn decode_vendor_step(value: JsValue) -> Result<CadVendorStep, String
         precision,
         accuracy,
     })
+}
+
+fn metadata_field<T: serde::de::DeserializeOwned + Serialize>(
+    value: &JsValue,
+    field: &str,
+    strict: bool,
+) -> Result<T, String> {
+    let value = js_get(value, field)?;
+    if strict {
+        strict_metadata(value)
+    } else {
+        serde_wasm_bindgen::from_value(value).map_err(|error| error.to_string())
+    }
 }
 
 pub(super) fn strict_step_accuracy(value: JsValue) -> Result<CadStepAccuracy, String> {
@@ -428,10 +381,12 @@ pub(super) fn exact_fields(value: &JsValue, fields: &[&str]) -> Result<(), Strin
     let object = value
         .dyn_ref::<Object>()
         .ok_or("metadata object required")?;
-    if Object::keys(object).length() as usize != fields.len()
-        || fields
-            .iter()
-            .any(|field| !Object::has_own(object, &(*field).into()))
+    let keys = Object::keys(object);
+    if keys.length() as usize != fields.len()
+        || keys.iter().any(|key| {
+            key.as_string()
+                .is_none_or(|key| !fields.contains(&key.as_str()))
+        })
     {
         return Err("missing or unexpected metadata fields".into());
     }
@@ -472,7 +427,7 @@ fn optional_strict_field<T: serde::de::DeserializeOwned + Serialize>(
     value: &JsValue,
     field: &str,
 ) -> Result<Option<T>, String> {
-    let value = Reflect::get(value, &field.into()).map_err(js_message)?;
+    let value = js_get(value, field)?;
     if value.is_undefined() {
         Ok(None)
     } else {
@@ -482,33 +437,33 @@ fn optional_strict_field<T: serde::de::DeserializeOwned + Serialize>(
 
 pub(super) fn decode_mesh(value: JsValue) -> Result<CadMesh, String> {
     Ok(CadMesh {
-        positions: read_f32_buffer(Reflect::get(&value, &"positions".into()).map_err(js_message)?)?,
-        normals: read_f32_buffer(Reflect::get(&value, &"normals".into()).map_err(js_message)?)?,
+        positions: read_f32_buffer(js_get(&value, "positions")?)?,
+        normals: read_f32_buffer(js_get(&value, "normals")?)?,
     })
 }
 
 pub(super) fn string_field(value: &JsValue, name: &str) -> Result<String, String> {
-    Reflect::get(value, &name.into())
-        .map_err(js_message)?
+    js_get(value, name)?
         .as_string()
         .ok_or_else(|| format!("CAD result omitted {name}"))
 }
 
-fn read_f32_buffer(value: JsValue) -> Result<Vec<f32>, String> {
-    if value.is_instance_of::<Float32Array>() {
-        Ok(value.unchecked_into::<Float32Array>().to_vec())
-    } else {
-        serde_wasm_bindgen::from_value(value).map_err(|error| error.to_string())
-    }
+macro_rules! buffer_reader {
+    ($read:ident, $array:ty, $element:ty) => {
+        fn $read(value: JsValue) -> Result<Vec<$element>, String> {
+            if let Some(array) = value.dyn_ref::<$array>() {
+                Ok(array.to_vec())
+            } else {
+                decode_loose(value)
+            }
+        }
+    };
 }
 
-fn read_f64_buffer(value: JsValue) -> Result<Vec<f64>, String> {
-    if value.is_instance_of::<Float64Array>() {
-        Ok(value.unchecked_into::<Float64Array>().to_vec())
-    } else {
-        serde_wasm_bindgen::from_value(value).map_err(|error| error.to_string())
-    }
-}
+buffer_reader!(read_f32_buffer, Float32Array, f32);
+buffer_reader!(read_f64_buffer, Float64Array, f64);
+buffer_reader!(read_u32_buffer, Uint32Array, u32);
+buffer_reader!(read_u8_buffer, Uint8Array, u8);
 
 pub(super) fn validate_analysis_buffers(positions: &JsValue, tags: &JsValue) -> Result<(), String> {
     let positions = positions
@@ -528,23 +483,4 @@ pub(super) fn validate_analysis_buffers(positions: &JsValue, tags: &JsValue) -> 
         return Err("detached/shared/malformed or oversized analysis buffers".into());
     }
     Ok(())
-}
-
-fn read_u32_buffer(value: JsValue) -> Result<Vec<u32>, String> {
-    if value.is_instance_of::<Uint32Array>() {
-        Ok(value.unchecked_into::<Uint32Array>().to_vec())
-    } else {
-        serde_wasm_bindgen::from_value(value).map_err(|error| error.to_string())
-    }
-}
-
-fn read_u8_buffer(value: JsValue) -> Result<Vec<u8>, String> {
-    if value.is_null() || value.is_undefined() {
-        return Ok(Vec::new());
-    }
-    if value.is_instance_of::<Uint8Array>() {
-        Ok(value.unchecked_into::<Uint8Array>().to_vec())
-    } else {
-        serde_wasm_bindgen::from_value(value).map_err(|error| error.to_string())
-    }
 }
