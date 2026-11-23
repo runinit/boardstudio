@@ -1,24 +1,21 @@
 //! Discrete plate supports and their matching case/retainer geometry.
 use super::*;
 mod internal;
-
 const SUPPORT_COUNT: usize = 6;
 const RETAINER_THICKNESS: f64 = 3.0;
-
 #[derive(Clone)]
-struct Candidate {
+pub(super) struct Candidate {
     at: Vec2,
     tangent: Vec2,
     normal: Vec2,
     anchor: f64,
 }
-struct Region {
+pub(super) struct Region {
     id: String,
     key: String,
     candidates: Vec<Candidate>,
     tracks: Vec<MechanicalGasketTrack>,
 }
-
 fn add(a: Vec2, b: Vec2) -> Vec2 {
     Vec2 {
         x: a.x + b.x,
@@ -198,7 +195,6 @@ fn outline_key(ring: &Contour) -> String {
         .collect::<Vec<_>>()
         .join(";")
 }
-
 fn on_track(region: &Region, anchor: f64) -> Option<Candidate> {
     let track = region
         .tracks
@@ -221,7 +217,51 @@ fn on_track(region: &Region, anchor: f64) -> Option<Candidate> {
         anchor,
     })
 }
-
+pub(super) fn reflect_x(at: Vec2, axis_x: f64) -> Vec2 {
+    Vec2 {
+        x: 2. * axis_x - at.x,
+        y: at.y,
+    }
+}
+pub(super) fn track_fraction(track: &MechanicalGasketTrack, reflected: Vec2) -> f64 {
+    let dx = track.end.x - track.start.x;
+    let dy = track.end.y - track.start.y;
+    ((reflected.x - track.start.x) * dx + (reflected.y - track.start.y) * dy) / (dx * dx + dy * dy)
+}
+pub(super) fn mirrored_candidate(
+    region: &Region,
+    track: &MechanicalGasketTrack,
+    reflected: Vec2,
+    fraction: f64,
+) -> Option<Candidate> {
+    on_track(
+        region,
+        track.start_anchor + fraction * (track.end_anchor - track.start_anchor),
+    )
+    .filter(|c| distance(c.at, reflected) < 0.001)
+}
+pub(super) fn apply_mirrored_placement(
+    support: &mut MechanicalGasketSupport,
+    candidate: &Candidate,
+) {
+    support.at = candidate.at;
+    support.anchor = candidate.anchor;
+    support.tangent = candidate.tangent;
+    support.normal = candidate.normal;
+}
+pub(super) fn link_mirror_pair(
+    supports: &mut [MechanicalGasketSupport],
+    first: usize,
+    second: usize,
+    axis_x: f64,
+) {
+    let first_id = supports[first].id.clone();
+    let second_id = supports[second].id.clone();
+    supports[first].pair_id = Some(second_id);
+    supports[first].mirror_axis = Some(axis_x);
+    supports[second].pair_id = Some(first_id);
+    supports[second].mirror_axis = Some(axis_x);
+}
 pub(super) fn generate(
     document: &ProjectDoc,
     config: &MechanicalConfiguration,
@@ -484,45 +524,36 @@ pub(super) fn generate(
         for slot in 0..SUPPORT_COUNT {
             let source_id = format!("{}:{slot}", link.source_id);
             let target_id = format!("{}:{slot}", layout.id);
-            let Some(source) = result
-                .gasket_supports
-                .iter()
-                .find(|s| s.id == source_id)
-                .cloned()
-            else {
+            let (Some(source_index), Some(target_index)) = (
+                result
+                    .gasket_supports
+                    .iter()
+                    .position(|s| s.id == source_id),
+                result
+                    .gasket_supports
+                    .iter()
+                    .position(|s| s.id == target_id),
+            ) else {
                 continue;
             };
-            let Some(target_index) = result
-                .gasket_supports
-                .iter()
-                .position(|s| s.id == target_id)
-            else {
-                continue;
-            };
-            if source.unlinked || result.gasket_supports[target_index].unlinked {
+            if result.gasket_supports[source_index].unlinked
+                || result.gasket_supports[target_index].unlinked
+            {
                 continue;
             }
-            let reflected = Vec2 {
-                x: 2. * link.axis_x - source.at.x,
-                y: source.at.y,
-            };
+            // Outer shells snap to the nearest clamped projection; internal tabs
+            // require a bounded capture fraction instead (see internal::generate).
+            let reflected = reflect_x(result.gasket_supports[source_index].at, link.axis_x);
             let region = regions.iter().find(|r| r.id == layout.id).unwrap();
             let candidate = region
                 .tracks
                 .iter()
                 .filter_map(|track| {
-                    let delta = Vec2 {
-                        x: track.end.x - track.start.x,
-                        y: track.end.y - track.start.y,
-                    };
-                    let length = distance(track.start, track.end);
-                    let t = (((reflected.x - track.start.x) * delta.x
-                        + (reflected.y - track.start.y) * delta.y)
-                        / (length * length))
-                        .clamp(0., 1.);
-                    on_track(
+                    mirrored_candidate(
                         region,
-                        track.start_anchor + t * (track.end_anchor - track.start_anchor),
+                        track,
+                        reflected,
+                        track_fraction(track, reflected).clamp(0., 1.),
                     )
                 })
                 .min_by(|a, b| distance(a.at, reflected).total_cmp(&distance(b.at, reflected)))
@@ -530,20 +561,13 @@ pub(super) fn generate(
             let Some(candidate) = candidate else {
                 return Err("Linked gasket positions do not fit the mirrored outline. Unlink the support or restore symmetric clearance.".into());
             };
-            let target = &mut result.gasket_supports[target_index];
-            target.at = candidate.at;
-            target.anchor = candidate.anchor;
-            target.tangent = candidate.tangent;
-            target.normal = candidate.normal;
-            target.pair_id = Some(source_id.clone());
-            target.mirror_axis = Some(link.axis_x);
-            let source = result
-                .gasket_supports
-                .iter_mut()
-                .find(|s| s.id == source_id)
-                .unwrap();
-            source.pair_id = Some(target_id.clone());
-            source.mirror_axis = Some(link.axis_x);
+            apply_mirrored_placement(&mut result.gasket_supports[target_index], &candidate);
+            link_mirror_pair(
+                &mut result.gasket_supports,
+                source_index,
+                target_index,
+                link.axis_x,
+            );
             if let Some((_, c)) = chosen.iter_mut().find(|(id, _)| id == &target_id) {
                 *c = candidate.clone();
             }
