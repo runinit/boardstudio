@@ -6,9 +6,24 @@
 //! their document, scene, and placement setup.
 use super::*;
 use boardstudio_model::model::{
-    Board, CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, MatrixCell,
-    MatrixColumnBasis, MatrixSceneCell, Mirror, Part, Pose2, Side,
+    Board, CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, MatrixAssembly,
+    MatrixCell, MatrixColumnBasis, MatrixSceneCell, Mirror, Part, Pose2, Side,
 };
+
+/// The diode/LED membership the assembly variants share. The history seam
+/// replays rotated back-side assemblies; the planner variant is unrotated.
+fn assembly_parts(history: bool) -> Vec<MatrixAssembly> {
+    ["diode", "led"]
+        .into_iter()
+        .map(|id| MatrixAssembly {
+            id: id.into(),
+            definition_id: "switch".into(),
+            offset: point(3.0, 4.0),
+            rotation: history.then_some(17.0),
+            side: history.then_some(Side::Back),
+        })
+        .collect()
+}
 
 fn point(x: f64, y: f64) -> Vec2 {
     Vec2 { x, y }
@@ -89,62 +104,83 @@ fn document(matrix: &Matrix) -> ProjectDoc {
     document
 }
 
+fn scene_cell(row: u32, column: u32, member: &str, at: Vec2) -> MatrixSceneCell {
+    MatrixSceneCell {
+        shift_frame: Default::default(),
+        offset_frame: Default::default(),
+        row_shift: Default::default(),
+        key_shift: Default::default(),
+        row_bend: 0.0,
+        key_bend: 0.0,
+        cumulative_shift: Default::default(),
+        cumulative_bend: 0.0,
+        row,
+        column,
+        enabled: true,
+        member_id: Some(member.into()),
+        pose: Pose2 { at, rotation: 0.0 },
+    }
+}
+
+fn column_basis(column: u32) -> MatrixColumnBasis {
+    MatrixColumnBasis {
+        base: Default::default(),
+        rotation: 0.0,
+        relative_origin: Default::default(),
+        spread_axis: None,
+        column,
+        splay_origin: point(0.0, 0.0),
+        splay_angle: 0.0,
+        custom_origin: false,
+        axis_x: point(1.0, 0.0),
+        axis_y: point(0.0, 1.0),
+        stagger_axis: point(0.0, 1.0),
+    }
+}
+
 fn scene() -> MatrixScene {
     MatrixScene {
         matrix_id: "m".into(),
         cells: (0..3)
-            .map(|column| MatrixSceneCell {
-                shift_frame: Default::default(),
-                offset_frame: Default::default(),
-                row_shift: Default::default(),
-                key_shift: Default::default(),
-                row_bend: 0.0,
-                key_bend: 0.0,
-                cumulative_shift: Default::default(),
-                cumulative_bend: 0.0,
-                row: 0,
-                column,
-                enabled: true,
-                member_id: Some(["a", "b", "c"][column as usize].into()),
-                pose: Pose2 {
-                    at: point(column as f64 * 19.0, 0.0),
-                    rotation: 0.0,
-                },
+            .map(|column| {
+                scene_cell(
+                    0,
+                    column,
+                    ["a", "b", "c"][column as usize],
+                    point(column as f64 * 19.0, 0.0),
+                )
             })
             .collect(),
-        columns: (0..3)
-            .map(|column| MatrixColumnBasis {
-                base: Default::default(),
-                rotation: 0.0,
-                relative_origin: Default::default(),
-                spread_axis: None,
-                column,
-                splay_origin: point(0.0, 0.0),
-                splay_angle: 0.0,
-                custom_origin: false,
-                axis_x: point(1.0, 0.0),
-                axis_y: point(0.0, 1.0),
-                stagger_axis: point(0.0, 1.0),
-            })
-            .collect(),
+        columns: (0..3).map(column_basis).collect(),
         companions: vec![],
     }
 }
 
-fn placements() -> Vec<KeycapPlacement> {
+fn placements_along(vertical: bool) -> Vec<KeycapPlacement> {
     ["a", "b", "c"]
         .into_iter()
         .enumerate()
-        .map(|(column, id)| KeycapPlacement {
-            id: id.into(),
-            matrix_id: "m".into(),
-            row: 0,
-            column: column as u32,
-            at: point(column as f64 * 19.0, 0.0),
-            rotation: 0.0,
-            size: point(18.0, 18.0),
+        .map(|(index, id)| {
+            let (row, column, at) = if vertical {
+                (index as u32, 0, point(0.0, index as f64 * 19.0))
+            } else {
+                (0, index as u32, point(index as f64 * 19.0, 0.0))
+            };
+            KeycapPlacement {
+                id: id.into(),
+                matrix_id: "m".into(),
+                row,
+                column,
+                at,
+                rotation: 0.0,
+                size: point(18.0, 18.0),
+            }
         })
         .collect()
+}
+
+fn placements() -> Vec<KeycapPlacement> {
+    placements_along(false)
 }
 
 fn overlap_placement(
@@ -412,16 +448,7 @@ fn tall_column_matrix(assemblies: bool) -> Matrix {
             offset: None,
             rotation: None,
             assemblies: if assemblies {
-                ["diode", "led"]
-                    .into_iter()
-                    .map(|id| boardstudio_model::model::MatrixAssembly {
-                        id: id.into(),
-                        definition_id: "switch".into(),
-                        offset: point(3.0, 4.0),
-                        rotation: None,
-                        side: None,
-                    })
-                    .collect()
+                assembly_parts(false)
             } else {
                 Vec::new()
             },
@@ -456,56 +483,22 @@ fn tall_column_scene() -> MatrixScene {
     MatrixScene {
         matrix_id: "m".into(),
         cells: (0..3)
-            .map(|row| MatrixSceneCell {
-                shift_frame: Default::default(),
-                offset_frame: Default::default(),
-                row_shift: Default::default(),
-                key_shift: Default::default(),
-                row_bend: 0.0,
-                key_bend: 0.0,
-                cumulative_shift: Default::default(),
-                cumulative_bend: 0.0,
-                row,
-                column: 0,
-                enabled: true,
-                member_id: Some(["a", "b", "c"][row as usize].into()),
-                pose: Pose2 {
-                    at: point(0.0, row as f64 * 19.0),
-                    rotation: 0.0,
-                },
+            .map(|row| {
+                scene_cell(
+                    row,
+                    0,
+                    ["a", "b", "c"][row as usize],
+                    point(0.0, row as f64 * 19.0),
+                )
             })
             .collect(),
-        columns: vec![MatrixColumnBasis {
-            base: Default::default(),
-            rotation: 0.0,
-            relative_origin: Default::default(),
-            spread_axis: None,
-            column: 0,
-            splay_origin: point(0.0, 0.0),
-            splay_angle: 0.0,
-            custom_origin: false,
-            axis_x: point(1.0, 0.0),
-            axis_y: point(0.0, 1.0),
-            stagger_axis: point(0.0, 1.0),
-        }],
+        columns: vec![column_basis(0)],
         companions: vec![],
     }
 }
 
 fn tall_column_placements() -> Vec<KeycapPlacement> {
-    ["a", "b", "c"]
-        .into_iter()
-        .enumerate()
-        .map(|(row, id)| KeycapPlacement {
-            id: id.into(),
-            matrix_id: "m".into(),
-            row: row as u32,
-            column: 0,
-            at: point(0.0, row as f64 * 19.0),
-            rotation: 0.0,
-            size: point(18.0, 18.0),
-        })
-        .collect()
+    placements_along(true)
 }
 
 #[test]
@@ -573,16 +566,7 @@ fn assembly_history_matrix(mirror: Option<Mirror>) -> Matrix {
     matrix.mirror = mirror;
     matrix.part_ids.clear();
     for cell in &mut matrix.cells {
-        cell.assemblies = ["diode", "led"]
-            .into_iter()
-            .map(|id| boardstudio_model::model::MatrixAssembly {
-                id: id.into(),
-                definition_id: "switch".into(),
-                offset: point(3.0, 4.0),
-                rotation: Some(17.0),
-                side: Some(Side::Back),
-            })
-            .collect();
+        cell.assemblies = assembly_parts(true);
     }
     matrix
 }
