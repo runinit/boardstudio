@@ -86,23 +86,36 @@ pub fn live_board_ids(model: &boardstudio_application::ReadModel) -> Vec<String>
         .collect()
 }
 
+pub use crate::tree::selection_context_is_current as context_is_current;
 pub fn eligible_live_ids(model: &boardstudio_application::ReadModel) -> Vec<String> {
     objects::eligible_live_ids(model)
 }
+pub use objects::resolve_selection as resolve_context;
 
-pub fn context_is_current(
-    model: &boardstudio_application::ReadModel,
-    scope: &Scope,
-    context: &TreeContext,
-) -> bool {
-    crate::tree::selection_context_is_current(model, scope, context)
+/// Narrow resolved ids to the model's eligible live ids.
+fn narrow_to_eligible(eligible: &[String], ids: Vec<String>) -> Vec<String> {
+    ids.into_iter().filter(|id| eligible.contains(id)).collect()
 }
 
-pub fn resolve_context(
-    model: &boardstudio_application::ReadModel,
-    context: &TreeContext,
-) -> Option<Vec<String>> {
-    objects::resolve_selection(model, context)
+/// After a submit, the first selected id owns the range anchor when the scope
+/// still matches and that id is itself eligible.
+fn anchor_to_first_selection(
+    runtime: &Rc<Runtime>,
+    adapter: &SelectionAdapter,
+    scope: &Scope,
+    ids: &[String],
+) {
+    if ids.is_empty() || runtime.scope().as_ref() != Some(scope) {
+        return;
+    }
+    let current = runtime.model();
+    let anchor = current.selection_anchor_id.as_ref();
+    if anchor == ids.first()
+        && anchor.is_some_and(|anchor| eligible_live_ids(&current).iter().any(|id| id == anchor))
+    {
+        let mut anchor_scope = adapter.anchor_scope;
+        anchor_scope.set(Some(scope.clone()));
+    }
 }
 
 /// A tree-context selection: the part of a tree select request that selection reads.
@@ -163,11 +176,7 @@ pub fn submit_context(runtime: &Rc<Runtime>, adapter: &SelectionAdapter, request
             return;
         }
     }
-    let eligible: Vec<_> = eligible_live_ids(&model);
-    let ids: Vec<_> = ids
-        .into_iter()
-        .filter(|id| eligible.iter().any(|candidate| candidate == id))
-        .collect();
+    let ids = narrow_to_eligible(&eligible_live_ids(&model), ids);
     let mut selected_context = adapter.selected_context;
     selected_context.set(Some(ScopedTreeContext {
         scope: request.scope.clone(),
@@ -185,17 +194,7 @@ pub fn submit_context(runtime: &Rc<Runtime>, adapter: &SelectionAdapter, request
             request.mode
         },
     });
-    if !ids.is_empty() && runtime.scope().as_ref() == Some(&request.scope) {
-        let current = runtime.model();
-        if current.selection_anchor_id.as_ref() == ids.first()
-            && current
-                .selection_anchor_id
-                .as_ref()
-                .is_some_and(|anchor| eligible_live_ids(&current).iter().any(|id| id == anchor))
-        {
-            anchor_scope.set(Some(request.scope));
-        }
-    }
+    anchor_to_first_selection(runtime, adapter, &request.scope, &ids);
 }
 
 pub fn submit_canvas_selection(
@@ -215,14 +214,8 @@ pub fn submit_canvas_selection(
         return None;
     }
     let eligible = eligible_live_ids(&model);
-    let ids: Vec<_> = objects::resolve_selection(&model, &context)?
-        .into_iter()
-        .filter(|id| eligible.iter().any(|candidate| candidate == id))
-        .collect();
-    let range_ids: Vec<_> = range_ids
-        .into_iter()
-        .filter(|id| eligible.iter().any(|candidate| candidate == id))
-        .collect();
+    let ids = narrow_to_eligible(&eligible, objects::resolve_selection(&model, &context)?);
+    let range_ids = narrow_to_eligible(&eligible, range_ids);
     let invalid_range_anchor = mode == SelectionMode::Range
         && ((adapter.anchor_scope)().as_ref() != Some(scope)
             || model
@@ -254,15 +247,7 @@ pub fn submit_canvas_selection(
         },
         mode: effective_mode,
     });
-    if !ids.is_empty() && runtime.scope().as_ref() == Some(scope) {
-        let current = runtime.model();
-        if current.selection_anchor_id.as_ref().is_some_and(|anchor| {
-            current.selection_anchor_id.as_ref() == ids.first()
-                && eligible_live_ids(&current).iter().any(|id| id == anchor)
-        }) {
-            anchor_scope.set(Some(scope.clone()));
-        }
-    }
+    anchor_to_first_selection(runtime, adapter, scope, &ids);
     Some(ids)
 }
 
@@ -462,12 +447,7 @@ pub fn owns_session_gesture(runtime: &Rc<Runtime>, drag: &crate::state::Drag) ->
 }
 
 /// The accepted project, board and instance are still the ones `scope` names.
-pub fn active_board_scope_matches(
-    model: &boardstudio_application::ReadModel,
-    scope: &Scope,
-) -> bool {
-    crate::tree::active_board_scope_matches(model, scope)
-}
+pub use crate::tree::active_board_scope_matches;
 
 pub fn current_layout_owner(
     runtime: &Runtime,

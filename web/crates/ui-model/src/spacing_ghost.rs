@@ -194,13 +194,10 @@ pub fn advance_spacing_ghost(
             ghost: None,
         };
     }
-    let change = seen
-        .filter(|seen| seen.document.id == current.document.id)
-        .and_then(|seen| spacing_change(&seen.document, &current.document));
+    let prior = seen.filter(|seen| seen.document.id == current.document.id);
+    let change = prior.and_then(|prior| spacing_change(&prior.document, &current.document));
     let ghost = change.and_then(|change| {
-        let scene = seen
-            .filter(|seen| seen.document.id == current.document.id)
-            .map(|seen| seen.scene.clone())?;
+        let scene = prior.map(|prior| prior.scene.clone())?;
         Some(SpacingGhostState {
             scene,
             delta_mm: change.delta_mm,
@@ -405,6 +402,21 @@ mod tests {
         }
     }
 
+    /// A settled ghost born from `current`, paired with its seen snapshot.
+    fn settled(current: &AcceptedView, delta_mm: f64) -> (SeenAccepted, SpacingGhostState) {
+        (
+            seen_of(current),
+            SpacingGhostState {
+                scene: current.scene.clone(),
+                delta_mm,
+                axis_x: 0.0,
+                revision: current.revision,
+                selected_ids: vec![],
+                selected_context: None,
+            },
+        )
+    }
+
     #[test]
     fn first_paint_records_seen_without_ghost() {
         let current = view(
@@ -478,15 +490,7 @@ mod tests {
             "edit-1",
             &[],
         );
-        let seen = seen_of(&before);
-        let ghost = SpacingGhostState {
-            scene: before.scene.clone(),
-            delta_mm: 10.0,
-            axis_x: 0.0,
-            revision: 2,
-            selected_ids: vec![],
-            selected_context: None,
-        };
+        let (seen, ghost) = settled(&before, 10.0);
         // Same spacing, moved matrix origin: the document differs, the ghost ends.
         let mut moved = (*before.document).clone();
         moved.matrices.push(
@@ -516,15 +520,7 @@ mod tests {
             "edit-1",
             &[],
         );
-        let seen = seen_of(&before);
-        let ghost = SpacingGhostState {
-            scene: before.scene.clone(),
-            delta_mm: 10.0,
-            axis_x: 0.0,
-            revision: 2,
-            selected_ids: vec![],
-            selected_context: None,
-        };
+        let (seen, ghost) = settled(&before, 10.0);
         // Same content under a fresh transaction: nothing edited, nothing retires.
         let after = view((*before.document).clone(), 2, "edit-2", &[]);
         assert_eq!(
@@ -541,15 +537,7 @@ mod tests {
             "edit-1",
             &[],
         );
-        let seen = seen_of(&before);
-        let ghost = SpacingGhostState {
-            scene: before.scene.clone(),
-            delta_mm: 10.0,
-            axis_x: 0.0,
-            revision: 2,
-            selected_ids: vec![],
-            selected_context: None,
-        };
+        let (seen, ghost) = settled(&before, 10.0);
         for transaction in ["undo", "redo"] {
             let restored = view(
                 document("board", vec![link(0.0, Some(40.0), Some(40.0))]),
@@ -637,15 +625,7 @@ mod tests {
             "edit-1",
             &[],
         );
-        let seen = seen_of(&before);
-        let ghost = SpacingGhostState {
-            scene: before.scene.clone(),
-            delta_mm: 10.0,
-            axis_x: 0.0,
-            revision: 2,
-            selected_ids: vec![],
-            selected_context: None,
-        };
+        let (seen, ghost) = settled(&before, 10.0);
         let opened = view(
             document("other", vec![link(0.0, Some(40.0), Some(60.0))]),
             1,
