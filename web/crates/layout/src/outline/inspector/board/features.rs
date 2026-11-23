@@ -126,42 +126,34 @@ pub(super) fn manual_features(projection: &OutlineInspectorProjection) -> Elemen
                         value: size.x,
                         minimum: 0.001,
                         editable: enabled,
-                        on_commit: {
-                            let action_context = action_context.clone();
-                            let before = feature.clone();
-                            let version_id = active_version.clone();
-                            move |value| {
-                                let mut after = before.clone();
-                                if let OutlineFeature::Rect { size, .. } = &mut after {
+                        on_commit: commit_feature_edit(
+                            action_context.clone(),
+                            on_action,
+                            feature.clone(),
+                            active_version.clone(),
+                            |after, value| {
+                                if let OutlineFeature::Rect { size, .. } = after {
                                     size.x = value;
                                 }
-                                on_action
-                                    .call(
-                                        action_context.set_feature(version_id.clone(), before.clone(), after),
-                                    );
-                            }
-                        },
+                            },
+                        ),
                     }
                     OutlineDimension {
                         label: "Rectangle height",
                         value: size.y,
                         minimum: 0.001,
                         editable: enabled,
-                        on_commit: {
-                            let action_context = action_context.clone();
-                            let before = feature.clone();
-                            let version_id = active_version.clone();
-                            move |value| {
-                                let mut after = before.clone();
-                                if let OutlineFeature::Rect { size, .. } = &mut after {
+                        on_commit: commit_feature_edit(
+                            action_context.clone(),
+                            on_action,
+                            feature.clone(),
+                            active_version.clone(),
+                            |after, value| {
+                                if let OutlineFeature::Rect { size, .. } = after {
                                     size.y = value;
                                 }
-                                on_action
-                                    .call(
-                                        action_context.set_feature(version_id.clone(), before.clone(), after),
-                                    );
-                            }
-                        },
+                            },
+                        ),
                     }
                     if let OutlineFeature::Rect { radius, .. } = feature {
                         OutlineDimension {
@@ -169,21 +161,17 @@ pub(super) fn manual_features(projection: &OutlineInspectorProjection) -> Elemen
                             value: *radius,
                             minimum: 0.0,
                             editable: enabled,
-                            on_commit: {
-                                let action_context = action_context.clone();
-                                let before = feature.clone();
-                                let version_id = active_version.clone();
-                                move |value| {
-                                    let mut after = before.clone();
-                                    if let OutlineFeature::Rect { radius, .. } = &mut after {
+                            on_commit: commit_feature_edit(
+                                action_context.clone(),
+                                on_action,
+                                feature.clone(),
+                                active_version.clone(),
+                                |after, value| {
+                                    if let OutlineFeature::Rect { radius, .. } = after {
                                         *radius = value;
                                     }
-                                    on_action
-                                        .call(
-                                            action_context.set_feature(version_id.clone(), before.clone(), after),
-                                        );
-                                }
-                            },
+                                },
+                            ),
                         }
                     }
                 }

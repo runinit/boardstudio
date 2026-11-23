@@ -324,14 +324,7 @@ pub fn ProjectSetupGuide(
         onmounted: move |event| {
             guide_root.set(event.data().downcast::<web_sys::Element>().cloned());
         },
-        onkeydown: move |event: KeyboardEvent| {
-            if event.key().to_string() == " " {
-                event.stop_propagation();
-                if let Some(raw) = event.data().try_as_web_event() {
-                    raw.stop_propagation();
-                }
-            }
-        },
+        onkeydown: crate::objects::stop_space_pan,
             header { class: "flex items-start justify-between gap-2 [&_h2]:text-[18px]! [&_p]:mt-1 [&_p]:text-muted-foreground",
                 div {
                     h2 {

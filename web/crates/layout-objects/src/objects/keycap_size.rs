@@ -6,7 +6,6 @@ use boardstudio_web_ui_shared::inspector_fields::{SelectField, ToggleField};
 use boardstudio_web_ui_shared::ui::field::FieldError;
 
 use dioxus::prelude::*;
-use dioxus_web::WebEventExt;
 use std::cell::{Cell, RefCell};
 
 #[derive(Clone)]
@@ -158,14 +157,7 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
 
     rsx! {
         section { class: "grid min-w-0 gap-2.5 border-b border-border p-0 text-foreground", aria_label: "Key size",
-        onkeydown: move |event: KeyboardEvent| {
-            if event.key().to_string() == " " {
-                event.stop_propagation();
-                if let Some(raw) = event.data().try_as_web_event() {
-                    raw.stop_propagation();
-                }
-            }
-        },
+        onkeydown: super::stop_space_pan,
             {
                 let units = draft();
                 let scale = 80.0 / units.y.max(units.x / 2.0).max(1.0);

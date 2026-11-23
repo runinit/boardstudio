@@ -384,15 +384,7 @@ pub fn Objects(
     let selection_count = model.selected_part_ids.len();
     rsx! {
                 aside { class: "relative flex min-h-0 min-w-0 flex-1 flex-col bg-card [&>header]:hidden", "aria-label": "Objects",
-                    onkeydown: move |event: KeyboardEvent| {
-                        if event.key() == Key::Character(" ".to_owned()) {
-                            // These dock controls keep native Space activation instead of starting canvas pan.
-                            event.stop_propagation();
-                            if let Some(raw) = event.data().try_as_web_event() {
-                                raw.stop_propagation();
-                            }
-                        }
-                    },
+                    onkeydown: stop_space_pan,
                     header {
                         h2 { "Objects" }
                     }
@@ -917,6 +909,17 @@ fn AddMenuEntry(
                     small { "{hint}" }
                 }
             }
+        }
+    }
+}
+
+/// Keep Space activation on controls from starting canvas pan: native control
+/// activation must not become the canvas's Space-pan shortcut.
+pub fn stop_space_pan(event: KeyboardEvent) {
+    if event.key().to_string() == " " {
+        event.stop_propagation();
+        if let Some(raw) = event.data().try_as_web_event() {
+            raw.stop_propagation();
         }
     }
 }

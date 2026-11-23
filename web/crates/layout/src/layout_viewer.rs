@@ -18,7 +18,6 @@ use boardstudio_web_ui_shared::ui::{
 };
 
 use dioxus::prelude::*;
-use dioxus_web::WebEventExt;
 use std::{cell::Cell, rc::Rc};
 #[cfg(test)]
 use std::{future::Future, pin::Pin};
@@ -89,14 +88,7 @@ fn KeycapStatus(props: KeycapStatusProps) -> Element {
             Button {
                 variant: ButtonVariant::Secondary,
                 button_type: "button",
-                onkeydown: move |event: KeyboardEvent| {
-                    if event.key().to_string() == " " {
-                        event.stop_propagation();
-                        if let Some(raw) = event.data().try_as_web_event() {
-                            raw.stop_propagation();
-                        }
-                    }
-                },
+                onkeydown: crate::objects::stop_space_pan,
                 onclick: move |_| props.on_retry.call(()),
                 "Retry keycaps"
             }
