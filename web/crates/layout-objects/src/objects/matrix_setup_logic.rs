@@ -93,6 +93,7 @@ pub(super) fn create_matrix_resolver(
     })
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 mod tests {
     use super::*;

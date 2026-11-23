@@ -35,8 +35,10 @@ pub mod objects;
 
 // `matrix_source` and the Matrix Setup owner run against the real Session/CoreEngine in native
 // lifecycle tests; the catalogue operation and the headless test Runtime back them.
+#[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 pub(crate) use boardstudio_web_catalogue::matrix_setup_operation;
+#[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 pub(crate) use boardstudio_web_runtime::runtime;
 

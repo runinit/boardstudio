@@ -1,6 +1,8 @@
 //! Editor-lifetime owner for Matrix Setup preparation, submission, and exact acknowledgement.
+#[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 use self::native_detached::spawn_local;
+#[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 use self::native_setup_types::{
     MatrixSetupCreateRequest, MatrixSetupMount, MatrixSetupOwner, MatrixSetupProjection,
@@ -25,6 +27,7 @@ use wasm_bindgen_futures::spawn_local;
 
 /// Mounted-owner lifecycle types for native tests. The wasm presentation module owns these
 /// shapes in production; this mirror keeps the hook's native compilation free of DOM imports.
+#[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 pub(crate) mod native_setup_types {
     use boardstudio_application::{Scope, SnapshotToken};
@@ -71,6 +74,7 @@ pub(crate) mod native_setup_types {
 }
 
 /// Detached-task queue for native lifecycle tests, mirroring the browser microtask queue.
+#[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 mod native_detached {
     use std::{
@@ -514,6 +518,7 @@ fn settle_pending(
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 mod native_tests {
     //! Mounted Matrix Setup owner lifecycle with deterministic detached async ports. Template

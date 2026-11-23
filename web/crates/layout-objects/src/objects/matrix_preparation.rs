@@ -7,7 +7,8 @@ use boardstudio_application::{AcceptedSnapshot, Durability, Lifecycle, ReadModel
 use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
 use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
-#[cfg(all(not(target_arch = "wasm32"), test))]
+#[cfg(not(target_arch = "wasm32"))]
+#[cfg(test)]
 use std::cell::RefCell;
 
 #[derive(Clone)]
@@ -28,7 +29,8 @@ impl<Owner: Clone + 'static> PendingSettlement<Owner> {
     }
 }
 
-#[cfg(all(not(target_arch = "wasm32"), test))]
+#[cfg(not(target_arch = "wasm32"))]
+#[cfg(test)]
 thread_local! {
     static TEMPLATE_REPLY: RefCell<Option<Result<Vec<boardstudio_model::model::PartDefinition>, String>>> =
         const { RefCell::new(None) };
@@ -37,7 +39,8 @@ thread_local! {
 /// Stage the next template reply for native lifecycle tests. Until a reply is staged,
 /// preparation stays pending across detached polls so tests can interleave editor unmounts
 /// and accepted-revision changes while normalization is in flight.
-#[cfg(all(not(target_arch = "wasm32"), test))]
+#[cfg(not(target_arch = "wasm32"))]
+#[cfg(test)]
 pub(super) fn stage_test_templates(
     reply: Result<Vec<boardstudio_model::model::PartDefinition>, String>,
 ) {
@@ -45,7 +48,8 @@ pub(super) fn stage_test_templates(
 }
 
 /// Drop any staged template reply without completing preparation.
-#[cfg(all(not(target_arch = "wasm32"), test))]
+#[cfg(not(target_arch = "wasm32"))]
+#[cfg(test)]
 pub(super) fn clear_test_templates() {
     TEMPLATE_REPLY.with_borrow_mut(|slot| *slot = None);
 }
@@ -60,7 +64,8 @@ async fn normalize_prepared_definition(
 /// Native lifecycle tests exercise controller admission and settlement, not generator
 /// normalization, so prepared definitions pass through unstamped like the retired browser
 /// harness's port.
-#[cfg(all(not(target_arch = "wasm32"), test))]
+#[cfg(not(target_arch = "wasm32"))]
+#[cfg(test)]
 async fn normalize_prepared_definition(
     definition: boardstudio_model::model::PartDefinition,
 ) -> Result<boardstudio_model::model::PartDefinition, String> {
@@ -76,7 +81,8 @@ pub(super) async fn prepare_matrix_definitions(
 ) -> Result<Option<PreparedMatrix>, String> {
     #[cfg(target_arch = "wasm32")]
     let templates = parts::load_matrix_templates(reversible).await?;
-    #[cfg(all(not(target_arch = "wasm32"), test))]
+    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(test)]
     let templates = {
         std::future::poll_fn(|_| {
             TEMPLATE_REPLY.with_borrow_mut(|reply| {
@@ -148,7 +154,8 @@ pub(super) fn matrix_source<'a>(
     Some((snapshot, scope.clone(), scope.board_id))
 }
 
-#[cfg(all(not(target_arch = "wasm32"), test))]
+#[cfg(not(target_arch = "wasm32"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use boardstudio_application::Event;

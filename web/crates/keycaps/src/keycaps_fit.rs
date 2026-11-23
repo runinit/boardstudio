@@ -931,6 +931,7 @@ mod tests {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 mod lifecycle_tests {
     //! Mounted hook invariants: the production hook with a deterministic request port. Browser
