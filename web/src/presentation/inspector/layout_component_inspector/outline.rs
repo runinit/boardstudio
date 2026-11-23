@@ -25,7 +25,7 @@ pub(super) fn outline_controls(
             badge: if projection.outline.excluded { "Excluded" } else { "Included" },
             open: outline_section_open(),
             on_open_change: move |next| outline_section_open.set(next),
-            fieldset { disabled: projection.locked,
+            fieldset { class: "grid min-w-0 gap-[9px] border-0 px-0 pt-0 pb-3", disabled: projection.locked,
                 CheckboxField {
                     inline: true,
                     label: "Include in outline",

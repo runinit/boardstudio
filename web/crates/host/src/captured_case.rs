@@ -317,7 +317,7 @@ fn effective_case_inputs(
                 .flat_map(|hardware| &hardware.instances);
             let instance = single(
                 hardware.filter(|instance| instance.id == *instance_id),
-                "selected physical board instance is unavailable",
+                "selected physical board instance is missing or ambiguous",
             )?;
             if instance.board_id != scope.board_id {
                 return Err(CadJobError::Stale(

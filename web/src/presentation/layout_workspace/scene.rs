@@ -763,7 +763,7 @@ pub(in crate::presentation) fn use_canvas_selection_state(
     let version = editor.version;
     let runtime = editor.runtime();
     // A spacing commit shows the previous accepted scene until another edit,
-    // undo/redo, or selection change. The tracker only writes view state.
+    // undo/redo, selection change, or workspace switch. The tracker only writes view state.
     let mut last_spacing_seen = use_signal(|| None::<spacing_ghost::SeenAccepted>);
     let mut spacing_ghost_state = use_signal(|| None::<spacing_ghost::SpacingGhostState>);
     let ghost_effect_runtime = runtime.clone();

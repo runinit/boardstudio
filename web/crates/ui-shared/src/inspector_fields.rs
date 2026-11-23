@@ -295,7 +295,7 @@ pub fn InspectorSection(
             keep_mounted: true, open: Some(is_open),
             on_open_change: move |next| { local_open.set(next); if let Some(h) = on_open_change { h.call(next); } },
             div { class: "flex items-center justify-between gap-2",
-                CollapsibleTrigger { class: "flex-1 justify-start {TOUCH_CLS}",
+                CollapsibleTrigger { class: "flex-1 justify-start {TOUCH_CLS}", aria_label: "{title}",
                     span { "{title}" }
                     if let Some(badge) = badge { Badge { variant: BadgeVariant::Secondary, "{badge}" } }
                 }
@@ -303,7 +303,7 @@ pub fn InspectorSection(
                     Button { variant: ButtonVariant::Ghost, size: ButtonSize::Sm, onclick: move |_| reset.call(()), "Reset" }
                 }
             }
-            CollapsibleContent { class: "data-[open=false]:hidden", FieldGroup { {children} } }
+            CollapsibleContent { class: "data-[open=false]:hidden data-[open=true]:overflow-visible", FieldGroup { {children} } }
         }
     }
 }

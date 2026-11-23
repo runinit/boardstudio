@@ -925,11 +925,15 @@ pub(in crate::presentation) fn use_layout_bundle(
         .boards
         .iter()
         .find(|board| board.id == frame.model.active_board_id);
+    let board_part_ids: std::collections::HashSet<&str> = board
+        .into_iter()
+        .flat_map(|board| board.part_ids.iter().map(String::as_str))
+        .collect();
     let visible: Vec<_> = frame
         .document
         .parts
         .iter()
-        .filter(|part| board.is_some_and(|board| board.part_ids.contains(&part.id)))
+        .filter(|part| board_part_ids.contains(part.id.as_str()))
         .collect();
     let anchor = (!layout_state.assembly_3d()()).then(|| {
         scene::selection_geometry_anchor(
