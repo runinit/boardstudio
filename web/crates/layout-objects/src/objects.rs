@@ -344,12 +344,7 @@ pub fn Objects(
         ))
     });
     let selected_layout_target = selected_matrix_id.and_then(|matrix_id| {
-        document
-            .layouts
-            .iter()
-            .find(|layout| {
-                layout.board_id == board_id && layout.matrix_ids.iter().any(|id| *id == matrix_id)
-            })
+        mirror_links::layout_for_matrix(&document.layouts, &board_id, matrix_id)
             .map(|layout| layout.id.clone())
     });
     let layout_target_for_effect = layout_target;
