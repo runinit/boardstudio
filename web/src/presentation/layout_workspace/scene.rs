@@ -25,9 +25,7 @@ pub(in crate::presentation) fn use_layout_canvas(
 ) -> Element {
     let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
     let layout_state = use_context::<layout_workspace::LayoutWorkspaceState>();
-    let interaction = use_context::<workspace_composition::WorkspaceInteraction>();
     let keycaps = use_context::<keycaps_workspace::KeycapsWorkspaceState>();
-    let adapter = use_context::<SelectionAdapter>();
     let layout_assembly_3d = layout_state.assembly_3d();
     let focused_keycaps_finding = keycaps.focused_finding();
     if layout_assembly_3d() {
@@ -46,27 +44,14 @@ pub(in crate::presentation) fn use_layout_canvas(
     } = extras;
     let canvas_aria_label = canvas.inspector.canvas_aria_label;
     let canvas_grid = &overlay.canvas_grid;
-    let outline_inspector = &services.outline_inspector;
-    let outline_overlay_key = &overlay.outline_overlay_key;
-    let outline_snap_settings = &overlay.outline_snap_settings;
-    let outline_pitch = overlay.outline_pitch;
-    let outline_snap_origins = &overlay.outline_snap_origins;
     let selected_bridge = bridge.as_ref();
-    let matrix_placement = &services.matrix_placement;
-    let mirrored_pair = &services.mirrored_pair;
     let split_focused_half = focused_half;
     let spacing_ghost_prop = canvas.selection.spacing_ghost_prop.clone();
     let selected_tree_context = &canvas.selection.selected_tree_context;
     let canvas_anchor_badge = canvas.selection.canvas_anchor_badge.clone();
     let matrix_pointer_down = pointer.matrix_pointer_down;
     let part_pointer_down = pointer.part_pointer_down;
-    let selection_geometry_anchor = anchor;
     let canvas_transform_menu = Some(transform_menu.clone());
-    let matrix_transform_inspector = services.matrix_transform_inspector.clone();
-    let drag = interaction.navigation.drag_interaction();
-    let layout_transform_target = canvas.selection.layout_transform_target.clone();
-    let part_rail_selection = canvas.selection.part_rail_selection.clone();
-    let part_rail_snap = canvas.selection.part_rail_snap;
     let workspace_composition::CanvasEventHandlers {
         mount,
         start_pan,
@@ -82,24 +67,11 @@ pub(in crate::presentation) fn use_layout_canvas(
     let (view_x, view_y, width, height) =
         (camera.view_x, camera.view_y, camera.width, camera.height);
     let layer_visibility = &editor.layers;
-    let scene = frame.scene.as_ref();
     let model = frame.model.as_ref();
-    let runtime = editor.runtime();
-    let canvas_interaction = interaction.arbiter;
-    let svg = &frame.svg;
     let canvas_source = camera.canvas_source.clone();
     let zoom_surface_size = frame.surface_size;
-    let layout_owner = &frame.owner;
-    let render_scope = &frame.scope;
-    let workspace = editor.workspace;
-    let layout_transform_tool = layout_state.transform_tool();
-    let layout_snap_settings = layout_state.snap_settings();
-    let matrix_splay_affect = layout_state.splay_affect();
     let part_placement = &frame.part_placement;
-    let document = &frame.document;
-    let split_focus = layout_state.split_focus();
     let snapshot = &frame.snapshot;
-    let active_workspace = Workspace::Layout;
     rsx! {
         svg { class: "mt-[76px] block h-[calc(100%-120px)] min-h-0 w-full touch-none bg-canvas max-[760px]:mt-0 max-[760px]:h-full", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "{canvas_aria_label}", onmounted: mount,
         onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer, onlostpointercapture: cancel_pointer, onkeydown: keyboard, onkeyup: key_up, onwheel: wheel,
@@ -110,25 +82,8 @@ pub(in crate::presentation) fn use_layout_canvas(
         }
         rect { x: "{view_x}", y: "{view_y}", width: "{width}", height: "{height}", fill: "url(#m1-layout-grid-small)" }
         g { transform: "scale(1,-1)",
-            {scene_boards(SceneBoardsInput {
-                layer_visibility,
-                scene,
-                model,
-                outline_inspector,
-                outline_overlay_key,
-                runtime: runtime.clone(),
-                canvas_interaction: canvas_interaction.clone(),
-                svg: svg.clone(),
-                view_x,
-                view_y,
-                width,
-                height,
-                outline_snap_settings,
-                outline_pitch,
-                outline_snap_origins,
-                selected_bridge,
-            })}
-            {scene_placement_previews(layer_visibility, matrix_placement, mirrored_pair)}
+            {scene_boards(frame, overlay, selected_bridge)}
+            {scene_placement_previews(layer_visibility, &services.matrix_placement, &services.mirrored_pair)}
             layout_canvas::Scene {
                 source: canvas_source,
                 focused_half: split_focused_half,
@@ -151,124 +106,37 @@ pub(in crate::presentation) fn use_layout_canvas(
                 on_matrix_pointer_down: matrix_pointer_down,
                 on_part_pointer_down: part_pointer_down,
             }
-            {selection_anchor(SelectionAnchorInput {
-                selection_geometry_anchor,
-                canvas_transform_menu: canvas_transform_menu.clone(),
-                matrix_transform_inspector: matrix_transform_inspector.clone(),
-                selected_tree_context,
-                runtime: runtime.clone(),
-                svg: svg.clone(),
-                drag: drag.clone(),
-                layout_owner: layout_owner.clone(),
-                adapter: adapter.clone(),
-                canvas_interaction: canvas_interaction.clone(),
-                render_scope: render_scope.clone(),
-                workspace,
-                view_x,
-                view_y,
-                width,
-                height,
-            })}
-            {transform_overlays(TransformOverlaysInput {
-                active_workspace,
-                layout_assembly_3d,
-                layout_transform_target: layout_transform_target.clone(),
-                layout_transform_tool,
-                layout_state,
-                runtime: runtime.clone(),
-                svg: svg.clone(),
-                canvas_interaction: canvas_interaction.clone(),
-                zoom_surface_size,
-                layout_snap_settings,
-                outline_snap_origins,
-                matrix_splay_affect,
-                view_x,
-                view_y,
-                width,
-                height,
-            })}
-            {part_rail(PartRailInput {
-                active_workspace,
-                layout_assembly_3d,
-                part_rail_selection: part_rail_selection.clone(),
-                selected_tree_context,
-                part_rail_snap,
-                layout_transform_tool,
-                layout_state,
-                runtime: runtime.clone(),
-                svg: svg.clone(),
-                canvas_interaction: canvas_interaction.clone(),
-                zoom_surface_size,
-                document: document.clone(),
-                split_focus,
-                view_x,
-                view_y,
-                width,
-                height,
-            })}
+            {selection_anchor(frame, &canvas.selection, anchor, canvas_transform_menu)}
+            {transform_overlays(frame, &canvas.selection, overlay)}
+            {part_rail(frame, &canvas.selection)}
             {placement_preview(part_placement, width, zoom_surface_size)}
-            {finding_marker_draft(MarkerDraftInput {
-                active_workspace,
-                render_scope: render_scope.clone(),
-                snapshot,
-                model,
-                focused_keycaps_finding,
-                outline_inspector,
-                outline_overlay_key,
-                runtime: runtime.clone(),
-                canvas_interaction: canvas_interaction.clone(),
-                svg: svg.clone(),
-                view_x,
-                view_y,
-                width,
-                height,
-                outline_snap_settings,
-                outline_pitch,
-                outline_snap_origins,
-            })}
+            {finding_marker_draft(frame, overlay)}
         }
         }
     }
 }
 
-pub(in crate::presentation) struct SceneBoardsInput<'a> {
-    pub layer_visibility: &'a LayerVisibility,
-    pub scene: &'a boardstudio_core::model::SceneDelta,
-    pub model: &'a ReadModel,
-    pub outline_inspector: &'a Option<outline_lifecycle::OutlineInspectorProjection>,
-    pub outline_overlay_key: &'a Option<String>,
-    pub runtime: Rc<Runtime>,
-    pub canvas_interaction: CanvasInteractionArbiter,
-    pub svg: Rc<RefCell<Option<SvgElement>>>,
-    pub view_x: f64,
-    pub view_y: f64,
-    pub width: f64,
-    pub height: f64,
-    pub outline_snap_settings: &'a objects::LayoutSnapSettings,
-    pub outline_pitch: Vec2,
-    pub outline_snap_origins: &'a Rc<Vec<outline_snapping::Origin>>,
-    pub selected_bridge: Option<&'a boardstudio_core::model::OutlineBridge>,
-}
-
-pub(in crate::presentation) fn scene_boards(input: SceneBoardsInput<'_>) -> Element {
-    let SceneBoardsInput {
-        layer_visibility,
-        scene,
-        model,
-        outline_inspector,
-        outline_overlay_key,
-        runtime,
-        canvas_interaction,
-        svg,
-        view_x,
-        view_y,
-        width,
-        height,
-        outline_snap_settings,
-        outline_pitch,
-        outline_snap_origins,
-        selected_bridge,
-    } = input;
+pub(in crate::presentation) fn scene_boards(
+    frame: &workspace_composition::WorkspaceFrame,
+    overlay: &OutlineOverlay,
+    selected_bridge: Option<&boardstudio_core::model::OutlineBridge>,
+) -> Element {
+    let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
+    let interaction = use_context::<workspace_composition::WorkspaceInteraction>();
+    let layer_visibility = &editor.layers;
+    let scene = frame.scene.as_ref();
+    let model = frame.model.as_ref();
+    let outline_inspector = &frame.layout_services().outline_inspector;
+    let outline_overlay_key = &overlay.outline_overlay_key;
+    let outline_snap_settings = &overlay.outline_snap_settings;
+    let outline_pitch = overlay.outline_pitch;
+    let outline_snap_origins = &overlay.outline_snap_origins;
+    let runtime = editor.runtime();
+    let canvas_interaction = interaction.arbiter;
+    let svg = frame.svg.clone();
+    let camera = &frame.camera;
+    let (view_x, view_y, width, height) =
+        (camera.view_x, camera.view_y, camera.width, camera.height);
     rsx! {
         if !(layer_visibility.hidden)().contains("Board") {
             for contour in scene.board_contours.iter().filter(|b| b.board_id == model.active_board_id).flat_map(|b| &b.contours) {
@@ -350,44 +218,27 @@ pub(in crate::presentation) fn scene_placement_previews(
     }
 }
 
-pub(in crate::presentation) struct SelectionAnchorInput<'a> {
-    pub selection_geometry_anchor: Option<(f64, f64, f64)>,
-    pub canvas_transform_menu: Option<objects::LayoutTransformMenuMount>,
-    pub matrix_transform_inspector: objects::MatrixTransformInspectorMount,
-    pub selected_tree_context: &'a Option<objects::ScopedTreeContext>,
-    pub runtime: Rc<Runtime>,
-    pub svg: Rc<RefCell<Option<SvgElement>>>,
-    pub drag: Rc<RefCell<Option<Drag>>>,
-    pub layout_owner: LayoutOwnerIdentity,
-    pub adapter: SelectionAdapter,
-    pub canvas_interaction: CanvasInteractionArbiter,
-    pub render_scope: Scope,
-    pub workspace: Signal<Workspace>,
-    pub view_x: f64,
-    pub view_y: f64,
-    pub width: f64,
-    pub height: f64,
-}
-
-pub(in crate::presentation) fn selection_anchor(input: SelectionAnchorInput<'_>) -> Element {
-    let SelectionAnchorInput {
-        selection_geometry_anchor,
-        canvas_transform_menu,
-        matrix_transform_inspector,
-        selected_tree_context,
-        runtime,
-        svg,
-        drag,
-        layout_owner,
-        adapter,
-        canvas_interaction,
-        render_scope,
-        workspace,
-        view_x,
-        view_y,
-        width,
-        height,
-    } = input;
+pub(in crate::presentation) fn selection_anchor(
+    frame: &workspace_composition::WorkspaceFrame,
+    selection: &CanvasSelectionState,
+    selection_geometry_anchor: Option<(f64, f64, f64)>,
+    canvas_transform_menu: Option<objects::LayoutTransformMenuMount>,
+) -> Element {
+    let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
+    let adapter = use_context::<SelectionAdapter>();
+    let interaction = use_context::<workspace_composition::WorkspaceInteraction>();
+    let matrix_transform_inspector = frame.layout_services().matrix_transform_inspector.clone();
+    let selected_tree_context = &selection.selected_tree_context;
+    let runtime = editor.runtime();
+    let svg = frame.svg.clone();
+    let drag = interaction.navigation.drag_interaction();
+    let layout_owner = frame.owner.clone();
+    let canvas_interaction = interaction.arbiter;
+    let render_scope = frame.scope.clone();
+    let workspace = editor.workspace;
+    let camera = &frame.camera;
+    let (view_x, view_y, width, height) =
+        (camera.view_x, camera.view_y, camera.width, camera.height);
     rsx! {
         if let Some((x, y, scale)) = selection_geometry_anchor
             && let Some(tools) = canvas_transform_menu.clone()
@@ -512,51 +363,29 @@ pub(in crate::presentation) fn render_rail_with_anchor_pick(input: RailPairInput
     }
 }
 
-pub(in crate::presentation) struct TransformOverlaysInput<'a> {
-    pub active_workspace: Workspace,
-    pub layout_assembly_3d: Signal<bool>,
-    pub layout_transform_target: Option<(
-        std::rc::Rc<boardstudio_core::model::Matrix>,
-        std::rc::Rc<boardstudio_core::model::MatrixScene>,
-        objects::TreeContext,
-    )>,
-    pub layout_transform_tool: Signal<Option<objects::LayoutTransformTool>>,
-    pub layout_state: layout_workspace::LayoutWorkspaceState,
-    pub runtime: Rc<Runtime>,
-    pub svg: Rc<RefCell<Option<SvgElement>>>,
-    pub canvas_interaction: CanvasInteractionArbiter,
-    pub zoom_surface_size: Signal<(f64, f64)>,
-    pub layout_snap_settings: Signal<objects::LayoutSnapSettings>,
-    pub outline_snap_origins: &'a Rc<Vec<outline_snapping::Origin>>,
-    pub matrix_splay_affect: Signal<boardstudio_core::model::MatrixSplayAffect>,
-    pub view_x: f64,
-    pub view_y: f64,
-    pub width: f64,
-    pub height: f64,
-}
-
-pub(in crate::presentation) fn transform_overlays(input: TransformOverlaysInput<'_>) -> Element {
-    let TransformOverlaysInput {
-        active_workspace,
-        layout_assembly_3d,
-        layout_transform_target,
-        mut layout_transform_tool,
-        layout_state,
-        runtime,
-        svg,
-        canvas_interaction,
-        zoom_surface_size,
-        layout_snap_settings,
-        outline_snap_origins,
-        matrix_splay_affect,
-        view_x,
-        view_y,
-        width,
-        height,
-    } = input;
+pub(in crate::presentation) fn transform_overlays(
+    frame: &workspace_composition::WorkspaceFrame,
+    selection: &CanvasSelectionState,
+    overlay: &OutlineOverlay,
+) -> Element {
+    let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
+    let layout_state = use_context::<layout_workspace::LayoutWorkspaceState>();
+    let interaction = use_context::<workspace_composition::WorkspaceInteraction>();
+    let layout_assembly_3d = layout_state.assembly_3d();
+    let layout_transform_target = selection.layout_transform_target.clone();
+    let mut layout_transform_tool = layout_state.transform_tool();
+    let runtime = editor.runtime();
+    let svg = frame.svg.clone();
+    let canvas_interaction = interaction.arbiter;
+    let zoom_surface_size = frame.surface_size;
+    let layout_snap_settings = layout_state.snap_settings();
+    let outline_snap_origins = &overlay.outline_snap_origins;
+    let matrix_splay_affect = layout_state.splay_affect();
+    let camera = &frame.camera;
+    let (view_x, view_y, width, height) =
+        (camera.view_x, camera.view_y, camera.width, camera.height);
     rsx! {
-        if active_workspace == Workspace::Layout
-            && !layout_assembly_3d()
+        if !layout_assembly_3d()
             && let Some((matrix, projection, context)) = layout_transform_target.clone()
         {
             {
@@ -584,51 +413,31 @@ pub(in crate::presentation) fn transform_overlays(input: TransformOverlaysInput<
     }
 }
 
-pub(in crate::presentation) struct PartRailInput<'a> {
-    pub active_workspace: Workspace,
-    pub layout_assembly_3d: Signal<bool>,
-    pub part_rail_selection: Option<(String, boardstudio_web_layout::part_rail::PartRailFacts)>,
-    pub selected_tree_context: &'a Option<objects::ScopedTreeContext>,
-    pub part_rail_snap: Option<objects::GestureSnapInputs>,
-    pub layout_transform_tool: Signal<Option<objects::LayoutTransformTool>>,
-    pub layout_state: layout_workspace::LayoutWorkspaceState,
-    pub runtime: Rc<Runtime>,
-    pub svg: Rc<RefCell<Option<SvgElement>>>,
-    pub canvas_interaction: CanvasInteractionArbiter,
-    pub zoom_surface_size: Signal<(f64, f64)>,
-    pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
-    pub split_focus: Signal<boardstudio_web_ui_model::split_focus::SplitHalf>,
-    pub view_x: f64,
-    pub view_y: f64,
-    pub width: f64,
-    pub height: f64,
-}
-
-pub(in crate::presentation) fn part_rail(input: PartRailInput<'_>) -> Element {
-    let PartRailInput {
-        active_workspace,
-        layout_assembly_3d,
-        part_rail_selection,
-        selected_tree_context,
-        part_rail_snap,
-        mut layout_transform_tool,
-        layout_state,
-        runtime,
-        svg,
-        canvas_interaction,
-        zoom_surface_size,
-        document,
-        split_focus,
-        view_x,
-        view_y,
-        width,
-        height,
-    } = input;
+pub(in crate::presentation) fn part_rail(
+    frame: &workspace_composition::WorkspaceFrame,
+    selection: &CanvasSelectionState,
+) -> Element {
+    let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
+    let layout_state = use_context::<layout_workspace::LayoutWorkspaceState>();
+    let interaction = use_context::<workspace_composition::WorkspaceInteraction>();
+    let layout_assembly_3d = layout_state.assembly_3d();
+    let part_rail_selection = selection.part_rail_selection.clone();
+    let selected_tree_context = &selection.selected_tree_context;
+    let part_rail_snap = selection.part_rail_snap;
+    let mut layout_transform_tool = layout_state.transform_tool();
+    let runtime = editor.runtime();
+    let svg = frame.svg.clone();
+    let canvas_interaction = interaction.arbiter;
+    let zoom_surface_size = frame.surface_size;
+    let document = frame.document.clone();
+    let split_focus = layout_state.split_focus();
+    let camera = &frame.camera;
+    let (view_x, view_y, width, height) =
+        (camera.view_x, camera.view_y, camera.width, camera.height);
     rsx! {
         // The independent part's own rail: Move and Rotate edit the local Offset and Rotation (or
         // the pose, while detached); Spread and Stagger edit the values carried from the anchor key.
-        if active_workspace == Workspace::Layout
-            && !layout_assembly_3d()
+        if !layout_assembly_3d()
             && let Some((part_id, facts)) = part_rail_selection.clone()
             && let Some(selected) = selected_tree_context.clone()
             && let Some(part_snap) = part_rail_snap
@@ -711,46 +520,29 @@ pub(in crate::presentation) fn placement_preview(
     }
 }
 
-pub(in crate::presentation) struct MarkerDraftInput<'a> {
-    pub active_workspace: Workspace,
-    pub render_scope: Scope,
-    pub snapshot: &'a AcceptedSnapshot,
-    pub model: &'a ReadModel,
-    pub focused_keycaps_finding: Signal<Option<keycaps_finding_marker::FocusedFinding>>,
-    pub outline_inspector: &'a Option<outline_lifecycle::OutlineInspectorProjection>,
-    pub outline_overlay_key: &'a Option<String>,
-    pub runtime: Rc<Runtime>,
-    pub canvas_interaction: CanvasInteractionArbiter,
-    pub svg: Rc<RefCell<Option<SvgElement>>>,
-    pub view_x: f64,
-    pub view_y: f64,
-    pub width: f64,
-    pub height: f64,
-    pub outline_snap_settings: &'a objects::LayoutSnapSettings,
-    pub outline_pitch: Vec2,
-    pub outline_snap_origins: &'a Rc<Vec<outline_snapping::Origin>>,
-}
-
-pub(in crate::presentation) fn finding_marker_draft(input: MarkerDraftInput<'_>) -> Element {
-    let MarkerDraftInput {
-        active_workspace,
-        render_scope,
-        snapshot,
-        model,
-        focused_keycaps_finding,
-        outline_inspector,
-        outline_overlay_key,
-        runtime,
-        canvas_interaction,
-        svg,
-        view_x,
-        view_y,
-        width,
-        height,
-        outline_snap_settings,
-        outline_pitch,
-        outline_snap_origins,
-    } = input;
+pub(in crate::presentation) fn finding_marker_draft(
+    frame: &workspace_composition::WorkspaceFrame,
+    overlay: &OutlineOverlay,
+) -> Element {
+    let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
+    let interaction = use_context::<workspace_composition::WorkspaceInteraction>();
+    let keycaps = use_context::<keycaps_workspace::KeycapsWorkspaceState>();
+    let active_workspace = Workspace::Layout;
+    let render_scope = frame.scope.clone();
+    let snapshot = &frame.snapshot;
+    let model = frame.model.as_ref();
+    let focused_keycaps_finding = keycaps.focused_finding();
+    let outline_inspector = &frame.layout_services().outline_inspector;
+    let outline_overlay_key = &overlay.outline_overlay_key;
+    let outline_snap_settings = &overlay.outline_snap_settings;
+    let outline_pitch = overlay.outline_pitch;
+    let outline_snap_origins = &overlay.outline_snap_origins;
+    let runtime = editor.runtime();
+    let canvas_interaction = interaction.arbiter;
+    let svg = frame.svg.clone();
+    let camera = &frame.camera;
+    let (view_x, view_y, width, height) =
+        (camera.view_x, camera.view_y, camera.width, camera.height);
     rsx! {
         keycaps_finding_marker::FocusedFindingMarker {
             workspace: active_workspace,
