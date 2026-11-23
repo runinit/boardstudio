@@ -72,41 +72,20 @@ pub(crate) fn take_notifications(
     std::mem::take(&mut *notifications.borrow_mut())
 }
 
-/// Which subscriber a persist completion notifies on its own, before the
-/// general session refresh runs. The durability subscriber only fires while
-/// lifecycle, snapshot and scope stay put; anything else takes the refresh
-/// path (which notifies the general subscriber) or stays silent.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum PersistCompletionPath {
-    DurabilityChanged,
-    Silent,
-    Refresh,
-}
-
-/// Pure persist-completion notification/durability decision shared by the
-/// browser `Runtime::complete` and native tests. It reports status text for
-/// newly saved or newly failed durability plus any settled persistence
-/// failure, and selects the early-return path exactly as `complete` did
-/// before the extraction so both callers stay in lockstep.
-///
-/// `previous_durability` is the durability captured before the completion ran;
-/// `snapshot_changed`/`scope_changed`/`same_lifecycle` compare the model the
-/// same way `complete` does around `Session::complete`.
-pub(crate) fn persist_completion_decision(
-    previous_durability: &Durability,
-    next_durability: &Durability,
+// Status text for a persist completion: newly saved or newly failed
+// durability, else any settled persistence failure. `Runtime::complete` and
+// the native persist test share this so both stay in lockstep.
+pub(crate) fn persist_report(
+    previous: &Durability,
+    next: &Durability,
     snapshot_changed: bool,
-    scope_changed: bool,
-    same_lifecycle: bool,
     effects: &[Effect],
-) -> (Option<RuntimeReport>, PersistCompletionPath) {
-    let report = match next_durability {
-        Durability::Saved { .. }
-            if snapshot_changed || next_durability != previous_durability =>
-        {
+) -> Option<RuntimeReport> {
+    match next {
+        Durability::Saved { .. } if snapshot_changed || next != previous => {
             Some(RuntimeReport::status("Saved locally.").transient())
         }
-        Durability::Failed { reason, .. } if next_durability != previous_durability => {
+        Durability::Failed { reason, .. } if next != previous => {
             Some(RuntimeReport::status(reason))
         }
         _ => effects.iter().find_map(|effect| match effect {
@@ -116,15 +95,7 @@ pub(crate) fn persist_completion_decision(
             } => Some(RuntimeReport::status(reason)),
             _ => None,
         }),
-    };
-    if same_lifecycle && !snapshot_changed && !scope_changed {
-        if next_durability != previous_durability {
-            return (report, PersistCompletionPath::DurabilityChanged);
-        } else if report.is_none() {
-            return (report, PersistCompletionPath::Silent);
-        }
     }
-    (report, PersistCompletionPath::Refresh)
 }
 
 #[cfg(test)]

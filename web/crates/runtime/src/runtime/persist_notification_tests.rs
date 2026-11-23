@@ -12,10 +12,7 @@
 //! reads `"Saved locally."` after a commit and `"disk full"` after a failure,
 //! and exactly one transient notification survives a commit (zero on failure).
 
-use super::{
-    PersistCompletionPath, RuntimeNotification, RuntimeReport, persist_completion_decision,
-    publish, take_notifications,
-};
+use super::{RuntimeNotification, RuntimeReport, persist_report, publish, take_notifications};
 use boardstudio_application::{
     Completion, EditResolver, Effect, Event, OperationId, SaveResult, Session,
 };
@@ -70,25 +67,23 @@ impl Harness {
             result,
         });
         let next = self.session.read_model().clone();
-        let (report, path) = persist_completion_decision(
-            &previous.durability,
-            &next.durability,
-            next.accepted.as_ref().map(|snapshot| snapshot.token)
-                != previous.accepted.as_ref().map(|snapshot| snapshot.token),
-            self.session.scope() != previous_scope,
-            next.lifecycle == previous.lifecycle,
-            &effects,
-        );
+        let snapshot_changed = next.accepted.as_ref().map(|snapshot| snapshot.token)
+            != previous.accepted.as_ref().map(|snapshot| snapshot.token);
+        let report = persist_report(&previous.durability, &next.durability, snapshot_changed, &effects);
+        let has_report = report.is_some();
         if let Some(report) = report {
             publish(&self.status, &self.notifications, report, || {});
         }
-        match path {
-            PersistCompletionPath::DurabilityChanged => {
+        if next.lifecycle == previous.lifecycle
+            && !snapshot_changed
+            && self.session.scope() == previous_scope
+        {
+            if next.durability != previous.durability {
                 self.durability += 1;
                 return;
+            } else if !has_report {
+                return;
             }
-            PersistCompletionPath::Silent => return,
-            PersistCompletionPath::Refresh => {}
         }
         self.general += 1;
     }

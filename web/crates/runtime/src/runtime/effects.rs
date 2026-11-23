@@ -1,7 +1,7 @@
 //! Session event submission and effect execution.
 use super::*;
 use crate::operation_outcomes::{commit_result, observed_outcome};
-use crate::runtime_report::{PersistCompletionPath, persist_completion_decision};
+use crate::runtime_report::persist_report;
 use boardstudio_application::{EditResolver, Landing, SnapshotToken};
 
 impl Runtime {
@@ -88,28 +88,21 @@ impl Runtime {
             let (same_lifecycle, next_durability) =
                 self.with_model(|model| (model.lifecycle == lifecycle, model.durability.clone()));
             let snapshot_changed = self.accepted_identity() != previous_snapshot;
-            let scope_changed = self.scope() != previous_scope;
-            let (report, path) = persist_completion_decision(
-                &durability,
-                &next_durability,
-                snapshot_changed,
-                scope_changed,
-                same_lifecycle,
-                &effects,
-            );
+            let report = persist_report(&durability, &next_durability, snapshot_changed, &effects);
+            let has_report = report.is_some();
             if let Some(report) = report {
                 self.record_report(report);
             }
-            match path {
-                PersistCompletionPath::DurabilityChanged => {
+            if same_lifecycle && !snapshot_changed && self.scope() == previous_scope {
+                if next_durability != durability {
                     let notify = self.notify_durability.borrow().clone();
                     if let Some(notify) = notify {
                         notify();
                         return effects;
                     }
+                } else if !has_report {
+                    return effects;
                 }
-                PersistCompletionPath::Silent => return effects,
-                PersistCompletionPath::Refresh => {}
             }
         }
         self.refresh_after_session(previous_scope, previous_snapshot);
