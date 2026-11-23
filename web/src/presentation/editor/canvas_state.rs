@@ -397,7 +397,7 @@ pub(super) fn use_canvas_bundle(
     let layout_assembly_3d = setup_a.layout_assembly_3d;
     let layout_state = setup_a.layout_state;
     let layout_component_inspector_lifetime = &setup_a.layout_component_inspector_lifetime;
-    let accepted_token = setup_a.view.accepted_token;
+    let accepted_token = setup_a.view.layout_owner.token;
     let current_scope = &setup_a.view.current_scope;
     let render_generation = setup_a.render_generation;
     let board_inspector = &setup_a.board_inspector;

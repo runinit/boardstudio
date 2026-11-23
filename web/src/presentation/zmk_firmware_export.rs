@@ -108,3 +108,34 @@ pub(crate) fn ZmkFirmwareExportRow(ready: bool, on_export: EventHandler<()>) -> 
         }
     }
 }
+
+#[component]
+pub(super) fn ExportWithWiring(
+    workspace: Signal<Workspace>,
+    return_workspace: Signal<Workspace>,
+    inspect_open: Signal<bool>,
+    inspector_settings: Signal<super::PanelSettings>,
+) -> Element {
+    let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
+    let runtime = editor.runtime();
+    let model = runtime.model();
+    let source = model.accepted.as_ref().and_then(|snapshot| {
+        super::pcb_workspace::pcb_source(
+            editor,
+            &model,
+            runtime.scope(),
+            snapshot,
+            (editor.scope_generation)(),
+        )
+    });
+    let wiring = super::pcb_wiring::use_pcb_wiring_controller(runtime.clone(), editor.version);
+    let zmk_firmware = super::use_export_panel_input(
+        runtime,
+        workspace,
+        editor.scope_generation,
+        source,
+        wiring.resolution_signal,
+        editor.instance_selection,
+    );
+    rsx! { super::export_workspace::ExportWorkspace { zmk_firmware: Some(zmk_firmware), workspace, return_workspace, inspect_open, inspector_settings } }
+}

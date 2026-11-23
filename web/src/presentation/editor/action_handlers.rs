@@ -260,7 +260,7 @@ pub(super) fn on_module_attached_handler(
     })
 }
 
-pub(super) fn on_pcb_wiring_edit_board_handler(
+pub(in crate::presentation) fn on_pcb_wiring_edit_board_handler(
     runtime: Rc<Runtime>,
     adapter: SelectionAdapter,
     scope: Scope,
@@ -355,13 +355,13 @@ pub(super) fn on_case_display_handler(
     })
 }
 
-pub(super) fn on_keymap_layer_handler(
+pub(in crate::presentation) fn on_keymap_layer_handler(
     runtime: Rc<Runtime>,
     adapter: SelectionAdapter,
     scope: Scope,
     generation: u64,
     workspace: Signal<Workspace>,
-    keymap_state: keymap_workspace::KeymapWorkspaceState,
+    mut active_layer: Signal<String>,
 ) -> EventHandler<String> {
     EventHandler::new(move |layer_id: String| {
         if workspace() != Workspace::Keymap
@@ -386,12 +386,12 @@ pub(super) fn on_keymap_layer_handler(
                 map.layers.iter().any(|layer| layer.id == layer_id)
             });
         if exists {
-            keymap_state.select_layer(layer_id);
+            active_layer.set(layer_id);
         }
     })
 }
 
-pub(super) struct OnKeymapExportInput {
+pub(in crate::presentation) struct OnKeymapExportInput {
     pub runtime: Rc<Runtime>,
     pub adapter: SelectionAdapter,
     pub scope: Scope,
@@ -402,7 +402,9 @@ pub(super) struct OnKeymapExportInput {
     pub instance_selection: InstanceSelection,
 }
 
-pub(super) fn on_keymap_export_handler(input: OnKeymapExportInput) -> EventHandler<()> {
+pub(in crate::presentation) fn on_keymap_export_handler(
+    input: OnKeymapExportInput,
+) -> EventHandler<()> {
     let OnKeymapExportInput {
         runtime,
         adapter,

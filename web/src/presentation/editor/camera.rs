@@ -1,4 +1,5 @@
 use super::super::*;
+use super::EditorContext;
 use boardstudio_web_ui_model::Workspace;
 
 pub(super) struct SvgSurface {
@@ -61,24 +62,22 @@ pub(super) fn use_svg_surface(
     }
 }
 
-pub(super) struct SceneBoundsInput<'a> {
+pub(in crate::presentation) struct SceneBoundsInput<'a> {
     pub model: &'a ReadModel,
     pub snapshot: &'a AcceptedSnapshot,
     pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
     pub scene: std::sync::Arc<boardstudio_core::model::SceneDelta>,
     pub render_scope: Scope,
     pub active_workspace: Workspace,
-    pub keymap_view: Option<Rc<keymap::KeymapView>>,
-    pub keymap_contours: Option<Rc<[Contour]>>,
-    pub keycaps_view: Option<Rc<keycaps_scene::KeycapsView>>,
-    pub keycaps_contours: Option<Rc<[Contour]>>,
-    pub visible: Vec<&'a Part>,
+    pub workspace_bounds: Option<(f64, f64, f64, f64)>,
+    pub visible_positions: Option<(f64, f64, f64, f64)>,
     pub layout_assembly_3d: Signal<bool>,
     pub svg: Rc<RefCell<Option<SvgElement>>>,
     pub zoom_surface_size: Signal<(f64, f64)>,
 }
 
-pub(super) struct SceneBounds {
+#[derive(Clone)]
+pub(in crate::presentation) struct SceneBounds {
     pub accepted_canvas_source: layout_canvas::SceneSource,
     pub canvas_source: layout_canvas::SceneSource,
     pub displayed_layout_bounds: Option<(f64, f64, f64, f64)>,
@@ -97,7 +96,7 @@ pub(super) struct SceneBounds {
     pub view_box: String,
 }
 
-pub(super) fn use_scene_bounds(input: SceneBoundsInput<'_>) -> SceneBounds {
+pub(in crate::presentation) fn use_scene_bounds(input: SceneBoundsInput<'_>) -> SceneBounds {
     let SceneBoundsInput {
         model,
         snapshot,
@@ -105,11 +104,8 @@ pub(super) fn use_scene_bounds(input: SceneBoundsInput<'_>) -> SceneBounds {
         scene,
         render_scope,
         active_workspace,
-        keymap_view,
-        keymap_contours,
-        keycaps_view,
-        keycaps_contours,
-        visible,
+        workspace_bounds,
+        visible_positions,
         layout_assembly_3d,
         svg,
         zoom_surface_size,
@@ -140,32 +136,12 @@ pub(super) fn use_scene_bounds(input: SceneBoundsInput<'_>) -> SceneBounds {
             }
         },
     ))();
-    let workspace_rect_bounds = match active_workspace {
-        Workspace::Pcb => pcb_bounds(snapshot, &render_scope),
-        Workspace::Keymap => keymap_view
-            .as_deref()
-            .and_then(|view| keymap_bounds(view, keymap_contours.as_deref().unwrap_or(&[]))),
-        Workspace::Keycaps => keycaps_view
-            .as_deref()
-            .and_then(|view| keycaps_bounds(view, keycaps_contours.as_deref().unwrap_or(&[]))),
-        Workspace::Layout => accepted_layout_bounds,
-        _ => None,
+    let workspace_rect_bounds = if active_workspace == Workspace::Layout {
+        accepted_layout_bounds
+    } else {
+        workspace_bounds
     };
-    let bounds = workspace_rect_bounds.or_else(|| {
-        let mut points = visible.iter().map(|part| part.pose.at);
-        let first = points.next()?;
-        Some(points.fold(
-            (first.x, first.x, first.y, first.y),
-            |(min_x, max_x, min_y, max_y), point| {
-                (
-                    min_x.min(point.x),
-                    max_x.max(point.x),
-                    min_y.min(point.y),
-                    max_y.max(point.y),
-                )
-            },
-        ))
-    });
+    let bounds = workspace_rect_bounds.or(visible_positions);
     let bounds = bounds.unwrap_or((-50.0, 50.0, -50.0, 50.0));
     let bounds = if active_workspace == Workspace::Layout {
         let surface = svg
@@ -231,7 +207,7 @@ pub(super) fn use_scene_bounds(input: SceneBoundsInput<'_>) -> SceneBounds {
     }
 }
 
-pub(super) struct FooterBoundsInput<'a> {
+pub(in crate::presentation) struct FooterBoundsInput<'a> {
     pub min_x: f64,
     pub max_x: f64,
     pub min_y: f64,
@@ -239,21 +215,21 @@ pub(super) struct FooterBoundsInput<'a> {
     pub workspace_rect_bounds: Option<(f64, f64, f64, f64)>,
     pub displayed_layout_bounds: Option<(f64, f64, f64, f64)>,
     pub active_workspace: Workspace,
-    pub keymap_view: Option<Rc<keymap::KeymapView>>,
+    pub selection_bounds: Option<(f64, f64, f64, f64)>,
     pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
     pub scene: std::sync::Arc<boardstudio_core::model::SceneDelta>,
     pub board_id: String,
     pub model: &'a ReadModel,
 }
 
-pub(super) struct FooterBounds {
+pub(in crate::presentation) struct FooterBounds {
     pub footer_camera_bounds: (f64, f64, f64, f64),
     pub footer_board_bounds: Option<(f64, f64, f64, f64)>,
     pub footer_selection_bounds: Option<(f64, f64, f64, f64)>,
     pub footer_selection_available: bool,
 }
 
-pub(super) fn footer_bounds(input: FooterBoundsInput<'_>) -> FooterBounds {
+pub(in crate::presentation) fn footer_bounds(input: FooterBoundsInput<'_>) -> FooterBounds {
     let FooterBoundsInput {
         min_x,
         max_x,
@@ -262,7 +238,7 @@ pub(super) fn footer_bounds(input: FooterBoundsInput<'_>) -> FooterBounds {
         workspace_rect_bounds,
         displayed_layout_bounds,
         active_workspace,
-        keymap_view,
+        selection_bounds,
         document,
         scene,
         board_id,
@@ -285,9 +261,7 @@ pub(super) fn footer_bounds(input: FooterBoundsInput<'_>) -> FooterBounds {
         })
     };
     let footer_selection_bounds = if active_workspace == Workspace::Keymap {
-        keymap_view.as_deref().and_then(|view| {
-            keymap::selected_bounds(view, &footer_selected_ids.iter().cloned().collect())
-        })
+        selection_bounds
     } else {
         keycaps_fit::selected_part_bounds(&document, &scene, &board_id, &footer_selected_ids)
     };
@@ -629,24 +603,44 @@ pub(super) fn use_placement_bindings(input: PlacementBindingsInput<'_>) -> Place
     }
 }
 
+#[derive(Clone, Copy)]
+pub(in crate::presentation) struct CameraActions {
+    pub fit_board: EventHandler<()>,
+    pub fit_selection: EventHandler<()>,
+    pub zoom_out: EventHandler<()>,
+    pub zoom_in: EventHandler<()>,
+}
+
+pub(super) fn visible_positions(visible: &[&Part]) -> Option<(f64, f64, f64, f64)> {
+    let mut points = visible.iter().map(|part| part.pose.at);
+    let first = points.next()?;
+    Some(points.fold(
+        (first.x, first.x, first.y, first.y),
+        |(min_x, max_x, min_y, max_y), point| {
+            (
+                min_x.min(point.x),
+                max_x.max(point.x),
+                min_y.min(point.y),
+                max_y.max(point.y),
+            )
+        },
+    ))
+}
+
 pub(super) struct CamNamed {
     pub svg_surface: SvgSurface,
     pub scene_bounds: SceneBounds,
     pub footer_bounds: FooterBounds,
     pub placement: PlacementBindings,
-    pub on_fit_keymap_board: EventHandler<()>,
-    pub on_fit_keymap_selection: EventHandler<()>,
-    pub on_zoom_keymap_out: EventHandler<()>,
-    pub on_zoom_keymap_in: EventHandler<()>,
+    pub actions: CameraActions,
 }
 
 pub(super) fn use_camera_bundle(
     setup_a: &super::setup_bundles::SetupA,
-    setup_b: &super::setup_bundles::SetupB,
     views: &super::setup_workspaces::Views,
     snapshot: &AcceptedSnapshot,
     render_scope: &Scope,
-    visible: Vec<&Part>,
+    visible_positions: Option<(f64, f64, f64, f64)>,
     matrix_setup: &mut objects::MatrixSetupMount,
 ) -> CamNamed {
     let runtime = &setup_a.editor.runtime();
@@ -657,10 +651,6 @@ pub(super) fn use_camera_bundle(
     let document = &views.document;
     let scene = &views.scene;
     let active_workspace = setup_a.active_workspace;
-    let keymap_view = &setup_b.keymap_view;
-    let keymap_contours = &setup_b.keymap_contours;
-    let keycaps_view = &setup_b.keycaps_view;
-    let keycaps_contours = &setup_b.keycaps_contours;
     let layout_assembly_3d = setup_a.layout_assembly_3d;
     let version = setup_a.editor.version;
     let layout_selection_kind = setup_a.layout_selection_kind;
@@ -674,100 +664,51 @@ pub(super) fn use_camera_bundle(
     let canvas_interaction = &setup_a.canvas_interaction;
     let mirrored_pair = &setup_a.matrix_pair.mirrored_pair;
     let canvas_navigation = &setup_a.canvas_navigation;
-    let render_generation = setup_a.render_generation;
     let SvgSurface {
         svg,
         zoom_surface_size,
     } = use_svg_surface(canvas_navigation, workspace);
 
-    let SceneBounds {
-        accepted_canvas_source,
-        canvas_source,
-        displayed_layout_bounds,
-        workspace_rect_bounds,
-        bounds,
-        min_x,
-        max_x,
-        min_y,
-        max_y,
-        keymap_scale_ratio,
-        zoom_percent,
-        width,
-        height,
-        view_x,
-        view_y,
-        view_box,
-    } = use_scene_bounds(SceneBoundsInput {
+    let scene_bounds = use_scene_bounds(SceneBoundsInput {
         model,
         snapshot,
         document: document.clone(),
         scene: scene.clone(),
         render_scope: render_scope.clone(),
         active_workspace,
-        keymap_view: keymap_view.clone(),
-        keymap_contours: keymap_contours.clone(),
-        keycaps_view: keycaps_view.clone(),
-        keycaps_contours: keycaps_contours.clone(),
-        visible: visible.clone(),
+        workspace_bounds: (active_workspace == Workspace::Pcb)
+            .then(|| pcb_bounds(snapshot, render_scope))
+            .flatten(),
+        visible_positions,
         layout_assembly_3d,
         svg: svg.clone(),
         zoom_surface_size,
     });
-    let FooterBounds {
-        footer_camera_bounds,
-        footer_board_bounds,
-        footer_selection_bounds,
-        footer_selection_available,
-    } = footer_bounds(FooterBoundsInput {
-        min_x,
-        max_x,
-        min_y,
-        max_y,
-        workspace_rect_bounds,
-        displayed_layout_bounds,
+    let footer = footer_bounds(FooterBoundsInput {
+        min_x: scene_bounds.min_x,
+        max_x: scene_bounds.max_x,
+        min_y: scene_bounds.min_y,
+        max_y: scene_bounds.max_y,
+        workspace_rect_bounds: scene_bounds.workspace_rect_bounds,
+        displayed_layout_bounds: scene_bounds.displayed_layout_bounds,
         active_workspace,
-        keymap_view: keymap_view.clone(),
+        selection_bounds: None,
         document: document.clone(),
         scene: scene.clone(),
         board_id: render_scope.board_id.clone(),
         model,
     });
-    let on_fit_keymap_board = on_fit_keymap_board_handler(
-        layout_owner.clone(),
-        runtime.clone(),
-        workspace,
-        adapter.clone(),
-        svg.clone(),
-        footer_board_bounds,
-        footer_camera_bounds,
+    let actions = camera_actions(
+        setup_a.editor,
+        adapter,
+        layout_owner,
+        render_scope,
+        snapshot,
+        &svg,
+        &footer,
+        &scene_bounds,
+        &model.selected_part_ids,
     );
-    let on_fit_keymap_selection = on_fit_keymap_selection_handler(OnFitKeymapSelectionInput {
-        layout_owner: layout_owner.clone(),
-        runtime: runtime.clone(),
-        workspace,
-        adapter: adapter.clone(),
-        svg: svg.clone(),
-        footer_camera_bounds,
-        selection_ids: model.selected_part_ids.clone(),
-        footer_selection_bounds,
-    });
-    let mut zoom_keymap = zoom_keymap_handler(ZoomKeymapInput {
-        zoom_runtime: runtime.clone(),
-        zoom_workspace: workspace,
-        zoom_scope: render_scope.clone(),
-        zoom_owner: layout_owner.clone(),
-        zoom_adapter: adapter.clone(),
-        zoom_svg: svg.clone(),
-        zoom_token: snapshot.token,
-        zoom_revision: snapshot.document.revision,
-        zoom_ratio: keymap_scale_ratio,
-        zoom_bounds: bounds,
-        zoom_view: (view_x, view_y, width, height),
-        render_generation,
-    });
-    let mut zoom_out = zoom_keymap.clone();
-    let on_zoom_keymap_out = EventHandler::new(move |_| zoom_out(-1.0));
-    let on_zoom_keymap_in = EventHandler::new(move |_| zoom_keymap(1.0));
     let PlacementBindings {
         part_placement,
         drag,
@@ -775,10 +716,10 @@ pub(super) fn use_camera_bundle(
         interaction_version,
         observed_interaction_version,
     } = use_placement_bindings(PlacementBindingsInput {
-        min_x,
-        max_x,
-        min_y,
-        max_y,
+        min_x: scene_bounds.min_x,
+        max_x: scene_bounds.max_x,
+        min_y: scene_bounds.min_y,
+        max_y: scene_bounds.max_y,
         camera_center: model.camera.center,
         runtime: runtime.clone(),
         workspace,
@@ -803,30 +744,8 @@ pub(super) fn use_camera_bundle(
             svg,
             zoom_surface_size,
         },
-        scene_bounds: SceneBounds {
-            accepted_canvas_source,
-            canvas_source,
-            displayed_layout_bounds,
-            workspace_rect_bounds,
-            bounds,
-            min_x,
-            max_x,
-            min_y,
-            max_y,
-            keymap_scale_ratio,
-            zoom_percent,
-            width,
-            height,
-            view_x,
-            view_y,
-            view_box,
-        },
-        footer_bounds: FooterBounds {
-            footer_camera_bounds,
-            footer_board_bounds,
-            footer_selection_bounds,
-            footer_selection_available,
-        },
+        scene_bounds,
+        footer_bounds: footer,
         placement: PlacementBindings {
             part_placement,
             drag,
@@ -834,9 +753,70 @@ pub(super) fn use_camera_bundle(
             interaction_version,
             observed_interaction_version,
         },
-        on_fit_keymap_board,
-        on_fit_keymap_selection,
-        on_zoom_keymap_out,
-        on_zoom_keymap_in,
+        actions,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(in crate::presentation) fn camera_actions(
+    editor: EditorContext,
+    adapter: &SelectionAdapter,
+    layout_owner: &LayoutOwnerIdentity,
+    render_scope: &Scope,
+    snapshot: &AcceptedSnapshot,
+    svg: &Rc<RefCell<Option<SvgElement>>>,
+    footer: &FooterBounds,
+    bounds: &SceneBounds,
+    selection_ids: &[String],
+) -> CameraActions {
+    let runtime = editor.runtime();
+    let workspace = editor.workspace;
+    let FooterBounds {
+        footer_board_bounds,
+        footer_camera_bounds,
+        footer_selection_bounds,
+        ..
+    } = *footer;
+    let on_fit_keymap_board = on_fit_keymap_board_handler(
+        layout_owner.clone(),
+        runtime.clone(),
+        workspace,
+        adapter.clone(),
+        svg.clone(),
+        footer_board_bounds,
+        footer_camera_bounds,
+    );
+    let on_fit_keymap_selection = on_fit_keymap_selection_handler(OnFitKeymapSelectionInput {
+        layout_owner: layout_owner.clone(),
+        runtime: runtime.clone(),
+        workspace,
+        adapter: adapter.clone(),
+        svg: svg.clone(),
+        footer_camera_bounds,
+        selection_ids: selection_ids.to_vec(),
+        footer_selection_bounds,
+    });
+    let mut zoom_keymap = zoom_keymap_handler(ZoomKeymapInput {
+        zoom_runtime: runtime.clone(),
+        zoom_workspace: workspace,
+        zoom_scope: render_scope.clone(),
+        zoom_owner: layout_owner.clone(),
+        zoom_adapter: adapter.clone(),
+        zoom_svg: svg.clone(),
+        zoom_token: snapshot.token,
+        zoom_revision: snapshot.document.revision,
+        zoom_ratio: bounds.keymap_scale_ratio,
+        zoom_bounds: bounds.bounds,
+        zoom_view: (bounds.view_x, bounds.view_y, bounds.width, bounds.height),
+        render_generation: layout_owner.generation,
+    });
+    let mut zoom_out = zoom_keymap.clone();
+    let on_zoom_keymap_out = EventHandler::new(move |_| zoom_out(-1.0));
+    let on_zoom_keymap_in = EventHandler::new(move |_| zoom_keymap(1.0));
+    CameraActions {
+        fit_board: on_fit_keymap_board,
+        fit_selection: on_fit_keymap_selection,
+        zoom_out: on_zoom_keymap_out,
+        zoom_in: on_zoom_keymap_in,
     }
 }

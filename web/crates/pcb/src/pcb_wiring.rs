@@ -1374,15 +1374,23 @@ pub fn wiring_resolution_notice(
     }
 }
 
-/// Keep the board-plan query alive at Editor lifetime, regardless of the selected component
-/// or which workspace is currently visible. Call this hook unconditionally in the page parent.
 pub fn use_pcb_wiring_controller(runtime: Rc<Runtime>, version: Signal<u64>) -> PcbWiringMount {
+    use_pcb_wiring_preview(runtime, version, true)
+}
+
+pub fn use_pcb_wiring_preview(
+    runtime: Rc<Runtime>,
+    version: Signal<u64>,
+    enabled: bool,
+) -> PcbWiringMount {
     let _ = version();
-    let input = current_input(&runtime);
+    let input = enabled.then(|| current_input(&runtime)).flatten();
     let identity = input.as_ref().map(|(identity, _, _)| identity.clone());
     let mut resolution = use_signal(|| PcbWiringResolution::Idle);
     let resolve = use_callback(move |()| {
-        resolution.set(resolve_current_plan(&runtime));
+        if enabled {
+            resolution.set(resolve_current_plan(&runtime));
+        }
     });
     use_effect(use_reactive((&identity,), move |_| resolve.call(())));
     let visible = resolution();

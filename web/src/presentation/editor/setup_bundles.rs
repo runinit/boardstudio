@@ -38,33 +38,10 @@ pub(super) struct SetupA {
     pub pending_splay_origin_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
     pub pending_anchor_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
     pub layout_align: objects::LayoutAlignMount,
-    pub pcb_align: objects::LayoutAlignMount,
     pub parts_state: parts_workspace::PartsWorkspaceState,
     pub canvas_interaction: CanvasInteractionArbiter,
     pub matrix_pair: super::setup_shell::MatrixPairWiring,
     pub view: super::setup_shell::EditorContexts,
-}
-
-pub(super) struct SetupB {
-    pub keycaps_state: keycaps_workspace::KeycapsWorkspaceState,
-    pub focused_keycaps_finding: Signal<Option<keycaps_finding_marker::FocusedFinding>>,
-    pub keycaps_navigation_alive: Rc<Cell<bool>>,
-    pub keycaps_fit_state: keycaps_fit::KeycapsFitActions,
-    pub keycaps_settings_actions: Option<keycaps_settings::KeycapsSettingsActions>,
-    pub resolution_signal: Signal<pcb_wiring::PcbWiringResolution>,
-    pub resolution: pcb_wiring::PcbWiringResolution,
-    pub on_resolve: EventHandler<()>,
-    pub firmware_feedback: Option<pcb_wiring::FirmwarePositionFeedback>,
-    pub firmware_editable: bool,
-    pub firmware_on_edit: EventHandler<pcb_wiring::FirmwarePositionEditRequest>,
-    pub part_net_actions: pcb_wiring::PartNetActions,
-    pub part_input_actions: pcb_wiring::PartInputActions,
-    pub physical_setup_mount: pcb_physical_setup::PhysicalSetupMount,
-    pub keymap_view: Option<Rc<keymap::KeymapView>>,
-    pub keymap_contours: Option<Rc<[Contour]>>,
-    pub keycaps_view: Option<Rc<keycaps_scene::KeycapsView>>,
-    pub keycaps_contours: Option<Rc<[Contour]>>,
-    pub mechanical_settings: mechanical_settings::MechanicalSettingsState,
 }
 
 pub(super) fn use_editor_setup_shell(
@@ -134,7 +111,6 @@ pub(super) fn use_editor_setup_shell(
         pending_splay_origin_pick,
         pending_anchor_pick,
         layout_align,
-        pcb_align,
         mut matrix_setup,
         parts_state,
         parts_assembly_orientation,
@@ -196,7 +172,6 @@ pub(super) fn use_editor_setup_shell(
             pending_splay_origin_pick,
             pending_anchor_pick,
             layout_align,
-            pcb_align,
             parts_state,
             canvas_interaction,
             matrix_pair,
@@ -208,49 +183,22 @@ pub(super) fn use_editor_setup_shell(
     )
 }
 
-pub(super) fn use_setup_workspaces(
-    setup_a: &SetupA,
-) -> (
-    SetupB,
-    keymap::LayerActions,
-    keymap::BindingActions,
-    keymap::MacroActions,
-) {
-    let model = &setup_a.view.model;
-    let current_scope = &setup_a.view.current_scope;
-    let runtime = &setup_a.editor.runtime();
+pub(super) struct SharedSetup {
+    pub physical_setup_mount: pcb_physical_setup::PhysicalSetupMount,
+    pub mechanical_settings: mechanical_settings::MechanicalSettingsState,
+}
+
+pub(super) fn use_shared_setup(setup_a: &SetupA) -> SharedSetup {
+    let runtime = setup_a.editor.runtime();
     let workspace = setup_a.editor.workspace;
     let version = setup_a.editor.version;
     let adapter = &setup_a.adapter;
     let instance_selection = setup_a.editor.instance_selection;
-    let layout_owner = &setup_a.view.layout_owner;
     let guide_preferences = setup_a.guide_preferences;
-    let keymap_layer_id = setup_a.view.keymap_layer_id;
-    let accepted_token = setup_a.view.accepted_token;
     let inspect_open = setup_a.editor.panels.inspector_open;
     let case_selection = setup_a.case_selection;
-    let super::setup_workspaces::KeycapsPcbState {
-        active_board_id,
-        keycaps_state,
-        focused_keycaps_finding,
-        keycaps_navigation_alive,
-        layer_source,
-        keycaps_fit_state,
-        keycaps_settings_actions,
-        resolution_signal,
-        resolution,
-        on_resolve,
-        firmware_feedback,
-        firmware_editable,
-        firmware_on_edit,
-        part_net_actions,
-        part_input_actions,
-    } = super::setup_workspaces::use_keycaps_pcb_state(super::setup_workspaces::KeycapsPcbInput {
-        editor: setup_a.editor,
-        model,
-        current_scope: current_scope.clone(),
-        layout_owner: layout_owner.clone(),
-    });
+    let model = &setup_a.view.model;
+    let current_scope = &setup_a.view.current_scope;
     let physical_setup_mount = super::setup_workspaces::use_physical_setup(
         runtime.clone(),
         guide_preferences,
@@ -258,28 +206,6 @@ pub(super) fn use_setup_workspaces(
         adapter.clone(),
         instance_selection,
         workspace,
-    );
-    let super::setup_workspaces::KeymapProjections {
-        layer_actions,
-        binding_actions,
-        keymap_view,
-        keymap_contours,
-        keycaps_view,
-        keycaps_contours,
-        macro_actions,
-    } = super::setup_workspaces::use_keymap_projections(
-        super::setup_workspaces::KeymapProjectionsInput {
-            runtime: runtime.clone(),
-            layer_source,
-            keymap_layer_id,
-            workspace,
-            generation: adapter.generation,
-            accepted_token,
-            current_scope: current_scope.clone(),
-            active_board_id: active_board_id.clone(),
-            instance_selection,
-            resolution_signal,
-        },
     );
     let on_show_mechanical_finding = super::setup_workspaces::on_show_mechanical_finding_handler(
         super::setup_workspaces::OnShowMechanicalFindingArgs {
@@ -300,30 +226,8 @@ pub(super) fn use_setup_workspaces(
         case_selection,
         on_show_mechanical_finding,
     );
-    (
-        SetupB {
-            keycaps_state,
-            focused_keycaps_finding,
-            keycaps_navigation_alive,
-            keycaps_fit_state,
-            keycaps_settings_actions,
-            resolution_signal,
-            resolution,
-            on_resolve,
-            firmware_feedback,
-            firmware_editable,
-            firmware_on_edit,
-            part_net_actions,
-            part_input_actions,
-            physical_setup_mount,
-            keymap_view,
-            keymap_contours,
-            keycaps_view,
-            keycaps_contours,
-            mechanical_settings,
-        },
-        layer_actions,
-        binding_actions,
-        macro_actions,
-    )
+    SharedSetup {
+        physical_setup_mount,
+        mechanical_settings,
+    }
 }

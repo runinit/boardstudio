@@ -1,22 +1,22 @@
 use super::*;
-use boardstudio_web_ui_model::editor::{EditGuard, EditorContext};
-mod action_handlers;
-mod camera;
+use boardstudio_web_ui_model::editor::EditorContext;
+pub(super) mod action_handlers;
+pub(super) mod camera;
 mod canvas_adapter;
 mod canvas_inspector_inputs;
 mod canvas_pointer;
 mod canvas_state;
-mod commands;
-mod findings_navigation;
+pub(super) mod commands;
+pub(super) mod findings_navigation;
 mod inspector_bundle;
-mod keyboard;
+pub(super) mod keyboard;
 mod pointer_bundles;
-mod selection_handlers;
+pub(super) mod selection_handlers;
 mod setup_bundles;
 mod setup_guide_state;
 mod setup_shell;
 mod setup_workspaces;
-mod toolbar_inputs;
+pub(super) mod toolbar_inputs;
 mod view;
 mod view_scene;
 mod workspace_inputs;
@@ -62,8 +62,29 @@ fn EditorBody(scope: Scope, snapshot: AcceptedSnapshot) -> Element {
     let snapshot = &snapshot;
     let (setup_a, mut workspace_routing, mut matrix_setup, on_parts_select) =
         setup_bundles::use_editor_setup_shell(editor);
-    let (setup_b, layer_actions, binding_actions, macro_actions) =
-        setup_bundles::use_setup_workspaces(&setup_a);
+    let setup_b = setup_bundles::use_shared_setup(&setup_a);
+    let outputs = use_signal(|| None);
+    use_context_provider(|| workspace_composition::WorkspaceOutputs(outputs));
+    use_context_provider(|| workspace_composition::WorkspaceInteraction {
+        navigation: setup_a.canvas_navigation.clone(),
+        arbiter: setup_a.canvas_interaction.clone(),
+        tree_cell_anchor: setup_a.tree_cell_anchor.clone(),
+        inspector_settings: setup_a.inspector_panel_settings,
+    });
+    let model = &setup_a.view.model;
+    let owner = &setup_a.view.layout_owner;
+    // A finding can switch workspaces before its destination canvas mounts.
+    let keycaps_state = keycaps_workspace::use_keycaps_workspace_state(
+        owner.workspace,
+        owner.scope.clone(),
+        owner.token,
+        owner.revision,
+        model.active_board_id.clone(),
+    );
+    use_context_provider(|| keycaps_state.clone());
+    use_context_provider(|| setup_a.case_selection);
+    let keymap_layer = use_signal(|| "base".to_owned());
+    use_context_provider(|| keymap_workspace::ActiveLayer(keymap_layer));
     let views = setup_workspaces::derive_views(
         &setup_a.view.model,
         snapshot,
@@ -99,18 +120,19 @@ fn EditorBody(scope: Scope, snapshot: AcceptedSnapshot) -> Element {
         &render_scope,
         workspace_routing,
     );
+    let visible_positions = camera::visible_positions(&visible);
     let cam = camera::use_camera_bundle(
         &setup_a,
-        &setup_b,
         &views,
         snapshot,
         &render_scope,
-        visible.clone(),
+        visible_positions,
         &mut matrix_setup,
     );
     let (nav, navigate_box, instance_scope_pending) = findings_navigation::use_navigation_bundle(
         &setup_a,
-        &setup_b,
+        &setup_b.physical_setup_mount,
+        &keycaps_state,
         &cam,
         snapshot,
         &render_scope,
@@ -121,64 +143,59 @@ fn EditorBody(scope: Scope, snapshot: AcceptedSnapshot) -> Element {
         pointer_bundles::use_pointer_bundle(&setup_a, &cam, &render_scope);
     let (keyboard, key_up, start_pan) =
         keyboard::build_keyboard_bundle(&setup_a, &cam, &render_scope);
-    let (pk, wheel) = keyboard::build_keyboard_rest(&setup_a, &cam, snapshot, &render_scope);
+    let wheel = keyboard::build_wheel(
+        editor,
+        &setup_a.adapter,
+        &render_scope,
+        setup_a.render_generation,
+        &cam.svg_surface.svg,
+        &cam.scene_bounds,
+    );
     let (wir, objects_input) = workspace_inputs::use_workspace_wiring(
         workspace_inputs::WiringInput {
             setup_a: &setup_a,
-            setup_b: &setup_b,
             snapshot,
             render_scope: &render_scope,
             matrix_setup: &matrix_setup,
             workspace_routing: &mut workspace_routing,
             instance_scope_pending,
-            layer_actions: &layer_actions,
             cam: &cam,
             sel: h_sel,
             nav: &nav,
-            pk,
             ops: on_parts_select,
         },
         select_tree,
         navigate_box,
-        end_pointer.clone(),
-        cancel_pointer.clone(),
-        keyboard.clone(),
-        wheel.clone(),
     );
-    let inp = toolbar_inputs::use_workspace_inputs(
-        toolbar_inputs::WsInputsInput {
-            setup_a: &setup_a,
-            setup_b: &setup_b,
-            cam: &cam,
-            canvas: &canvas,
-            wir: &wir,
-            snapshot,
-            render_scope: &render_scope,
-            matrices: &matrices,
-            matrix_setup: &matrix_setup,
-            instance_scope_pending,
-        },
-        start_pan.clone(),
-        move_pointer.clone(),
-        key_up.clone(),
-    );
-    let inspector_input = inspector_bundle::inspector_input_for(inspector_bundle::InspectorInput {
+    let inp = toolbar_inputs::use_workspace_inputs(toolbar_inputs::WsInputsInput {
         setup_a: &setup_a,
         setup_b: &setup_b,
-        views: &views,
         cam: &cam,
-        nav: &nav,
         canvas: &canvas,
         wir: &wir,
-        inp: &inp,
         snapshot,
         render_scope: &render_scope,
-        workspace_routing,
+        matrices: &matrices,
+        matrix_setup: &matrix_setup,
         instance_scope_pending,
-        binding_actions,
-        macro_actions,
-        layer_actions,
     });
+    let inspector_input =
+        (!workspace_composition::owns_surfaces(setup_a.active_workspace)).then(|| {
+            inspector_bundle::inspector_input_for(inspector_bundle::InspectorInput {
+                setup_a: &setup_a,
+                setup_b: &setup_b,
+                views: &views,
+                cam: &cam,
+                nav: &nav,
+                canvas: &canvas,
+                wir: &wir,
+                inp: &inp,
+                snapshot,
+                render_scope: &render_scope,
+                workspace_routing,
+                instance_scope_pending,
+            })
+        });
     let guide = setup_guide_state::use_guide_bundle(setup_guide_state::GuideInput {
         setup_a: &setup_a,
         setup_b: &setup_b,
@@ -220,6 +237,8 @@ fn EditorBody(scope: Scope, snapshot: AcceptedSnapshot) -> Element {
             objects_input,
             inspector_input,
             matrix_setup,
+            keycaps_state,
+            visible_positions,
             render_scope,
             snapshot,
         },

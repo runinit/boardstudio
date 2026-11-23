@@ -2,26 +2,7 @@ use super::super::*;
 use boardstudio_web_ui_model::Workspace;
 
 pub(super) struct CanvasInputArgs<'a> {
-    pub mount: EventHandler<MountedEvent>,
-    pub end_pointer: EventHandler<PointerEvent>,
-    pub cancel_pointer: EventHandler<PointerEvent>,
-    pub keyboard: EventHandler<KeyboardEvent>,
-    pub pcb_empty_hit: EventHandler<PointerEvent>,
-    pub pcb_part_hit: EventHandler<pcb_scene::PcbPartHit>,
-    pub pcb_part_pointer_down: EventHandler<pcb_scene::PcbPartPointerDown>,
-    pub mounted_module_select: EventHandler<String>,
-    pub wheel: EventHandler<WheelEvent>,
     pub snapshot: &'a AcceptedSnapshot,
-    pub render_scope: Scope,
-    pub view_box: String,
-    pub model: &'a ReadModel,
-    pub render_generation: u64,
-    pub keymap_view: Option<Rc<keymap::KeymapView>>,
-    pub keymap_contours: Option<Rc<[Contour]>>,
-    pub keycaps_view: Option<Rc<keycaps_scene::KeycapsView>>,
-    pub keycaps_contours: Option<Rc<[Contour]>>,
-    pub keymap_select: EventHandler<String>,
-    pub keycaps_select: EventHandler<String>,
     pub mechanical_settings: mechanical_settings::MechanicalSettingsState,
     pub instance_scope_pending: bool,
     pub part_placement: part_placement::PartPlacementMount,
@@ -33,27 +14,9 @@ pub(super) struct CanvasInputArgs<'a> {
 
 pub(super) fn canvas_input(
     input: CanvasInputArgs<'_>,
-    start_pan: impl FnMut(PointerEvent) + 'static,
-    move_pointer: impl FnMut(PointerEvent) + 'static,
-    key_up: impl FnMut(KeyboardEvent) + 'static,
 ) -> Option<workspace_composition::WorkspaceCanvasInput> {
     let CanvasInputArgs {
-        mount,
-        end_pointer,
-        cancel_pointer,
-        keyboard,
-        wheel,
         snapshot,
-        render_scope,
-        view_box,
-        model,
-        render_generation,
-        keymap_view,
-        keymap_contours,
-        keycaps_view,
-        keycaps_contours,
-        keymap_select,
-        keycaps_select,
         mechanical_settings,
         instance_scope_pending,
         part_placement,
@@ -61,60 +24,8 @@ pub(super) fn canvas_input(
         parts_query,
         parts_selection,
         active_workspace,
-        pcb_empty_hit,
-        pcb_part_hit,
-        pcb_part_pointer_down,
-        mounted_module_select,
     } = input;
-    let canvas_handlers = workspace_composition::CanvasEventHandlers {
-        mount,
-        start_pan: EventHandler::new(start_pan),
-        move_pointer: EventHandler::new(move_pointer),
-        end_pointer,
-        cancel_pointer,
-        keyboard,
-        key_up: EventHandler::new(key_up),
-        wheel,
-    };
     match active_workspace {
-        Workspace::Pcb => Some(workspace_composition::WorkspaceCanvasInput::Pcb(Box::new(
-            pcb_workspace::CanvasInput {
-                snapshot: snapshot.clone(),
-                scope: render_scope.clone(),
-                view_box: view_box.clone(),
-                selected_ids: model.selected_part_ids.clone(),
-                generation: render_generation,
-                handlers: canvas_handlers,
-                on_empty_hit: pcb_empty_hit,
-                on_part_hit: pcb_part_hit,
-                on_part_pointer_down: pcb_part_pointer_down,
-                on_module_select: mounted_module_select,
-            },
-        ))),
-        Workspace::Keymap => Some(workspace_composition::WorkspaceCanvasInput::Keymap(
-            Box::new(keymap_workspace::CanvasInput {
-                view: keymap_view.clone(),
-                contours: keymap_contours
-                    .clone()
-                    .unwrap_or_else(|| Rc::<[Contour]>::from(Vec::new())),
-                view_box: view_box.clone(),
-                selected_ids: model.selected_part_ids.iter().cloned().collect(),
-                handlers: canvas_handlers,
-                on_select_key: keymap_select,
-            }),
-        )),
-        Workspace::Keycaps => Some(workspace_composition::WorkspaceCanvasInput::Keycaps(
-            Box::new(keycaps_workspace::CanvasInput {
-                view: keycaps_view.clone(),
-                contours: keycaps_contours
-                    .clone()
-                    .unwrap_or_else(|| Rc::<[Contour]>::from(Vec::new())),
-                view_box: view_box.clone(),
-                selected_ids: model.selected_part_ids.iter().cloned().collect(),
-                handlers: canvas_handlers,
-                on_select_key: keycaps_select,
-            }),
-        )),
         Workspace::Case => Some(workspace_composition::WorkspaceCanvasInput::Case(Box::new(
             case_workspace::CanvasInput {
                 generation_ready: mechanical_settings.generation_ready,
@@ -131,7 +42,7 @@ pub(super) fn canvas_input(
                 selected: parts_selection,
             },
         )),
-        Workspace::Layout | Workspace::Export => None,
+        _ => None,
     }
 }
 
@@ -207,64 +118,6 @@ pub(super) fn on_companion_placement_action_handler(
             companion_placement_error.set(result.err());
         }
     })
-}
-
-pub(super) struct KeymapInspectorArgs<'a> {
-    pub keymap_view: Option<Rc<keymap::KeymapView>>,
-    pub render_scope: Scope,
-    pub keymap_layer_id: Signal<String>,
-    pub model: &'a ReadModel,
-    pub keymap_layer: EventHandler<String>,
-    pub keymap_export: EventHandler<()>,
-    pub binding_actions: keymap::BindingActions,
-    pub macro_actions: keymap::MacroActions,
-    pub layer_actions: keymap::LayerActions,
-    pub keymap_select: EventHandler<String>,
-    pub snapshot: &'a AcceptedSnapshot,
-    pub scope_generation: Signal<u64>,
-}
-
-pub(super) fn keymap_inspector_input(
-    input: KeymapInspectorArgs<'_>,
-) -> workspace_composition::WorkspaceInspectorInput {
-    let KeymapInspectorArgs {
-        keymap_view,
-        render_scope,
-        keymap_layer_id,
-        model,
-        keymap_layer,
-        keymap_export,
-        binding_actions,
-        macro_actions,
-        keymap_select,
-        snapshot,
-        scope_generation,
-        layer_actions,
-    } = input;
-    workspace_composition::WorkspaceInspectorInput::Keymap(Box::new(
-        keymap_workspace::InspectorInput {
-            view: keymap_view.clone(),
-            scope: render_scope.clone(),
-            layer_actions,
-            active_layer_id: keymap_layer_id(),
-            selected_key_id: model.selected_part_ids.first().cloned(),
-            on_layer: keymap_layer,
-            on_export: keymap_export,
-            firmware_export_enabled: keymap_view
-                .as_ref()
-                .is_some_and(|view| !view.keys.is_empty())
-                || binding_actions
-                    .encoder_projection
-                    .as_ref()
-                    .is_some_and(|projection| !projection.rows.is_empty()),
-            on_select_key: keymap_select,
-            binding_actions,
-            macro_actions,
-            admission_token: snapshot.token,
-            admission_revision: snapshot.document.revision,
-            scope_generation: scope_generation(),
-        },
-    ))
 }
 
 pub(super) struct CaseInspectorArgs<'a> {
@@ -372,173 +225,6 @@ pub(super) fn parts_inspector_input(
             }),
             on_open_module_placement,
             on_module_attached,
-        },
-    ))
-}
-
-pub(super) struct PcbInspectorArgs<'a> {
-    pub selected_tree_context: Option<objects::ScopedTreeContext>,
-    pub render_scope: Scope,
-    pub runtime: Rc<Runtime>,
-    pub snapshot: &'a AcceptedSnapshot,
-    pub selected_context: Signal<Option<objects::ScopedTreeContext>>,
-    pub part_placement: part_placement::PartPlacementMount,
-    pub pcb_wiring_source: Option<pcb_wiring::PcbWiringSource>,
-    pub render_generation: u64,
-    pub resolution: pcb_wiring::PcbWiringResolution,
-    pub firmware_feedback: Option<pcb_wiring::FirmwarePositionFeedback>,
-    pub firmware_editable: bool,
-    pub firmware_on_edit: EventHandler<pcb_wiring::FirmwarePositionEditRequest>,
-    pub part_net_actions: pcb_wiring::PartNetActions,
-    pub part_input_actions: pcb_wiring::PartInputActions,
-    pub pcb_wiring_edit_board: EventHandler<()>,
-    pub mode_actions: pcb_wiring::BoardWiringModeActions,
-    pub pin_actions: pcb_wiring::PcbWiringPinActions,
-    pub apply_actions: pcb_wiring::BoardWiringApplyActions,
-    pub on_resolve: EventHandler<()>,
-    pub protected_remap_actions: pcb_wiring::ProtectedRemapActions,
-}
-
-pub(super) fn pcb_inspector_input(
-    input: PcbInspectorArgs<'_>,
-) -> workspace_composition::WorkspaceInspectorInput {
-    let PcbInspectorArgs {
-        selected_tree_context,
-        render_scope,
-        runtime,
-        snapshot,
-        selected_context,
-        part_placement,
-        pcb_wiring_source,
-        render_generation,
-        resolution,
-        firmware_feedback,
-        firmware_editable,
-        firmware_on_edit,
-        part_net_actions,
-        part_input_actions,
-        pcb_wiring_edit_board,
-        mode_actions,
-        pin_actions,
-        apply_actions,
-        protected_remap_actions,
-        on_resolve,
-    } = input;
-    let selected_module = selected_tree_context.as_ref().and_then(|selected| {
-        if selected.scope != render_scope {
-            return None;
-        }
-        match &selected.context {
-            objects::TreeContext::MountedModule {
-                board_id,
-                module_id,
-            } if board_id == &render_scope.board_id => Some(module_id.clone()),
-            _ => None,
-        }
-    });
-    if let Some(module_id) = selected_module {
-        workspace_composition::WorkspaceInspectorInput::PcbModule(Box::new(
-            pcb_module_inspector::InspectorInput {
-                runtime: runtime.clone(),
-                snapshot: snapshot.clone(),
-                scope: render_scope.clone(),
-                module_id,
-                selected_context,
-                on_place_component: part_placement.on_place_component,
-            },
-        ))
-    } else {
-        workspace_composition::WorkspaceInspectorInput::Pcb(pcb_wiring_source.map(|source| {
-            let firmware_position_projection =
-                pcb_wiring::firmware_position_projection(&source, render_generation, &resolution);
-            let firmware_feedback = firmware_feedback.filter(|feedback| {
-                feedback.target.is_visible(
-                    &source.ui_scope,
-                    render_generation,
-                    &firmware_position_projection,
-                )
-            });
-            let firmware_controls = rsx! {
-                firmware_positions::FirmwareKeymapPanel {
-                    projection: firmware_position_projection.clone(),
-                    feedback: firmware_feedback.clone(),
-                    editable: firmware_editable,
-                    on_change: firmware_on_edit,
-                }
-            };
-            Box::new(pcb_wiring::PcbWiringInspectorProps {
-                board_overview: true,
-                source,
-                resolution,
-                firmware_positions: firmware_position_projection,
-                firmware_feedback,
-                firmware_controls,
-                part_net_actions: part_net_actions.clone(),
-                part_input_actions: part_input_actions.clone(),
-                on_firmware_edit: firmware_on_edit,
-                on_resolve,
-                on_choose_controller: part_placement.on_choose_controller,
-                on_edit_board_wiring: pcb_wiring_edit_board,
-                mode_actions: mode_actions.clone(),
-                pin_actions: pin_actions.clone(),
-                apply_actions: apply_actions.clone(),
-                protected_remap_actions: protected_remap_actions.clone(),
-            })
-        }))
-    }
-}
-
-pub(super) struct KeycapsInspectorArgs<'a> {
-    pub model: &'a ReadModel,
-    pub current_scope: Option<Scope>,
-    pub runtime: Rc<Runtime>,
-    pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
-    pub keycaps_view: Option<Rc<keycaps_scene::KeycapsView>>,
-    pub keycaps_settings_actions: Option<keycaps_settings::KeycapsSettingsActions>,
-    pub keycaps_select: EventHandler<String>,
-    pub keycaps_fit_state: keycaps_fit::KeycapsFitActions,
-    pub keycaps_finding: EventHandler<keycaps_fit::FindingNavigationRequest>,
-}
-
-pub(super) fn keycaps_inspector_input(
-    input: KeycapsInspectorArgs<'_>,
-) -> workspace_composition::WorkspaceInspectorInput {
-    let KeycapsInspectorArgs {
-        model,
-        current_scope,
-        runtime,
-        document,
-        keycaps_view,
-        keycaps_settings_actions,
-        keycaps_select,
-        keycaps_fit_state,
-        keycaps_finding,
-    } = input;
-    let selected_key_id = model.selected_part_ids.first().cloned();
-    let mechanical_layer_ids = current_scope
-        .as_ref()
-        .zip(model.accepted.as_ref())
-        .and_then(|(scope, snapshot)| current_case_layer_ids(&runtime, scope, snapshot))
-        .unwrap_or_else(|| Rc::from([]));
-    let settings_editor = keycaps_view.as_deref().and_then(|view| {
-        let selected =
-            keycaps_settings::project_selected_key(&document, view, selected_key_id.as_deref())?;
-        keycaps_settings_actions
-            .clone()
-            .map(|actions| (selected, actions))
-    });
-    workspace_composition::WorkspaceInspectorInput::Keycaps(Box::new(
-        keycaps_workspace::InspectorInput {
-            view: keycaps_view.clone(),
-            document: Rc::new((*document).clone()),
-            selected_key_id,
-            on_select_key: keycaps_select,
-            settings_editor,
-            settings_actions: keycaps_settings_actions.clone(),
-            fit_state: keycaps_fit_state.state.clone(),
-            mechanical_layer_ids,
-            fit_retry: keycaps_fit_state.on_retry,
-            fit_navigate: keycaps_finding,
         },
     ))
 }

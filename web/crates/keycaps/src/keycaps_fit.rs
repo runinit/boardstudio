@@ -184,7 +184,16 @@ pub fn use_keycaps_fit(
     runtime: Rc<Runtime>,
     source: Option<KeycapsFitSource>,
 ) -> KeycapsFitActions {
-    let mut state = use_signal(|| None::<KeycapsFitState>);
+    let state = use_signal(|| None);
+    use_keycaps_fit_with_state(runtime, source, state)
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn use_keycaps_fit_with_state(
+    runtime: Rc<Runtime>,
+    source: Option<KeycapsFitSource>,
+    mut state: Signal<Option<KeycapsFitState>>,
+) -> KeycapsFitActions {
     let mut retry_gen = use_signal(|| 0_u64);
     use_effect(use_reactive((&source, &retry_gen()), move |(source, _)| {
         let Some(source) = source else {

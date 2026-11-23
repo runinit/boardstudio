@@ -94,7 +94,7 @@ pub(super) fn navigate_handler(
     }
 }
 
-pub(super) struct OnKeycapsFindingInput {
+pub(in crate::presentation) struct OnKeycapsFindingInput {
     pub runtime: Rc<Runtime>,
     pub adapter: SelectionAdapter,
     pub scope: Scope,
@@ -113,7 +113,7 @@ pub(super) struct OnKeycapsFindingInput {
     pub case_selection: shared_viewer::CaseSelection,
 }
 
-pub(super) fn on_keycaps_finding_handler(
+pub(in crate::presentation) fn on_keycaps_finding_handler(
     input: OnKeycapsFindingInput,
 ) -> EventHandler<keycaps_fit::FindingNavigationRequest> {
     let OnKeycapsFindingInput {
@@ -516,7 +516,6 @@ pub(super) struct LayoutFindingResumeInput {
     pub case_selection: shared_viewer::CaseSelection,
     pub svg: Rc<RefCell<Option<SvgElement>>>,
     pub keycaps_navigation_alive: Rc<Cell<bool>>,
-    pub keycaps_fit_state: keycaps_fit::KeycapsFitActions,
 }
 
 pub(super) fn use_layout_finding_resume(input: LayoutFindingResumeInput) {
@@ -531,7 +530,6 @@ pub(super) fn use_layout_finding_resume(input: LayoutFindingResumeInput) {
         case_selection,
         svg,
         keycaps_navigation_alive,
-        keycaps_fit_state,
     } = input;
     layout_findings.resume.replace(Box::new(move |event| {
         resume_pending_layout_finding.call(event);
@@ -561,7 +559,7 @@ pub(super) fn use_layout_finding_resume(input: LayoutFindingResumeInput) {
         },
         {
             let runtime = runtime.clone();
-            let state = keycaps_fit_state.state.clone();
+            let fit = keycaps_state.fit;
             let surface = svg.clone();
             move |pending_fit| {
                 let request = &pending_fit.request;
@@ -579,7 +577,8 @@ pub(super) fn use_layout_finding_resume(input: LayoutFindingResumeInput) {
                     return None;
                 }
                 let live_layers = live_layers.unwrap_or_else(|| Rc::from([]));
-                let state = state.as_ref()?;
+                let fit = fit.peek();
+                let state = fit.as_ref()?;
                 if keycaps_fit::accepted_navigation_target(
                     state,
                     request,
@@ -796,13 +795,13 @@ pub(super) type NavigateFn = Box<dyn FnMut((Scope, String, Option<String>))>;
 
 pub(super) struct NavNamed {
     pub callbacks: LayoutFindingCallbacks,
-    pub keycaps_finding: EventHandler<keycaps_fit::FindingNavigationRequest>,
     pub show_configured_board: EventHandler<String>,
 }
 
 pub(super) fn use_navigation_bundle(
     setup_a: &super::setup_bundles::SetupA,
-    setup_b: &super::setup_bundles::SetupB,
+    physical_setup_mount: &pcb_physical_setup::PhysicalSetupMount,
+    keycaps_state: &keycaps_workspace::KeycapsWorkspaceState,
     cam: &super::camera::CamNamed,
     snapshot: &AcceptedSnapshot,
     render_scope: &Scope,
@@ -818,14 +817,11 @@ pub(super) fn use_navigation_bundle(
     let objects_open = setup_a.editor.panels.objects_open;
     let inspect_open = setup_a.editor.panels.inspector_open;
     let case_selection = setup_a.case_selection;
-    let keycaps_navigation_alive = &setup_b.keycaps_navigation_alive;
+    let keycaps_navigation_alive = keycaps_state.navigation_alive();
     let inspector_panel_settings = setup_a.inspector_panel_settings;
-    let keycaps_fit_state = &setup_b.keycaps_fit_state;
-    let keycaps_state = &setup_b.keycaps_state;
     let layout_owner = &setup_a.view.layout_owner;
     let layout_findings = setup_a.view.layout_findings;
     let version = setup_a.editor.version;
-    let physical_setup_mount = &setup_b.physical_setup_mount;
     let observed_version = setup_a.observed_version;
     let observed_interaction_version = cam.placement.observed_interaction_version;
     let instance_selection = setup_a.editor.instance_selection;
@@ -845,24 +841,6 @@ pub(super) fn use_navigation_bundle(
         render_generation,
         instance_selection,
     );
-    let on_keycaps_finding = on_keycaps_finding_handler(OnKeycapsFindingInput {
-        runtime: runtime.clone(),
-        adapter: adapter.clone(),
-        scope: render_scope.clone(),
-        generation: render_generation,
-        workspace,
-        objects_open,
-        inspect_open,
-        body_selection: case_selection.body,
-        case_selection_for_owner: case_selection,
-        navigation_alive: keycaps_navigation_alive.clone(),
-        inspector_settings: inspector_panel_settings,
-        fit_state: keycaps_fit_state.state.clone(),
-        keycaps_state: keycaps_state.clone(),
-        source_surface: svg.clone(),
-        select_tree: workspace_routing.select_tree,
-        case_selection,
-    });
     let LayoutFindingCallbacks {
         on_toggle_layout_findings,
         on_close_layout_findings,
@@ -895,7 +873,6 @@ pub(super) fn use_navigation_bundle(
         case_selection,
         svg: svg.clone(),
         keycaps_navigation_alive: keycaps_navigation_alive.clone(),
-        keycaps_fit_state: keycaps_fit_state.clone(),
     });
     use_physical_setup_reconcile(
         PhysicalSetupReconcileInput {
@@ -932,7 +909,6 @@ pub(super) fn use_navigation_bundle(
                 on_layout_finding,
                 resume_pending_layout_finding,
             },
-            keycaps_finding: on_keycaps_finding,
             show_configured_board: on_show_configured_board,
         },
         Box::new(navigate.clone()),

@@ -20,7 +20,7 @@ pub(super) struct GuideStateInput<'a> {
     pub guide_preferences: Signal<Option<setup_guide::SetupGuidePreferences>>,
     pub matrices: Vec<&'a boardstudio_core::model::Matrix>,
     pub mirrored_pair: objects::MirroredPairMount,
-    pub resolution: &'a pcb_wiring::PcbWiringResolution,
+    pub resolution: pcb_wiring::PcbWiringResolution,
 }
 
 pub(super) struct GuideState<'a> {
@@ -127,7 +127,7 @@ pub(super) fn use_guide_state(input: GuideStateInput<'_>) -> GuideState<'_> {
     let has_matrix = !matrices.is_empty();
     let setup_guide_active = guide.is_some();
     let mut setup_wiring_error = use_signal(|| None::<String>);
-    use_effect(use_reactive((&guide_preferences(), resolution), {
+    use_effect(use_reactive((&guide_preferences(), &resolution), {
         let runtime = runtime.clone();
         move |(guide, resolution)| {
             if !guide
@@ -691,7 +691,7 @@ pub(super) struct GuideNamed<'a> {
 
 pub(super) struct GuideInput<'a, 'b> {
     pub setup_a: &'a super::setup_bundles::SetupA,
-    pub setup_b: &'a super::setup_bundles::SetupB,
+    pub setup_b: &'a super::setup_bundles::SharedSetup,
     pub views: &'b super::setup_workspaces::Views,
     pub cam: &'b super::camera::CamNamed,
     pub canvas: &'b super::canvas_state::CanvasNamed,
@@ -731,7 +731,13 @@ pub(super) fn use_guide_bundle<'a, 'b>(input: GuideInput<'a, 'b>) -> GuideNamed<
     let parts_query = setup_a.view.parts_query;
     let guide_preferences = setup_a.guide_preferences;
     let mirrored_pair = &setup_a.matrix_pair.mirrored_pair;
-    let resolution = &setup_b.resolution;
+    let guide_wiring_active = guide_preferences().as_ref().is_some_and(|guide| guide.open);
+    let wiring = pcb_wiring::use_pcb_wiring_preview(
+        setup_a.editor.runtime(),
+        setup_a.editor.version,
+        guide_wiring_active,
+    );
+    let resolution = &wiring.resolution;
     let current_scope = &setup_a.view.current_scope;
     let parts_selection = setup_a.view.parts_selection;
     let layout_assembly_3d = setup_a.layout_assembly_3d;
@@ -781,7 +787,7 @@ pub(super) fn use_guide_bundle<'a, 'b>(input: GuideInput<'a, 'b>) -> GuideNamed<
         guide_preferences,
         matrices: matrices.clone(),
         mirrored_pair: mirrored_pair.clone(),
-        resolution,
+        resolution: resolution.clone(),
     });
     let GuideOverlays {
         inline_matrix_setup,

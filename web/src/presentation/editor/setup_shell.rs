@@ -17,7 +17,6 @@ pub(super) struct LayoutViewState {
     pub pending_splay_origin_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
     pub pending_anchor_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
     pub layout_align: objects::LayoutAlignMount,
-    pub pcb_align: objects::LayoutAlignMount,
     pub matrix_setup: objects::MatrixSetupMount,
     pub parts_state: parts_workspace::PartsWorkspaceState,
     pub parts_assembly_orientation: Signal<parts::SwitchOrientation>,
@@ -109,14 +108,6 @@ pub(super) fn use_layout_view_state(
         adapter.generation,
         Workspace::Layout,
     );
-    let pcb_align = objects::use_canvas_align(
-        runtime.clone(),
-        version,
-        adapter.selected_context,
-        workspace,
-        adapter.generation,
-        Workspace::Pcb,
-    );
     let matrix_setup = objects::use_matrix_setup(
         runtime.clone(),
         version,
@@ -143,7 +134,6 @@ pub(super) fn use_layout_view_state(
         pending_splay_origin_pick,
         pending_anchor_pick,
         layout_align,
-        pcb_align,
         matrix_setup,
         parts_state,
         parts_assembly_orientation,
@@ -345,12 +335,9 @@ pub(super) struct EditorContexts {
     pub parts_selection: parts::PartsSelection,
     pub parts_selection_generation: Signal<u64>,
     pub layout_target: Signal<Option<String>>,
-    pub keymap_state: keymap_workspace::KeymapWorkspaceState,
-    pub keymap_layer_id: Signal<String>,
     pub has_inspector: bool,
     pub model: ReadModel,
     pub current_scope: Option<Scope>,
-    pub accepted_token: Option<boardstudio_application::SnapshotToken>,
     pub layout_owner: LayoutOwnerIdentity,
     pub layout_findings: boardstudio_web_layout::layout_findings_state::LayoutFindingsState,
     pub field_preview: Signal<Option<FieldPreviewState>>,
@@ -377,8 +364,6 @@ pub(super) fn use_editor_contexts(
     let parts_selection: PartsSelection = parts_state.selected();
     let parts_selection_generation = parts_state.selection_generation();
     let layout_target: Signal<Option<String>> = use_signal(|| None);
-    let keymap_state = keymap_workspace::use_keymap_workspace_state();
-    let keymap_layer_id = keymap_state.active_layer_id();
     let has_inspector = active_workspace != Workspace::Export;
     let on_parts_select = EventHandler::new({
         let CompactPanelState {
@@ -490,12 +475,9 @@ pub(super) fn use_editor_contexts(
             parts_selection,
             parts_selection_generation,
             layout_target,
-            keymap_state,
-            keymap_layer_id,
             has_inspector,
             model,
             current_scope,
-            accepted_token,
             layout_owner,
             layout_findings,
             field_preview,

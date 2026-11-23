@@ -94,7 +94,7 @@ pub(super) fn select_tree_handler(
     }
 }
 
-pub(super) struct SelectionKindInput {
+pub(in crate::presentation) struct SelectionKindInput {
     pub runtime: Rc<Runtime>,
     pub adapter: SelectionAdapter,
     pub owner: LayoutOwnerIdentity,
@@ -106,7 +106,7 @@ pub(super) struct SelectionKindInput {
     pub inspector_panel_settings: Signal<PanelSettings>,
 }
 
-pub(super) fn on_selection_kind_handler(
+pub(in crate::presentation) fn on_selection_kind_handler(
     input: SelectionKindInput,
     expected_workspace: Workspace,
 ) -> EventHandler<objects::LayoutSelectionKind> {
@@ -185,7 +185,7 @@ pub(super) fn on_selection_kind_handler(
     })
 }
 
-pub(super) fn on_snap_intent_handler(
+pub(in crate::presentation) fn on_snap_intent_handler(
     runtime: Rc<Runtime>,
     adapter: SelectionAdapter,
     owner: LayoutOwnerIdentity,
@@ -225,325 +225,12 @@ pub(super) fn on_snap_intent_handler(
     })
 }
 
-pub(super) struct OnKeymapSelectInput {
-    pub runtime: Rc<Runtime>,
-    pub adapter: SelectionAdapter,
-    pub scope: Scope,
-    pub generation: u64,
-    pub objects_open: Signal<bool>,
-    pub inspect_open: Signal<bool>,
-    pub workspace: Signal<Workspace>,
-    pub keymap_layer_id: Signal<String>,
-}
-
-pub(super) fn on_keymap_select_handler(input: OnKeymapSelectInput) -> EventHandler<String> {
-    let OnKeymapSelectInput {
-        runtime,
-        adapter,
-        scope,
-        generation,
-        mut objects_open,
-        mut inspect_open,
-        workspace,
-        keymap_layer_id,
-    } = input;
-    EventHandler::new(move |key_id: String| {
-        if workspace() != Workspace::Keymap
-            || runtime.scope().as_ref() != Some(&scope)
-            || (adapter.generation)() != generation
-        {
-            return;
-        }
-        let model = runtime.model();
-        if !active_board_scope_matches(&model, &scope) {
-            return;
-        }
-        let Some(snapshot) = model.accepted.as_ref() else {
-            return;
-        };
-        if key_id.is_empty() {
-            let mut selected_context = adapter.selected_context;
-            selected_context.set(None);
-            let mut anchor_scope = adapter.anchor_scope;
-            anchor_scope.set(None);
-            runtime.submit(Event::SelectParts {
-                operation_id: runtime.operation(),
-                part_ids: Vec::new(),
-                range_part_ids: Vec::new(),
-                mode: SelectionMode::Replace,
-            });
-            return;
-        }
-        let layer_id = keymap_layer_id();
-        let Some(view) = keymap::project(snapshot, Some(&scope), &model.active_board_id, &layer_id)
-        else {
-            return;
-        };
-        if !view.keys.iter().any(|key| key.id.as_ref() == key_id) {
-            return;
-        }
-        let Some(context) = objects::context_for_part(&model, &key_id) else {
-            return;
-        };
-        if !selection::context_is_current(&model, &scope, &context) {
-            return;
-        }
-        let Some(selected_ids) = selection::submit_canvas_selection(
-            &runtime,
-            &adapter,
-            &scope,
-            generation,
-            context.clone(),
-            SelectionMode::Replace,
-            Vec::new(),
-        ) else {
-            return;
-        };
-        if selected_ids.is_empty()
-            || runtime.scope().as_ref() != Some(&scope)
-            || (adapter.generation)() != generation
-        {
-            return;
-        }
-        let current = runtime.model();
-        if !active_board_scope_matches(&current, &scope)
-            || !selection::context_is_current(&current, &scope, &context)
-        {
-            return;
-        }
-        let Some(snapshot) = current.accepted.as_ref() else {
-            return;
-        };
-        let layer_id = keymap_layer_id();
-        let Some(view) =
-            keymap::project(snapshot, Some(&scope), &current.active_board_id, &layer_id)
-        else {
-            return;
-        };
-        if !view.keys.iter().any(|key| key.id.as_ref() == key_id) {
-            return;
-        }
-        objects_open.set(false);
-        inspect_open.set(true);
-    })
-}
-
-pub(super) struct OnKeycapsSelectInput {
-    pub runtime: Rc<Runtime>,
-    pub adapter: SelectionAdapter,
-    pub scope: Scope,
-    pub generation: u64,
-    pub objects_open: Signal<bool>,
-    pub inspect_open: Signal<bool>,
-    pub workspace: Signal<Workspace>,
-    pub instance_selection: InstanceSelection,
-}
-
-pub(super) fn on_keycaps_select_handler(input: OnKeycapsSelectInput) -> EventHandler<String> {
-    let OnKeycapsSelectInput {
-        runtime,
-        adapter,
-        scope,
-        generation,
-        mut objects_open,
-        mut inspect_open,
-        workspace,
-        instance_selection,
-    } = input;
-    EventHandler::new(move |key_id: String| {
-        if workspace() != Workspace::Keycaps
-            || runtime.scope().as_ref() != Some(&scope)
-            || (adapter.generation)() != generation
-        {
-            return;
-        }
-        let model = runtime.model();
-        if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model) {
-            return;
-        }
-        if key_id.is_empty() {
-            let mut selected_context = adapter.selected_context;
-            selected_context.set(None);
-            let mut anchor_scope = adapter.anchor_scope;
-            anchor_scope.set(None);
-            runtime.submit(Event::SelectParts {
-                operation_id: runtime.operation(),
-                part_ids: Vec::new(),
-                range_part_ids: Vec::new(),
-                mode: SelectionMode::Replace,
-            });
-            return;
-        }
-        let Some(snapshot) = model.accepted.as_ref() else {
-            return;
-        };
-        let Some(view) = keycaps_scene::project(snapshot, &scope, &model.active_board_id) else {
-            return;
-        };
-        if !view.keys.iter().any(|key| key.id.as_ref() == key_id) {
-            return;
-        }
-        let Some(context) = objects::context_for_part(&model, &key_id) else {
-            return;
-        };
-        if !selection::context_is_current(&model, &scope, &context) {
-            return;
-        }
-        let Some(selected_ids) = selection::submit_canvas_selection(
-            &runtime,
-            &adapter,
-            &scope,
-            generation,
-            context.clone(),
-            SelectionMode::Replace,
-            Vec::new(),
-        ) else {
-            return;
-        };
-        if selected_ids.is_empty()
-            || runtime.scope().as_ref() != Some(&scope)
-            || (adapter.generation)() != generation
-        {
-            return;
-        }
-        let current = runtime.model();
-        if !active_board_scope_matches(&current, &scope)
-            || !selection::context_is_current(&current, &scope, &context)
-            || !instance_selection.is_current(&current)
-        {
-            return;
-        }
-        let Some(snapshot) = current.accepted.as_ref() else {
-            return;
-        };
-        let Some(view) = keycaps_scene::project(snapshot, &scope, &current.active_board_id) else {
-            return;
-        };
-        if !view.keys.iter().any(|key| key.id.as_ref() == key_id) {
-            return;
-        }
-        objects_open.set(false);
-        inspect_open.set(true);
-    })
-}
-
-pub(super) struct OnPcbPartHitInput {
-    pub runtime: Rc<Runtime>,
-    pub adapter: SelectionAdapter,
-    pub scope: Scope,
-    pub generation: u64,
-    pub token: boardstudio_application::SnapshotToken,
-    pub owner: LayoutOwnerIdentity,
-    pub tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
-    pub workspace: Signal<Workspace>,
-    pub instance_selection: InstanceSelection,
-    pub layout_selection_kind: Signal<objects::LayoutSelectionKind>,
-}
-
-pub(super) fn on_pcb_part_hit_handler(
-    input: OnPcbPartHitInput,
-) -> EventHandler<pcb_scene::PcbPartHit> {
-    let OnPcbPartHitInput {
-        runtime,
-        adapter,
-        scope,
-        generation,
-        token,
-        owner,
-        tree_cell_anchor,
-        workspace,
-        instance_selection,
-        layout_selection_kind,
-    } = input;
-    EventHandler::new(move |request: pcb_scene::PcbPartHit| {
-        if workspace() != Workspace::Pcb
-            || request.scope != scope
-            || request.token != token
-            || request.generation != generation
-            || runtime.scope().as_ref() != Some(&scope)
-            || (adapter.generation)() != generation
-        {
-            return;
-        }
-        let model = runtime.model();
-        if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model) {
-            return;
-        }
-        let Some(snapshot) = model
-            .accepted
-            .as_ref()
-            .filter(|snapshot| snapshot.token == request.token)
-        else {
-            return;
-        };
-        let Some(board) = snapshot
-            .document
-            .boards
-            .iter()
-            .find(|board| board.id == scope.board_id)
-        else {
-            return;
-        };
-        if !board.part_ids.contains(&request.part_id)
-            || !snapshot
-                .document
-                .parts
-                .iter()
-                .any(|part| part.id == request.part_id)
-        {
-            return;
-        }
-        let Some(hit_context) = objects::context_for_part(&model, &request.part_id) else {
-            return;
-        };
-        if !selection::context_is_current(&model, &scope, &hit_context) {
-            return;
-        }
-        update_tree_cell_anchor(&tree_cell_anchor, &owner, &model, Some(&hit_context));
-        let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
-        let context = objects::context_for_selection_kind(
-            &model,
-            &hit_context,
-            layout_selection_kind(),
-            retained.as_ref(),
-        )
-        .map(|projection| projection.context)
-        .unwrap_or(hit_context);
-        let mode = if request.range {
-            SelectionMode::Range
-        } else if request.additive {
-            SelectionMode::Toggle
-        } else {
-            SelectionMode::Replace
-        };
-        let range_ids = if mode == SelectionMode::Range {
-            selection::eligible_live_ids(&model)
-                .into_iter()
-                .filter(|id| board.part_ids.contains(id))
-                .collect()
-        } else {
-            Vec::new()
-        };
-        selection::submit_canvas_selection(
-            &runtime, &adapter, &scope, generation, context, mode, range_ids,
-        );
-    })
-}
-
 pub(super) struct SelHandlers {
     pub on_layout_selection_kind: EventHandler<objects::LayoutSelectionKind>,
     pub on_layout_snap_intent: EventHandler<objects::LayoutSnapIntent>,
-    pub on_pcb_selection_kind: EventHandler<objects::LayoutSelectionKind>,
-    pub on_pcb_snap_intent: EventHandler<objects::LayoutSnapIntent>,
-    pub on_keymap_select: EventHandler<String>,
-    pub on_keycaps_select: EventHandler<String>,
-    pub on_pcb_part_hit: EventHandler<pcb_scene::PcbPartHit>,
     pub on_mounted_module_select: EventHandler<String>,
-    pub on_pcb_wiring_edit_board: EventHandler<()>,
     pub on_case_action: EventHandler<case_workspace::TreeAction>,
     pub on_case_display: EventHandler<case_workspace::DisplayRequest>,
-    pub on_keymap_layer: EventHandler<String>,
-    pub on_keymap_export: EventHandler<()>,
     pub nudge_tree: EventHandler<objects::TreeNudgeRequest>,
     pub on_open_module_placement: EventHandler<String>,
     pub on_module_attached: EventHandler<parts::AttachedModuleNavigation>,
@@ -570,7 +257,6 @@ pub(super) fn build_selection_handlers(
     let inspector_panel_settings = setup_a.inspector_panel_settings;
     let parts_selection = setup_a.view.parts_selection;
     let layout_state = setup_a.layout_state;
-    let keymap_layer_id = setup_a.view.keymap_layer_id;
     let outline_activation = setup_a.view.outline_activation;
     let layout_selection_kind = setup_a.layout_selection_kind;
     let layout_snap_settings = setup_a.layout_snap_settings;
@@ -578,7 +264,6 @@ pub(super) fn build_selection_handlers(
     let parts_selection_generation = setup_a.view.parts_selection_generation;
     let parts_state = setup_a.parts_state;
     let case_workspace_state = setup_a.case_workspace_state;
-    let keymap_state = setup_a.view.keymap_state;
     let select_tree = select_tree_handler(SelectTreeInput {
         runtime: runtime.clone(),
         adapter: adapter.clone(),
@@ -620,40 +305,6 @@ pub(super) fn build_selection_handlers(
     };
     let on_layout_selection_kind = selection_kind_handler(Workspace::Layout);
     let on_layout_snap_intent = snap_intent_handler(Workspace::Layout);
-    let on_pcb_selection_kind = selection_kind_handler(Workspace::Pcb);
-    let on_pcb_snap_intent = snap_intent_handler(Workspace::Pcb);
-    let on_keymap_select = on_keymap_select_handler(OnKeymapSelectInput {
-        runtime: runtime.clone(),
-        adapter: adapter.clone(),
-        scope: render_scope.clone(),
-        generation: render_generation,
-        objects_open,
-        inspect_open,
-        workspace,
-        keymap_layer_id,
-    });
-    let on_keycaps_select = on_keycaps_select_handler(OnKeycapsSelectInput {
-        runtime: runtime.clone(),
-        adapter: adapter.clone(),
-        scope: render_scope.clone(),
-        generation: render_generation,
-        objects_open,
-        inspect_open,
-        workspace,
-        instance_selection,
-    });
-    let on_pcb_part_hit = on_pcb_part_hit_handler(OnPcbPartHitInput {
-        runtime: runtime.clone(),
-        adapter: adapter.clone(),
-        scope: render_scope.clone(),
-        generation: render_generation,
-        token: snapshot.token,
-        owner: layout_owner.clone(),
-        tree_cell_anchor: tree_cell_anchor.clone(),
-        workspace,
-        instance_selection,
-        layout_selection_kind,
-    });
     let on_mounted_module_select = super::action_handlers::on_mounted_module_select_handler(
         super::action_handlers::OnMountedModuleSelectInput {
             runtime: runtime.clone(),
@@ -697,15 +348,6 @@ pub(super) fn build_selection_handlers(
             instance_selection,
         },
     );
-    let on_pcb_wiring_edit_board = super::action_handlers::on_pcb_wiring_edit_board_handler(
-        runtime.clone(),
-        adapter.clone(),
-        render_scope.clone(),
-        render_generation,
-        snapshot.token,
-        workspace,
-        instance_selection,
-    );
     let case_admission = super::action_handlers::case_admission(
         runtime.clone(),
         adapter.clone(),
@@ -726,26 +368,6 @@ pub(super) fn build_selection_handlers(
         workspace,
         case_workspace_state,
     );
-    let on_keymap_layer = super::action_handlers::on_keymap_layer_handler(
-        runtime.clone(),
-        adapter.clone(),
-        render_scope.clone(),
-        render_generation,
-        workspace,
-        keymap_state,
-    );
-    let on_keymap_export = super::action_handlers::on_keymap_export_handler(
-        super::action_handlers::OnKeymapExportInput {
-            runtime: runtime.clone(),
-            adapter: adapter.clone(),
-            scope: render_scope.clone(),
-            token: snapshot.token,
-            revision: snapshot.document.revision,
-            generation: render_generation,
-            workspace,
-            instance_selection,
-        },
-    );
     let nudge_tree = super::action_handlers::nudge_tree_handler(
         runtime.clone(),
         adapter.clone(),
@@ -756,17 +378,9 @@ pub(super) fn build_selection_handlers(
         SelHandlers {
             on_layout_selection_kind,
             on_layout_snap_intent,
-            on_pcb_selection_kind,
-            on_pcb_snap_intent,
-            on_keymap_select,
-            on_keycaps_select,
-            on_pcb_part_hit,
             on_mounted_module_select,
-            on_pcb_wiring_edit_board,
             on_case_action,
             on_case_display,
-            on_keymap_layer,
-            on_keymap_export,
             nudge_tree,
             on_open_module_placement,
             on_module_attached,

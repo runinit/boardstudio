@@ -23,19 +23,10 @@ pub(super) struct CommandsInput<'a> {
     pub has_inspector: bool,
 }
 
-pub(super) struct Commands {
-    pub split_focused_half: Option<boardstudio_web_ui_model::split_focus::SplitHalf>,
-    pub on_fit_keymap_board: EventHandler<()>,
-    pub on_zoom_keymap_out: EventHandler<()>,
-    pub on_zoom_keymap_in: EventHandler<()>,
-}
-
-pub(super) fn use_commands(
+fn use_commands(
     input: CommandsInput<'_>,
-    on_fit_keymap_board: EventHandler<()>,
-    on_zoom_keymap_out: EventHandler<()>,
-    on_zoom_keymap_in: EventHandler<()>,
-) -> Commands {
+    camera: super::camera::CameraActions,
+) -> Option<boardstudio_web_ui_model::split_focus::SplitHalf> {
     let CommandsInput {
         document,
         split_focus,
@@ -79,24 +70,8 @@ pub(super) fn use_commands(
         },
     ));
     let mut palette_commands = object_commands();
-    if matches!(
-        active_workspace,
-        Workspace::Layout | Workspace::Pcb | Workspace::Keymap | Workspace::Keycaps
-    ) && !layout_assembly_3d()
-    {
-        for (label, on_select) in [
-            ("Fit board", on_fit_keymap_board),
-            ("Zoom out", on_zoom_keymap_out),
-            ("Zoom in", on_zoom_keymap_in),
-        ] {
-            palette_commands.push(boardstudio_web_ui_shared::ui::command::Command {
-                group: "View",
-                label: label.into(),
-                reason: None,
-                hint: None,
-                on_select,
-            });
-        }
+    if matches!(active_workspace, Workspace::Layout | Workspace::Pcb) && !layout_assembly_3d() {
+        palette_commands.extend(camera_commands(camera));
     }
     if active_workspace == Workspace::Layout {
         for (label, mode) in [("2D", false), ("3D assembly", true)] {
@@ -175,12 +150,27 @@ pub(super) fn use_commands(
         }
     }
     boardstudio_web_ui_shared::ui::command::use_commands(palette_commands);
-    Commands {
-        split_focused_half,
-        on_fit_keymap_board,
-        on_zoom_keymap_out,
-        on_zoom_keymap_in,
-    }
+    split_focused_half
+}
+
+pub(in crate::presentation) fn camera_commands(
+    camera: super::camera::CameraActions,
+) -> impl Iterator<Item = boardstudio_web_ui_shared::ui::command::Command> {
+    [
+        ("Fit board", camera.fit_board),
+        ("Zoom out", camera.zoom_out),
+        ("Zoom in", camera.zoom_in),
+    ]
+    .into_iter()
+    .map(
+        |(label, on_select)| boardstudio_web_ui_shared::ui::command::Command {
+            group: "View",
+            label: label.into(),
+            reason: None,
+            hint: None,
+            on_select,
+        },
+    )
 }
 
 pub(super) struct CmdInput<'a> {
@@ -195,7 +185,9 @@ pub(super) struct CmdInput<'a> {
     pub workspace_routing: WorkspaceRoutingSlots,
 }
 
-pub(super) fn use_view_commands(input: CmdInput<'_>) -> Commands {
+pub(super) fn use_view_commands(
+    input: CmdInput<'_>,
+) -> Option<boardstudio_web_ui_model::split_focus::SplitHalf> {
     let CmdInput {
         setup_a,
         views,
@@ -215,16 +207,13 @@ pub(super) fn use_view_commands(input: CmdInput<'_>) -> Commands {
     let model = &setup_a.view.model;
     let layout_assembly_3d = setup_a.layout_assembly_3d;
     let on_layout_view_mode = inp.on_layout_view_mode;
-    let toggle_footprints = wir.wiring.toggle_footprints;
+    let toggle_footprints = wir.toggle_footprints;
     let layout_state = setup_a.layout_state;
     let objects_open = setup_a.editor.panels.objects_open;
     let inspect_open = setup_a.editor.panels.inspector_open;
     let objects_panel_settings = setup_a.objects_panel_settings;
     let inspector_panel_settings = setup_a.inspector_panel_settings;
     let has_inspector = setup_a.view.has_inspector;
-    let on_fit_keymap_board = cam.on_fit_keymap_board;
-    let on_zoom_keymap_out = cam.on_zoom_keymap_out;
-    let on_zoom_keymap_in = cam.on_zoom_keymap_in;
     // Only a linked Layout split has an unfocused half.
     use_commands(
         CommandsInput {
@@ -248,8 +237,6 @@ pub(super) fn use_view_commands(input: CmdInput<'_>) -> Commands {
             guide: guide.state.guide.clone(),
             has_inspector,
         },
-        on_fit_keymap_board,
-        on_zoom_keymap_out,
-        on_zoom_keymap_in,
+        cam.actions,
     )
 }

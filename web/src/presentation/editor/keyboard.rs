@@ -1,4 +1,5 @@
 use super::super::*;
+use super::EditorContext;
 use boardstudio_web_ui_model::Workspace;
 
 pub(super) struct KeyboardInput {
@@ -353,298 +354,6 @@ pub(super) fn start_pan_handler(
     )
 }
 
-pub(super) struct OnPcbPartPointerDownInput {
-    pub runtime: Rc<Runtime>,
-    pub adapter: SelectionAdapter,
-    pub svg: Rc<RefCell<Option<SvgElement>>>,
-    pub drag: Rc<RefCell<Option<Drag>>>,
-    pub owner: LayoutOwnerIdentity,
-    pub scope: Scope,
-    pub accepted_token: boardstudio_application::SnapshotToken,
-    pub accepted_revision: u64,
-    pub generation: u64,
-    pub navigation: CanvasNavigationState,
-    pub space_down: Rc<Cell<bool>>,
-    pub tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
-    pub canvas_interaction: CanvasInteractionArbiter,
-    pub workspace: Signal<Workspace>,
-    pub view_x: f64,
-    pub view_y: f64,
-    pub width: f64,
-    pub height: f64,
-    pub instance_selection: InstanceSelection,
-    pub layout_selection_kind: Signal<objects::LayoutSelectionKind>,
-}
-
-pub(super) fn on_pcb_part_pointer_down_handler(
-    input: OnPcbPartPointerDownInput,
-) -> EventHandler<pcb_scene::PcbPartPointerDown> {
-    let OnPcbPartPointerDownInput {
-        runtime,
-        adapter,
-        svg,
-        drag,
-        owner,
-        scope,
-        accepted_token,
-        accepted_revision,
-        generation,
-        navigation,
-        space_down,
-        tree_cell_anchor,
-        canvas_interaction,
-        workspace,
-        view_x,
-        view_y,
-        width,
-        height,
-        instance_selection,
-        layout_selection_kind,
-    } = input;
-    EventHandler::new(move |request: pcb_scene::PcbPartPointerDown| {
-        if request.scope != scope
-            || request.token != accepted_token
-            || request.generation != generation
-            || !pcb_owner_is_current(&runtime, workspace, &adapter, &owner)
-            || !instance_selection.is_current(&runtime.model())
-            || canvas_interaction.current().is_some()
-            || drag.borrow().is_some()
-            || runtime.model().gesture.is_some()
-        {
-            return;
-        }
-        let Some(origin) = coordinates_at(
-            &svg,
-            request.client_x,
-            request.client_y,
-            view_x,
-            view_y,
-            width,
-            height,
-        ) else {
-            return;
-        };
-        if space_down.get() {
-            if let Some(surface) = svg.borrow().as_ref() {
-                let _ = surface.set_pointer_capture(request.pointer_id as i32);
-                let options = web_sys::FocusOptions::new();
-                options.set_prevent_scroll(true);
-                let _ = surface.focus_with_options(&options);
-            }
-            navigation.start_space_pan(boardstudio_web_ui_shared::canvas_navigation::PanStart {
-                pointer_id: request.pointer_id,
-                scope: scope.clone(),
-                generation,
-                client: (f64::from(request.client_x), f64::from(request.client_y)),
-                camera: runtime.model().camera.center,
-            });
-            return;
-        }
-        let model = runtime.model();
-        let Some(board) = model.accepted.as_ref().and_then(|snapshot| {
-            snapshot
-                .document
-                .boards
-                .iter()
-                .find(|board| board.id == scope.board_id)
-        }) else {
-            return;
-        };
-        if !board.part_ids.contains(&request.part_id) {
-            return;
-        }
-        let Some(hit_context) = objects::context_for_part(&model, &request.part_id) else {
-            return;
-        };
-        if !selection::context_is_current(&model, &scope, &hit_context) {
-            return;
-        }
-        update_tree_cell_anchor(&tree_cell_anchor, &owner, &model, Some(&hit_context));
-        let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
-        let projection = objects::context_for_selection_kind(
-            &model,
-            &hit_context,
-            layout_selection_kind(),
-            retained.as_ref(),
-        );
-        let context = projection
-            .as_ref()
-            .map(|projection| projection.context.clone())
-            .unwrap_or(hit_context);
-        let mode = if request.range {
-            SelectionMode::Range
-        } else if request.additive {
-            SelectionMode::Toggle
-        } else {
-            SelectionMode::Replace
-        };
-        let range_ids = if mode == SelectionMode::Range {
-            selection::eligible_live_ids(&model)
-                .into_iter()
-                .filter(|id| board.part_ids.contains(id))
-                .collect()
-        } else {
-            Vec::new()
-        };
-        if !model.selected_part_ids.contains(&request.part_id)
-            || mode != SelectionMode::Replace
-            || projection
-                .as_ref()
-                .is_some_and(|projection| projection.part_ids != model.selected_part_ids)
-        {
-            selection::submit_canvas_selection(
-                &runtime,
-                &adapter,
-                &scope,
-                generation,
-                context.clone(),
-                mode,
-                range_ids,
-            );
-        } else {
-            let mut selected_context = adapter.selected_context;
-            selected_context.set(Some(objects::ScopedTreeContext {
-                scope: scope.clone(),
-                context: context.clone(),
-            }));
-        }
-        // Modified hits change selection only, matching the reference.
-        if mode != SelectionMode::Replace {
-            return;
-        }
-        if runtime.scope().as_ref() != Some(&scope) || (adapter.generation)() != generation {
-            return;
-        }
-        let current = runtime.model();
-        let Some(current_snapshot) = current.accepted.as_ref() else {
-            return;
-        };
-        if current_snapshot.token != request.token
-            || current_snapshot.document.revision != accepted_revision
-            || !current.selected_part_ids.contains(&request.part_id)
-        {
-            return;
-        }
-        let positions: Vec<_> = current_snapshot
-            .document
-            .parts
-            .iter()
-            .filter(|part| {
-                current.selected_part_ids.contains(&part.id)
-                    && board.part_ids.contains(&part.id)
-                    && part.locked != Some(true)
-            })
-            .map(|part| Position {
-                id: part.id.clone(),
-                at: part.pose.at,
-            })
-            .collect();
-        if positions.is_empty()
-            || positions.len() != current.selected_part_ids.len()
-            || current.lifecycle != Lifecycle::Ready
-            || current.durability
-                != (Durability::Saved {
-                    revision: current_snapshot.document.revision,
-                })
-            || current.display_preview.is_some()
-            || current.gesture.is_some()
-        {
-            return;
-        }
-        if let Some(surface) = svg.borrow().as_ref() {
-            let _ = surface.set_pointer_capture(request.pointer_id as i32);
-            let options = web_sys::FocusOptions::new();
-            options.set_prevent_scroll(true);
-            let _ = surface.focus_with_options(&options);
-        }
-        *drag.borrow_mut() = Some(Drag {
-            pointer: request.pointer_id,
-            scope: scope.clone(),
-            generation,
-            gesture_generation: None,
-            origin,
-            client_x: f64::from(request.client_x),
-            client_y: f64::from(request.client_y),
-            positions,
-            active: false,
-            pan: false,
-            camera: Vec2::default(),
-        });
-    })
-}
-
-pub(super) struct OnPcbEmptyHitInput {
-    pub runtime: Rc<Runtime>,
-    pub adapter: SelectionAdapter,
-    pub scope: Scope,
-    pub generation: u64,
-    pub token: boardstudio_application::SnapshotToken,
-    pub space_down: Rc<Cell<bool>>,
-    pub drag: Rc<RefCell<Option<Drag>>>,
-    pub canvas_interaction: CanvasInteractionArbiter,
-    pub workspace: Signal<Workspace>,
-    pub instance_selection: InstanceSelection,
-}
-
-pub(super) fn on_pcb_empty_hit_handler(input: OnPcbEmptyHitInput) -> EventHandler<PointerEvent> {
-    let OnPcbEmptyHitInput {
-        runtime,
-        adapter,
-        scope,
-        generation,
-        token,
-        space_down,
-        drag,
-        canvas_interaction,
-        workspace,
-        instance_selection,
-    } = input;
-    EventHandler::new(move |event: PointerEvent| {
-        let Some(pointer) = event.data().try_as_web_event() else {
-            return;
-        };
-        if pointer.button() != 0
-            || space_down.get()
-            || drag.borrow().is_some()
-            || canvas_interaction.current().is_some()
-            || workspace() != Workspace::Pcb
-            || runtime.scope().as_ref() != Some(&scope)
-            || (adapter.generation)() != generation
-        {
-            return;
-        }
-        let model = runtime.model();
-        if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model) {
-            return;
-        }
-        let Some(snapshot) = model
-            .accepted
-            .as_ref()
-            .filter(|snapshot| snapshot.token == token)
-        else {
-            return;
-        };
-        if !snapshot
-            .document
-            .boards
-            .iter()
-            .any(|board| board.id == scope.board_id)
-        {
-            return;
-        }
-        let mut selected_context = adapter.selected_context;
-        selected_context.set(None);
-        let mut anchor_scope = adapter.anchor_scope;
-        anchor_scope.set(None);
-        runtime.submit(Event::SelectParts {
-            operation_id: runtime.operation(),
-            part_ids: Vec::new(),
-            range_part_ids: Vec::new(),
-            mode: SelectionMode::Replace,
-        });
-    })
-}
-
 pub(super) struct WheelInput {
     pub runtime: Rc<Runtime>,
     pub svg: Rc<RefCell<Option<SvgElement>>>,
@@ -776,11 +485,6 @@ pub(super) fn wheel_handler(input: WheelInput) -> impl FnMut(WheelEvent) + Clone
     }
 }
 
-pub(super) struct PkNamed {
-    pub on_pcb_part_pointer_down: EventHandler<pcb_scene::PcbPartPointerDown>,
-    pub on_pcb_empty_hit: EventHandler<PointerEvent>,
-}
-
 pub(super) fn build_keyboard_bundle(
     setup_a: &super::setup_bundles::SetupA,
     cam: &super::camera::CamNamed,
@@ -850,89 +554,28 @@ pub(super) fn build_keyboard_bundle(
     (keyboard, key_up, start_pan)
 }
 
-pub(super) fn build_keyboard_rest(
-    setup_a: &super::setup_bundles::SetupA,
-    cam: &super::camera::CamNamed,
-    snapshot: &AcceptedSnapshot,
-    render_scope: &Scope,
-) -> (PkNamed, impl FnMut(WheelEvent) + Clone + 'static) {
-    let runtime = &setup_a.editor.runtime();
-    let drag = &cam.placement.drag;
-    let svg = &cam.svg_surface.svg;
-    let space_down = &cam.placement.space_down;
-    let canvas_interaction = &setup_a.canvas_interaction;
-    let canvas_navigation = &setup_a.canvas_navigation;
-    let adapter = &setup_a.adapter;
-    let layout_owner = &setup_a.view.layout_owner;
-    let workspace = setup_a.editor.workspace;
-    let view_x = cam.scene_bounds.view_x;
-    let view_y = cam.scene_bounds.view_y;
-    let width = cam.scene_bounds.width;
-    let height = cam.scene_bounds.height;
-    let render_generation = setup_a.render_generation;
-    let instance_selection = setup_a.editor.instance_selection;
-    let layout_selection_kind = setup_a.layout_selection_kind;
-    let keymap_scale_ratio = cam.scene_bounds.keymap_scale_ratio;
-    let min_x = cam.scene_bounds.min_x;
-    let max_x = cam.scene_bounds.max_x;
-    let min_y = cam.scene_bounds.min_y;
-    let max_y = cam.scene_bounds.max_y;
-    let tree_cell_anchor = &setup_a.tree_cell_anchor;
-    let on_pcb_part_pointer_down = on_pcb_part_pointer_down_handler(OnPcbPartPointerDownInput {
-        runtime: runtime.clone(),
-        adapter: adapter.clone(),
+pub(in crate::presentation) fn build_wheel(
+    editor: EditorContext,
+    adapter: &SelectionAdapter,
+    scope: &Scope,
+    generation: u64,
+    svg: &Rc<RefCell<Option<SvgElement>>>,
+    bounds: &super::camera::SceneBounds,
+) -> impl FnMut(WheelEvent) + Clone + 'static {
+    wheel_handler(WheelInput {
+        runtime: editor.runtime(),
         svg: svg.clone(),
-        drag: drag.clone(),
-        owner: layout_owner.clone(),
-        scope: render_scope.clone(),
-        accepted_token: snapshot.token,
-        accepted_revision: snapshot.document.revision,
-        generation: render_generation,
-        navigation: canvas_navigation.clone(),
-        space_down: space_down.clone(),
-        tree_cell_anchor: tree_cell_anchor.clone(),
-        canvas_interaction: canvas_interaction.clone(),
-        workspace,
-        view_x,
-        view_y,
-        width,
-        height,
-        instance_selection,
-        layout_selection_kind,
-    });
-    let on_pcb_empty_hit = on_pcb_empty_hit_handler(OnPcbEmptyHitInput {
-        runtime: runtime.clone(),
+        scope: scope.clone(),
         adapter: adapter.clone(),
-        scope: render_scope.clone(),
-        generation: render_generation,
-        token: snapshot.token,
-        space_down: space_down.clone(),
-        drag: drag.clone(),
-        canvas_interaction: canvas_interaction.clone(),
-        workspace,
-        instance_selection,
-    });
-    let wheel = wheel_handler(WheelInput {
-        runtime: runtime.clone(),
-        svg: svg.clone(),
-        scope: render_scope.clone(),
-        adapter: adapter.clone(),
-        render_generation,
-        view_x,
-        view_y,
-        width,
-        height,
-        keymap_scale_ratio,
-        min_x,
-        max_x,
-        min_y,
-        max_y,
-    });
-    (
-        PkNamed {
-            on_pcb_part_pointer_down,
-            on_pcb_empty_hit,
-        },
-        wheel,
-    )
+        render_generation: generation,
+        view_x: bounds.view_x,
+        view_y: bounds.view_y,
+        width: bounds.width,
+        height: bounds.height,
+        keymap_scale_ratio: bounds.keymap_scale_ratio,
+        min_x: bounds.min_x,
+        max_x: bounds.max_x,
+        min_y: bounds.min_y,
+        max_y: bounds.max_y,
+    })
 }

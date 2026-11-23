@@ -1,14 +1,14 @@
 use super::super::*;
 use boardstudio_web_ui_model::Workspace;
 
-pub(super) fn use_toolbar_selection_availability(
+pub(in crate::presentation) fn use_toolbar_selection_availability(
     tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
     layout_owner: LayoutOwnerIdentity,
     accepted_canvas_source: layout_canvas::SceneSource,
     snapshot: &AcceptedSnapshot,
     model: &ReadModel,
     selected_tree_context: Option<objects::ScopedTreeContext>,
-    active_workspace: Workspace,
+    active_workspace: Option<Workspace>,
 ) -> (bool, bool) {
     let retained_toolbar_cell = tree_cell_anchor_for_owner(&tree_cell_anchor, &layout_owner);
     use_memo(use_reactive(
@@ -22,7 +22,7 @@ pub(super) fn use_toolbar_selection_availability(
             &active_workspace,
         ),
         |(source, token, session_epoch, active_instance_id, selected, retained, workspace)| {
-            if !matches!(workspace, Workspace::Layout | Workspace::Pcb) {
+            if !matches!(workspace, Some(Workspace::Layout | Workspace::Pcb)) {
                 return (false, false);
             }
             let model = ReadModel {
@@ -231,201 +231,6 @@ pub(super) fn layout_toolbar_input(
     }))
 }
 
-pub(super) struct PcbToolbarArgs {
-    pub selected_tree_context: Option<objects::ScopedTreeContext>,
-    pub show_position_inspector: bool,
-    pub runtime: Rc<Runtime>,
-    pub adapter: SelectionAdapter,
-    pub workspace: Signal<Workspace>,
-    pub objects_open: Signal<bool>,
-    pub inspect_open: Signal<bool>,
-    pub inspector_panel_settings: Signal<PanelSettings>,
-    pub layout_owner: LayoutOwnerIdentity,
-    pub toolbar_selection_availability: (bool, bool),
-    pub layout_snap_settings: Signal<objects::LayoutSnapSettings>,
-    pub layout_command_menu: Signal<Option<objects::LayoutCommandMenu>>,
-    pub layout_selection_kind: Signal<objects::LayoutSelectionKind>,
-    pub pcb_selection_kind: EventHandler<objects::LayoutSelectionKind>,
-    pub pcb_snap_intent: EventHandler<objects::LayoutSnapIntent>,
-    pub pcb_align: objects::LayoutAlignMount,
-}
-
-pub(super) fn pcb_toolbar_input(
-    input: PcbToolbarArgs,
-) -> workspace_composition::WorkspaceToolbarInput {
-    let PcbToolbarArgs {
-        selected_tree_context,
-        show_position_inspector,
-        runtime,
-        adapter,
-        workspace,
-        mut objects_open,
-        mut inspect_open,
-        inspector_panel_settings,
-        layout_owner,
-        toolbar_selection_availability,
-        layout_snap_settings,
-        layout_command_menu,
-        layout_selection_kind,
-        pcb_selection_kind,
-        pcb_snap_intent,
-        pcb_align,
-    } = input;
-    let properties_available = selected_tree_context.as_ref().is_some_and(|selected| {
-        matches!(
-            &selected.context,
-            objects::TreeContext::Matrix { .. }
-                | objects::TreeContext::Row { .. }
-                | objects::TreeContext::Column { .. }
-                | objects::TreeContext::Key { .. }
-                | objects::TreeContext::Component {
-                    part_id: Some(_),
-                    ..
-                }
-        )
-    }) && show_position_inspector;
-    let on_show_properties = {
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let owner = layout_owner.clone();
-        move |_| {
-            if !pcb_owner_is_current(&runtime, workspace, &adapter, &owner) || !properties_available
-            {
-                return;
-            }
-            pin_inspector_on_desktop(inspector_panel_settings);
-            objects_open.set(false);
-            inspect_open.set(true);
-        }
-    };
-    let transform = objects::LayoutTransformMenuMount {
-        properties_available,
-        column_available: toolbar_selection_availability.0,
-        row_available: toolbar_selection_availability.1,
-        pointer_tools_visible: false,
-        pointer_tools_available: false,
-        active_tool: None,
-        matrix_rotate_followed: None,
-        on_selection_kind: pcb_selection_kind,
-        on_show_properties: EventHandler::new(on_show_properties),
-        on_transform_tool: EventHandler::new(|_| {}),
-    };
-    workspace_composition::WorkspaceToolbarInput::Pcb(Box::new(pcb_workspace::ToolbarInput {
-        command_label: "PCB commands".to_owned(),
-        menu_owner_key: format!("{layout_owner:?}"),
-        open_menu: layout_command_menu,
-        selection_kind: layout_selection_kind(),
-        snap_settings: layout_snap_settings.read().clone(),
-        transform,
-        align: pcb_align.clone(),
-        on_selection_kind: pcb_selection_kind,
-        on_snap_intent: pcb_snap_intent,
-        show_relationships: false,
-        has_selection_context: false,
-        on_show_relationships: EventHandler::new(|()| {}),
-    }))
-}
-
-pub(super) struct KeymapToolbarArgs {
-    pub runtime: Rc<Runtime>,
-    pub workspace: Signal<Workspace>,
-    pub adapter: SelectionAdapter,
-    pub layout_owner: LayoutOwnerIdentity,
-    pub layout_assembly_3d: Signal<bool>,
-    pub toggle_footprints: EventHandler<()>,
-    pub inspect_open: Signal<bool>,
-    pub inspector_panel_settings: Signal<PanelSettings>,
-    pub layer_visibility: LayerVisibility,
-}
-
-pub(super) fn keymap_toolbar_input(
-    input: KeymapToolbarArgs,
-) -> workspace_composition::WorkspaceToolbarInput {
-    let KeymapToolbarArgs {
-        runtime,
-        workspace,
-        adapter,
-        layout_owner,
-        layout_assembly_3d,
-        toggle_footprints,
-        inspect_open,
-        inspector_panel_settings,
-        layer_visibility,
-    } = input;
-    let on_view_mode = design_consumer_view_mode_handler(
-        runtime.clone(),
-        workspace,
-        adapter.clone(),
-        layout_owner.clone(),
-        layout_assembly_3d,
-    );
-    workspace_composition::WorkspaceToolbarInput::Keymap(shared_viewer::DesignViewToolbarProps {
-        contextual_tools: Some(rsx! { workspace_navigation::InspectorActions {
-            label: "Keymap tools", workspace, inspect_open, inspector_settings: inspector_panel_settings,
-            generation: adapter.generation, actions: vec![("Assign", "[aria-label='Keymap editors'] [aria-label='Keys']", true), ("Macros", "[aria-label='Keymap editors'] [aria-label='Macros']", true), ("Encoders", "[aria-label='Keymap editors'] [aria-label='Encoders']", true)],
-            disabled: false,
-        } }),
-        workspace: Workspace::Keymap,
-        detail: "Layers & key behaviors".into(),
-        assembly_3d: layout_assembly_3d(),
-        footprints_visible: (layer_visibility.footprints)()
-            && !(layer_visibility.hidden)().contains("Footprints"),
-        on_view_mode,
-        on_toggle_footprints: toggle_footprints,
-    })
-}
-
-pub(super) struct KeycapsToolbarArgs<'a> {
-    pub runtime: Rc<Runtime>,
-    pub workspace: Signal<Workspace>,
-    pub adapter: SelectionAdapter,
-    pub layout_owner: LayoutOwnerIdentity,
-    pub layout_assembly_3d: Signal<bool>,
-    pub toggle_footprints: EventHandler<()>,
-    pub inspect_open: Signal<bool>,
-    pub inspector_panel_settings: Signal<PanelSettings>,
-    pub layer_visibility: LayerVisibility,
-    pub model: &'a ReadModel,
-}
-
-pub(super) fn keycaps_toolbar_input(
-    input: KeycapsToolbarArgs<'_>,
-) -> workspace_composition::WorkspaceToolbarInput {
-    let KeycapsToolbarArgs {
-        runtime,
-        workspace,
-        adapter,
-        layout_owner,
-        layout_assembly_3d,
-        toggle_footprints,
-        inspect_open,
-        inspector_panel_settings,
-        layer_visibility,
-        model,
-    } = input;
-    let on_view_mode = design_consumer_view_mode_handler(
-        runtime.clone(),
-        workspace,
-        adapter.clone(),
-        layout_owner.clone(),
-        layout_assembly_3d,
-    );
-    workspace_composition::WorkspaceToolbarInput::Keycaps(shared_viewer::DesignViewToolbarProps {
-        contextual_tools: Some(rsx! { workspace_navigation::InspectorActions {
-            label: "Keycaps tools", workspace, inspect_open, inspector_settings: inspector_panel_settings,
-            generation: adapter.generation, actions: vec![("Profile", "[aria-label^='Keycap overrides for '] [data-slot='select-trigger'][aria-label^='Profile override for ']", false), ("Legend", "[aria-label^='Keycap overrides for '] [aria-label^='Legend for ']", false), ("Color", "[aria-label^='Keycap overrides for '] [aria-label^='Keycap color for ']", false)],
-            disabled: model.selected_part_ids.is_empty(),
-        } }),
-        workspace: Workspace::Keycaps,
-        detail: "Profiles, legends & fit".into(),
-        assembly_3d: layout_assembly_3d(),
-        footprints_visible: (layer_visibility.footprints)()
-            && !(layer_visibility.hidden)().contains("Footprints"),
-        on_view_mode,
-        on_toggle_footprints: toggle_footprints,
-    })
-}
-
 pub(super) struct ToolbarInputArgs<'a> {
     pub active_workspace: Workspace,
     pub toolbar_selection_availability: (bool, bool),
@@ -443,7 +248,6 @@ pub(super) struct ToolbarInputArgs<'a> {
     pub on_layout_selection_kind_handler: EventHandler<objects::LayoutSelectionKind>,
     pub matrices: Vec<&'a boardstudio_core::model::Matrix>,
     pub layer_visibility: LayerVisibility,
-    pub model: &'a ReadModel,
     pub layout_snap_settings: Signal<objects::LayoutSnapSettings>,
     pub layout_command_menu: Signal<Option<objects::LayoutCommandMenu>>,
     pub layout_assembly_3d: Signal<bool>,
@@ -451,8 +255,6 @@ pub(super) struct ToolbarInputArgs<'a> {
     pub toggle_footprints: EventHandler<()>,
     pub layout_selection_kind: Signal<objects::LayoutSelectionKind>,
     pub component_inspector: Option<inspector::LayoutComponentInspectorProjection>,
-    pub pcb_selection_kind: EventHandler<objects::LayoutSelectionKind>,
-    pub pcb_snap_intent: EventHandler<objects::LayoutSnapIntent>,
     pub layout_transform_target: Option<(
         std::rc::Rc<boardstudio_core::model::Matrix>,
         std::rc::Rc<boardstudio_core::model::MatrixScene>,
@@ -460,7 +262,6 @@ pub(super) struct ToolbarInputArgs<'a> {
     )>,
     pub layout_align: objects::LayoutAlignMount,
     pub layout_snap_intent: EventHandler<objects::LayoutSnapIntent>,
-    pub pcb_align: objects::LayoutAlignMount,
 }
 
 pub(super) fn toolbar_input(
@@ -483,7 +284,6 @@ pub(super) fn toolbar_input(
         on_layout_selection_kind_handler,
         matrices,
         layer_visibility,
-        model,
         layout_snap_settings,
         layout_command_menu,
         layout_assembly_3d,
@@ -491,12 +291,9 @@ pub(super) fn toolbar_input(
         toggle_footprints,
         layout_selection_kind,
         component_inspector,
-        pcb_selection_kind,
-        pcb_snap_intent,
         layout_transform_target,
         layout_align,
         layout_snap_intent,
-        pcb_align,
     } = input;
     match active_workspace {
         Workspace::Layout => layout_toolbar_input(LayoutToolbarArgs {
@@ -526,50 +323,9 @@ pub(super) fn toolbar_input(
             layout_align,
             layout_snap_intent,
         }),
-        Workspace::Pcb => pcb_toolbar_input(PcbToolbarArgs {
-            selected_tree_context,
-            show_position_inspector,
-            runtime,
-            adapter,
-            workspace,
-            objects_open,
-            inspect_open,
-            inspector_panel_settings,
-            layout_owner,
-            toolbar_selection_availability,
-            layout_snap_settings,
-            layout_command_menu,
-            layout_selection_kind,
-            pcb_selection_kind,
-            pcb_snap_intent,
-            pcb_align,
-        }),
-        Workspace::Keymap => keymap_toolbar_input(KeymapToolbarArgs {
-            runtime,
-            workspace,
-            adapter,
-            layout_owner,
-            layout_assembly_3d,
-            toggle_footprints,
-            inspect_open,
-            inspector_panel_settings,
-            layer_visibility,
-        }),
-        Workspace::Keycaps => keycaps_toolbar_input(KeycapsToolbarArgs {
-            runtime,
-            workspace,
-            adapter,
-            layout_owner,
-            layout_assembly_3d,
-            toggle_footprints,
-            inspect_open,
-            inspector_panel_settings,
-            layer_visibility,
-            model,
-        }),
         Workspace::Case => workspace_composition::WorkspaceToolbarInput::Case,
         Workspace::Parts => workspace_composition::WorkspaceToolbarInput::Parts,
-        Workspace::Export => workspace_composition::WorkspaceToolbarInput::Export,
+        _ => workspace_composition::WorkspaceToolbarInput::Export,
     }
 }
 
@@ -583,7 +339,7 @@ pub(super) struct WsInputs {
 
 pub(super) struct WsInputsInput<'a> {
     pub setup_a: &'a super::setup_bundles::SetupA,
-    pub setup_b: &'a super::setup_bundles::SetupB,
+    pub setup_b: &'a super::setup_bundles::SharedSetup,
     pub cam: &'a super::camera::CamNamed,
     pub canvas: &'a super::canvas_state::CanvasNamed,
     pub wir: &'a super::workspace_inputs::WsWiring,
@@ -594,12 +350,7 @@ pub(super) struct WsInputsInput<'a> {
     pub instance_scope_pending: bool,
 }
 
-pub(super) fn use_workspace_inputs(
-    input: WsInputsInput<'_>,
-    start_pan: impl FnMut(PointerEvent) + Clone + 'static,
-    move_pointer: impl FnMut(PointerEvent) + Clone + 'static,
-    key_up: impl FnMut(KeyboardEvent) + Clone + 'static,
-) -> WsInputs {
+pub(super) fn use_workspace_inputs(input: WsInputsInput<'_>) -> WsInputs {
     let WsInputsInput {
         setup_a,
         setup_b,
@@ -636,40 +387,20 @@ pub(super) fn use_workspace_inputs(
     let inspect_open = setup_a.editor.panels.inspector_open;
     let inspector_panel_settings = setup_a.inspector_panel_settings;
     let layout_transform_tool = setup_a.layout_transform_tool;
-    let on_layout_selection_kind_handler = wir.wiring.on_layout_selection_kind_handler;
+    let on_layout_selection_kind_handler = wir.on_layout_selection_kind_handler;
     let layer_visibility = setup_a.editor.layers;
     let layout_snap_settings = setup_a.layout_snap_settings;
     let layout_command_menu = setup_a.layout_command_menu;
-    let toggle_footprints = wir.wiring.toggle_footprints;
+    let toggle_footprints = wir.toggle_footprints;
     let layout_selection_kind = setup_a.layout_selection_kind;
     let component_inspector = &canvas.inspector.component_inspector;
-    let pcb_selection_kind = wir.wiring.pcb_selection_kind;
-    let pcb_snap_intent = wir.wiring.pcb_snap_intent;
     let layout_transform_target = &canvas.selection.layout_transform_target;
     let layout_align = &setup_a.layout_align;
-    let layout_snap_intent = wir.wiring.layout_snap_intent;
-    let pcb_align = &setup_a.pcb_align;
-    let mount = canvas.inspector.mount;
-    let canvas_end_pointer = wir.wiring.canvas_end_pointer;
-    let canvas_cancel_pointer = wir.wiring.canvas_cancel_pointer;
-    let canvas_keyboard = wir.wiring.canvas_keyboard;
-    let canvas_wheel = wir.wiring.canvas_wheel;
-    let view_box = &cam.scene_bounds.view_box;
-    let render_generation = setup_a.render_generation;
-    let keymap_view = &setup_b.keymap_view;
-    let keymap_contours = &setup_b.keymap_contours;
-    let keycaps_view = &setup_b.keycaps_view;
-    let keycaps_contours = &setup_b.keycaps_contours;
-    let keymap_select = wir.wiring.keymap_select;
-    let keycaps_select = wir.wiring.keycaps_select;
+    let layout_snap_intent = wir.layout_snap_intent;
     let mechanical_settings = &setup_b.mechanical_settings;
     let current_scope = &setup_a.view.current_scope;
     let parts_query = setup_a.view.parts_query;
     let parts_selection = setup_a.view.parts_selection;
-    let pcb_empty_hit = wir.wiring.pcb_empty_hit;
-    let pcb_part_hit = wir.wiring.pcb_part_hit;
-    let pcb_part_pointer_down = wir.wiring.pcb_part_pointer_down;
-    let mounted_module_select = wir.wiring.mounted_module_select;
     let layout_component_inspector_lifetime = &setup_a.layout_component_inspector_lifetime;
     let on_layout_view_mode = on_layout_view_mode(OnLayoutViewModeArgs {
         runtime: runtime.clone(),
@@ -698,7 +429,7 @@ pub(super) fn use_workspace_inputs(
         snapshot,
         model,
         selected_tree_context.clone(),
-        active_workspace,
+        (active_workspace == Workspace::Layout).then_some(active_workspace),
     );
     let toolbar_input = toolbar_input(ToolbarInputArgs {
         active_workspace,
@@ -717,7 +448,6 @@ pub(super) fn use_workspace_inputs(
         on_layout_selection_kind_handler,
         matrices: matrices.clone(),
         layer_visibility,
-        model,
         layout_snap_settings,
         layout_command_menu,
         layout_assembly_3d,
@@ -725,31 +455,13 @@ pub(super) fn use_workspace_inputs(
         toggle_footprints,
         layout_selection_kind,
         component_inspector: component_inspector.clone(),
-        pcb_selection_kind,
-        pcb_snap_intent,
         layout_transform_target: layout_transform_target.clone(),
         layout_align: layout_align.clone(),
         layout_snap_intent,
-        pcb_align: pcb_align.clone(),
     });
     let canvas_input = super::canvas_inspector_inputs::canvas_input(
         super::canvas_inspector_inputs::CanvasInputArgs {
-            mount,
-            end_pointer: canvas_end_pointer,
-            cancel_pointer: canvas_cancel_pointer,
-            keyboard: canvas_keyboard,
-            wheel: canvas_wheel,
             snapshot,
-            render_scope: render_scope.clone(),
-            view_box: view_box.clone(),
-            model,
-            render_generation,
-            keymap_view: keymap_view.clone(),
-            keymap_contours: keymap_contours.clone(),
-            keycaps_view: keycaps_view.clone(),
-            keycaps_contours: keycaps_contours.clone(),
-            keymap_select,
-            keycaps_select,
             mechanical_settings: mechanical_settings.clone(),
             instance_scope_pending,
             part_placement: part_placement.clone(),
@@ -757,14 +469,7 @@ pub(super) fn use_workspace_inputs(
             parts_query,
             parts_selection,
             active_workspace,
-            pcb_empty_hit,
-            pcb_part_hit,
-            pcb_part_pointer_down,
-            mounted_module_select,
         },
-        start_pan.clone(),
-        move_pointer.clone(),
-        key_up.clone(),
     );
     let on_component_inspector_action =
         super::canvas_inspector_inputs::on_component_inspector_action_handler(
