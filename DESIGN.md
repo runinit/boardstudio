@@ -78,7 +78,15 @@ choices. The resolved Appearance and chosen Theme are applied to `<html>` as
 `boardstudio:v2:appearance` and `boardstudio:v2:workbench-theme`;
 the former falls back to the legacy `boardstudio:v2:theme` until saved.
 The 3D renderer receives Appearance, not Theme, so its default palettes are
-shared between Themes. First-paint timing has not been verified.
+shared between Themes. First paint is resolved synchronously: the packaged
+`<head>` carries an inline script (before any stylesheet) that reads
+`boardstudio:v2:appearance` (falling back to the legacy `boardstudio:v2:theme`,
+then to `matchMedia('(prefers-color-scheme: dark)')`) and
+`boardstudio:v2:workbench-theme` (defaulting to `original`), applies the
+matching `data-appearance`/`data-theme` attributes, `colorScheme`, and desk
+background on `<html>`, and degrades to the Original light desk when storage
+is unavailable. The dev server serves dx-generated HTML without this
+bootstrap, so only packaged builds guarantee a flash-free first paint.
 
 ### Primary
 
@@ -134,8 +142,17 @@ lighting are separate from those CSS values.
 ### Known implementation limitations
 
 Token names alone do not guarantee contrast across composited states, geometry
-or 3D materials. Measure actual foreground/background and focus pairs; do not
-treat this document as evidence of accessibility compliance.
+or 3D materials. Every Theme x Appearance matrix (Original/shadcn x
+light/dark) is verified by the hermetic `scripts/check-theme-contrast.py` gate
+(stdlib only; wired into `check.py repo`): body and status text pairs must
+reach WCAG AA 4.5:1 and focus rings, rules, and control edges (`--ring`,
+`--border`, `--border-strong`, `--input`, `--toolbar-border`, `--keycap-rule`
+against adjacent surfaces) must reach 3.0:1. Hairline rules were darkened and
+a few shadcn fills now pair with dark text (following the existing shadcn-dark
+pattern) to meet those floors while keeping each Theme's hues, radii, and
+token names. The quiet measurement grid, scrollbars, and slider tracks stay
+decorative and outside the gate; do not treat this document as evidence of
+accessibility compliance beyond the gated pairs.
 
 ## Typography
 
