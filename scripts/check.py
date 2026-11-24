@@ -82,10 +82,9 @@ def browser() -> list[Command]:
 
 WEB_WASM_LINT_PACKAGES = (
     "boardstudio-web", "boardstudio-web-host", "boardstudio-web-worker-host",
-    "boardstudio-web-runtime", "boardstudio-web-ui-shared", "boardstudio-web-keycaps",
-    "boardstudio-web-library", "boardstudio-web-keymap", "boardstudio-web-case",
-    "boardstudio-web-parts", "boardstudio-web-pcb", "boardstudio-web-layout",
-    "boardstudio-web-layout-objects",
+    "boardstudio-web-runtime", "boardstudio-web-ui-shared", "boardstudio-web-workspaces",
+    "boardstudio-web-case", "boardstudio-web-parts", "boardstudio-web-pcb",
+    "boardstudio-web-layout", "boardstudio-web-layout-objects",
 )
 
 BROWSER_PREBUILDS = [PAGE_TEST_BUILD]

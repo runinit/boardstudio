@@ -40,7 +40,7 @@ pub(in crate::presentation) fn use_layout_canvas(
     let focused_keycaps_finding = contexts.keycaps.focused_finding();
     if layout_assembly_3d() {
         return rsx! {
-            layout_viewer::LayoutCanonicalViewer {
+            keycaps_viewer::KeycapsAssemblyViewer {
                 on_mounted_module_pick: Some(frame.select_module),
                 focused_finding: focused_keycaps_finding(),
             }

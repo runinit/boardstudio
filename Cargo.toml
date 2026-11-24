@@ -21,9 +21,7 @@ members = [
   "web/crates/pcb",
   "web/crates/parts",
   "web/crates/case",
-  "web/crates/keymap",
-  "web/crates/library",
-  "web/crates/keycaps",
+  "web/crates/workspaces",
 ]
 # The CAD workspace owns the lockfile and patched cadmpeg dependency graph.
 exclude = [
@@ -133,22 +131,20 @@ aho-corasick = { opt-level = 1 }
 # plain-Cargo subpath builds rely on.
 boardstudio-web = { debug-assertions = false }
 boardstudio-web-ui-shared = { debug-assertions = false }
-boardstudio-web-keycaps = { debug-assertions = false }
+boardstudio-web-workspaces = { debug-assertions = false }
 boardstudio-web-case = { debug-assertions = false }
 boardstudio-web-parts = { debug-assertions = false }
 boardstudio-web-layout = { debug-assertions = false }
 boardstudio-web-layout-core = { debug-assertions = false }
 boardstudio-web-layout-objects = { debug-assertions = false }
 boardstudio-web-pcb = { debug-assertions = false }
-boardstudio-web-keymap = { debug-assertions = false }
-boardstudio-web-library = { debug-assertions = false }
 dioxus-web = { debug-assertions = false }
 
 [profile.wasm-dev.package.boardstudio-web]
 debug-assertions = true
 [profile.wasm-dev.package.boardstudio-web-ui-shared]
 debug-assertions = true
-[profile.wasm-dev.package.boardstudio-web-keycaps]
+[profile.wasm-dev.package.boardstudio-web-workspaces]
 debug-assertions = true
 [profile.wasm-dev.package.boardstudio-web-case]
 debug-assertions = true
@@ -161,10 +157,6 @@ debug-assertions = true
 [profile.wasm-dev.package.boardstudio-web-layout-objects]
 debug-assertions = true
 [profile.wasm-dev.package.boardstudio-web-pcb]
-debug-assertions = true
-[profile.wasm-dev.package.boardstudio-web-keymap]
-debug-assertions = true
-[profile.wasm-dev.package.boardstudio-web-library]
 debug-assertions = true
 [profile.wasm-dev.package.dioxus-web]
 debug-assertions = true

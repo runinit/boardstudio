@@ -20,13 +20,14 @@ mod empty_board_canvas;
 mod export_workspace;
 mod header;
 mod inspector;
-pub(crate) use boardstudio_web_keycaps::keycaps_finding_marker;
-pub(crate) use boardstudio_web_keycaps::keycaps_fit;
-pub(crate) use boardstudio_web_keycaps::keycaps_navigation;
-pub(crate) use boardstudio_web_keycaps::keycaps_scene;
-pub(crate) use boardstudio_web_keycaps::keycaps_settings;
+pub(crate) use boardstudio_web_workspaces::keycaps_finding_marker;
+pub(crate) use boardstudio_web_workspaces::keycaps_fit;
+pub(crate) use boardstudio_web_workspaces::keycaps_navigation;
+pub(crate) use boardstudio_web_workspaces::keycaps_scene;
+pub(crate) use boardstudio_web_workspaces::keycaps_settings;
+pub(crate) use boardstudio_web_workspaces::keycaps_viewer;
 mod keycaps_workspace;
-pub(crate) use boardstudio_web_keymap::keymap;
+pub(crate) use boardstudio_web_workspaces::keymap;
 mod keymap_workspace;
 pub(crate) use boardstudio_web_ui_shared::layout_camera;
 #[cfg(test)]
@@ -49,7 +50,6 @@ pub(crate) use boardstudio_web_layout::layout_findings_state::{
     ReturnTarget as LayoutFindingReturnTarget, layout_finding_is_live,
     layout_finding_return_is_current, source_matches_layout_owner, use_layout_findings_state,
 };
-pub(crate) use boardstudio_web_layout::layout_viewer;
 // Shared UI vocabulary lives in `boardstudio-web-ui-model`; re-export it here so
 // presentation modules keep addressing it as `super::selection`, `super::InstanceSelection`
 // and so on.
@@ -78,13 +78,13 @@ pub(crate) use boardstudio_web_layout::objects;
 pub(crate) use boardstudio_web_layout::outline;
 pub(crate) use boardstudio_web_layout::outline_snapping;
 pub(crate) use boardstudio_web_layout::part_placement;
-pub(crate) use boardstudio_web_library::library;
 pub(crate) use boardstudio_web_parts::parts;
 pub(crate) use boardstudio_web_ui_shared::panels;
 use boardstudio_web_ui_shared::ui::{
     button::{Button, ButtonVariant},
     field::FieldError,
 };
+pub(crate) use boardstudio_web_workspaces::library;
 mod parts_workspace;
 mod setup_project_name;
 mod setup_workspace;

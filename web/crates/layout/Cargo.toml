@@ -14,7 +14,7 @@ boardstudio-web-runtime = { path = "../runtime" }
 boardstudio-web-ui-model = { path = "../ui-model" }
 boardstudio-web-ui-shared = { path = "../ui-shared" }
 boardstudio-web-catalogue = { path = "../catalogue" }
-boardstudio-web-keycaps = { path = "../keycaps" }
+boardstudio-web-workspaces = { path = "../workspaces" }
 boardstudio-web-parts = { path = "../parts" }
 boardstudio-web-layout-core = { path = "../layout-core" }
 boardstudio-web-layout-objects = { path = "../layout-objects" }

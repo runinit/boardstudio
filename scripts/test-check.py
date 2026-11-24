@@ -22,8 +22,8 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(self.option_values(runner.PAGE_BUILD, "-p"), ["boardstudio-web"])
         packages = {"boardstudio-web"} | {
             f"boardstudio-web-{crate}" for crate in (
-                "host", "worker-host", "runtime", "ui-shared", "keycaps", "library",
-                "keymap", "case", "parts", "pcb", "layout", "layout-objects",
+                "host", "worker-host", "runtime", "ui-shared", "workspaces",
+                "case", "parts", "pcb", "layout", "layout-objects",
             )
         }
         self.assertEqual(set(self.option_values(check.LINT[-1], "--package")), packages)

@@ -16,7 +16,7 @@ required-features = ["page"]
 
 [features]
 default = ["page"]
-page = ["boardstudio-web-host/page", "dep:boardstudio-web-runtime", "dep:boardstudio-web-ui-model", "dep:boardstudio-web-ui-shared", "dep:boardstudio-web-layout", "dep:boardstudio-web-pcb", "dep:boardstudio-web-parts", "dep:boardstudio-web-case", "dep:boardstudio-web-keymap", "dep:boardstudio-web-library", "dep:boardstudio-web-keycaps", "dep:boardstudio-application", "dep:boardstudio_core", "dep:dioxus", "dep:dioxus-web", "dep:gloo-timers", "dep:serde_json"]
+page = ["boardstudio-web-host/page", "dep:boardstudio-web-runtime", "dep:boardstudio-web-ui-model", "dep:boardstudio-web-ui-shared", "dep:boardstudio-web-layout", "dep:boardstudio-web-pcb", "dep:boardstudio-web-parts", "dep:boardstudio-web-case", "dep:boardstudio-web-workspaces", "dep:boardstudio-application", "dep:boardstudio_core", "dep:dioxus", "dep:dioxus-web", "dep:gloo-timers", "dep:serde_json"]
 cad-worker = ["boardstudio-web-worker-host/cad", "dep:serde_json"]
 service-worker = ["dep:boardstudio-web-worker-host"]
 test-harness = ["boardstudio-web-host?/test-harness", "boardstudio-web-worker-host?/test-harness"]
@@ -33,9 +33,7 @@ boardstudio-web-layout = { path = "crates/layout", optional = true }
 boardstudio-web-pcb = { path = "crates/pcb", optional = true }
 boardstudio-web-parts = { path = "crates/parts", optional = true }
 boardstudio-web-case = { path = "crates/case", optional = true }
-boardstudio-web-keymap = { path = "crates/keymap", optional = true }
-boardstudio-web-library = { path = "crates/library", optional = true }
-boardstudio-web-keycaps = { path = "crates/keycaps", optional = true }
+boardstudio-web-workspaces = { path = "crates/workspaces", optional = true }
 serde = { version = "1", features = ["derive"] }
 # `alloc` matches what wasm-bindgen-test turns on, so the page build and the page tests resolve
 # serde_json identically and share every unit built on it.
@@ -58,9 +56,7 @@ boardstudio-web-layout = { path = "crates/layout" }
 boardstudio-web-pcb = { path = "crates/pcb" }
 boardstudio-web-parts = { path = "crates/parts" }
 boardstudio-web-case = { path = "crates/case" }
-boardstudio-web-keymap = { path = "crates/keymap" }
-boardstudio-web-library = { path = "crates/library" }
-boardstudio-web-keycaps = { path = "crates/keycaps" }
+boardstudio-web-workspaces = { path = "crates/workspaces" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 # The page, the CAD and offline workers and the renderer (`renderer/Cargo.toml`) are separate

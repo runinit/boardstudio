@@ -417,7 +417,7 @@ pub(super) fn KeycapsWorkspace() -> Element {
             // Keycaps crate viewer, with the focused finding wired to its
             // camera focus (the generic design-canvas 3D path drops it).
             rsx! {
-                boardstudio_web_keycaps::keycaps_viewer::KeycapsAssemblyViewer {
+                keycaps_viewer::KeycapsAssemblyViewer {
                     keycaps_fit: fit.state.clone(),
                     focused_finding: focused_finding(),
                 }

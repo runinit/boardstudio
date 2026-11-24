@@ -1,14 +1,16 @@
 [package]
-name = "boardstudio-web-keycaps"
+name = "boardstudio-web-workspaces"
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 publish = false
-description = "BoardStudio Keycaps workspace: keycap fit, settings, scene and finding navigation."
+description = "BoardStudio Library, Keymap and Keycaps workspace features."
 
 [dependencies]
 boardstudio-application = { path = "../../../application" }
+boardstudio-core-mechanical = { path = "../../../core/crates/mechanical" }
 boardstudio-model = { path = "../../../core/crates/model" }
+boardstudio-web-host = { path = "../host", features = ["page"] }
 boardstudio-web-runtime = { path = "../runtime" }
 boardstudio-web-ui-model = { path = "../ui-model" }
 boardstudio-web-ui-shared = { path = "../ui-shared" }
@@ -18,11 +20,21 @@ serde_json = { version = "1", features = ["float_roundtrip"] }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 dioxus = { version = "=0.7.10", default-features = false, features = ["minimal", "web", "mounted"] }
 dioxus-web = { version = "=0.7.10", default-features = false, features = ["mounted"] }
+gloo-timers = { version = "=0.3.0", features = ["futures"] }
+js-sys = "=0.3.106"
+wasm-bindgen = "=0.2.129"
+wasm-bindgen-futures = "=0.4.79"
+web-sys = { workspace = true }
 
 [dev-dependencies]
+boardstudio_core = { path = "../../../core" }
+boardstudio-core-kernel = { path = "../../../core/crates/kernel" }
 boardstudio-web-runtime = { path = "../runtime", features = ["test-support"] }
 boardstudio-web-ui-model = { path = "../ui-model", features = ["test-support"] }
 boardstudio-web-ui-shared = { path = "../ui-shared", features = ["test-support"] }
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+boardstudio-web-host = { path = "../host", features = ["test-support"] }
 
 [lints]
 workspace = true
