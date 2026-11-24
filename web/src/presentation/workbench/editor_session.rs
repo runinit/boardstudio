@@ -2,7 +2,6 @@ use super::*;
 use boardstudio_web_ui_model::editor::EditorContext;
 pub(in crate::presentation) mod action_handlers;
 pub(in crate::presentation) mod camera;
-pub(in crate::presentation) mod canvas_adapter;
 pub(in crate::presentation) mod commands;
 pub(in crate::presentation) mod findings_navigation;
 pub(in crate::presentation) mod keyboard;
@@ -106,11 +105,38 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
         workspace_composition::current_tree_context(&state.adapter, model, &render_scope);
     let show_position_inspector =
         camera::session_show_position_inspector(model, session_selected_tree_context.as_ref());
-    let pointer = canvas_adapter::use_pointer_bundle(&state, &cam, &render_scope);
-    let (keyboard, key_up, start_pan) =
-        keyboard::build_keyboard_bundle(&state, &cam, &render_scope);
+    let (keyboard, key_up) = keyboard::build_keyboard_handlers(&state, &cam);
+    let interaction = consume_context::<LayoutInteraction>();
+    let handlers = super::super::editor::canvas_adapter::use_canvas_surface(
+        super::super::editor::canvas_adapter::CanvasAdapter {
+            surface: super::super::editor::canvas_adapter::CanvasSurface {
+                runtime: editor.runtime(),
+                svg: cam.svg_surface.svg.clone(),
+                adapter: state.adapter.clone(),
+                interaction,
+                scope: render_scope.clone(),
+                generation: state.render_generation,
+                owner: state.view.layout_owner.clone(),
+                workspace: editor.workspace,
+                bounds: cam.scene_bounds.canvas_bounds(),
+                tree_cell_anchor: state.tree_cell_anchor.clone(),
+                layout_state: state.layout_state,
+                transform_inspector: state.matrix_transform_inspector.clone(),
+                range_ids: Rc::default(),
+            },
+            navigation: state.canvas_navigation.clone(),
+            part_placement: cam.placement.part_placement.clone(),
+            matrix_placement: state.matrix_pair.matrix_placement.clone(),
+            mirrored_pair: state.matrix_pair.mirrored_pair.clone(),
+            interaction_version: cam.placement.interaction_version,
+            active_workspace: state.active_workspace,
+        },
+        mount,
+        keyboard,
+        key_up,
+    );
     let mut layout_input = use_context::<layout_input::LayoutInput>();
-    let layout_keyboard = use_callback(keyboard.clone());
+    let layout_keyboard = handlers.keyboard;
     let matrix_placement = &state.matrix_pair.matrix_placement;
     let pair = &state.matrix_pair.mirrored_pair;
     let part_cancel = cam.placement.part_placement.on_cancel;
@@ -140,7 +166,6 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
         layout_input.keyboard.set(Some(layout_keyboard));
         layout_input.cancel_placement.set(Some(cancel_placement));
     });
-    let interaction = consume_context::<LayoutInteraction>();
     use_effect(move || {
         let _ = interaction.version();
         layout_input::focus_workbench_if_body();
@@ -155,14 +180,6 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
             layout_input.cancel_placement.set(None);
         }
     });
-    let wheel = keyboard::build_wheel(
-        editor,
-        &state.adapter,
-        &render_scope,
-        state.render_generation,
-        &cam.svg_surface.svg,
-        &cam.scene_bounds,
-    );
     let wir = workspace_inputs::use_workspace_wiring(
         &state,
         &matrix_setup,
@@ -255,17 +272,7 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
             visible_positions,
             owner: state.view.layout_owner.clone(),
             objects: wir.shared_objects.clone(),
-            handlers: workspace_composition::CanvasEventHandlers {
-                mount,
-                start_pan: EventHandler::new(start_pan.clone()),
-                move_pointer: pointer.move_pointer,
-                end_pointer: pointer.end_pointer,
-                cancel_pointer: pointer.cancel_pointer,
-                lost_capture: pointer.lost_capture,
-                keyboard: EventHandler::new(keyboard.clone()),
-                key_up: EventHandler::new(key_up.clone()),
-                wheel: EventHandler::new(wheel.clone()),
-            },
+            handlers,
             svg: cam.svg_surface.svg.clone(),
             surface_size: cam.svg_surface.zoom_surface_size,
             matrix_setup: matrix_setup.clone(),

@@ -1,7 +1,9 @@
 //! Mounted Layout interaction state shared by the workbench and SVG tools.
 
-use boardstudio_application::Scope;
-use boardstudio_model::model::Vec2;
+use crate::objects::GestureSnapInputs;
+use crate::runtime::Runtime;
+use boardstudio_application::{Event, Scope};
+use boardstudio_model::model::{Position, Vec2};
 pub use boardstudio_web_layout_core::interaction::{
     ActiveOutlineDrag, ActivePan, ActivePartDrag, ActiveRailDrag, CanvasEvent, CanvasInteraction,
     CanvasKey, CanvasMode, GestureSeed, InteractionEffect, OutlineHandleSeed, RailBodyDrag,
@@ -165,10 +167,59 @@ impl LayoutInteraction {
         }
     }
 
+    pub fn capture_drag(
+        self,
+        id: i32,
+        client: (f64, f64),
+        control: bool,
+        seed: GestureSeed,
+        capture: &web_sys::SvgElement,
+        focus: Option<&web_sys::SvgElement>,
+    ) -> bool {
+        // Modifiers can be stale when callers stop propagation before workbench handlers see them.
+        self.sync_control(control);
+        let mode = seed.mode();
+        if self.handle(CanvasEvent::PointerDown {
+            id,
+            client,
+            control,
+            seed: Some(seed),
+        }) != [InteractionEffect::CapturePointer(id)]
+        {
+            return false;
+        }
+        if capture.set_pointer_capture(id).is_err() {
+            self.end(mode);
+            return false;
+        }
+        focus_svg(focus.unwrap_or(capture));
+        true
+    }
+
     pub fn end(self, mode: CanvasMode) {
         if self.current() == Some(mode) {
             self.handle(CanvasEvent::End(mode));
         }
+    }
+
+    pub fn cancel(self, id: i32) {
+        self.handle(CanvasEvent::PointerCancel(id));
+    }
+
+    pub fn pointer_up(self, id: i32) {
+        self.handle(CanvasEvent::PointerUp {
+            id,
+            operation: None,
+        });
+    }
+
+    pub fn pointer_down(self, id: i32, client: (f64, f64), control: bool) {
+        self.handle(CanvasEvent::PointerDown {
+            id,
+            client,
+            control,
+            seed: None,
+        });
     }
 
     pub fn on_cancel(mut self, cancel: impl Fn() + 'static) {
@@ -273,4 +324,66 @@ pub fn release_capture(surface: &std::cell::RefCell<Option<web_sys::SvgElement>>
     {
         let _ = capture.release_pointer_capture(pointer_id);
     }
+}
+
+pub fn begin_body_drag(
+    runtime: &Rc<Runtime>,
+    interaction: LayoutInteraction,
+    pointer_id: i32,
+    tx_id: Option<&str>,
+    start: &[Position],
+    snap: GestureSnapInputs,
+    (scale, alt): (f64, bool),
+) -> Option<u64> {
+    let target_ids: Vec<_> = start.iter().map(|p| p.id.clone()).collect();
+    let op = runtime.operation();
+    let transaction_id = tx_id.map_or_else(|| format!("drag-{}", op.0), str::to_owned);
+    runtime.submit(Event::GestureBegin {
+        operation_id: op,
+        pointer_id: i64::from(pointer_id),
+        target_ids: target_ids.clone(),
+        transaction_id,
+        start: start.to_vec(),
+        pitch: snap.pitch,
+        snap_fraction: snap.snap_fraction,
+        geometry_snap: snap.geometry_snap,
+        gap: snap.gap,
+        pixels_per_world: Some(scale),
+        alt,
+    });
+    let gesture_gen = runtime
+        .model()
+        .gesture
+        .filter(|g| g.pointer_id == i64::from(pointer_id) && g.target_ids == target_ids)
+        .map(|g| g.generation);
+    if gesture_gen.is_none() {
+        interaction.handle(CanvasEvent::PointerCancel(pointer_id));
+    }
+    gesture_gen
+}
+
+pub fn submit_gesture_step(
+    runtime: &Rc<Runtime>,
+    pointer_id: i32,
+    positions: Vec<Position>,
+    scale: f64,
+    alt: bool,
+    end: bool,
+) {
+    let pointer_id = i64::from(pointer_id);
+    runtime.submit(if end {
+        Event::GestureEnd {
+            pointer_id,
+            final_positions: positions,
+            pixels_per_world: Some(scale),
+            alt,
+        }
+    } else {
+        Event::GestureSample {
+            pointer_id,
+            positions,
+            pixels_per_world: Some(scale),
+            alt,
+        }
+    });
 }
