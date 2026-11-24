@@ -50,8 +50,8 @@ fn fixture() -> Element {
                 selection_kind: kind(), snap_settings: settings(), transform,
                 align: LayoutAlignMount {
                     references: (0..reference_count()).map(|i| AlignReference { id: i.to_string(), label: format!("Reference {i}") }).collect(),
-                    selected_reference: Some(reference()), action: None, enabled: false,
-                    disabled_reason: Some("Select a part to align.".into()), feedback: None,
+                    selected_reference: Some(reference()), enabled: false,
+                    disabled_reason: Some("Select a part to align.".into()),
                     on_reference: EventHandler::new(move |next| reference.set(next)), on_align: EventHandler::new(|_| {}),
                 },
                 show_relationships: false, has_selection_context: has_selection(),

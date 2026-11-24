@@ -6,11 +6,7 @@ impl View<'_> {
     /// cumulative totals come from Core's scene (so only scene-present keys
     /// have them).
     pub(super) fn key_facts(&self, row: u32, column: u32) -> AggregatedKey {
-        let stored = self
-            .matrix
-            .cells
-            .iter()
-            .find(|cell| cell.row == row && cell.column == column);
+        let stored = self.cell(row, column);
         let published = self.contributions(row, column);
         AggregatedKey {
             shift: stored.and_then(|cell| cell.shift).unwrap_or(ZERO),
@@ -62,21 +58,9 @@ impl View<'_> {
         }
         let members = self.members(|r, _| r == row);
         let keys = self.row_keys(row);
-        let (mut enabled, mut disabled, mut removed) = (0u32, 0u32, 0u32);
-        for key in &keys {
-            match key.state {
-                KeyState::Enabled => enabled += 1,
-                KeyState::Disabled => disabled += 1,
-                KeyState::Removed => removed += 1,
-            }
-        }
-        let mut keys_text = format!("{enabled} keys in Row {}", row + 1);
-        if disabled > 0 {
-            keys_text.push_str(&format!(", {disabled} disabled"));
-        }
-        if removed > 0 {
-            keys_text.push_str(&format!(", {removed} removed"));
-        }
+        let keys_text = key_state_summary(keys.iter().map(|key| key.state), |enabled| {
+            format!("{enabled} keys in Row {}", row + 1)
+        });
         let mut structure = vec![item("Keys", keys_text, None, members.clone())];
         // The anchor frame heads the chain: this row inherits a frame derived
         // from the anchor key, or one entry per aggregate part.
@@ -101,30 +85,7 @@ impl View<'_> {
             Some(self.row_context(row)),
             members.clone(),
         ));
-        structure.push(item(
-            "Key shift",
-            aggregate_shift(&keys),
-            None,
-            members.clone(),
-        ));
-        structure.push(item(
-            "Key bend",
-            aggregate_bend(&keys),
-            None,
-            members.clone(),
-        ));
-        structure.push(item(
-            "Cumulative shift",
-            aggregate_cumulative_shift(&keys),
-            None,
-            members.clone(),
-        ));
-        structure.push(item(
-            "Cumulative bend",
-            aggregate_cumulative_bend(&keys),
-            None,
-            members.clone(),
-        ));
+        push_key_carry_items(&mut structure, &keys, &members);
         // Padding carries to later rows, so later rows inherit this row's steps.
         for later in row + 1..self.matrix.rows {
             structure.push(item(
@@ -190,30 +151,7 @@ impl View<'_> {
             Some(self.column_context(column)),
             members.clone(),
         ));
-        structure.push(item(
-            "Key shift",
-            aggregate_shift(&keys),
-            None,
-            members.clone(),
-        ));
-        structure.push(item(
-            "Key bend",
-            aggregate_bend(&keys),
-            None,
-            members.clone(),
-        ));
-        structure.push(item(
-            "Cumulative shift",
-            aggregate_cumulative_shift(&keys),
-            None,
-            members.clone(),
-        ));
-        structure.push(item(
-            "Cumulative bend",
-            aggregate_cumulative_bend(&keys),
-            None,
-            members.clone(),
-        ));
+        push_key_carry_items(&mut structure, &keys, &members);
         for later in column + 1..self.matrix.columns {
             structure.push(item(
                 "Inherited by",
@@ -247,18 +185,14 @@ impl View<'_> {
     }
 
     pub(super) fn contributions(&self, row: u32, column: u32) -> Option<CoreCellFacts> {
-        self.scene
-            .cells
-            .iter()
-            .find(|cell| cell.row == row && cell.column == column)
-            .map(|cell| CoreCellFacts {
-                row_shift: cell.row_shift,
-                key_shift: cell.key_shift,
-                row_bend: cell.row_bend,
-                key_bend: cell.key_bend,
-                cumulative_shift: cell.cumulative_shift,
-                cumulative_bend: cell.cumulative_bend,
-            })
+        crate::scene_cell_in(self.scene, row, column).map(|cell| CoreCellFacts {
+            row_shift: cell.row_shift,
+            key_shift: cell.key_shift,
+            row_bend: cell.row_bend,
+            key_bend: cell.key_bend,
+            cumulative_shift: cell.cumulative_shift,
+            cumulative_bend: cell.cumulative_bend,
+        })
     }
 
     pub(super) fn key(&self, row: u32, column: u32) -> Option<MatrixRelations> {
@@ -502,11 +436,7 @@ impl View<'_> {
         }
 
         let mut departures = Vec::new();
-        let cell = self
-            .matrix
-            .cells
-            .iter()
-            .find(|cell| cell.row == row && cell.column == column);
+        let cell = self.cell(row, column);
         if let Some(offset) = cell.and_then(|cell| cell.offset).filter(|v| *v != ZERO) {
             departures.push(Departure {
                 parameter: "Key local offset".into(),

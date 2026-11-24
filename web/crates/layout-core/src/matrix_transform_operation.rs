@@ -15,7 +15,7 @@ mod placement;
 #[cfg(test)]
 mod tests;
 
-pub use build::build_operation;
+pub use build::{build_operation, set_cells_enabled};
 pub use catalogue::{
     attachment_component_choices, catalogue_retry_due, component_edit_admitted_by_catalogue,
 };

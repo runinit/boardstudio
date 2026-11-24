@@ -60,32 +60,10 @@ pub struct MatrixDragAnchor {
 /// The anchor key's final world pose from the accepted scene, or `None` when
 /// the anchor target is not laid out and the drag cannot start.
 pub fn matrix_drag_anchor_pose(scenes: &[MatrixScene], anchor: &MatrixAnchor) -> Option<Pose2> {
-    scenes
-        .iter()
-        .find(|scene| scene.matrix_id == anchor.matrix_id)
-        .and_then(|scene| {
-            scene
-                .cells
-                .iter()
-                .find(|cell| cell.row == anchor.row && cell.column == anchor.column)
-        })
-        .map(|cell| cell.pose)
+    crate::scene_cell(scenes, &anchor.matrix_id, anchor.row, anchor.column).map(|cell| cell.pose)
 }
 
-fn transport_delta_to_source(transport: MatrixDragTransport, delta: Vec2) -> Vec2 {
-    match transport {
-        MatrixDragTransport::World => delta,
-        MatrixDragTransport::Reflected { rotation, .. } => {
-            let (sin, cos) = rotation.to_radians().sin_cos();
-            Vec2 {
-                x: -(delta.x * cos + delta.y * sin),
-                y: -delta.x * sin + delta.y * cos,
-            }
-        }
-    }
-}
-
-fn transport_delta_from_source(transport: MatrixDragTransport, delta: Vec2) -> Vec2 {
+fn reflect_delta(transport: MatrixDragTransport, delta: Vec2) -> Vec2 {
     match transport {
         MatrixDragTransport::World => delta,
         MatrixDragTransport::Reflected { rotation, .. } => {
@@ -118,12 +96,9 @@ pub fn solve_matrix_origin(
 ) -> Vec2 {
     let constrained = match anchor {
         None => world_delta,
-        Some(anchor) => transport_delta_from_source(
+        Some(anchor) => reflect_delta(
             anchor.transport,
-            zero_unfollowed(
-                &anchor.follow,
-                transport_delta_to_source(anchor.transport, world_delta),
-            ),
+            zero_unfollowed(&anchor.follow, reflect_delta(anchor.transport, world_delta)),
         ),
     };
     // Through the inverse of the anchor frame for anchored matrices; the
