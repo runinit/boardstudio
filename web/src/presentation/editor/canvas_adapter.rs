@@ -261,11 +261,11 @@ impl CanvasSurface {
             if live {
                 return Some(LiveGesture::Pan(p));
             }
-        } else if let Some(d) = self
-            .interaction
-            .part_drag()
-            .filter(|d| ok(d.pointer_id, &d.scope, d.generation))
-        {
+        } else {
+            let d = self
+                .interaction
+                .part_drag()
+                .filter(|d| ok(d.pointer_id, &d.scope, d.generation))?;
             let owned = owns_session_gesture(
                 &self.runtime,
                 i64::from(d.pointer_id),
@@ -275,8 +275,6 @@ impl CanvasSurface {
             if live && (!d.active || owned) {
                 return Some(LiveGesture::Parts(d));
             }
-        } else {
-            return None;
         }
         self.interaction.cancel(ptr);
         None
