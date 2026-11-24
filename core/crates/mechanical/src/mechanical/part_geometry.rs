@@ -222,13 +222,7 @@ pub(super) fn collect_part_geometry(
                     } else {
                         let (sin, cos) = stabilizer.rotation.unwrap_or(0.0).to_radians().sin_cos();
                         polygons.extend(custom.cutouts.iter().map(|polygon| {
-                            polygon
-                                .iter()
-                                .map(|p| Vec2 {
-                                    x: p.x * cos - p.y * sin,
-                                    y: p.x * sin + p.y * cos,
-                                })
-                                .collect::<Vec<_>>()
+                            crate::geometry2d::rotate_polygon(polygon, sin, cos)
                         }));
                         issue(
                             &format!("custom-stabilizer:{}", part.id),
@@ -260,21 +254,13 @@ pub(super) fn collect_part_geometry(
                                 stabilizer.rotation.unwrap_or(0.0).to_radians().sin_cos();
                             pcb_holes.extend(stab.pcb_holes.unwrap_or_default().into_iter().map(
                                 |mut hole| {
-                                    hole.at = Vec2 {
-                                        x: hole.at.x * cos - hole.at.y * sin,
-                                        y: hole.at.x * sin + hole.at.y * cos,
-                                    };
+                                    hole.at =
+                                        crate::geometry2d::rotate_point(hole.at, sin, cos);
                                     hole
                                 },
                             ));
                             polygons.extend(stab.cutouts.into_iter().map(|polygon| {
-                                polygon
-                                    .into_iter()
-                                    .map(|p| Vec2 {
-                                        x: p.x * cos - p.y * sin,
-                                        y: p.x * sin + p.y * cos,
-                                    })
-                                    .collect::<Vec<_>>()
+                                crate::geometry2d::rotate_polygon(&polygon, sin, cos)
                             }));
                         }
                         Err(message) => issue(
@@ -449,7 +435,7 @@ pub(super) fn collect_part_geometry(
             });
         }
         for polygon in profile.clearances.iter().flatten() {
-            if polygon.len() < 3 || polygon.iter().any(|p| !p.x.is_finite() || !p.y.is_finite()) {
+            if !crate::geometry2d::is_finite_polygon(polygon) {
                 issue(
                     &format!("clearance:{}", part.id),
                     Severity::Error,
@@ -481,7 +467,7 @@ pub(super) fn collect_part_geometry(
             }
         }
         for polygon in &polygons {
-            if polygon.len() < 3 || polygon.iter().any(|p| !p.x.is_finite() || !p.y.is_finite()) {
+            if !crate::geometry2d::is_finite_polygon(polygon) {
                 issue(
                     &format!("polygon:{}", part.id),
                     Severity::Error,

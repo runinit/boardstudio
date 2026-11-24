@@ -1,37 +1,13 @@
 use super::*;
 use crate::geometry::{self, BooleanOverlayRule};
+use crate::geometry2d::{paths, shapes_to_contours};
 
 fn intersect_contours(a: &[Contour], b: &[Contour]) -> Vec<Contour> {
-    let paths = |contours: &[Contour]| {
-        contours
-            .iter()
-            .map(|contour| {
-                contour
-                    .points
-                    .iter()
-                    .map(|point| [point.x, point.y])
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>()
-    };
-    geometry::overlay(&paths(a), &paths(b), BooleanOverlayRule::Intersect)
-        .into_iter()
-        .flat_map(|shape| {
-            shape
-                .into_iter()
-                .enumerate()
-                .map(|(index, points)| Contour {
-                    points: points
-                        .into_iter()
-                        .map(|point| Vec2 {
-                            x: point[0],
-                            y: point[1],
-                        })
-                        .collect(),
-                    hole: index > 0,
-                })
-        })
-        .collect()
+    shapes_to_contours(geometry::overlay(
+        &paths(a),
+        &paths(b),
+        BooleanOverlayRule::Intersect,
+    ))
 }
 
 struct Solid {
@@ -656,32 +632,12 @@ fn circle(at: Vec2, diameter: f64, positive: bool) -> Vec<Vec2> {
 }
 
 fn subtract(contours: &[Contour], cutter: &[Vec2]) -> Vec<Contour> {
-    let paths = contours
-        .iter()
-        .map(|contour| {
-            contour
-                .points
-                .iter()
-                .map(|p| [p.x, p.y])
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
     let cutter = cutter.iter().map(|p| [p.x, p.y]).collect::<Vec<_>>();
-    geometry::overlay(&paths, &vec![cutter], BooleanOverlayRule::Difference)
-        .into_iter()
-        .flat_map(|shape| {
-            shape
-                .into_iter()
-                .enumerate()
-                .map(|(index, points)| Contour {
-                    hole: index > 0,
-                    points: points
-                        .into_iter()
-                        .map(|p| Vec2 { x: p[0], y: p[1] })
-                        .collect(),
-                })
-        })
-        .collect()
+    shapes_to_contours(geometry::overlay(
+        &paths(contours),
+        &vec![cutter],
+        BooleanOverlayRule::Difference,
+    ))
 }
 
 fn occupied(volume: &CaseOpening, holes: &[Contour], clearance: f64) -> Result<Solid, String> {
