@@ -496,9 +496,9 @@ def prepare_runtime_providers(fast=False):
         providers = [(name, output, "boardstudio-web", feature, target)
                      for name, output, feature, target in worker_providers()]
         providers.append(("boardstudio_renderer_wasm", ROOT / "renderer/pkg", "boardstudio-renderer", None, ROOT / "target"))
-        # Both workers build `boardstudio-web --lib` into `target/wasm-workers`; Cargo cannot run
-        # two builds in the same target dir concurrently, so each distinct target dir is one
-        # sequential lane while distinct targets build in parallel.
+        # Both workers compile `boardstudio-web --lib` to the same output path
+        # (`target/wasm-workers/.../boardstudio_web.wasm`), so overlapping them could let one
+        # worker's `wasm-bindgen` bind the other's WASM; group shared targets into one sequential lane.
         groups: dict[Path, list[tuple]] = {}
         for provider in providers:
             groups.setdefault(provider[4], []).append(provider)

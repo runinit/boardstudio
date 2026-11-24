@@ -7,6 +7,8 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -165,10 +167,27 @@ class BuildWebTests(unittest.TestCase):
         self.assertNotIn("env", run.call_args_list[2].kwargs)
 
     def test_same_target_fast_providers_build_sequentially(self):
+        lock = threading.Lock()
+        active_by_target = set()
+        overlaps = []
+        events = []
         calls = []
 
         def fake_fast_provider(name, output, package, feature, target, bindgen):
-            calls.append((name, str(target)))
+            target_key = str(target)
+            with lock:
+                if target_key in active_by_target:
+                    overlaps.append((name, target_key))
+                active_by_target.add(target_key)
+                events.append(("start", name, target_key))
+            try:
+                time.sleep(0.03)
+                with lock:
+                    calls.append((name, target_key))
+            finally:
+                with lock:
+                    active_by_target.remove(target_key)
+                    events.append(("end", name, target_key))
 
         providers = [
             ("m1_cad_worker", Path("cad-worker"), "cad-worker", Path("shared")),
@@ -183,12 +202,23 @@ class BuildWebTests(unittest.TestCase):
              patch.object(BUILD, "snapshot", return_value={}), \
              patch.object(BUILD, "_stage_provider_entries"):
             BUILD.prepare_runtime_providers(fast=True)
-        # Both workers target the same directory, so they must share one sequential lane:
-        # exactly the two worker builds plus the renderer build, with the workers grouped.
+        # Both workers write to the same target output path, so they must never overlap
+        # inside one sequential lane even when distinct target dirs run concurrently.
+        self.assertEqual(overlaps, [])
         self.assertEqual(len(calls), 3)
+        shared_events = [event for event in events if event[2] == "shared"]
         worker_calls = [name for name, target in calls if target == "shared"]
         self.assertEqual(sorted(worker_calls),
                          ["boardstudio_offline_worker", "m1_cad_worker"])
+        self.assertEqual(
+            shared_events,
+            [
+                ("start", worker_calls[0], "shared"),
+                ("end", worker_calls[0], "shared"),
+                ("start", worker_calls[1], "shared"),
+                ("end", worker_calls[1], "shared"),
+            ],
+        )
         targets = {name: str(target) for name, _, _, target in BUILD.worker_providers()}
         self.assertEqual(targets["m1_cad_worker"], targets["boardstudio_offline_worker"])
         self.assertNotIn("wasm-offline-worker", targets["boardstudio_offline_worker"])

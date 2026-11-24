@@ -81,8 +81,7 @@ fn has_word(words: &str, token: &str) -> bool {
 
 const EVICT_SUPERSET: &[(&str, &str)] = &[
     ("size", "w h"),
-    ("w", "size"),
-    ("h", "size"),
+    ("text-size", "leading"),
     ("p", "px py pt pr pb pl"),
     ("px", "pl pr"),
     ("py", "pt pb"),
@@ -307,7 +306,11 @@ mod tests {
         for (parts, expected) in [
             (&["size-4", "size-3.5"][..], "size-3.5"),
             (&["size-4 animate-spin", "size-6"], "animate-spin size-6"),
-            (&["size-4", "w-2"], "w-2"),
+            (&["size-4", "w-2"], "size-4 w-2"),
+            (
+                &["text-sm leading-none", "text-xs text-foreground"],
+                "text-xs text-foreground",
+            ),
             (&["w-2 h-2", "size-4"], "size-4"),
             (
                 &["focus-visible:ring-2", "focus-visible:ring-[3px]"],

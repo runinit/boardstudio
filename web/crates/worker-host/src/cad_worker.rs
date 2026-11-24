@@ -53,8 +53,8 @@ impl fmt::Display for CadWorkerError {
 }
 impl std::error::Error for CadWorkerError {}
 
-// Wire envelope types are `pub` so the page suite can drive them through the
-// `test-support`-only `test_hooks` seam below; they stay internal to the worker.
+// Wire envelope types stay `pub` so `boardstudio-web`'s page suite can drive them via
+// `test_hooks`, while worker production code routes through private `dispatch`/`protocol` helpers.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CadEnvelope {

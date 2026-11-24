@@ -185,7 +185,7 @@ incremental = false
 # brotli-11 3,717,402 (3.55 MiB), code 15,156,399 + data 1,428,847, zero DWARF sections;
 # companions m1 841,844 / offline 65,913 / renderer 666,268 / cad 8,268,898 bytes.
 # subsecond stays an unpatched non-optional dioxus =0.7.10 dependency, mitigated by LTO +
-# release debug-assertions = false (workspace lints still deny unwrap/expect outside tests).
+# release debug-assertions = false.
 [profile.release]
 codegen-units = 1
 lto = "fat"
