@@ -5,7 +5,8 @@ use super::TreeContext;
 pub use super::layout_rail_tool::{LayoutTransformTool, ToolActivation, activate_transform_tool};
 use super::layout_toolbar::{GestureSnapInputs, LayoutSnapSettings};
 use crate::canvas_interaction::{
-    CanvasEvent, CanvasMode, InteractionEffect, LayoutInteraction, client_point, focus_svg,
+    CanvasEvent, CanvasMode, GestureSeed, InteractionEffect, LayoutInteraction, client_point,
+    focus_svg,
 };
 use crate::matrix_relations;
 use crate::matrix_transform_operation::{
@@ -348,11 +349,16 @@ impl Ctl {
         // The latch below trusts `control_down` as well as this event, and the
         // handle stops propagation, so stale modifiers must be synced first.
         self.interaction.sync_control(pointer.ctrl_key());
+        let seed = if self.mode == CanvasMode::DraggingMatrixRail {
+            GestureSeed::MatrixRail
+        } else {
+            GestureSeed::PartRail
+        };
         if self.interaction.handle(CanvasEvent::PointerDown {
-            mode: self.mode,
             id,
             client,
             control: pointer.ctrl_key(),
+            seed: Some(seed),
         }) != [InteractionEffect::CapturePointer(id)]
         {
             return;

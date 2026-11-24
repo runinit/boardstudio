@@ -114,8 +114,8 @@ mod zmk_firmware_export;
 
 use crate::case_generation_lifecycle::AutomaticCaseGeneration;
 use boardstudio_web_layout::canvas_interaction::{
-    CanvasEvent, CanvasKey, CanvasMode, InteractionEffect, LayoutInteraction, client_point,
-    focus_svg,
+    CanvasEvent, CanvasKey, CanvasMode, GestureSeed, InteractionEffect, LayoutInteraction,
+    client_point, focus_svg,
 };
 pub(crate) use boardstudio_web_ui_shared::footprint_graphics;
 use canvas_layers::CanvasLayers;

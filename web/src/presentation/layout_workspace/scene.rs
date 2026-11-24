@@ -281,23 +281,22 @@ fn selection_anchor(
                             let Some(snapshot) = current.accepted else { return; };
                             let positions: Vec<_> = snapshot.document.parts.iter().filter(|p| current.selected_part_ids.contains(&p.id)).map(|p| Position { id: p.id.clone(), at: p.pose.at }).collect();
                             if positions.is_empty() { return; }
-                            if !workbench::editor_session::canvas_adapter::capture_canvas_drag(
+                            workbench::editor_session::canvas_adapter::capture_canvas_drag(
                                 arbiter,
                                 workbench::editor_session::canvas_adapter::CanvasDragStart {
-                                    mode: CanvasMode::DraggingParts,
                                     id: pointer.pointer_id(),
                                     client: client_point(&pointer),
                                     control: pointer.ctrl_key(),
-                                    seed: Some(workbench::editor_session::canvas_adapter::CanvasDragSeed::Parts {
+                                    seed: GestureSeed::PartDrag {
                                         scope: scope.clone(),
                                         generation: owner.generation,
                                         origin_mm: origin,
                                         positions,
-                                    }),
+                                    },
                                 },
                                 &runtime,
                                 &svg,
-                            ) { return; }
+                            );
                         },
                         circle { r: "5" }
                         path { d: "M0 -3.2v6.4M-3.2 0h6.4M-1.4 -1.8 0 -3.2l1.4 1.4M-1.4 1.8 0 3.2l1.4 -1.4M-1.8 -1.4-3.2 0l1.4 1.4M1.8 -1.4 3.2 0l-1.4 1.4" }

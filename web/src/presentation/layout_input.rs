@@ -190,7 +190,7 @@ fn event_target(event: &web_sys::Event) -> Option<web_sys::Element> {
 mod tests {
     use super::*;
     use boardstudio_application::{Scope, SessionEpoch};
-    use boardstudio_model::model::Vec2;
+    use boardstudio_core::model::Vec2;
     use boardstudio_web_ui_shared::{
         test_wait::wait_until,
         ui::dialog::{Dialog, DialogTitle},
@@ -231,12 +231,12 @@ mod tests {
         };
         let mut arm = move |mode: CanvasMode| {
             let seed = match mode {
-                CanvasMode::Panning => CanvasEvent::SeedPan {
+                CanvasMode::Panning => GestureSeed::Pan {
                     scope: scope(),
                     generation: 0,
                     start_camera: Vec2::default(),
                 },
-                CanvasMode::DraggingParts => CanvasEvent::SeedPartDrag {
+                CanvasMode::DraggingParts => GestureSeed::PartDrag {
                     scope: scope(),
                     generation: 0,
                     origin_mm: Vec2::default(),
@@ -244,12 +244,11 @@ mod tests {
                 },
                 _ => return,
             };
-            interaction.handle(seed);
             interaction.handle(CanvasEvent::PointerDown {
-                mode,
                 id: 7,
                 client: (0.0, 0.0),
                 control: false,
+                seed: Some(seed),
             });
             refresh += 1;
         };

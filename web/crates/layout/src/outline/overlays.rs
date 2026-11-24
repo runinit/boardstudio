@@ -5,7 +5,8 @@ use boardstudio_web_ui_shared::inspector_fields::NumericField;
 use super::hook::{OutlineActionContext, OutlineDrawTool, OutlineInspectorProjection};
 use super::planner::{OutlinePointTarget, PerimeterAnchor};
 use crate::canvas_interaction::{
-    CanvasEvent, CanvasMode, InteractionEffect, LayoutInteraction, client_point, focus_svg,
+    CanvasEvent, CanvasMode, GestureSeed, InteractionEffect, LayoutInteraction, client_point,
+    focus_svg,
 };
 use crate::runtime::Runtime;
 use boardstudio_application::Event;
@@ -310,7 +311,7 @@ pub fn OutlinePointCanvasOverlay(
                                 if !enabled || pointer.button() != 0 { return; }
                                 let id = pointer.pointer_id();
                                 if arbiter.handle(CanvasEvent::PointerDown {
-                                    mode: CanvasMode::DraggingOutlineHandle, id, client: client_point(&pointer), control: pointer.ctrl_key(),
+                                    id, client: client_point(&pointer), control: pointer.ctrl_key(), seed: Some(GestureSeed::OutlineHandle),
                                 }) != [InteractionEffect::CapturePointer(id)] { return; }
                                 let Some(handle) = pointer.target().and_then(|target| target.dyn_into::<SvgElement>().ok())
                                     .filter(|target| target.get_attribute("role").as_deref() == Some("button")) else {

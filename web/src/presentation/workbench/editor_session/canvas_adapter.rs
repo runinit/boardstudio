@@ -128,7 +128,6 @@ pub(super) fn move_pointer_handler(
         let Some(LivePointerGesture::Parts(current)) = live_pointer_gesture(
             canvas_interaction,
             &runtime,
-            &svg,
             &adapter,
             &owner,
             workspace,
@@ -157,12 +156,6 @@ pub(super) fn move_pointer_handler(
             let current_model = runtime.model();
             if current_model.gesture.is_some() {
                 canvas_interaction.handle(CanvasEvent::PointerCancel(pointer.pointer_id()));
-                selection::cancel_scoped_drag(
-                    &runtime,
-                    &svg,
-                    Some(&current.scope),
-                    pointer.pointer_id(),
-                );
                 return;
             }
             let retained_cell = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
@@ -203,12 +196,6 @@ pub(super) fn move_pointer_handler(
                     || (adapter.generation)() != current.generation
             }) {
                 canvas_interaction.handle(CanvasEvent::PointerCancel(pointer.pointer_id()));
-                selection::cancel_scoped_drag(
-                    &runtime,
-                    &svg,
-                    Some(&current.scope),
-                    pointer.pointer_id(),
-                );
                 return;
             }
             canvas_interaction
@@ -257,22 +244,10 @@ enum LivePointerGesture {
     Parts(ActivePartDrag),
 }
 
-fn cancel_pointer_gesture(
-    interaction: LayoutInteraction,
-    runtime: &Rc<Runtime>,
-    svg: &Rc<RefCell<Option<SvgElement>>>,
-    render_scope: &Scope,
-    pointer: i32,
-) {
-    interaction.handle(CanvasEvent::PointerCancel(pointer));
-    selection::cancel_scoped_drag(runtime, svg, Some(render_scope), pointer);
-}
-
 #[allow(clippy::too_many_arguments)]
 fn live_pointer_gesture(
     interaction: LayoutInteraction,
     runtime: &Rc<Runtime>,
-    svg: &Rc<RefCell<Option<SvgElement>>>,
     adapter: &SelectionAdapter,
     owner: &LayoutOwnerIdentity,
     workspace: Signal<Workspace>,
@@ -290,7 +265,7 @@ fn live_pointer_gesture(
         pan.pointer_id == pointer && pan.scope == *render_scope && pan.generation == generation
     }) {
         if !live {
-            cancel_pointer_gesture(interaction, runtime, svg, render_scope, pointer);
+            interaction.handle(CanvasEvent::PointerCancel(pointer));
             return None;
         }
         return Some(LivePointerGesture::Pan(pan));
@@ -309,7 +284,7 @@ fn live_pointer_gesture(
                 current.gesture_generation,
             ))
     {
-        cancel_pointer_gesture(interaction, runtime, svg, render_scope, pointer);
+        interaction.handle(CanvasEvent::PointerCancel(pointer));
         return None;
     }
     Some(LivePointerGesture::Parts(current))
@@ -436,7 +411,6 @@ pub(super) fn end_pointer_handler(
         let current = match live_pointer_gesture(
             canvas_interaction,
             &runtime,
-            &svg,
             &adapter,
             &owner,
             workspace,
@@ -498,13 +472,10 @@ pub(super) fn end_pointer_handler(
 }
 
 pub(super) fn cancel_pointer_handler(
-    runtime: Rc<Runtime>,
-    svg: Rc<RefCell<Option<SvgElement>>>,
     interaction_version: Signal<u64>,
     lost_capture: bool,
 ) -> impl FnMut(PointerEvent) + Clone + 'static {
     let input = use_context::<layout_input::LayoutInput>();
-    let canvas_interaction = use_context::<LayoutInteraction>();
     move |event: PointerEvent| {
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
@@ -519,38 +490,19 @@ pub(super) fn cancel_pointer_handler(
             .iter()
             .any(|effect| matches!(effect, InteractionEffect::Cancel(_)))
         {
-            selection::cancel_scoped_drag(&runtime, &svg, None, id);
             let mut interaction_version = interaction_version;
             interaction_version += 1;
-            let _ = canvas_interaction.version();
         }
     }
 }
 
-/// Seed for admitting a canvas gesture through [`capture_canvas_drag`].
-pub(in crate::presentation) enum CanvasDragSeed {
-    Pan {
-        scope: Scope,
-        generation: u64,
-        start_camera: Vec2,
-    },
-    Parts {
-        scope: Scope,
-        generation: u64,
-        origin_mm: Vec2,
-        positions: Vec<Position>,
-    },
-}
-
 pub(in crate::presentation) struct CanvasDragStart {
-    pub mode: CanvasMode,
     pub id: i32,
     pub client: (f64, f64),
     pub control: bool,
-    pub seed: Option<CanvasDragSeed>,
+    pub seed: GestureSeed,
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(in crate::presentation) fn capture_pan(
     interaction: LayoutInteraction,
     runtime: &Rc<Runtime>,
@@ -562,15 +514,14 @@ pub(in crate::presentation) fn capture_pan(
     capture_canvas_drag(
         interaction,
         CanvasDragStart {
-            mode: CanvasMode::Panning,
             id: pointer.pointer_id(),
             client: client_point(pointer),
             control: pointer.ctrl_key(),
-            seed: Some(CanvasDragSeed::Pan {
+            seed: GestureSeed::Pan {
                 scope: scope.clone(),
                 generation,
                 start_camera: runtime.with_model(|model| model.camera.center),
-            }),
+            },
         },
         runtime,
         svg,
@@ -641,7 +592,6 @@ pub(in crate::presentation) fn capture_canvas_drag(
     svg: &Rc<RefCell<Option<SvgElement>>>,
 ) -> bool {
     let CanvasDragStart {
-        mode,
         id,
         client,
         control,
@@ -649,31 +599,16 @@ pub(in crate::presentation) fn capture_canvas_drag(
     } = start;
     // Some callers stop propagation before the workbench can sync modifiers.
     interaction.sync_control(control);
+    let mode = seed.mode();
     let seed_scope = match &seed {
-        Some(CanvasDragSeed::Pan { scope, .. }) | Some(CanvasDragSeed::Parts { scope, .. }) => {
-            Some(scope.clone())
-        }
-        None => None,
+        GestureSeed::Pan { scope, .. } | GestureSeed::PartDrag { scope, .. } => Some(scope.clone()),
+        GestureSeed::MatrixRail | GestureSeed::PartRail | GestureSeed::OutlineHandle => None,
     };
-    match seed {
-        Some(CanvasDragSeed::Pan {
-            scope,
-            generation,
-            start_camera,
-        }) => interaction.seed_pan(scope, generation, start_camera),
-        Some(CanvasDragSeed::Parts {
-            scope,
-            generation,
-            origin_mm,
-            positions,
-        }) => interaction.seed_part_drag(scope, generation, origin_mm, positions),
-        None => {}
-    }
     if interaction.handle(CanvasEvent::PointerDown {
-        mode,
         id,
         client,
         control,
+        seed: Some(seed),
     }) != [InteractionEffect::CapturePointer(id)]
     {
         return false;
@@ -688,7 +623,9 @@ pub(in crate::presentation) fn capture_canvas_drag(
     }
     let (runtime, svg) = (runtime.clone(), svg.clone());
     interaction.on_cancel(move || {
-        selection::cancel_scoped_drag(&runtime, &svg, seed_scope.as_ref(), id);
+        if let Some(drag) = interaction.take_canceled_drag() {
+            selection::cancel_scoped_drag(&runtime, &svg, seed_scope.as_ref(), &drag);
+        }
     });
     true
 }
@@ -780,39 +717,12 @@ pub(super) fn use_pointer_bundle(
     let active_workspace = state.active_workspace;
     let previous_workspace = use_hook(move || Rc::new(Cell::new(active_workspace)));
     let render_scope_for_cleanup = render_scope.clone();
-    use_effect(use_reactive((&active_workspace,), {
-        let (runtime, svg) = (runtime.clone(), svg.clone());
-        move |(current,)| {
-            if previous_workspace.replace(current) == Workspace::Pcb && current != Workspace::Pcb {
-                if let Some(drag) = canvas_interaction
-                    .part_drag()
-                    .filter(|drag| drag.scope == render_scope_for_cleanup)
-                {
-                    canvas_interaction.handle(CanvasEvent::PointerCancel(drag.pointer_id));
-                    selection::cancel_scoped_drag(
-                        &runtime,
-                        &svg,
-                        Some(&render_scope_for_cleanup),
-                        drag.pointer_id,
-                    );
-                }
-                if let Some(pan) = canvas_interaction
-                    .pan()
-                    .filter(|pan| pan.scope == render_scope_for_cleanup)
-                {
-                    canvas_interaction.handle(CanvasEvent::PointerCancel(pan.pointer_id));
-                    selection::cancel_scoped_drag(
-                        &runtime,
-                        &svg,
-                        Some(&render_scope_for_cleanup),
-                        pan.pointer_id,
-                    );
-                }
-            }
+    use_effect(use_reactive((&active_workspace,), move |(current,)| {
+        if previous_workspace.replace(current) == Workspace::Pcb && current != Workspace::Pcb {
+            canvas_interaction.cancel_scoped(&render_scope_for_cleanup);
         }
     }));
-    let cancel_pointer =
-        |lost| cancel_pointer_handler(runtime.clone(), svg.clone(), interaction_version, lost);
+    let cancel_pointer = |lost| cancel_pointer_handler(interaction_version, lost);
     PointerBundle {
         move_pointer: EventHandler::new(move_pointer),
         end_pointer: EventHandler::new(end_pointer),
@@ -1283,16 +1193,15 @@ pub(in crate::presentation) fn part_pointer_down_handler(
         capture_canvas_drag(
             canvas_interaction,
             CanvasDragStart {
-                mode: CanvasMode::DraggingParts,
                 id: pointer.pointer_id(),
                 client: client_point(&pointer),
                 control: pointer.ctrl_key(),
-                seed: Some(CanvasDragSeed::Parts {
+                seed: GestureSeed::PartDrag {
                     scope: render_scope.clone(),
                     generation,
                     origin_mm: origin,
                     positions,
-                }),
+                },
             },
             &runtime,
             &svg,
@@ -1363,17 +1272,16 @@ pub(super) fn start_pan_handler(
                 && runtime.scope().as_ref() == Some(&render_scope)
                 && (adapter.generation)() == render_generation
                 && runtime.with_model(|model| model.gesture.is_none())
-            {
-                if capture_pan(
+                && capture_pan(
                     canvas_interaction,
                     &runtime,
                     &svg,
                     &render_scope,
                     render_generation,
                     &pointer,
-                ) {
-                    pointer.prevent_default();
-                }
+                )
+            {
+                pointer.prevent_default();
             }
             return;
         }
@@ -1385,12 +1293,12 @@ pub(super) fn start_pan_handler(
             return;
         }
         match canvas_interaction.current() {
-            Some(mode @ CanvasMode::PlacingMirroredPair) => {
+            Some(CanvasMode::PlacingMirroredPair) => {
                 canvas_interaction.handle(CanvasEvent::PointerDown {
-                    mode,
                     id,
                     client: client_point(&pointer),
                     control: pointer.ctrl_key(),
+                    seed: None,
                 });
                 if let Some(placement) = mirrored_pair.placement.as_ref() {
                     let owner = placement.owner.clone();
@@ -1424,12 +1332,12 @@ pub(super) fn start_pan_handler(
                     );
                 }
             }
-            Some(mode) => {
+            Some(_) => {
                 canvas_interaction.handle(CanvasEvent::PointerDown {
-                    mode,
                     id: pointer.pointer_id(),
                     client: client_point(&pointer),
                     control: pointer.ctrl_key(),
+                    seed: None,
                 });
             }
             None => {

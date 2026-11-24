@@ -5,7 +5,6 @@ pub(super) fn navigate_scoped_handler(
     runtime: Rc<Runtime>,
     adapter: SelectionAdapter,
     interaction: LayoutInteraction,
-    svg: Rc<RefCell<Option<SvgElement>>>,
     generation: u64,
 ) -> impl FnMut((Scope, String, Option<String>)) + Clone + 'static {
     let mut selected_context = adapter.selected_context;
@@ -36,17 +35,7 @@ pub(super) fn navigate_scoped_handler(
         if captured_scope.board_id == board_id && captured_scope.instance_id == instance_id {
             return;
         }
-        if let Some(active) = interaction
-            .part_drag()
-            .filter(|drag| drag.scope == captured_scope)
-        {
-            interaction.handle(CanvasEvent::PointerCancel(active.pointer_id));
-            selection::cancel_scoped_drag(&runtime, &svg, Some(&captured_scope), active.pointer_id);
-        }
-        if let Some(active) = interaction.pan().filter(|pan| pan.scope == captured_scope) {
-            interaction.handle(CanvasEvent::PointerCancel(active.pointer_id));
-            selection::cancel_scoped_drag(&runtime, &svg, Some(&captured_scope), active.pointer_id);
-        }
+        interaction.cancel_scoped(&captured_scope);
         selected_context.set(None);
         anchor_scope.set(None);
         runtime.submit(Event::Navigate {
@@ -576,35 +565,15 @@ pub(super) fn use_physical_setup_reconcile(
     ));
 }
 
-pub(super) fn use_selection_cleanup(
-    runtime: Rc<Runtime>,
-    adapter: SelectionAdapter,
-    interaction: LayoutInteraction,
-    svg: Rc<RefCell<Option<SvgElement>>>,
-) {
+pub(super) fn use_selection_cleanup(adapter: SelectionAdapter) {
     let layout_input = use_context::<layout_input::LayoutInput>();
     let cleanup_registration = use_hook({
-        let runtime = runtime.clone();
         let adapter = adapter.clone();
-        let svg = svg.clone();
         move || {
             let id = adapter.next_cleanup_id.get();
             adapter.next_cleanup_id.set(id.wrapping_add(1).max(1));
-            let weak_runtime = Rc::downgrade(&runtime);
-            let weak_svg = Rc::downgrade(&svg);
             let cleanup: selection::Cleanup = Rc::new(move || {
-                let doomed = interaction
-                    .part_drag()
-                    .map(|drag| drag.pointer_id)
-                    .or_else(|| interaction.pan().map(|pan| pan.pointer_id));
                 layout_input.dispatch(CanvasEvent::ScopeChanged);
-                let (Some(runtime), Some(svg)) = (weak_runtime.upgrade(), weak_svg.upgrade())
-                else {
-                    return;
-                };
-                if let Some(pointer_id) = doomed {
-                    selection::cancel_scoped_drag(&runtime, &svg, None, pointer_id);
-                }
             });
             *adapter.cleanup.borrow_mut() = Some((id, cleanup));
             id
@@ -664,7 +633,6 @@ pub(super) fn use_navigation_bundle(
         runtime.clone(),
         adapter.clone(),
         interaction,
-        svg.clone(),
         render_generation,
     );
     let navigate = navigate_handler(
@@ -729,7 +697,7 @@ pub(super) fn use_navigation_bundle(
             navigate.clone(),
             render_scope.clone(),
         );
-    use_selection_cleanup(runtime.clone(), adapter.clone(), interaction, svg.clone());
+    use_selection_cleanup(adapter.clone());
     (
         NavNamed {
             callbacks: LayoutFindingCallbacks {

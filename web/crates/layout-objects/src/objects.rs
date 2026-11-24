@@ -84,9 +84,8 @@ pub use matrix_preset::{
     MatrixPreset, SwitchOrientation as MatrixSwitchOrientation, matrix_with_preset,
 };
 pub use matrix_setup::{
-    MatrixPlacementInput, MatrixPlacementMove, MatrixPlacementOwner, MatrixPlacementProjection,
-    MatrixPlacementSession, MatrixPlacementSource, MatrixSetup, MatrixSetupMount,
-    use_matrix_placement,
+    MatrixPlacementInput, MatrixPlacementMove, MatrixPlacementSession, MatrixPlacementSource,
+    MatrixSetup, MatrixSetupMount, use_matrix_placement,
 };
 pub use matrix_setup_controller::use_matrix_setup;
 pub use matrix_transform::{

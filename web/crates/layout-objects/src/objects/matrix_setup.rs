@@ -216,7 +216,7 @@ use super::matrix_preparation::{
 use super::{ScopedTreeContext, TreeContext};
 use crate::{
     matrix_setup_operation::{MatrixSetupRequest, next_matrix_id},
-    presentation::canvas_interaction::{CanvasMode, LayoutInteraction, MatrixPlacementPayload},
+    presentation::canvas_interaction::{CanvasMode, LayoutInteraction},
     runtime::Runtime,
 };
 use boardstudio_application::{
@@ -461,9 +461,7 @@ pub fn use_matrix_placement(
                 &matrix_key,
                 reversible,
             );
-            if !canvas_interaction.begin_matrix_placement(MatrixPlacementPayload {
-                matrix_id: matrix_id.clone(),
-            }) {
+            if !canvas_interaction.begin(CanvasMode::PlacingMatrix) {
                 return;
             }
             preparing.set(Some(owner.clone()));

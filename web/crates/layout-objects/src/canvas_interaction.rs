@@ -1,12 +1,12 @@
 //! Mounted Layout interaction state shared by the workbench and SVG tools.
 
 use boardstudio_application::Scope;
-use boardstudio_model::model::{Position, Vec2};
+use boardstudio_model::model::Vec2;
 pub use boardstudio_web_layout_core::interaction::{
-    ActiveMarquee, ActivePan, ActivePartDrag, CanvasEvent, CanvasInteraction, CanvasKey,
-    CanvasMode, InteractionEffect, MatrixPlacementPayload, MirroredPairPayload,
-    PartPlacementPayload,
+    ActivePan, ActivePartDrag, CanvasEvent, CanvasInteraction, CanvasKey, CanvasMode, GestureSeed,
+    InteractionEffect,
 };
+use boardstudio_web_ui_model::selection::ScopedDrag;
 use dioxus::prelude::*;
 use std::rc::Rc;
 use web_sys::PointerEvent;
@@ -17,6 +17,7 @@ type PointerGesture = Rc<dyn Fn(&PointerEvent, bool)>;
 pub struct LayoutInteraction {
     state: Signal<CanvasInteraction>,
     cancel: Signal<Option<Rc<dyn Fn()>>>,
+    canceled_drag: Signal<Option<ScopedDrag>>,
     gesture: Signal<Option<PointerGesture>>,
     control: Signal<bool>,
     version: Signal<u64>,
@@ -26,10 +27,32 @@ pub fn use_layout_interaction() -> LayoutInteraction {
     LayoutInteraction {
         state: use_signal(CanvasInteraction::default),
         cancel: use_signal(|| None),
+        canceled_drag: use_signal(|| None),
         gesture: use_signal(|| None),
         control: use_signal(|| false),
         version: use_signal(|| 0),
     }
+}
+
+fn active_scoped_drag(state: &CanvasInteraction) -> Option<ScopedDrag> {
+    state
+        .part_drag()
+        .map(|drag| ScopedDrag {
+            pointer_id: drag.pointer_id,
+            scope: drag.scope,
+            gesture_generation: drag.gesture_generation,
+            active: drag.active,
+            pan: false,
+        })
+        .or_else(|| {
+            state.pan().map(|pan| ScopedDrag {
+                pointer_id: pan.pointer_id,
+                scope: pan.scope,
+                gesture_generation: None,
+                active: true,
+                pan: true,
+            })
+        })
 }
 
 impl LayoutInteraction {
@@ -65,86 +88,12 @@ impl LayoutInteraction {
         self.current() == Some(mode)
     }
 
-    fn begin_with(self, event: CanvasEvent, mode: CanvasMode) -> bool {
-        if self.current().is_some() {
-            return false;
-        }
-        self.handle(event);
-        self.current() == Some(mode)
-    }
-
-    /// Arms part placement with the session payload; the canvas routes moves
-    /// until the session commits or cancels.
-    pub fn begin_part_placement(self, payload: PartPlacementPayload) -> bool {
-        self.begin_with(
-            CanvasEvent::BeginPartPlacement(payload),
-            CanvasMode::PlacingPart,
-        )
-    }
-
-    pub fn begin_matrix_placement(self, payload: MatrixPlacementPayload) -> bool {
-        self.begin_with(
-            CanvasEvent::BeginMatrixPlacement(payload),
-            CanvasMode::PlacingMatrix,
-        )
-    }
-
-    pub fn begin_mirrored_pair_placement(self, payload: MirroredPairPayload) -> bool {
-        self.begin_with(
-            CanvasEvent::BeginMirroredPairPlacement(payload),
-            CanvasMode::PlacingMirroredPair,
-        )
-    }
-
-    pub fn seed_pan(self, scope: Scope, generation: u64, start_camera: Vec2) {
-        self.handle(CanvasEvent::SeedPan {
-            scope,
-            generation,
-            start_camera,
-        });
-    }
-
-    pub fn seed_part_drag(
-        self,
-        scope: Scope,
-        generation: u64,
-        origin_mm: Vec2,
-        positions: Vec<Position>,
-    ) {
-        self.handle(CanvasEvent::SeedPartDrag {
-            scope,
-            generation,
-            origin_mm,
-            positions,
-        });
-    }
-
-    pub fn seed_marquee(self, additive: bool) {
-        self.handle(CanvasEvent::SeedMarquee { additive });
-    }
-
     pub fn pan(self) -> Option<ActivePan> {
         self.state.peek().pan()
     }
 
     pub fn part_drag(self) -> Option<ActivePartDrag> {
         self.state.peek().part_drag()
-    }
-
-    pub fn marquee(self) -> Option<ActiveMarquee> {
-        self.state.peek().marquee()
-    }
-
-    pub fn placing_part(self) -> Option<PartPlacementPayload> {
-        self.state.peek().placing_part()
-    }
-
-    pub fn placing_matrix(self) -> Option<MatrixPlacementPayload> {
-        self.state.peek().placing_matrix()
-    }
-
-    pub fn placing_pair(self) -> Option<MirroredPairPayload> {
-        self.state.peek().placing_pair()
     }
 
     pub fn set_part_drag_gesture_generation(mut self, generation: Option<u64>) {
@@ -183,6 +132,25 @@ impl LayoutInteraction {
         self.cancel.set(Some(Rc::new(cancel)));
     }
 
+    pub fn take_canceled_drag(mut self) -> Option<ScopedDrag> {
+        self.canceled_drag.write().take()
+    }
+
+    pub fn cancel_scoped(self, expected_scope: &Scope) {
+        let pointer_id = self
+            .part_drag()
+            .filter(|drag| drag.scope == *expected_scope)
+            .map(|drag| drag.pointer_id)
+            .or_else(|| {
+                self.pan()
+                    .filter(|pan| pan.scope == *expected_scope)
+                    .map(|pan| pan.pointer_id)
+            });
+        if let Some(pointer_id) = pointer_id {
+            self.handle(CanvasEvent::PointerCancel(pointer_id));
+        }
+    }
+
     pub fn on_pointer(mut self, gesture: impl Fn(&PointerEvent, bool) + 'static) {
         self.gesture.set(Some(Rc::new(gesture)));
     }
@@ -199,10 +167,11 @@ impl LayoutInteraction {
 
     pub fn handle(mut self, event: CanvasEvent) -> Vec<InteractionEffect> {
         let previous = self.current();
-        let (effects, control) = {
+        let (effects, control, active_drag) = {
             let mut state = self.state.write();
+            let active_drag = active_scoped_drag(&state);
             let effects = state.handle(event);
-            (effects, state.control_down)
+            (effects, state.control_down, active_drag)
         };
         if *self.control.peek() != control {
             self.control.set(control);
@@ -216,7 +185,9 @@ impl LayoutInteraction {
                 .any(|effect| matches!(effect, InteractionEffect::Cancel(_)))
                 && let Some(cancel) = cancel
             {
+                *self.canceled_drag.write() = active_drag;
                 cancel();
+                self.canceled_drag.write().take();
             }
         }
         effects

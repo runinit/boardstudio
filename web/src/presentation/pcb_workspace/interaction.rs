@@ -142,17 +142,14 @@ pub(super) fn part_pointer_down(
             super::workbench::editor_session::canvas_adapter::capture_canvas_drag(
                 canvas_interaction,
                 super::workbench::editor_session::canvas_adapter::CanvasDragStart {
-                    mode: CanvasMode::Panning,
                     id: request.pointer_id as i32,
                     client,
                     control: false,
-                    seed: Some(
-                        super::workbench::editor_session::canvas_adapter::CanvasDragSeed::Pan {
-                            scope: scope.clone(),
-                            generation,
-                            start_camera: runtime.with_model(|model| model.camera.center),
-                        },
-                    ),
+                    seed: GestureSeed::Pan {
+                        scope: scope.clone(),
+                        generation,
+                        start_camera: runtime.with_model(|model| model.camera.center),
+                    },
                 },
                 &runtime,
                 &svg,
@@ -267,27 +264,22 @@ pub(super) fn part_pointer_down(
         {
             return;
         }
-        if !super::workbench::editor_session::canvas_adapter::capture_canvas_drag(
+        super::workbench::editor_session::canvas_adapter::capture_canvas_drag(
             canvas_interaction,
             super::workbench::editor_session::canvas_adapter::CanvasDragStart {
-                mode: CanvasMode::DraggingParts,
                 id: request.pointer_id as i32,
                 client: (f64::from(request.client_x), f64::from(request.client_y)),
                 control: false,
-                seed: Some(
-                    super::workbench::editor_session::canvas_adapter::CanvasDragSeed::Parts {
-                        scope: scope.clone(),
-                        generation,
-                        origin_mm: origin,
-                        positions,
-                    },
-                ),
+                seed: GestureSeed::PartDrag {
+                    scope: scope.clone(),
+                    generation,
+                    origin_mm: origin,
+                    positions,
+                },
             },
             &runtime,
             &svg,
-        ) {
-            return;
-        }
+        );
     })
 }
 
