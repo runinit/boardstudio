@@ -1,12 +1,13 @@
 //! The Layout canvas rail: labelled handle tokens over the selected matrix, row, column, key or
-//! independent part. One overlay owns every drag; the pure gesture math lives in
-//! `layout_core::rail_gesture` and the pointer protocol in [`Ctl`].
+//! independent part. One overlay renders the rail and routes pointer drags through
+//! [`LayoutInteraction`] into `CanvasInteraction`; pure gesture math lives in
+//! `layout_core::rail_gesture`.
 use super::TreeContext;
 pub use super::layout_rail_tool::{LayoutTransformTool, ToolActivation, activate_transform_tool};
 use super::layout_toolbar::{GestureSnapInputs, LayoutSnapSettings};
 use crate::canvas_interaction::{
-    CanvasEvent, CanvasMode, GestureSeed, InteractionEffect, LayoutInteraction, client_point,
-    focus_svg,
+    ActiveRailDrag, CanvasEvent, GestureSeed, InteractionEffect, LayoutInteraction, RailBodyDrag,
+    RailDragKind, RailDragSeed, client_point, focus_svg, release_capture,
 };
 use crate::matrix_relations;
 use crate::matrix_transform_operation::{
@@ -15,7 +16,7 @@ use crate::matrix_transform_operation::{
 };
 use crate::outline_snapping::Origin;
 use crate::runtime::Runtime;
-use boardstudio_application::{AcceptedSnapshot, EditResolver, Event, Resolution, SnapshotToken};
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Event, Resolution};
 use boardstudio_core_kernel::matrix::layout::evaluated_part_pose;
 use boardstudio_model::model::{
     EditOperation, Matrix, MatrixScene, MatrixSplayAffect, Position, Vec2,
@@ -176,46 +177,13 @@ pub(super) fn rail_backdrop(
     }
 }
 
-// ---------------------------------------------------------------------------------------------
-// Pointer protocol
-
-struct Active {
-    pointer_id: i32,
-    capture: SvgElement,
-    transaction_id: String,
-    tool: LayoutTransformTool,
-    gesture: Option<RailGesture>,
-    /// A detached part's Move drives the session body-drag gesture instead of a preview.
-    body: Option<Body>,
-    token: SnapshotToken,
-    revision: u64,
-    board_id: String,
-    start_client: (f64, f64),
-    last_preview: Option<(String, FeedbackDelta)>,
-}
-
-struct Body {
-    part_id: String,
-    start_at: Vec2,
-    last_sample: Option<(Vec2, f64, bool)>,
-}
-
-/// How a pointer-down starts, once the accepted snapshot and start point are known.
-enum Start {
-    Rail(RailGesture),
-    Body(Body),
-}
-
-type Slot = Rc<RefCell<Option<Active>>>;
-type Maker = Rc<dyn Fn(&AcceptedSnapshot, Vec2, bool) -> Option<Start>>;
+type SeedMaker = Rc<dyn Fn(&AcceptedSnapshot, Vec2, bool, String, &str) -> Option<GestureSeed>>;
 
 #[derive(Clone)]
-struct Ctl {
+struct RailView {
     runtime: Rc<Runtime>,
     surface: Rc<RefCell<Option<SvgElement>>>,
     interaction: LayoutInteraction,
-    mode: CanvasMode,
-    drag: Slot,
     feedback: Signal<FeedbackState>,
     popup_at: Signal<Option<(f64, f64)>>,
     toast_gen: Signal<u64>,
@@ -254,475 +222,445 @@ pub(super) fn feedback_event(mut feedback: Signal<FeedbackState>, event: Feedbac
     feedback.set(next);
 }
 
-impl Ctl {
-    fn world(&self, pointer: &web_sys::PointerEvent) -> Option<(Vec2, f64)> {
-        let (x, y, w, h) = self.view;
-        crate::presentation::coordinates_with_scale(&self.surface, pointer, x, y, w, h)
-    }
+fn world_point(view: &RailView, pointer: &web_sys::PointerEvent) -> Option<(Vec2, f64)> {
+    let (x, y, w, h) = view.view;
+    crate::presentation::coordinates_with_scale(&view.surface, pointer, x, y, w, h)
+}
 
-    fn input<'a>(
-        &'a self,
-        active: &Active,
-        pointer: &web_sys::PointerEvent,
-        point: Vec2,
-    ) -> Option<RailInput<'a>> {
-        let rect = self.surface.borrow().as_ref()?.get_bounding_client_rect();
-        if rect.width() <= 0.0 || rect.height() <= 0.0 {
-            return None;
-        }
-        let (_, _, w, h) = self.view;
-        let tolerance = w / rect.width() * 8.0;
-        Some(RailInput {
-            point,
-            world_delta: Vec2 {
-                x: (f64::from(pointer.client_x()) - active.start_client.0) * w / rect.width(),
-                y: -(f64::from(pointer.client_y()) - active.start_client.1) * h / rect.height(),
-            },
-            alt: pointer.alt_key(),
-            pitch: self.part_snap.map_or(self.pitch, |snap| snap.pitch),
-            snap_fraction: self
-                .part_snap
-                .map_or(self.snap.snap_fraction, |snap| snap.snap_fraction),
-            geometry_snap: self
-                .part_snap
-                .map_or(self.snap.geometry_snap, |snap| snap.geometry_snap),
-            origins: &self.origins,
-            tolerance,
-        })
+fn rail_input<'a>(
+    view: &'a RailView,
+    start_client: (f64, f64),
+    pointer: &web_sys::PointerEvent,
+    point: Vec2,
+) -> Option<RailInput<'a>> {
+    let rect = view.surface.borrow().as_ref()?.get_bounding_client_rect();
+    if rect.width() <= 0.0 || rect.height() <= 0.0 {
+        return None;
     }
+    let (_, _, w, h) = view.view;
+    let tolerance = w / rect.width() * 8.0;
+    Some(RailInput {
+        point,
+        world_delta: Vec2 {
+            x: (f64::from(pointer.client_x()) - start_client.0) * w / rect.width(),
+            y: -(f64::from(pointer.client_y()) - start_client.1) * h / rect.height(),
+        },
+        alt: pointer.alt_key(),
+        pitch: view.part_snap.map_or(view.pitch, |snap| snap.pitch),
+        snap_fraction: view
+            .part_snap
+            .map_or(view.snap.snap_fraction, |snap| snap.snap_fraction),
+        geometry_snap: view
+            .part_snap
+            .map_or(view.snap.geometry_snap, |snap| snap.geometry_snap),
+        origins: &view.origins,
+        tolerance,
+    })
+}
 
-    fn clear_preview(&self, active: &Active) {
-        self.runtime.submit(Event::ClearPreview {
-            operation_id: self.runtime.operation(),
-            token: active.token,
-            revision: active.revision,
-            board_id: active.board_id.clone(),
-            transaction_id: active.transaction_id.clone(),
-        });
+fn clear_rail_preview(runtime: &Rc<Runtime>, active: &ActiveRailDrag) {
+    runtime.submit(Event::ClearPreview {
+        operation_id: runtime.operation(),
+        token: active.token,
+        revision: active.revision,
+        board_id: active.board_id.clone(),
+        transaction_id: active.transaction_id.clone(),
+    });
+}
+
+fn clear_rail_chrome(view: &RailView) {
+    let (mut popup_at, mut guide) = (view.popup_at, view.guide);
+    if let Ok(mut popup) = popup_at.try_write() {
+        *popup = None;
     }
-
-    /// Release the pointer and the canvas. The drag leaves its slot first: releasing capture
-    /// dispatches `lostpointercapture`.
-    fn release(&self, active: &Active) {
-        if active.capture.has_pointer_capture(active.pointer_id) {
-            let _ = active.capture.release_pointer_capture(active.pointer_id);
-        }
+    if let Ok(mut point) = guide.try_write() {
+        *point = None;
     }
+}
 
-    /// Escape, lost capture, a selection change or unmount: clear the preview, land nothing.
-    fn abandon(&self) -> bool {
-        let Some(active) = self.drag.borrow_mut().take() else {
-            return false;
-        };
-        match &active.body {
-            Some(body) if body.last_sample.is_some() => self.runtime.submit(Event::GestureCancel {
+fn cancel_active_rail_drag(view: &RailView, active: &ActiveRailDrag) {
+    match &active.kind {
+        RailDragKind::Body(body) if body.last_sample.is_some() => {
+            view.runtime.submit(Event::GestureCancel {
                 pointer_id: i64::from(active.pointer_id),
-            }),
-            _ => {
-                if active.last_preview.is_some() {
-                    self.clear_preview(&active);
-                }
-            }
+            });
         }
-        self.interaction.end(self.mode);
-        self.release(&active);
-        let (mut popup_at, mut guide) = (self.popup_at, self.guide);
-        popup_at.set(None);
-        guide.set(None);
-        feedback_event(self.feedback, FeedbackEvent::Dismiss);
-        true
+        _ if active.last_preview.is_some() => clear_rail_preview(&view.runtime, active),
+        _ => {}
     }
+    release_capture(&view.surface, active.pointer_id);
+    clear_rail_chrome(view);
+    let mut feedback = view.feedback;
+    if let Ok(mut state) = feedback.try_write() {
+        *state = advance_feedback(&state, FeedbackEvent::Dismiss);
+    }
+}
 
-    fn start(&self, pointer: &web_sys::PointerEvent, tool: LayoutTransformTool, make: &Maker) {
-        if pointer.button() != 0 || self.drag.borrow().is_some() {
-            return;
+fn abandon_rail_drag(interaction: LayoutInteraction) {
+    if let Some(active) = interaction.rail_drag() {
+        interaction.handle(CanvasEvent::PointerCancel(active.pointer_id));
+    }
+}
+
+fn start_rail_drag(view: &RailView, pointer: &web_sys::PointerEvent, make: &SeedMaker) {
+    if pointer.button() != 0 || view.interaction.current().is_some() {
+        return;
+    }
+    let model = view.runtime.model();
+    let (Some(snapshot), Some(scope)) = (model.accepted.as_ref(), view.runtime.scope()) else {
+        return;
+    };
+    if !drag_session_is_ready(&model, Some(snapshot.document.revision)) {
+        return;
+    }
+    let id = pointer.pointer_id();
+    let client = client_point(pointer);
+    // The latch below trusts `control_down` as well as this event, and the
+    // handle stops propagation, so stale modifiers must be synced first.
+    view.interaction.sync_control(pointer.ctrl_key());
+    let quick_offset = pointer.ctrl_key() || view.interaction.peek_control_down();
+    let Some((point, _)) = world_point(view, pointer) else {
+        return;
+    };
+    let transaction_id = format!("layout-transform-{}", view.runtime.operation().0);
+    let Some(seed) = make(
+        snapshot,
+        point,
+        quick_offset,
+        transaction_id,
+        &scope.board_id,
+    ) else {
+        return;
+    };
+    let mode = seed.mode();
+    let Some(capture) = view.surface.borrow().clone() else {
+        return;
+    };
+    if view.interaction.handle(CanvasEvent::PointerDown {
+        id,
+        client,
+        control: pointer.ctrl_key(),
+        seed: Some(seed),
+    }) != [InteractionEffect::CapturePointer(id)]
+    {
+        return;
+    }
+    if capture.set_pointer_capture(id).is_err() {
+        view.interaction.end(mode);
+        return;
+    }
+    let handle = pointer
+        .target()
+        .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+        .and_then(|target| target.closest("[data-transform-handle]").ok().flatten())
+        .and_then(|target| target.dyn_into::<SvgElement>().ok());
+    pointer.prevent_default();
+    pointer.stop_propagation();
+    focus_svg(handle.as_ref().unwrap_or(&capture));
+    let cancel_view = view.clone();
+    view.interaction.on_cancel(move || {
+        if let Some(canceled) = cancel_view.interaction.take_canceled_rail_drag() {
+            cancel_active_rail_drag(&cancel_view, &canceled);
         }
-        let model = self.runtime.model();
-        let (Some(snapshot), Some(scope)) = (model.accepted.as_ref(), self.runtime.scope()) else {
-            return;
-        };
-        if !drag_session_is_ready(&model, Some(snapshot.document.revision)) {
-            return;
-        }
-        let id = pointer.pointer_id();
-        let client = client_point(pointer);
-        // The latch below trusts `control_down` as well as this event, and the
-        // handle stops propagation, so stale modifiers must be synced first.
-        self.interaction.sync_control(pointer.ctrl_key());
-        let seed = if self.mode == CanvasMode::DraggingMatrixRail {
-            GestureSeed::MatrixRail
+    });
+    let pointer_view = view.clone();
+    view.interaction.on_pointer(move |pointer, released| {
+        if released {
+            finish_rail_drag(&pointer_view, pointer);
         } else {
-            GestureSeed::PartRail
-        };
-        if self.interaction.handle(CanvasEvent::PointerDown {
-            id,
-            client,
-            control: pointer.ctrl_key(),
-            seed: Some(seed),
-        }) != [InteractionEffect::CapturePointer(id)]
-        {
-            return;
+            move_rail_drag(&pointer_view, pointer);
         }
-        let handle = pointer
-            .target()
-            .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
-            .and_then(|target| target.closest("[data-transform-handle]").ok().flatten())
-            .and_then(|target| target.dyn_into::<SvgElement>().ok());
-        let capture = self.surface.borrow().clone();
-        let started = self.world(pointer).and_then(|(point, _)| {
-            make(snapshot, point, self.interaction.quick_offset()).map(|start| (start, point))
-        });
-        let (Some(capture), Some((start, point))) = (capture, started) else {
-            self.interaction.end(self.mode);
-            return;
-        };
-        if capture.set_pointer_capture(id).is_err() {
-            self.interaction.end(self.mode);
-            return;
-        }
-        pointer.prevent_default();
-        pointer.stop_propagation();
-        focus_svg(handle.as_ref().unwrap_or(&capture));
-        let (gesture, body) = match start {
-            Start::Rail(gesture) => (Some(gesture), None),
-            Start::Body(body) => (None, Some(body)),
-        };
-        *self.drag.borrow_mut() = Some(Active {
-            pointer_id: pointer.pointer_id(),
-            capture,
-            transaction_id: format!("layout-transform-{}", self.runtime.operation().0),
-            tool,
-            gesture,
-            body,
-            token: snapshot.token,
-            revision: snapshot.document.revision,
-            board_id: scope.board_id,
-            start_client: client,
-            last_preview: None,
-        });
-        let ctl = self.clone();
-        self.interaction.on_cancel(move || {
-            ctl.abandon();
-        });
-        let ctl = self.clone();
-        self.interaction.on_pointer(move |pointer, released| {
-            if released {
-                ctl.finished(pointer);
-            } else {
-                ctl.moved(pointer);
-            }
-        });
-        let mut popup_at = self.popup_at;
-        popup_at.set(Some((point.x + 18.0 * self.px, point.y - 18.0 * self.px)));
-    }
+    });
+    let mut popup_at = view.popup_at;
+    popup_at.set(Some((point.x + 18.0 * view.px, point.y - 18.0 * view.px)));
+}
 
-    /// The preview or body-drag sample for one pointer event; `None` while nothing is proposed.
-    fn sample(
-        &self,
-        active: &mut Active,
-        pointer: &web_sys::PointerEvent,
-    ) -> Option<(Vec2, RailPreview)> {
-        let (point, _) = self.world(pointer)?;
-        let preview = match (&active.gesture, &active.body) {
-            (Some(gesture), _) => gesture.sample(&self.input(active, pointer, point)?)?,
-            _ => return None,
-        };
-        Some((point, preview))
-    }
+fn sample_rail_gesture(
+    view: &RailView,
+    active: &ActiveRailDrag,
+    pointer: &web_sys::PointerEvent,
+) -> Option<(Vec2, RailPreview)> {
+    let RailDragKind::Gesture(gesture) = &active.kind else {
+        return None;
+    };
+    let (point, _) = world_point(view, pointer)?;
+    let preview = gesture.sample(&rail_input(view, active.start_client, pointer, point)?)?;
+    Some((point, preview))
+}
 
-    fn moved(&self, pointer: &web_sys::PointerEvent) {
-        let mut slot = self.drag.borrow_mut();
-        let Some(active) = slot
-            .as_mut()
-            .filter(|active| active.pointer_id == pointer.pointer_id())
-        else {
-            return;
-        };
-        pointer.prevent_default();
-        pointer.stop_propagation();
-        if active.body.is_some() {
-            drop(slot);
-            return self.body_moved(pointer, false);
-        }
-        let Some((point, preview)) = self.sample(active, pointer) else {
-            return;
-        };
-        active.last_preview = Some((preview.value.clone(), preview.delta.clone()));
-        let (mut guide, mut popup_at) = (self.guide, self.popup_at);
-        guide.set(preview.guide);
-        for effect in self.interaction.handle(CanvasEvent::PointerMove {
-            id: pointer.pointer_id(),
-            client: client_point(pointer),
-            operation: Some(preview.operation),
-        }) {
-            if let InteractionEffect::Preview(operation) = effect {
-                self.runtime.submit(Event::PreviewEdit {
-                    operation_id: self.runtime.operation(),
-                    transaction_id: active.transaction_id.clone(),
-                    target_ids: vec![
-                        active
-                            .gesture
-                            .as_ref()
-                            .map(|g| g.target_id().to_owned())
-                            .unwrap_or_default(),
-                    ],
-                    operation,
-                });
-            }
-        }
-        feedback_event(
-            self.feedback,
-            FeedbackEvent::Drag {
-                name: active.tool.label().to_owned(),
-                value: preview.value,
-                delta: preview.delta,
-            },
-        );
-        popup_at.set(Some((point.x + 18.0 * self.px, point.y - 18.0 * self.px)));
+fn move_rail_drag(view: &RailView, pointer: &web_sys::PointerEvent) {
+    let Some(active) = view
+        .interaction
+        .rail_drag()
+        .filter(|active| active.pointer_id == pointer.pointer_id())
+    else {
+        return;
+    };
+    pointer.prevent_default();
+    pointer.stop_propagation();
+    if let RailDragKind::Body(body) = &active.kind {
+        body_rail_moved(view, pointer, &active, body, false);
+        return;
     }
-
-    /// A detached part's Move drives the session body-drag gesture past the shipped threshold.
-    fn body_moved(&self, pointer: &web_sys::PointerEvent, finishing: bool) {
-        let mut slot = self.drag.borrow_mut();
-        let Some(active) = slot.as_mut() else { return };
-        let Some(body) = active.body.as_mut() else {
-            return;
-        };
-        let client = client_point(pointer);
-        if client == active.start_client && body.last_sample.is_none() {
-            return;
-        }
-        let world = self.world(pointer);
-        let sample = world.map(|(_, scale)| {
-            (
-                Vec2 {
-                    x: body.start_at.x + (client.0 - active.start_client.0) / scale,
-                    y: body.start_at.y - (client.1 - active.start_client.1) / scale,
-                },
-                scale,
-                pointer.alt_key(),
-            )
-        });
-        let Some((at, scale, alt)) = sample.or(body.last_sample.filter(|_| finishing)) else {
-            return;
-        };
-        let pointer_id = i64::from(active.pointer_id);
-        let part = vec![Position {
-            id: body.part_id.clone(),
-            at,
-        }];
-        let snap = self.part_snap.unwrap_or(GestureSnapInputs {
-            pitch: self.pitch,
-            snap_fraction: self.snap.snap_fraction,
-            geometry_snap: self.snap.geometry_snap,
-            gap: None,
-        });
-        if body.last_sample.is_none() {
-            self.runtime.submit(Event::GestureBegin {
-                operation_id: self.runtime.operation(),
-                pointer_id,
-                target_ids: vec![body.part_id.clone()],
+    let Some((point, preview)) = sample_rail_gesture(view, &active, pointer) else {
+        return;
+    };
+    let target_id = match &active.kind {
+        RailDragKind::Gesture(gesture) => gesture.target_id().to_owned(),
+        RailDragKind::Body(_) => String::new(),
+    };
+    view.interaction
+        .note_rail_preview(Some((preview.value.clone(), preview.delta.clone())));
+    let (mut guide, mut popup_at) = (view.guide, view.popup_at);
+    guide.set(preview.guide);
+    for effect in view.interaction.handle(CanvasEvent::PointerMove {
+        id: pointer.pointer_id(),
+        client: client_point(pointer),
+        operation: Some(preview.operation),
+    }) {
+        if let InteractionEffect::Preview(operation) = effect {
+            view.runtime.submit(Event::PreviewEdit {
+                operation_id: view.runtime.operation(),
                 transaction_id: active.transaction_id.clone(),
-                start: vec![Position {
-                    id: body.part_id.clone(),
-                    at: body.start_at,
-                }],
-                pitch: snap.pitch,
-                snap_fraction: snap.snap_fraction,
-                geometry_snap: snap.geometry_snap,
-                gap: snap.gap,
-                pixels_per_world: Some(scale),
-                alt,
+                target_ids: vec![target_id.clone()],
+                operation,
             });
-            let admitted = self.runtime.model().gesture.as_ref().is_some_and(|g| {
-                g.pointer_id == pointer_id && g.target_ids == vec![body.part_id.clone()]
-            });
-            if !admitted {
-                drop(slot);
-                self.abandon();
-                return;
-            }
-        }
-        body.last_sample = Some((at, scale, alt));
-        if finishing {
-            self.runtime.submit(Event::GestureEnd {
-                pointer_id,
-                final_positions: part,
-                pixels_per_world: Some(scale),
-                alt,
-            });
-        } else {
-            self.runtime.submit(Event::GestureSample {
-                pointer_id,
-                positions: part,
-                pixels_per_world: Some(scale),
-                alt,
-            });
-        }
-        let delta = FeedbackDelta::Mm2(at.x - body.start_at.x, at.y - body.start_at.y);
-        let value = format!("X {:.2}, Y {:.2} mm", at.x, at.y);
-        let (tool, mut popup_at) = (active.tool, self.popup_at);
-        drop(slot);
-        if finishing {
-            self.toast(tool, value, delta);
-        } else if let Some((point, _)) = world {
-            feedback_event(
-                self.feedback,
-                FeedbackEvent::Drag {
-                    name: tool.label().to_owned(),
-                    value,
-                    delta,
-                },
-            );
-            popup_at.set(Some((point.x + 18.0 * self.px, point.y - 18.0 * self.px)));
         }
     }
+    feedback_event(
+        view.feedback,
+        FeedbackEvent::Drag {
+            name: active.tool_label.to_owned(),
+            value: preview.value,
+            delta: preview.delta,
+        },
+    );
+    popup_at.set(Some((point.x + 18.0 * view.px, point.y - 18.0 * view.px)));
+}
 
-    fn toast(&self, tool: LayoutTransformTool, value: String, delta: FeedbackDelta) {
+/// A detached part's Move drives the session body-drag gesture past the shipped threshold.
+fn body_rail_moved(
+    view: &RailView,
+    pointer: &web_sys::PointerEvent,
+    active: &ActiveRailDrag,
+    body: &RailBodyDrag,
+    finishing: bool,
+) {
+    let client = client_point(pointer);
+    if client == active.start_client && body.last_sample.is_none() {
+        return;
+    }
+    let world = world_point(view, pointer);
+    let sample = world.map(|(_, scale)| {
+        (
+            Vec2 {
+                x: body.start_at.x + (client.0 - active.start_client.0) / scale,
+                y: body.start_at.y - (client.1 - active.start_client.1) / scale,
+            },
+            scale,
+            pointer.alt_key(),
+        )
+    });
+    let Some((at, scale, alt)) = sample.or(body.last_sample.filter(|_| finishing)) else {
+        return;
+    };
+    let pointer_id = i64::from(active.pointer_id);
+    let part = vec![Position {
+        id: body.part_id.clone(),
+        at,
+    }];
+    let snap = view.part_snap.unwrap_or(GestureSnapInputs {
+        pitch: view.pitch,
+        snap_fraction: view.snap.snap_fraction,
+        geometry_snap: view.snap.geometry_snap,
+        gap: None,
+    });
+    if body.last_sample.is_none() {
+        view.runtime.submit(Event::GestureBegin {
+            operation_id: view.runtime.operation(),
+            pointer_id,
+            target_ids: vec![body.part_id.clone()],
+            transaction_id: active.transaction_id.clone(),
+            start: vec![Position {
+                id: body.part_id.clone(),
+                at: body.start_at,
+            }],
+            pitch: snap.pitch,
+            snap_fraction: snap.snap_fraction,
+            geometry_snap: snap.geometry_snap,
+            gap: snap.gap,
+            pixels_per_world: Some(scale),
+            alt,
+        });
+        let admitted = view.runtime.model().gesture.as_ref().is_some_and(|g| {
+            g.pointer_id == pointer_id && g.target_ids == vec![body.part_id.clone()]
+        });
+        if !admitted {
+            view.interaction
+                .handle(CanvasEvent::PointerCancel(active.pointer_id));
+            return;
+        }
+    }
+    view.interaction
+        .note_rail_body_sample(Some((at, scale, alt)));
+    if finishing {
+        view.runtime.submit(Event::GestureEnd {
+            pointer_id,
+            final_positions: part,
+            pixels_per_world: Some(scale),
+            alt,
+        });
+    } else {
+        view.runtime.submit(Event::GestureSample {
+            pointer_id,
+            positions: part,
+            pixels_per_world: Some(scale),
+            alt,
+        });
+    }
+    let delta = FeedbackDelta::Mm2(at.x - body.start_at.x, at.y - body.start_at.y);
+    let value = format!("X {:.2}, Y {:.2} mm", at.x, at.y);
+    let mut popup_at = view.popup_at;
+    if finishing {
         raise_toast(
-            self.feedback,
-            self.toast_gen,
-            format!("{} {value}", tool.label()),
+            view.feedback,
+            view.toast_gen,
+            format!("{} {value}", active.tool_label),
             delta,
         );
-    }
-
-    fn commit(
-        &self,
-        target: &str,
-        transaction_id: &str,
-        expected_revision: Option<u64>,
-        operation: EditOperation,
-    ) {
-        let (target, transaction_id) = (target.to_owned(), transaction_id.to_owned());
-        let result = self.runtime.commit(
-            "layout-transform-drag",
-            EditResolver::new(
-                "layout-transform-drag",
-                move |accepted: &AcceptedSnapshot| {
-                    if expected_revision.is_some_and(|rev| accepted.document.revision != rev) {
-                        return Resolution::Retire(
-                            "The layout changed before this drag landed.".into(),
-                        );
-                    }
-                    Resolution::submit_with_transaction_id(
-                        vec![target.clone()],
-                        transaction_id.clone(),
-                        operation.clone(),
-                    )
-                },
-            ),
+    } else if let Some((point, _)) = world {
+        feedback_event(
+            view.feedback,
+            FeedbackEvent::Drag {
+                name: active.tool_label.to_owned(),
+                value,
+                delta,
+            },
         );
-        self.report_commit(result, false);
+        popup_at.set(Some((point.x + 18.0 * view.px, point.y - 18.0 * view.px)));
     }
+}
 
-    /// Report a drag commit (pointer drops never set `unlaid`; keyboard nudges do).
-    fn report_commit(&self, result: Result<AcceptedSnapshot, String>, unlaid: bool) {
-        if unlaid {
-            self.runtime
-                .report("The matrix is anchored to a key that is not laid out.");
-        } else if let Err(message) = result {
-            self.runtime.report(message);
-        }
-    }
-
-    fn finished(&self, pointer: &web_sys::PointerEvent) {
-        if self
-            .drag
-            .borrow()
-            .as_ref()
-            .is_none_or(|active| active.pointer_id != pointer.pointer_id())
-        {
-            return;
-        }
-        pointer.prevent_default();
-        pointer.stop_propagation();
-        if self
-            .drag
-            .borrow()
-            .as_ref()
-            .is_some_and(|active| active.body.is_some())
-        {
-            self.body_moved(pointer, true);
-            let active = self.drag.borrow_mut().take();
-            if let Some(active) = active {
-                self.interaction.handle(CanvasEvent::PointerUp {
-                    id: pointer.pointer_id(),
-                    operation: None,
-                });
-                self.release(&active);
-            }
-            self.clear_chrome();
-            return;
-        }
-        let Some(mut active) = self.drag.borrow_mut().take() else {
-            return;
-        };
-        let sampled = self.sample(&mut active, pointer);
-        let effective_preview = sampled
-            .as_ref()
-            .map(|(_, preview)| (preview.value.clone(), preview.delta.clone()))
-            .or_else(|| active.last_preview.clone());
-        let target = active
-            .gesture
-            .as_ref()
-            .map(|g| g.target_id().to_owned())
-            .unwrap_or_default();
-        let tool = active.tool;
-        let finish = self
-            .interaction
-            .handle(CanvasEvent::PointerUp {
-                id: pointer.pointer_id(),
-                operation: sampled.map(|(_, preview)| preview.operation),
-            })
-            .into_iter()
-            .find(|effect| matches!(effect, InteractionEffect::Commit { .. }));
-        match (finish, effective_preview) {
-            (
-                Some(InteractionEffect::Commit {
-                    operation,
-                    needs_preview,
-                }),
-                Some((value, delta)),
-            ) if !delta.is_zero() => {
-                if needs_preview {
-                    self.runtime.submit(Event::PreviewEdit {
-                        operation_id: self.runtime.operation(),
-                        transaction_id: active.transaction_id.clone(),
-                        target_ids: vec![target.clone()],
-                        operation: operation.clone(),
-                    });
-                }
-                self.commit(
-                    &target,
-                    &active.transaction_id,
-                    Some(active.revision),
-                    operation,
-                );
-                self.toast(tool, value, delta);
-            }
-            (_, preview) => {
-                self.clear_preview(&active);
-                if let Some((value, _)) = preview {
-                    feedback_event(
-                        self.feedback,
-                        FeedbackEvent::Choose {
-                            name: tool.label().to_owned(),
-                            value,
-                        },
+fn commit_rail_edit(
+    runtime: &Rc<Runtime>,
+    target: &str,
+    transaction_id: &str,
+    expected_revision: Option<u64>,
+    operation: EditOperation,
+) {
+    let (target, transaction_id) = (target.to_owned(), transaction_id.to_owned());
+    let result = runtime.commit(
+        "layout-transform-drag",
+        EditResolver::new(
+            "layout-transform-drag",
+            move |accepted: &AcceptedSnapshot| {
+                if expected_revision.is_some_and(|rev| accepted.document.revision != rev) {
+                    return Resolution::Retire(
+                        "The layout changed before this drag landed.".into(),
                     );
                 }
+                Resolution::submit_with_transaction_id(
+                    vec![target.clone()],
+                    transaction_id.clone(),
+                    operation.clone(),
+                )
+            },
+        ),
+    );
+    report_rail_commit(runtime, result, false);
+}
+
+/// Report a drag commit (pointer drops never set `unlaid`; keyboard nudges do).
+fn report_rail_commit(runtime: &Runtime, result: Result<AcceptedSnapshot, String>, unlaid: bool) {
+    if unlaid {
+        runtime.report("The matrix is anchored to a key that is not laid out.");
+    } else if let Err(message) = result {
+        runtime.report(message);
+    }
+}
+
+fn finish_rail_drag(view: &RailView, pointer: &web_sys::PointerEvent) {
+    let Some(active) = view
+        .interaction
+        .rail_drag()
+        .filter(|active| active.pointer_id == pointer.pointer_id())
+    else {
+        return;
+    };
+    pointer.prevent_default();
+    pointer.stop_propagation();
+    if let RailDragKind::Body(body) = &active.kind {
+        body_rail_moved(view, pointer, &active, body, true);
+        view.interaction.handle(CanvasEvent::PointerUp {
+            id: pointer.pointer_id(),
+            operation: None,
+        });
+        release_capture(&view.surface, active.pointer_id);
+        clear_rail_chrome(view);
+        return;
+    }
+    let sampled = sample_rail_gesture(view, &active, pointer);
+    let effective_preview = sampled
+        .as_ref()
+        .map(|(_, preview)| (preview.value.clone(), preview.delta.clone()))
+        .or_else(|| active.last_preview.clone());
+    let target = match &active.kind {
+        RailDragKind::Gesture(gesture) => gesture.target_id().to_owned(),
+        RailDragKind::Body(_) => String::new(),
+    };
+    let finish = view
+        .interaction
+        .handle(CanvasEvent::PointerUp {
+            id: pointer.pointer_id(),
+            operation: sampled.map(|(_, preview)| preview.operation),
+        })
+        .into_iter()
+        .find(|effect| matches!(effect, InteractionEffect::Commit { .. }));
+    match (finish, effective_preview) {
+        (
+            Some(InteractionEffect::Commit {
+                operation,
+                needs_preview,
+            }),
+            Some((value, delta)),
+        ) if !delta.is_zero() => {
+            if needs_preview {
+                view.runtime.submit(Event::PreviewEdit {
+                    operation_id: view.runtime.operation(),
+                    transaction_id: active.transaction_id.clone(),
+                    target_ids: vec![target.clone()],
+                    operation: operation.clone(),
+                });
+            }
+            commit_rail_edit(
+                &view.runtime,
+                &target,
+                &active.transaction_id,
+                Some(active.revision),
+                operation,
+            );
+            raise_toast(
+                view.feedback,
+                view.toast_gen,
+                format!("{} {value}", active.tool_label),
+                delta,
+            );
+        }
+        (_, preview) => {
+            clear_rail_preview(&view.runtime, &active);
+            if let Some((value, _)) = preview {
+                feedback_event(
+                    view.feedback,
+                    FeedbackEvent::Choose {
+                        name: active.tool_label.to_owned(),
+                        value,
+                    },
+                );
             }
         }
-        self.release(&active);
-        self.clear_chrome();
     }
-
-    fn clear_chrome(&self) {
-        let (mut popup_at, mut guide) = (self.popup_at, self.guide);
-        popup_at.set(None);
-        guide.set(None);
-    }
+    release_capture(&view.surface, active.pointer_id);
+    clear_rail_chrome(view);
 }
 
 // Token construction
@@ -769,7 +707,30 @@ fn carried(context: &TreeContext, bend: bool) -> Option<PlacementParameter> {
     }
 }
 
-/// The matrix tokens for `tools`, each with the gesture it starts.
+fn rail_seed(
+    tool: LayoutTransformTool,
+    kind: RailDragKind,
+    matrix: bool,
+    accepted: &AcceptedSnapshot,
+    transaction_id: String,
+    board_id: &str,
+) -> GestureSeed {
+    let seed = RailDragSeed {
+        transaction_id,
+        tool_label: tool.label(),
+        kind,
+        token: accepted.token,
+        revision: accepted.document.revision,
+        board_id: board_id.to_owned(),
+    };
+    if matrix {
+        GestureSeed::MatrixRail(seed)
+    } else {
+        GestureSeed::PartRail(seed)
+    }
+}
+
+/// The matrix tokens for `tools`, each with the gesture seed builder it starts.
 fn matrix_tokens(
     tools: &[LayoutTransformTool],
     matrix: &Rc<Matrix>,
@@ -777,7 +738,7 @@ fn matrix_tokens(
     context: &TreeContext,
     affect: &MatrixSplayAffect,
     control: bool,
-) -> Vec<(Token, Option<Maker>)> {
+) -> Vec<(Token, Option<SeedMaker>)> {
     use LayoutTransformTool as T;
     let column = context_column(context).unwrap_or(0);
     let row = match context {
@@ -798,15 +759,22 @@ fn matrix_tokens(
             boardstudio_web_layout_core::rail_gesture::placement_current(matrix, parameter),
         )
     };
-    let placement = |parameter: PlacementParameter| -> Maker {
+    let placement = |tool: T, parameter: PlacementParameter| -> SeedMaker {
         let (matrix, projection) = (matrix.clone(), projection.clone());
-        Rc::new(move |_, _, _| {
+        Rc::new(move |accepted, _, _, tx, board_id| {
             let basis = SceneBasis::for_parameter(&projection, parameter)?;
-            Some(Start::Rail(RailGesture::Placement {
-                matrix: (*matrix).clone(),
-                parameter,
-                basis,
-            }))
+            Some(rail_seed(
+                tool,
+                RailDragKind::Gesture(RailGesture::Placement {
+                    matrix: (*matrix).clone(),
+                    parameter,
+                    basis,
+                }),
+                true,
+                accepted,
+                tx,
+                board_id,
+            ))
         })
     };
     struct MatrixTokenSpec {
@@ -816,7 +784,7 @@ fn matrix_tokens(
         guide: Option<(f64, f64)>,
         nudge: Option<RailNudge>,
         disabled: bool,
-        maker: Maker,
+        maker: SeedMaker,
     }
 
     let mut tokens = Vec::new();
@@ -843,12 +811,12 @@ fn matrix_tokens(
                 let parameter = PlacementParameter::Stagger { column };
                 let offset = PlacementParameter::ColumnOffset { column };
                 // Ctrl latched at pointer-down turns the whole drag into a free column offset.
-                let (quick, normal) = (placement(offset), placement(parameter));
-                let maker: Maker = Rc::new(move |accepted, point, ctrl| {
+                let (quick, normal) = (placement(tool, offset), placement(tool, parameter));
+                let maker: SeedMaker = Rc::new(move |accepted, point, ctrl, tx, board_id| {
                     if ctrl {
-                        quick(accepted, point, ctrl)
+                        quick(accepted, point, ctrl, tx, board_id)
                     } else {
-                        normal(accepted, point, ctrl)
+                        normal(accepted, point, ctrl, tx, board_id)
                     }
                 });
                 make_token(MatrixTokenSpec {
@@ -876,7 +844,7 @@ fn matrix_tokens(
                     guide: Some((1.0, 0.0)),
                     nudge: Some(RailNudge::Placement(parameter)),
                     disabled: false,
-                    maker: placement(parameter),
+                    maker: placement(tool, parameter),
                 })
             }
             T::Offset => make_token(MatrixTokenSpec {
@@ -890,7 +858,7 @@ fn matrix_tokens(
                 guide: Some((stagger_axis.x, stagger_axis.y)),
                 nudge: Some(RailNudge::Placement(offset_parameter)),
                 disabled: false,
-                maker: placement(offset_parameter),
+                maker: placement(tool, offset_parameter),
             }),
             T::Shift => carried(context, false).and_then(|parameter| {
                 make_token(MatrixTokenSpec {
@@ -904,7 +872,7 @@ fn matrix_tokens(
                     guide: None,
                     nudge: Some(RailNudge::Placement(parameter)),
                     disabled: false,
-                    maker: placement(parameter),
+                    maker: placement(tool, parameter),
                 })
             }),
             T::Bend => carried(context, true).and_then(|parameter| {
@@ -919,24 +887,31 @@ fn matrix_tokens(
                     guide: None,
                     nudge: Some(RailNudge::Placement(parameter)),
                     disabled: false,
-                    maker: placement(parameter),
+                    maker: placement(tool, parameter),
                 })
             }),
             // Origin stays a point on the canvas (`origin_handle`) and never joins the rail.
             T::Origin => None,
             T::Splay => basis.cloned().and_then(|basis| {
                 let (matrix, affect_for_start) = (matrix.clone(), affect.clone());
-                let maker: Maker = Rc::new(move |_, point, ctrl| {
+                let maker: SeedMaker = Rc::new(move |accepted, point, ctrl, tx, board_id| {
                     let origin = basis.splay_origin;
-                    Some(Start::Rail(RailGesture::Splay {
-                        matrix: (*matrix).clone(),
-                        column,
-                        origin,
-                        start_angle: (point.y - origin.y).atan2(point.x - origin.x),
-                        swing: ctrl,
-                        affect: affect_for_start.clone(),
-                        column_base: basis.base,
-                    }))
+                    Some(rail_seed(
+                        tool,
+                        RailDragKind::Gesture(RailGesture::Splay {
+                            matrix: (*matrix).clone(),
+                            column,
+                            origin,
+                            start_angle: (point.y - origin.y).atan2(point.x - origin.x),
+                            swing: ctrl,
+                            affect: affect_for_start.clone(),
+                            column_base: basis.base,
+                        }),
+                        true,
+                        accepted,
+                        tx,
+                        board_id,
+                    ))
                 });
                 let (splay, stagger_rotation) = (basis.splay_angle, basis.rotation);
                 let angle = column_angle(splay, stagger_rotation, affect);
@@ -972,9 +947,9 @@ fn matrix_tokens(
                         format!("X {:.2} mm, Y {:.2} mm", matrix.origin.x, matrix.origin.y)
                     },
                 );
-                let maker: Maker = Rc::new(move |accepted, point, _| {
+                let maker: SeedMaker = Rc::new(move |accepted, point, _, tx, board_id| {
                     let anchor = matrix_drag_anchor(accepted, &matrix).ok()?;
-                    Some(Start::Rail(if rotate {
+                    let gesture = if rotate {
                         RailGesture::MatrixRotate {
                             matrix: (*matrix).clone(),
                             anchor,
@@ -986,7 +961,15 @@ fn matrix_tokens(
                             matrix: (*matrix).clone(),
                             anchor,
                         }
-                    }))
+                    };
+                    Some(rail_seed(
+                        tool,
+                        RailDragKind::Gesture(gesture),
+                        true,
+                        accepted,
+                        tx,
+                        board_id,
+                    ))
                 });
                 let nudge = if rotate {
                     RailNudge::MatrixRotate
@@ -1020,7 +1003,7 @@ fn part_tokens(
     tools: &[LayoutTransformTool],
     part_id: &str,
     accepted: &AcceptedSnapshot,
-) -> (Vec<(Token, Option<Maker>)>, Vec2, f64) {
+) -> (Vec<(Token, Option<SeedMaker>)>, Vec2, f64) {
     use LayoutTransformTool as T;
     let document = &accepted.document;
     let Some(part) = document.parts.iter().find(|part| part.id == part_id) else {
@@ -1039,24 +1022,15 @@ fn part_tokens(
         });
     let mut tokens = Vec::new();
     for &tool in tools {
+        let pos = if anchor.is_some() {
+            offset
+        } else {
+            evaluated.at
+        };
         let (label, value, title, glyph_degrees, guide, axis) = match tool {
             T::Move => (
                 "Drag to move part",
-                format!(
-                    "X {:.2}, Y {:.2} mm",
-                    if anchor.is_some() {
-                        offset
-                    } else {
-                        evaluated.at
-                    }
-                    .x,
-                    if anchor.is_some() {
-                        offset
-                    } else {
-                        evaluated.at
-                    }
-                    .y
-                ),
+                format!("X {:.2}, Y {:.2} mm", pos.x, pos.y),
                 true,
                 0.0,
                 None,
@@ -1094,7 +1068,7 @@ fn part_tokens(
             _ => continue,
         };
         let (id, part_anchor) = (part_id.to_owned(), anchor.clone());
-        let maker: Maker = Rc::new(move |accepted, point, _| {
+        let maker: SeedMaker = Rc::new(move |accepted, point, _, tx, board_id| {
             let document = &accepted.document;
             let part = document.parts.iter().find(|part| part.id == id)?;
             if part_edit_guard(document, &id, part_anchor.is_some()).is_some() {
@@ -1102,19 +1076,19 @@ fn part_tokens(
             }
             let evaluated = evaluated_part_pose(document, part);
             let sweep_start = (point.y - evaluated.at.y).atan2(point.x - evaluated.at.x);
-            Some(match (&part.anchor, axis) {
-                (None, PartAxis::Offset) => Start::Body(Body {
+            let kind = match (&part.anchor, axis) {
+                (None, PartAxis::Offset) => RailDragKind::Body(RailBodyDrag {
                     part_id: id.clone(),
                     start_at: evaluated.at,
                     last_sample: None,
                 }),
-                (None, _) => Start::Rail(RailGesture::PartRotate {
+                (None, _) => RailDragKind::Gesture(RailGesture::PartRotate {
                     part_id: id.clone(),
                     center: evaluated.at,
                     start_angle: sweep_start,
                     start_rotation: evaluated.rotation,
                 }),
-                (Some(anchor), axis) => Start::Rail(RailGesture::PartValue {
+                (Some(anchor), axis) => RailDragKind::Gesture(RailGesture::PartValue {
                     part_id: id.clone(),
                     axis,
                     anchor: anchor.clone(),
@@ -1122,7 +1096,8 @@ fn part_tokens(
                     center: evaluated.at,
                     start_angle: sweep_start,
                 }),
-            })
+            };
+            Some(rail_seed(tool, kind, false, accepted, tx, board_id))
         });
         let token = Token {
             tool,
@@ -1163,12 +1138,6 @@ pub(super) fn part_courtyard_top(
         .unwrap_or(0.0)
 }
 
-impl From<RailGesture> for Start {
-    fn from(gesture: RailGesture) -> Self {
-        Self::Rail(gesture)
-    }
-}
-
 // ---------------------------------------------------------------------------------------------
 // Overlay
 
@@ -1190,28 +1159,23 @@ pub fn LayoutRailOverlay(
     let _ = surface_size.map(|size| size());
     let runtime = runtime.0;
     let interaction = use_context::<LayoutInteraction>();
+    let _ = interaction.version();
     let control = interaction.control_down();
     let feedback = use_signal(FeedbackState::default);
     let popup_at = use_signal(|| None::<(f64, f64)>);
     let toast_gen = use_signal(|| 0_u64);
     let guide = use_signal(|| None::<Vec2>);
     let hovered = use_signal(|| None::<usize>);
-    let drag: Slot = use_hook(|| Rc::new(RefCell::new(None)));
     let px = world_per_screen(&surface, width, height);
     let accepted = runtime.model().accepted;
     let (pitch, part_snap) = match &target {
         RailTarget::Matrix { matrix, .. } => (matrix.pitch, None),
         RailTarget::Part { snap, .. } => (snap.pitch, Some(*snap)),
     };
-    let ctl = Ctl {
+    let rail_view = RailView {
         runtime: runtime.clone(),
         surface: surface.clone(),
         interaction,
-        mode: match &target {
-            RailTarget::Matrix { .. } => CanvasMode::DraggingMatrixRail,
-            RailTarget::Part { .. } => CanvasMode::DraggingPartRail,
-        },
-        drag: drag.clone(),
         feedback,
         popup_at,
         toast_gen,
@@ -1223,11 +1187,8 @@ pub fn LayoutRailOverlay(
         origins: snap_origins,
         part_snap,
     };
-    use_drop({
-        let ctl = ctl.clone();
-        move || {
-            ctl.abandon();
-        }
+    use_drop(move || {
+        abandon_rail_drag(interaction);
     });
     let context_key = format!(
         "{:?}",
@@ -1242,18 +1203,15 @@ pub fn LayoutRailOverlay(
             }),
         }
     );
-    use_effect(use_reactive((&context_key, &tools), {
-        let ctl = ctl.clone();
-        move |_| {
-            ctl.abandon();
-        }
+    use_effect(use_reactive((&context_key, &tools), move |_| {
+        abandon_rail_drag(interaction);
     }));
 
     let Some(accepted) = accepted else {
         return rsx! {};
     };
     type RailSceneBuild = (
-        Vec<(Token, Option<Maker>)>,
+        Vec<(Token, Option<SeedMaker>)>,
         Vec<Vec2>,
         Option<(Rc<Matrix>, Rc<MatrixScene>, TreeContext)>,
     );
@@ -1340,6 +1298,7 @@ pub fn LayoutRailOverlay(
         RailTarget::Part { on_focus_half, .. } => Some(*on_focus_half),
         _ => None,
     };
+    let active_drag = interaction.rail_drag();
     let feedback_state = feedback();
     let preview = try_use_context::<FieldPreview>();
     let preview_source = try_use_context::<Option<FieldPreviewSource>>().flatten();
@@ -1389,14 +1348,14 @@ pub fn LayoutRailOverlay(
         for (index, (token, maker)) in tokens.into_iter().enumerate() {
             {
                 let (tx, ty) = layout.token_centers.get(index).copied().unwrap_or((0.0, 0.0));
-                let dragging = ctl.drag.borrow().as_ref().is_some_and(|active| active.tool == token.tool);
+                let dragging = active_drag.as_ref().is_some_and(|active| active.tool_label == token.tool.label());
                 let lit = hovered() == Some(index);
                 let (fill, stroke) = token_paint(dragging, lit);
                 let quick = control && matches!(token.tool, LayoutTransformTool::Stagger | LayoutTransformTool::Offset);
                 let face = token_face(fill, glyph(token.tool, quick, token.glyph_degrees, stroke), token.title.as_deref());
                 let description = format!("{}{}", token.value, if token.tool == LayoutTransformTool::Stagger { ". Hold Ctrl while dragging to offset the column." } else { "" });
-                let opacity = if ctl.drag.borrow().as_ref().is_some_and(|active| active.tool != token.tool) { 0.35 } else { 1.0 };
-                let (ctl, maker, token_for_key) = (ctl.clone(), maker.unwrap_or_else(|| Rc::new(|_, _, _| None)), token.clone());
+                let opacity = if active_drag.as_ref().is_some_and(|active| active.tool_label != token.tool.label()) { 0.35 } else { 1.0 };
+                let (rail_view, maker, token_for_key) = (rail_view.clone(), maker.unwrap_or_else(|| Rc::new(|_, _, _, _, _| None)), token.clone());
                 let (show, hide) = (show_preview.clone(), hide_preview);
                 let (matrix_for_key, projection_for_key) = (matrix_ctx.clone(), matrix_ctx.clone());
                 let (mut hovered, name, value) = (hovered, token.tool.label().to_owned(), token.value.clone());
@@ -1411,13 +1370,13 @@ pub fn LayoutRailOverlay(
                         "aria-description": "{description}", "aria-disabled": "{token.disabled}",
                         "data-quick-offset": "{quick}",
                         style: "cursor:grab;touch-action:none;opacity:{opacity}",
-                        onpointerdown: { let (ctl, maker, on_focus_half) = (ctl.clone(), maker.clone(), on_focus_half); move |event: PointerEvent| {
+                        onpointerdown: { let (rail_view, maker, on_focus_half) = (rail_view.clone(), maker.clone(), on_focus_half); move |event: PointerEvent| {
                             if let Some(on_focus_half) = on_focus_half { on_focus_half.call(()); }
                             if token_for_key.disabled { return; }
-                            if let Some(pointer) = event.data().try_as_web_event() { ctl.start(&pointer, token_for_key.tool, &maker); }
+                            if let Some(pointer) = event.data().try_as_web_event() { start_rail_drag(&rail_view, &pointer, &maker); }
                         } },
                         onkeydown: {
-                            let ctl = ctl.clone();
+                            let rail_view = rail_view.clone();
                             move |event: KeyboardEvent| {
                                 let Some(key) = event.data().try_as_web_event() else { return };
                                 let arrow = match key.key().as_str() {
@@ -1428,15 +1387,15 @@ pub fn LayoutRailOverlay(
                                     _ => return,
                                 };
                                 let (Some((matrix, projection, _)), Some(nudge)) = (matrix_for_key.as_ref().or(projection_for_key.as_ref()), token_for_key.nudge.as_ref()) else { return };
-                                if ctl.interaction.current().is_some() || !boardstudio_web_layout_core::rail_drag::nudge_session_is_ready(&ctl.runtime.model()) { return; }
+                                if rail_view.interaction.current().is_some() || !boardstudio_web_layout_core::rail_drag::nudge_session_is_ready(&rail_view.runtime.model()) { return; }
                                 // Preflight decides whether the key belongs to this token; the resolver below recomputes from the current accepted snapshot.
                                 let preflight_nudge = match nudge {
                                     RailNudge::MatrixMove { .. } => {
-                                        let Some(accepted) = ctl.runtime.model().accepted else { return };
+                                        let Some(accepted) = rail_view.runtime.model().accepted else { return };
                                         match matrix_drag_anchor(&accepted, matrix) {
                                             Ok(anchor) => RailNudge::MatrixMove { anchor },
                                             Err(()) => {
-                                                ctl.runtime.report("The matrix is anchored to a key that is not laid out.");
+                                                rail_view.runtime.report("The matrix is anchored to a key that is not laid out.");
                                                 return;
                                             }
                                         }
@@ -1453,7 +1412,7 @@ pub fn LayoutRailOverlay(
                                 let nudge = nudge.clone();
                                 let unlaid = Rc::new(std::cell::Cell::new(false));
                                 let unlaid_for_resolver = unlaid.clone();
-                                let result = ctl.runtime.commit(
+                                let result = rail_view.runtime.commit(
                                     "layout-transform-drag",
                                     EditResolver::new("layout-transform-drag", move |accepted: &AcceptedSnapshot| {
                                         let Some(matrix) = accepted.document.matrices.iter().find(|m| m.id == matrix_id) else {
@@ -1485,20 +1444,20 @@ pub fn LayoutRailOverlay(
                                         )
                                     }),
                                 );
-                                ctl.report_commit(result, unlaid.get());
+                                report_rail_commit(&rail_view.runtime, result, unlaid.get());
                             }
                         },
-                        onpointerenter: { let (mut feedback, mut popup_at, name, value, show) = (ctl.feedback, ctl.popup_at, name.clone(), value.clone(), show.clone()); move |_| { hovered.set(Some(index)); show(token.tool); popup_at.set(None); feedback_event(feedback, FeedbackEvent::Choose { name: name.clone(), value: value.clone() }); let _ = &mut feedback; } },
-                        onpointerleave: { let feedback = ctl.feedback; move |_| { hovered.set(None); hide(); feedback_event(feedback, FeedbackEvent::Dismiss); } },
-                        onfocus: { let (feedback, mut popup_at) = (ctl.feedback, ctl.popup_at); move |_| { show(token.tool); popup_at.set(None); feedback_event(feedback, FeedbackEvent::Choose { name: name_focus.clone(), value: value_focus.clone() }); } },
-                        onblur: { let feedback = ctl.feedback; move |_| { hide(); feedback_event(feedback, FeedbackEvent::Dismiss); } },
+                        onpointerenter: { let (mut feedback, mut popup_at, name, value, show) = (rail_view.feedback, rail_view.popup_at, name.clone(), value.clone(), show.clone()); move |_| { hovered.set(Some(index)); show(token.tool); popup_at.set(None); feedback_event(feedback, FeedbackEvent::Choose { name: name.clone(), value: value.clone() }); let _ = &mut feedback; } },
+                        onpointerleave: { let feedback = rail_view.feedback; move |_| { hovered.set(None); hide(); feedback_event(feedback, FeedbackEvent::Dismiss); } },
+                        onfocus: { let (feedback, mut popup_at) = (rail_view.feedback, rail_view.popup_at); move |_| { show(token.tool); popup_at.set(None); feedback_event(feedback, FeedbackEvent::Choose { name: name_focus.clone(), value: value_focus.clone() }); } },
+                        onblur: { let feedback = rail_view.feedback; move |_| { hide(); feedback_event(feedback, FeedbackEvent::Dismiss); } },
                         {face}
                     }
                 }
             }
         }
         if let (Some(origin), Some((matrix, projection, context))) = (origin_point, matrix_ctx.clone()) {
-            {origin_handle(&ctl, &matrix, &projection, &context, origin, px)}
+            {origin_handle(&rail_view, &matrix, &projection, &context, origin, px)}
         }
         {super::layout_rail_chrome::feedback_chrome(&feedback_state, true, popup_at(), Some(&layout), px, (view_x, view_y, width))}
     }
@@ -1516,7 +1475,7 @@ fn axis_guide((x, y): (f64, f64), (axis_x, axis_y): (f64, f64), px: f64, opacity
 
 /// The splay-origin point drawn on the canvas for the Splay and Origin tools.
 fn origin_handle(
-    ctl: &Ctl,
+    rail_view: &RailView,
     matrix: &Rc<Matrix>,
     projection: &Rc<MatrixScene>,
     context: &TreeContext,
@@ -1529,20 +1488,27 @@ fn origin_handle(
         .iter()
         .find(|basis| basis.column == column)
         .cloned();
-    let maker: Maker = {
+    let maker: SeedMaker = {
         let matrix = matrix.clone();
-        Rc::new(move |_, _, ctrl| {
+        Rc::new(move |accepted, _, ctrl, tx, board_id| {
             let basis = basis.clone()?;
-            Some(Start::Rail(RailGesture::Origin {
-                matrix: (*matrix).clone(),
-                column,
-                swing: ctrl,
-                column_base: basis.base,
-                start_origin: basis.splay_origin,
-            }))
+            Some(rail_seed(
+                LayoutTransformTool::Origin,
+                RailDragKind::Gesture(RailGesture::Origin {
+                    matrix: (*matrix).clone(),
+                    column,
+                    swing: ctrl,
+                    column_base: basis.base,
+                    start_origin: basis.splay_origin,
+                }),
+                true,
+                accepted,
+                tx,
+                board_id,
+            ))
         })
     };
-    let ctl = ctl.clone();
+    let rail_view = rail_view.clone();
     rsx! {
         g { "data-transform-handle": "true", class: "outline-none focus-visible:stroke-foreground",
             transform: "translate({origin.x} {origin.y}) scale({px} {-px})", role: "button", tabindex: "0", "aria-label": "Move splay origin",
@@ -1550,7 +1516,7 @@ fn origin_handle(
             style: "cursor:grab;touch-action:none",
             onpointerdown: move |event: PointerEvent| {
                 if let Some(pointer) = event.data().try_as_web_event() {
-                    ctl.start(&pointer, LayoutTransformTool::Origin, &maker);
+                    start_rail_drag(&rail_view, &pointer, &maker);
                 }
             },
             rect { x: "-12", y: "-12", width: "24", height: "24", style: "fill:transparent;stroke:none;pointer-events:all" }

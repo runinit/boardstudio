@@ -24,7 +24,7 @@ pub enum PartAxis {
 }
 
 /// What one handle drag edits, captured at pointer-down.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum RailGesture {
     /// A column or row placement parameter; `basis` is the frame the world delta projects onto.
     Placement {

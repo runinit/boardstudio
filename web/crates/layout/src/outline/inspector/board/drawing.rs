@@ -3,12 +3,10 @@ use super::*;
 pub(super) fn drawing_controls(view: &BoardInspectorView) -> Element {
     let projection = &view.projection;
     let draft_serial = view.draft_serial;
-    let mut perimeter_open = projection.editing_points;
-    let on_action = projection.on_action;
-    let action_context = projection.action_context.clone();
+    let mut perimeter_open = projection.ui.editing_points;
     let enabled = projection.enabled;
-    let mut drawing_operation = projection.drawing_operation;
-    let mut drawing_points = projection.drawing_points;
+    let mut drawing_operation = projection.ui.drawing_operation;
+    let mut drawing_points = projection.ui.drawing_points;
     let mut draft_serial = draft_serial;
     rsx! {
         if let Some(tool) = drawing_operation() {
@@ -38,7 +36,7 @@ pub(super) fn drawing_controls(view: &BoardInspectorView) -> Element {
                         || matches!(tool, OutlineDrawTool::Polygon(_))
                             && polygon_signed_area(&drawing_points.read()).abs() < 1e-6,
     onclick: {
-                let action_context = action_context.clone();
+                let projection = projection.clone();
                 let board_id = projection.board_id.clone();
                 let revision = projection.revision;
                 move |_| {
@@ -56,9 +54,14 @@ pub(super) fn drawing_controls(view: &BoardInspectorView) -> Element {
                                 anchor_part_id: None,
                                 operation,
                             };
-                            on_action.call(action_context.add_feature(feature));
+                            projection.dispatch(OutlineActionKind::AddFeature {
+                                context: projection.selection_context.clone(),
+                                feature,
+                            });
                         }
-                        OutlineDrawTool::Connect => on_action.call(action_context.add_connection(points)),
+                        OutlineDrawTool::Connect => {
+                            projection.dispatch(OutlineActionKind::AddConnection { points });
+                        }
                     }
                     drawing_operation.set(None);
                     drawing_points.set(Vec::new());

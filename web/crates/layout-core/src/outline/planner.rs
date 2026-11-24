@@ -56,8 +56,6 @@ pub struct OutlineActionEnvelope {
 #[derive(Clone, Debug, PartialEq)]
 pub enum OutlineActionKind {
     Activate {
-        context: TreeContext,
-        require_selected_version: bool,
         version_id: Option<String>,
     },
     Copy,
@@ -72,7 +70,6 @@ pub enum OutlineActionKind {
         version_id: String,
     },
     EditPerimeter {
-        context: TreeContext,
         target: OutlinePointTarget,
         points: Vec<Vec2>,
         phase: EditPhase,
@@ -83,22 +80,18 @@ pub enum OutlineActionKind {
         feature: OutlineFeature,
     },
     AddConnection {
-        context: TreeContext,
         points: Vec<Vec2>,
     },
     SetFeature {
-        context: TreeContext,
         version_id: Option<String>,
         before: OutlineFeature,
         after: OutlineFeature,
     },
     RemoveFeature {
-        context: TreeContext,
         version_id: String,
         feature_id: String,
     },
     FocusGap {
-        context: TreeContext,
         gap_id: String,
     },
 }
@@ -300,8 +293,6 @@ impl OutlineAction {
                 board_id: board_id.clone(),
             },
             kind: OutlineActionKind::Activate {
-                context: context.clone(),
-                require_selected_version: true,
                 version_id: version_id.clone(),
             },
         })

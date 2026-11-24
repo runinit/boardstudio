@@ -152,11 +152,11 @@ fn scene_boards(
                 polygon { points: polygon_points(&contour.points), class: if contour.hole { "fill-canvas stroke-destructive stroke-[0.3] [stroke-dasharray:0.8_0.55]" } else { "fill-geometry-fill stroke-geometry-board stroke-[0.3]" } }
             }
         }
-        if let Some(projection) = outline_inspector.clone().filter(|projection| (projection.editing_points)()) {
-            outline_lifecycle::OutlinePointCanvasOverlay {
+        if let Some(projection) = outline_inspector.clone().filter(|projection| (projection.ui.editing_points)()) {
+            outline::OutlinePointCanvasOverlay {
                 key: "{outline_overlay_key.as_deref().unwrap_or_default()}",
                 projection,
-                runtime: outline_lifecycle::OutlineRuntimeHandle::new(
+                runtime: outline::OutlineRuntimeHandle::new(
                     runtime.clone(),
                 ),
                 svg: svg.clone(),
@@ -520,11 +520,11 @@ fn finding_marker_draft(
             finding: focused_keycaps_finding(),
             markers: Rc::from(snapshot.scene.finding_markers.clone()),
         }
-        if let Some(projection) = outline_inspector.clone().filter(|projection| (projection.drawing_operation)().is_some()) {
-            outline_lifecycle::OutlineDraftCanvasOverlay {
+        if let Some(projection) = outline_inspector.clone().filter(|projection| (projection.ui.drawing_operation)().is_some()) {
+            outline::OutlineDraftCanvasOverlay {
                 key: "{outline_overlay_key.as_deref().unwrap_or_default()}-draft",
                 projection,
-                runtime: outline_lifecycle::OutlineRuntimeHandle::new(runtime.clone()),
+                runtime: outline::OutlineRuntimeHandle::new(runtime.clone()),
                 svg: svg.clone(),
                 view_x,
                 view_y,
@@ -834,7 +834,7 @@ pub(in crate::presentation) fn use_outline_overlay(
     let outline_snap_settings = layout_snap_settings.read().clone();
     let outline_grid_active = outline_inspector
         .as_ref()
-        .is_some_and(|projection| (projection.editing_points)());
+        .is_some_and(|projection| (projection.ui.editing_points)());
     let canvas_grid = objects::layout_canvas_grid_style(
         width,
         zoom_surface_size().0,
@@ -844,7 +844,7 @@ pub(in crate::presentation) fn use_outline_overlay(
     );
     let outline_overlay_key = outline_inspector
         .as_ref()
-        .map(outline_lifecycle::OutlineInspectorProjection::canvas_edit_key);
+        .map(outline::OutlineInspectorProjection::canvas_edit_key);
     OutlineOverlay {
         outline_pitch,
         outline_snap_origins,

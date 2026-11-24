@@ -76,7 +76,7 @@ mod layout_matrix_relations;
 mod layout_workspace;
 pub(crate) use boardstudio_web_case::mechanical_settings;
 pub(crate) use boardstudio_web_layout::objects;
-pub(crate) use boardstudio_web_layout::outline_lifecycle;
+pub(crate) use boardstudio_web_layout::outline;
 pub(crate) use boardstudio_web_layout::outline_snapping;
 pub(crate) use boardstudio_web_layout::part_placement;
 pub(crate) use boardstudio_web_library::library;

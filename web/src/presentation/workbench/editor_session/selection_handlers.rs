@@ -12,7 +12,7 @@ pub(super) struct SelectTreeInput {
     pub objects_open: Signal<bool>,
     pub inspect_open: Signal<bool>,
     pub layout_state: layout_workspace::LayoutWorkspaceState,
-    pub outline_activation: EventHandler<outline_lifecycle::OutlineAction>,
+    pub outline_ui: outline::OutlineUiState,
 }
 
 pub(super) fn select_tree_handler(
@@ -29,12 +29,14 @@ pub(super) fn select_tree_handler(
         mut objects_open,
         mut inspect_open,
         layout_state,
-        outline_activation,
+        outline_ui,
     } = input;
     move |request: objects::TreeSelectRequest| {
-        if request.outline_action.as_ref().is_some_and(|action| {
-            !outline_lifecycle::outline_action_is_current(action, &runtime, generation)
-        }) || (adapter.generation)() != generation
+        if request
+            .outline_action
+            .as_ref()
+            .is_some_and(|action| !outline::outline_action_is_current(action, &runtime, generation))
+            || (adapter.generation)() != generation
             || runtime.scope().as_ref() != Some(&request.scope)
             || !selection::context_is_current(&runtime.model(), &request.scope, &request.context)
         {
@@ -78,7 +80,15 @@ pub(super) fn select_tree_handler(
         }
         if let Some(action) = activation {
             workspace.set(Workspace::Layout);
-            outline_activation.call(action);
+            outline::commit_outline_action(
+                &runtime,
+                outline_ui,
+                adapter.selected_context,
+                workspace,
+                adapter.generation,
+                generation,
+                action,
+            );
         }
         if outline_route {
             workspace.set(Workspace::Layout);
@@ -254,7 +264,7 @@ pub(super) fn build_selection_handlers(
     let inspector_panel_settings = state.inspector_panel_settings;
     let parts_selection = state.view.parts_selection;
     let layout_state = state.layout_state;
-    let outline_activation = state.view.outline_activation;
+    let outline_ui = state.view.outline_ui;
     let layout_snap_settings = state.layout_state.snap_settings();
     let objects_panel_settings = state.objects_panel_settings;
     let parts_selection_generation = state.view.parts_selection_generation;
@@ -270,7 +280,7 @@ pub(super) fn build_selection_handlers(
         objects_open,
         inspect_open,
         layout_state,
-        outline_activation,
+        outline_ui,
     });
     let on_layout_snap_intent = on_snap_intent_handler(
         runtime.clone(),

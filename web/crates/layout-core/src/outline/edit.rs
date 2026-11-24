@@ -1,12 +1,10 @@
-//! Adapter from presentation outline actions to the typed Core outline edit.
-//!
-//! One [`OutlineAction`] describes what the user did. This module turns it into exactly
-//! one [`CoreOutlineEdit`] - the target, the named change, the captured creation seed and
-//! the source shape the user reviewed - so Core owns identity allocation, validation,
-//! version mutation, linked resolution and the no-op/retirement decision. Drafts,
-//! selection, focus and lifecycle admission stay in the hook, and no adapter prepares a
-//! replacement document.
-use super::planner::{OutlineAction, OutlineActionKind, OutlinePointTarget};
+//! Pure outline edit conversion, admission, settlement, and inspector projection helpers.
+
+use super::planner::{
+    EditablePerimeter, OutlineAction, OutlineActionKind, OutlinePointTarget, PerimeterAnchor,
+    connection_point_world, outline_connection_control, unique_outline_entity_id,
+    unique_outline_version_id,
+};
 use crate::outline_settings::{OutlineEdit as OutlineSettingEdit, generated_feature};
 use boardstudio_application::{
     AcceptedSnapshot, Durability, Lifecycle, ReadModel, Resolution, Scope,
@@ -15,23 +13,299 @@ use boardstudio_core_kernel::outline_edit::{
     OutlineChange, OutlineEdit, OutlineEditDisposition, OutlineEditTarget,
 };
 use boardstudio_model::model::{
-    Board, Contour, EditOperation, EditPhase, OutlineConnection, OutlineFeature, ProjectDoc,
+    Board, BoardOutline, Contour, EditOperation, EditPhase, Operation, OutlineConnection,
+    OutlineFeature, OutlineVersion, ProjectDoc, Side, Vec2,
 };
 use boardstudio_web_ui_model::tree::TreeContext;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum OutlineDrawTool {
+    Polygon(Operation),
+    Connect,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OutlineFeedback {
+    pub scope: Scope,
+    pub generation: u64,
+    pub board_id: String,
+    pub message: Option<String>,
+}
+
+/// How one outline version came to exist.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OutlineVersionOwnership {
+    Generated,
+    Linked,
+    Edited,
+}
+
+impl OutlineVersionOwnership {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Generated => "Generated",
+            Self::Linked => "Linked refinement",
+            Self::Edited => "Edited outline",
+        }
+    }
+}
+
+/// One selectable outline: its Core-owned ownership plus the accepted scene's located problem.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OutlineVersionChoice {
+    pub id: String,
+    pub name: String,
+    pub ownership: OutlineVersionOwnership,
+    pub problem_finding_id: Option<String>,
+    pub problem_message: Option<String>,
+    pub problem_selectable: bool,
+    pub blocked_exports: Vec<String>,
+}
+
+impl OutlineVersionChoice {
+    pub fn label(&self) -> String {
+        format!("{} \u{b7} {}", self.ownership.label(), self.name)
+    }
+}
+
+pub fn outline_state<'a>(
+    snapshot: &'a AcceptedSnapshot,
+    board_id: &str,
+) -> Option<&'a BoardOutline> {
+    snapshot
+        .document
+        .board_outlines
+        .iter()
+        .find(|state| state.board_id == board_id)
+}
+
+pub fn active_outline<'a>(
+    snapshot: &'a AcceptedSnapshot,
+    board_id: &str,
+) -> (Option<&'a BoardOutline>, Option<&'a OutlineVersion>) {
+    let state = outline_state(snapshot, board_id);
+    let version = state
+        .and_then(|state| state.active_version_id.as_deref())
+        .and_then(|id| state?.versions.iter().find(|version| version.id == id));
+    (state, version)
+}
+
+pub fn outline_version<'a>(
+    outline: Option<&'a BoardOutline>,
+    version_id: &str,
+) -> Option<&'a OutlineVersion> {
+    outline?
+        .versions
+        .iter()
+        .find(|version| version.id == version_id)
+}
+
+pub fn version_geometry(
+    outline: Option<&BoardOutline>,
+    active_version_id: Option<&str>,
+    board: &Board,
+    document: &ProjectDoc,
+    generated: Option<&OutlineFeature>,
+) -> (
+    Vec<OutlineFeature>,
+    Vec<OutlineConnection>,
+    Option<OutlineFeature>,
+) {
+    let active = active_version_id.and_then(|id| outline_version(outline, id));
+    let features = active
+        .map(|version| {
+            version
+                .geometry
+                .features
+                .iter()
+                .filter(|feature| !matches!(feature, OutlineFeature::PartEnvelope { .. }))
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_else(|| {
+            board
+                .outline_ids
+                .iter()
+                .filter_map(|id| document.outline.iter().find(|feature| feature.id() == id))
+                .filter(|feature| !matches!(feature, OutlineFeature::PartEnvelope { .. }))
+                .cloned()
+                .collect()
+        });
+    let connections = active
+        .and_then(|version| {
+            version
+                .geometry
+                .features
+                .iter()
+                .find_map(|feature| match feature {
+                    OutlineFeature::PartEnvelope { connections, .. } => Some(connections.clone()),
+                    _ => None,
+                })
+        })
+        .or_else(|| {
+            generated.and_then(|feature| match feature {
+                OutlineFeature::PartEnvelope { connections, .. } => Some(connections.clone()),
+                _ => None,
+            })
+        })
+        .unwrap_or_default();
+    let connection_feature = active
+        .and_then(|version| {
+            version
+                .geometry
+                .features
+                .iter()
+                .find(|feature| matches!(feature, OutlineFeature::PartEnvelope { .. }))
+                .cloned()
+        })
+        .or_else(|| generated.cloned());
+    (features, connections, connection_feature)
+}
+
+pub fn blocked_export_labels(snapshot: &AcceptedSnapshot, board_id: &str) -> Vec<String> {
+    let Some(readiness) = snapshot
+        .scene
+        .board_readiness
+        .iter()
+        .find(|readiness| readiness.board_id == board_id)
+    else {
+        return Vec::new();
+    };
+    let mut labels = Vec::new();
+    if !readiness.outline {
+        labels.push("Outline".to_owned());
+    }
+    if !readiness.pcb {
+        labels.push("PCB".to_owned());
+    }
+    if !readiness.case_ready {
+        labels.push("Case".to_owned());
+    }
+    labels
+}
+
+pub fn editable_perimeter(
+    snapshot: &AcceptedSnapshot,
+    board_id: &str,
+    active_version_id: Option<&str>,
+    selected_feature_id: Option<&str>,
+) -> Option<EditablePerimeter> {
+    if let Some(version_id) = active_version_id {
+        let feature = outline_version(outline_state(snapshot, board_id), version_id)?
+            .geometry
+            .features
+            .iter()
+            .find(|feature| {
+                matches!(feature, OutlineFeature::Polygon { .. })
+                    && selected_feature_id.is_none_or(|id| feature.id() == id)
+            })?;
+        let OutlineFeature::Polygon {
+            id,
+            points,
+            anchor_part_id,
+            operation,
+        } = feature
+        else {
+            return None;
+        };
+        let anchor = anchor_part_id
+            .as_deref()
+            .and_then(|id| snapshot.document.parts.iter().find(|part| part.id == id))
+            .map(|part| PerimeterAnchor {
+                at: part.pose.at,
+                rotation: part.pose.rotation,
+                back: part.side == Side::Back,
+            });
+        return Some(EditablePerimeter {
+            target: OutlinePointTarget::Fixed {
+                version_id: version_id.to_owned(),
+                feature_id: id.clone(),
+                anchor_part_id: anchor_part_id.clone(),
+                operation: *operation,
+            },
+            points: points.clone(),
+            canvas_points: points
+                .iter()
+                .map(|point| anchor.map_or(*point, |a| a.world(*point)))
+                .collect(),
+            anchor,
+        });
+    }
+
+    let source = snapshot
+        .scene
+        .board_outline_scenes
+        .iter()
+        .find(|scene| scene.board_id == board_id)?
+        .source_contours
+        .first()?;
+    Some(EditablePerimeter {
+        target: OutlinePointTarget::Generated { contour: 0 },
+        points: source.points.clone(),
+        canvas_points: source.points.clone(),
+        anchor: None,
+    })
+}
+
+pub fn gap_focus_camera(
+    snapshot: &AcceptedSnapshot,
+    board_id: &str,
+    gap_id: &str,
+    (surface_width, surface_height): (f64, f64),
+    (base_min_x, base_max_x, base_min_y, base_max_y): (f64, f64, f64, f64),
+) -> Option<(Vec2, f64)> {
+    let gap = snapshot
+        .scene
+        .board_outline_scenes
+        .iter()
+        .find(|scene| scene.board_id == board_id)
+        .and_then(|scene| scene.gaps.iter().find(|gap| gap.id == gap_id))?;
+    let points = gap
+        .points
+        .iter()
+        .map(|point| connection_point_world(point, &snapshot.document.parts))
+        .filter(|point| point.x.is_finite() && point.y.is_finite())
+        .collect::<Vec<_>>();
+    let (min_x, max_x, min_y, max_y) =
+        points
+            .iter()
+            .fold(None::<(f64, f64, f64, f64)>, |bounds, point| {
+                Some(match bounds {
+                    Some((min_x, max_x, min_y, max_y)) => (
+                        min_x.min(point.x),
+                        max_x.max(point.x),
+                        min_y.min(point.y),
+                        max_y.max(point.y),
+                    ),
+                    None => (point.x, point.x, point.y, point.y),
+                })
+            })?;
+    let target_width = (max_x - min_x + 24.0).max(1.0);
+    let target_height = (max_y - min_y + 24.0).max(1.0);
+    let base_width = (base_max_x - base_min_x).max(50.0);
+    let base_height = (base_max_y - base_min_y).max(50.0);
+    let usable_width = (surface_width - 32.0).max(1.0);
+    let usable_height = (surface_height - 72.0 - 24.0).max(1.0);
+    let zoom = (base_width / target_width * usable_width / surface_width)
+        .min(base_height / target_height * usable_height / surface_height)
+        .clamp(0.15, 8.0);
+    let center = Vec2 {
+        x: (min_x + max_x - base_min_x - base_max_x) * 0.5,
+        y: (min_y + max_y - base_min_y - base_max_y) * 0.5
+            + (72.0 - 24.0) * base_height / zoom / surface_height * 0.5,
+    };
+    Some((center, zoom))
+}
 
 fn board<'a>(document: &'a ProjectDoc, board_id: &str) -> Option<&'a Board> {
     document.boards.iter().find(|board| board.id == board_id)
 }
 
-/// The board's generated envelope feature, so the adapter can read the board's bridge
-/// width and connection identities without re-deriving Core's rules.
 fn generated_envelope<'a>(document: &'a ProjectDoc, board_id: &str) -> Option<&'a OutlineFeature> {
     let board = board(document, board_id)?;
     generated_feature(document, board)
 }
 
-/// Every identity a new outline version must avoid: the persisted versions plus the
-/// retired ones, whose identities stay reserved forever (Core refuses to reissue them).
 fn all_version_ids(document: &ProjectDoc) -> Vec<String> {
     document
         .board_outlines
@@ -46,8 +320,7 @@ fn all_version_ids(document: &ProjectDoc) -> Vec<String> {
         .collect()
 }
 
-/// The next non-duplicating `Edited outline N` name on this board.
-fn next_edited_outline_name(state: Option<&boardstudio_model::model::BoardOutline>) -> String {
+fn next_edited_outline_name(state: Option<&BoardOutline>) -> String {
     let next_number = state
         .into_iter()
         .flat_map(|state| &state.versions)
@@ -63,9 +336,6 @@ fn next_edited_outline_name(state: Option<&boardstudio_model::model::BoardOutlin
     format!("Edited outline {next_number}")
 }
 
-/// The source shape the user reviewed for a source-shape edit: the board's current
-/// source contours, which are the Generated source while Generated is active and the
-/// active version's resolved projection while that version is active.
 fn reviewed_source(snapshot: &AcceptedSnapshot, board_id: &str) -> Option<Vec<Contour>> {
     snapshot
         .scene
@@ -75,8 +345,6 @@ fn reviewed_source(snapshot: &AcceptedSnapshot, board_id: &str) -> Option<Vec<Co
         .map(|scene| scene.source_contours.clone())
 }
 
-/// The version a settings field addresses: the active version when one is selected,
-/// otherwise the Generated envelope that owns the field.
 fn settings_target(board_id: &str, active_version: Option<&str>) -> OutlineEditTarget {
     match active_version {
         Some(version_id) => version_target(board_id, version_id),
@@ -84,14 +352,12 @@ fn settings_target(board_id: &str, active_version: Option<&str>) -> OutlineEditT
     }
 }
 
-/// The board-level edit target (Generated envelope scope).
 fn board_target(board_id: &str) -> OutlineEditTarget {
     OutlineEditTarget::Board {
         board_id: board_id.to_owned(),
     }
 }
 
-/// The target of one persisted outline version.
 fn version_target(board_id: &str, version_id: &str) -> OutlineEditTarget {
     OutlineEditTarget::Version {
         board_id: board_id.to_owned(),
@@ -109,7 +375,6 @@ fn update(
     edit: &OutlineSettingEdit,
 ) -> Option<Plan> {
     let generated_only = |change: OutlineChange| -> Option<Plan> {
-        // The Generated envelope owns these fields; a selected version owns its own copy.
         if active_version.is_some() {
             return None;
         }
@@ -118,9 +383,6 @@ fn update(
     let version_or_generated = |change: OutlineChange| -> Plan {
         (settings_target(board_id, active_version), change, None)
     };
-    // Fields tied to the envelope are editable on a linked refinement too, so a source
-    // change never forces a Freeze just to adjust them. A fixed edited copy has no
-    // envelope to apply them to.
     let linked_or_generated = |change: OutlineChange| -> Option<Plan> {
         match active_version {
             None => generated_only(change),
@@ -143,9 +405,6 @@ fn update(
             },
             None,
         )),
-        // One typed Generated-envelope creation on the board: Core authors the envelope
-        // and its board membership in one accepted edit, and settles Unchanged when the
-        // board already has one.
         OutlineSettingEdit::CreateAutomatic => {
             let board = board(document, board_id)?;
             Some((
@@ -203,8 +462,6 @@ fn update(
             if generated_envelope(document, board_id)?.id() != gap.feature_id {
                 return None;
             }
-            // Protecting stores the candidate's points, so the edit reviews the source
-            // shape those points came from and retires if a queued change moved it.
             let (change, reviewed) = if *protected {
                 (
                     OutlineChange::SetProtectedGap {
@@ -247,48 +504,39 @@ pub fn outline_edit(
         .find(|state| state.board_id == board_id);
     let active_version = state.and_then(|state| state.active_version_id.clone());
     let (target, change, reviewed) = match &action.kind {
-        OutlineActionKind::Activate { version_id, .. } => {
+        OutlineActionKind::Activate { version_id } => {
             let target = settings_target(&board_id, version_id.as_deref());
             (target, OutlineChange::Activate, None)
         }
         OutlineActionKind::Copy => (
             board_target(&board_id),
             OutlineChange::Copy {
-                version_id: super::planner::unique_outline_version_id(
-                    seed,
-                    all_version_ids(document),
-                ),
+                version_id: unique_outline_version_id(seed, all_version_ids(document)),
                 name: next_edited_outline_name(state),
             },
             None,
         ),
-        OutlineActionKind::Delete { version_id, .. } => (
+        OutlineActionKind::Delete { version_id } => (
             version_target(&board_id, version_id),
             OutlineChange::Delete,
             None,
         ),
-        OutlineActionKind::Update { edit, .. } => update(
+        OutlineActionKind::Update { edit } => update(
             document,
             snapshot,
             &board_id,
             active_version.as_deref(),
             edit,
         )?,
-        // Accepting the Generated outline as an alternative creates a linked refinement:
-        // Core seeds it from the board's current generated projections, so it follows the
-        // components and its settings stay editable while linked.
         OutlineActionKind::Refine => (
             board_target(&board_id),
             OutlineChange::CreateLinkedRefinement {
-                version_id: super::planner::unique_outline_version_id(
-                    seed,
-                    all_version_ids(document),
-                ),
+                version_id: unique_outline_version_id(seed, all_version_ids(document)),
                 name: next_edited_outline_name(state),
             },
             None,
         ),
-        OutlineActionKind::Freeze { version_id, .. } => (
+        OutlineActionKind::Freeze { version_id } => (
             version_target(&board_id, version_id),
             OutlineChange::Freeze {
                 name: next_edited_outline_name(state),
@@ -320,9 +568,7 @@ pub fn outline_edit(
                 ),
             }
         }
-        OutlineActionKind::AddFeature {
-            context, feature, ..
-        } => {
+        OutlineActionKind::AddFeature { context, feature } => {
             let target = match context {
                 TreeContext::OutlineVersion {
                     version_id: Some(version_id),
@@ -338,10 +584,7 @@ pub fn outline_edit(
                 None,
             )
         }
-        OutlineActionKind::AddConnection { points, .. } => {
-            // A connection belongs to the Generated outline. The adapter supplies the
-            // board's bridge width explicitly: Core refuses a non-positive or
-            // non-finite width instead of silently defaulting it.
+        OutlineActionKind::AddConnection { points } => {
             let feature = generated_envelope(document, &board_id)?;
             let OutlineFeature::PartEnvelope {
                 connections,
@@ -363,7 +606,7 @@ pub fn outline_edit(
                             .is_some_and(|outline| outline.excluded)
                 })
                 .collect::<Vec<_>>();
-            let id = super::planner::unique_outline_entity_id(
+            let id = unique_outline_entity_id(
                 "outline-connection",
                 seed,
                 connections.iter().map(|connection| connection.id.clone()),
@@ -376,7 +619,7 @@ pub fn outline_edit(
                     .enumerate()
                     .map(|(index, point)| {
                         if index == 0 || index + 1 == points.len() {
-                            super::planner::outline_connection_control(*point, &eligible)
+                            outline_connection_control(*point, &eligible)
                         } else {
                             boardstudio_model::model::OutlineControlPoint {
                                 at: *point,
@@ -421,7 +664,6 @@ pub fn outline_edit(
             },
             None,
         ),
-        // Focusing a gap is presentation only and never creates document history.
         OutlineActionKind::FocusGap { .. } => return None,
     };
     Some(OutlineEdit {
@@ -433,7 +675,7 @@ pub fn outline_edit(
 }
 
 /// The durable ids the submitted edit addresses, for transaction bookkeeping.
-pub(crate) fn target_ids(action: &OutlineAction) -> Vec<String> {
+pub fn target_ids(action: &OutlineAction) -> Vec<String> {
     let board_id = action.envelope().4.clone();
     let mut ids = vec![board_id];
     match &action.kind {
@@ -441,8 +683,8 @@ pub(crate) fn target_ids(action: &OutlineAction) -> Vec<String> {
             version_id: Some(version_id),
             ..
         }
-        | OutlineActionKind::Delete { version_id, .. } => ids.push(version_id.clone()),
-        OutlineActionKind::Freeze { version_id, .. } => ids.push(version_id.clone()),
+        | OutlineActionKind::Delete { version_id, .. }
+        | OutlineActionKind::Freeze { version_id, .. } => ids.push(version_id.clone()),
         OutlineActionKind::EditPerimeter {
             target:
                 OutlinePointTarget::Fixed {
@@ -476,15 +718,14 @@ pub(crate) fn target_ids(action: &OutlineAction) -> Vec<String> {
     ids
 }
 
-/// Why a retired outline edit is reported. Core decides retirement; the adapter owns the
-/// wording of the explanation the user sees.
 pub fn retire_reason(action: &OutlineAction) -> &'static str {
     match &action.kind {
         OutlineActionKind::Activate {
             version_id: Some(_),
             ..
         }
-        | OutlineActionKind::Delete { .. } => "That outline version no longer exists.",
+        | OutlineActionKind::Delete { .. }
+        | OutlineActionKind::Freeze { .. } => "That outline version no longer exists.",
         OutlineActionKind::SetFeature { .. } | OutlineActionKind::RemoveFeature { .. } => {
             "That outline feature no longer exists."
         }
@@ -500,7 +741,6 @@ pub fn retire_reason(action: &OutlineAction) -> &'static str {
         OutlineActionKind::Refine => {
             "Resolve the generated outline before making a linked refinement."
         }
-        OutlineActionKind::Freeze { .. } => "That outline version no longer exists.",
         OutlineActionKind::AddFeature { .. } | OutlineActionKind::AddConnection { .. } => {
             "The outline changed before this addition was applied."
         }
@@ -508,11 +748,6 @@ pub fn retire_reason(action: &OutlineAction) -> &'static str {
     }
 }
 
-/// Settle one captured typed edit against the accepted document at execution.
-///
-/// `Changed` submits the one typed operation Core applies and reports its changed owners
-/// for; `Unchanged` lands without a revision step; a vanished or ineligible target
-/// retires with an explanation; malformed input surfaces Core's own error.
 pub fn settle(
     accepted: &AcceptedSnapshot,
     edit: &OutlineEdit,
@@ -533,7 +768,6 @@ pub fn settle(
     }
 }
 
-/// Admission at dispatch: whether the action is worth submitting a pending ticket for.
 pub fn admission(accepted: &AcceptedSnapshot, edit: &OutlineEdit) -> Admission {
     match boardstudio_core_kernel::outline_edit::evaluate(accepted.document.as_ref(), edit) {
         Ok(OutlineEditDisposition::Changed) => Admission::Submit,
@@ -546,15 +780,12 @@ pub fn admission(accepted: &AcceptedSnapshot, edit: &OutlineEdit) -> Admission {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Admission {
-    /// The edit changes state; submit it as intent.
     Submit,
-    /// The edit is equal to the accepted value or its target is gone: drop it silently.
     Ignore,
-    /// The submitted geometry is malformed: submit so Core's own error surfaces.
     Malformed,
 }
 
-pub(super) fn outline_action_matches_saved_owner(
+pub fn outline_action_matches_saved_owner(
     action: &OutlineAction,
     model: &ReadModel,
     current_scope: Option<&Scope>,
@@ -587,6 +818,7 @@ pub(super) fn outline_action_matches_saved_owner(
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
+    use crate::outline::OutlineActionEnvelope;
     use boardstudio_application::{Event, SessionEpoch, SnapshotToken};
     use boardstudio_web_test_runtime::new_native_runtime;
 
@@ -614,7 +846,7 @@ mod tests {
         let revision = snapshot.document.revision;
         let token = snapshot.token;
         let action = OutlineAction {
-            envelope: super::super::planner::OutlineActionEnvelope {
+            envelope: OutlineActionEnvelope {
                 scope: scope.clone(),
                 token,
                 revision,

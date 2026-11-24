@@ -92,7 +92,7 @@ pub(super) struct InspectorInput {
     /// The scope of the selected tree context, which Relations navigation requests carry.
     pub(super) relation_scope: Option<boardstudio_application::Scope>,
     pub(super) on_select_context: EventHandler<objects::TreeSelectRequest>,
-    pub(super) outline_inspector: Option<Box<super::outline_lifecycle::OutlineInspectorProjection>>,
+    pub(super) outline_inspector: Option<Box<super::outline::OutlineInspectorProjection>>,
     pub(super) findings_return_available: bool,
     pub(super) on_findings_return: EventHandler<()>,
     pub(super) board_inspector_mount: super::board_inspector::BoardInspectorMount,
@@ -431,7 +431,7 @@ pub(super) fn LayoutInspector(input: ReadSignal<InspectorInput>) -> Element {
             }
         }
         if let Some(projection) = input.outline_inspector {
-            super::outline_lifecycle::OutlineVersionInspector { projection: *projection }
+            super::outline::OutlineVersionInspector { projection: *projection }
         }
         if input.board_inspector_mount.projection.is_some() {
             super::board_inspector::BoardInspector { mount: input.board_inspector_mount }
