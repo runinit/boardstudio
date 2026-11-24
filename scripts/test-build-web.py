@@ -327,6 +327,8 @@ class BuildWebTests(unittest.TestCase):
             self.write(path, path.encode())
         (catalogue := root / BUILD.MODULE_CATALOGUE).parent.mkdir(parents=True)
         catalogue.symlink_to(BUILD.ROOT / BUILD.MODULE_CATALOGUE)
+        (parts := root / BUILD.PARTS_CATALOGUE).parent.mkdir(parents=True)
+        parts.symlink_to(BUILD.ROOT / BUILD.PARTS_CATALOGUE)
         site, dev = root / "site", root / "web/assets"
         for stale in ("imported-modules.json", "modules/stale.json"):
             self.write("web/assets/" + stale, b"stale")
@@ -348,6 +350,11 @@ class BuildWebTests(unittest.TestCase):
         host = json.loads((root / "web" / index["hostConnectorAsset"]).read_text())
         self.assertEqual(host["hardwareProfile"]["vikRole"], "host")
         self.assertIn("horizontal", host["name"].lower())
+        staged = (dev / "imported-parts.min.json").read_bytes()
+        self.assertEqual(staged, (site / "assets/imported-parts.min.json").read_bytes())
+        self.assertEqual(json.loads(staged), json.loads(parts.read_text()))
+        self.assertLess(len(staged), 272 * 1024)
+        self.assertEqual(staged, BUILD.minify_json_text(parts.read_text()).encode())
         for relative in ("cad/cad.js", "renderer/renderer.js", "cad-worker/m1_cad_worker.js",
                          "cad-worker/entry.js"):
             self.assertEqual((site / "assets" / relative).read_text(), (dev / relative).read_text(), relative)
@@ -361,6 +368,24 @@ class BuildWebTests(unittest.TestCase):
                           ([{"row": "r", "definition": {**defn, "id": f"m{i}", "name": "x" * 600, "circuit": host}} for i in range(400)], ValueError)):
             (src := root / "bad.json").write_text(json.dumps({"formatVersion": 1, "modules": mods}))
             self.assertRaises(exc, BUILD.stage_module_catalogue, src, root / "bad-out")
+
+    def test_imported_parts_stage_minifies_and_validates_the_parts_list(self):
+        root = self.root
+        source = json.loads((BUILD.ROOT / BUILD.PARTS_CATALOGUE).read_text())
+        text = (BUILD.ROOT / BUILD.PARTS_CATALOGUE).read_text()
+        self.assertEqual(
+            BUILD.minify_json_text('{ "a" : [1, 2], "b" : "x \\" y" }'),
+            '{"a":[1,2],"b":"x \\" y"}',
+        )
+        self.assertEqual(BUILD.minify_json_text(text), BUILD.minify_json_text(text + "\n"))
+        out = root / "assets"
+        BUILD.stage_imported_parts(BUILD.ROOT / BUILD.PARTS_CATALOGUE, out)
+        staged = json.loads((out / "imported-parts.min.json").read_text())
+        self.assertEqual(staged, source)
+        self.assertEqual(len(staged["parts"]), len(source["parts"]))
+        for bad in ({"formatVersion": 1}, {"parts": {}}):
+            (src := root / "bad-parts.json").write_text(json.dumps(bad))
+            self.assertRaises(ValueError, BUILD.stage_imported_parts, src, root / "bad-out")
 
     def test_baked_step_staging_uses_only_current_manifest_files(self):
         root = self.root

@@ -26,6 +26,7 @@ OFFLINE_WORKER = WEB / "target/providers/offline-worker"
 ROUTES = {"subpath": "/boardstudio/", "root": "/"}
 DEFAULT_ROUTES = ("subpath",)
 MODULE_CATALOGUE = "catalogue/modules/imported-modules.json"
+PARTS_CATALOGUE = "catalogue/parts/imported-parts.json"
 ON_DEMAND_PREFIXES = ("assets/ergogen-models/", "assets/cad/", "assets/cad-worker/bundled-step/", "assets/modules/")
 # Cargo config already passes the getrandom WASM cfg to every build.
 DX_FLAGS = ("--wasm-js-cfg", "false")
@@ -188,6 +189,30 @@ def stage_module_catalogue(source: Path, assets: Path) -> None:
     (assets / "modules-index.json").write_text(index)
 
 
+def minify_json_text(data: str) -> str:
+    """Strip whitespace outside strings, mirroring the retired catalogue build.rs."""
+    chunks = []
+    in_string, escaped = False, False
+    for character in data:
+        if in_string or character == '"' or not character.isspace():
+            chunks.append(character)
+        if escaped:
+            escaped = False
+        elif character == "\\":
+            escaped = in_string
+        elif character == '"':
+            in_string = not in_string
+    return "".join(chunks)
+
+
+def stage_imported_parts(source: Path, assets: Path) -> None:
+    text = source.read_text()
+    if not isinstance(json.loads(text).get("parts"), list):
+        raise ValueError("imported parts catalogue has no parts list")
+    assets.mkdir(parents=True, exist_ok=True)
+    (assets / "imported-parts.min.json").write_text(minify_json_text(text))
+
+
 def _stage_provider_entries(assets: Path, provider_root: Path, *, include_site_assets: bool = False) -> None:
     """Copy the generated providers into `assets` and write the worker entry modules."""
     if include_site_assets:
@@ -196,6 +221,7 @@ def _stage_provider_entries(assets: Path, provider_root: Path, *, include_site_a
             "layout-generators.js", "layout-generators", "preview-generator", "bundled-step",
             "modules", "modules-index.json", "imported-modules.json"} if Path(d) == site_assets else ())
     stage_module_catalogue(provider_root / MODULE_CATALOGUE, assets)
+    stage_imported_parts(provider_root / PARTS_CATALOGUE, assets)
     shutil.copytree(provider_root / "cad/wasm/pkg", assets / "cad", dirs_exist_ok=True)
     shutil.copytree(provider_root / "web/target/providers/cad-worker", assets / "cad-worker",
                     dirs_exist_ok=True)
@@ -484,7 +510,8 @@ def bake_bundled_step():
 
 def provider_inputs():
     return [ROOT / "cad/wasm/pkg", ROOT / "renderer/pkg", WEB / "target/providers/cad-worker",
-            WEB / "target/providers/bundled-step", ROOT / MODULE_CATALOGUE, Path(__file__)]
+            WEB / "target/providers/bundled-step", ROOT / MODULE_CATALOGUE,
+            ROOT / PARTS_CATALOGUE, Path(__file__)]
 
 
 def prepare_runtime_providers(fast=False):
@@ -522,7 +549,8 @@ def prepare_runtime_providers(fast=False):
         else:
             run(command)
     bake_bundled_step()
-    outputs = [WEB / "assets" / name for name in ("cad", "renderer", "cad-worker", "modules-index.json", "modules")]
+    outputs = [WEB / "assets" / name for name in ("cad", "renderer", "cad-worker", "modules-index.json",
+                                                     "modules", "imported-parts.min.json")]
     stamp = WEB / "target/providers/.staged-assets.json"
     current = snapshot(provider_inputs()) if fast else None
     if fast and stamp.is_file() and stamp_matches(stamp, lambda: {"inputs": current, "outputs": snapshot(outputs)}):

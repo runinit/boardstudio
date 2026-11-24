@@ -394,8 +394,12 @@ dependencies = [
  "boardstudio-core-mechanical",
  "boardstudio-model",
  "boardstudio_core",
+ "js-sys",
  "serde",
  "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
