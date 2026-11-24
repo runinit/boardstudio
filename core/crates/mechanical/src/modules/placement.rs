@@ -2,8 +2,7 @@ use super::*;
 use std::collections::BTreeSet;
 
 fn finite_polygon(points: &[Vec2]) -> bool {
-    (3..=100_000).contains(&points.len())
-        && points.iter().all(|p| p.x.is_finite() && p.y.is_finite())
+    points.len() <= 100_000 && crate::geometry2d::is_finite_polygon(points)
 }
 
 pub(super) fn validate_definition(def: &ModuleDefinition) -> Result<(), String> {

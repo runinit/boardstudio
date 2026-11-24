@@ -23,7 +23,7 @@ pub(super) fn apply(
             )?;
             let existing_family = profile_family(configuration)
                 .or_else(|| initial_switch_family(document, &configuration.board_id));
-            let family_changed = family_assignment_changes(existing_family, *family);
+            let family_changed = existing_family != Some(*family);
             let plate_thickness = if family_changed {
                 crate::mechanical::default_plate_thickness(*family)
             } else {

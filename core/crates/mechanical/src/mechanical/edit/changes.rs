@@ -6,14 +6,13 @@ use super::super::change::{
 use super::super::inferred_switch_family;
 use super::validation::{find_item_mut, upsert_item, validate_gasket_anchor_selection};
 use super::{
-    IdentityFloor, ProfileTargetKind, closure_hardware_mut, critical_fit_mut,
-    family_assignment_changes, hardware_mut, identity_index_for, initial_switch_family,
-    is_process_target, material_options, mount_collection_mut, normalize_processes,
-    process_default_thickness, process_mut, profile_family, reserve_identity,
-    reserve_opening_identity, reserve_vertex_identity, resize_closure_insert, set_dimension,
-    stabilizer_target_exists, valid_profile_polygons, validate_dimension,
-    validate_gasket_support_anchors, validate_mounts, validate_openings, validate_profile_openings,
-    validate_profile_target,
+    IdentityFloor, ProfileTargetKind, closure_hardware_mut, critical_fit_mut, hardware_mut,
+    identity_index_for, initial_switch_family, is_process_target, material_options,
+    mount_collection_mut, normalize_processes, process_default_thickness, process_mut,
+    profile_family, reserve_identity, reserve_opening_identity, reserve_vertex_identity,
+    resize_closure_insert, set_dimension, stabilizer_target_exists, valid_profile_polygons,
+    validate_dimension, validate_gasket_support_anchors, validate_mounts, validate_openings,
+    validate_profile_openings, validate_profile_target,
 };
 use crate::model::*;
 
