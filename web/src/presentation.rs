@@ -19,7 +19,6 @@ mod editor;
 mod empty_board_canvas;
 mod export_workspace;
 mod header;
-pub(crate) use boardstudio_web_pcb::firmware_positions;
 mod inspector;
 pub(crate) use boardstudio_web_keycaps::keycaps_finding_marker;
 pub(crate) use boardstudio_web_keycaps::keycaps_fit;
@@ -129,7 +128,6 @@ pub(crate) use component_dispatch::{
 pub(crate) use component_inspector::{
     layout_component_inspector_projection, mirrored_half_projection,
 };
-use editor::Editor;
 pub(crate) use finding_navigation::{
     LayoutFindingNavigationContext, current_keycaps_navigation_owner, findings_owner_is_current,
     fit_selected_bridge, layout_finding_context, layout_findings_for_display,
@@ -163,6 +161,7 @@ pub(crate) use view_helpers::{
     design_consumer_view_mode_handler, focus_first_inspector_control_on_next_frame,
     is_compact_viewport, matrix_snap_parameters, pin_inspector_on_desktop,
 };
+use workbench::Editor;
 use zmk_firmware_export::use_export_panel_input;
 
 use crate::runtime::Runtime;

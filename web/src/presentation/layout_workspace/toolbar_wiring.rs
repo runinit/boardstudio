@@ -1,4 +1,4 @@
-use super::super::workbench::editor_session::selection_handlers;
+use super::super::editor::selection_handlers;
 use super::super::*;
 use boardstudio_web_ui_model::Workspace;
 

@@ -1,5 +1,5 @@
 //! PCB-owned workspace surface composition.
-use super::workbench::editor_session::selection_handlers;
+use super::editor::selection_handlers;
 mod interaction;
 use super::pcb_scene::{PcbPartHit, PcbPartPointerDown, PcbScene};
 use super::workspace_composition::{CanvasEventHandlers, SharedObjectsInput};

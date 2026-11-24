@@ -38,9 +38,10 @@ PAGE_CARGO = ["cargo", "build", "--locked", "--target", "wasm32-unknown-unknown"
 # web/crates/ui-shared/src/panels.rs (appearance falls back to the legacy
 # `boardstudio:v2:theme` key; theme defaults to `original`) and
 # web/src/presentation/workbench.rs (`data-appearance`/`data-theme` on
-# <html>; Original is the value before either attribute is set). The inline
-# background matches the resolved Theme x Appearance matrix so first paint
-# never flashes the wrong desk; the stylesheet confirms it once CSS loads.
+# <html>; Original is the value before either attribute is set). The <style>
+# rules match `--canvas` across all four Theme x Appearance matrices so first
+# paint never flashes the wrong desk while keeping runtime switching via CSS
+# custom properties and `data-*` attributes uninhibited (no inline background).
 FIRST_PAINT_THEME_HEAD = (
     "<!--boardstudio:first-paint-theme-->"
     "<script>"
@@ -53,11 +54,14 @@ FIRST_PAINT_THEME_HEAD = (
     'if(t!=="original"&&t!=="shadcn"){t="original"}'
     'd.setAttribute("data-appearance",a);d.setAttribute("data-theme",t);'
     'd.style.colorScheme=a;'
-    'd.style.background={"original":{"light":"#E9EEF2","dark":"#181B21"},'
-    '"shadcn":{"light":"oklch(0.965 0 0)","dark":"oklch(0.18 0 0)"}}[t][a]'
     "}catch(e){}"
     "</script>"
-    '<style>html{background:#E9EEF2}html[data-appearance="dark"]{background:#181B21}</style>'
+    "<style>"
+    "html{background:#E9EEF2}"
+    'html[data-appearance="dark"]{background:#181B21}'
+    'html[data-theme="shadcn"]{background:oklch(0.965 0 0)}'
+    'html[data-theme="shadcn"][data-appearance="dark"]{background:oklch(0.15 0 0)}'
+    "</style>"
 )
 
 

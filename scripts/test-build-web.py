@@ -363,8 +363,14 @@ class BuildWebTests(unittest.TestCase):
         for token in ("boardstudio:v2:appearance", "boardstudio:v2:theme",
                       "boardstudio:v2:workbench-theme", "prefers-color-scheme: dark",
                       'setAttribute("data-appearance"', 'setAttribute("data-theme"',
-                      "colorScheme", "try{", "}catch(e){}"):
+                      "colorScheme", "try{", "}catch(e){}",
+                      "html{background:#E9EEF2}",
+                      'html[data-appearance="dark"]{background:#181B21}',
+                      'html[data-theme="shadcn"]{background:oklch(0.965 0 0)}',
+                      'html[data-theme="shadcn"][data-appearance="dark"]{background:oklch(0.15 0 0)}'):
             self.assertIn(token, head)
+        # Never set inline `d.style.background`: live theme switching overrides via CSS rules.
+        self.assertNotIn("style.background", head)
         # The script resolves appearance first, falls back to the legacy theme
         # key, then to the media query; the workbench theme defaults to original.
         script = head.split("<script>")[1]

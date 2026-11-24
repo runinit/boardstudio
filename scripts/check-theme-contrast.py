@@ -111,28 +111,24 @@ def _parse(color: str) -> tuple[float, float, float, float]:
     raise ValueError(f"unsupported theme color: {color}")
 
 
-def _linear(color: str) -> tuple[float, float, float, float]:
-    red, green, blue, alpha = _parse(color)
-    return (_to_linear(red), _to_linear(green), _to_linear(blue), alpha)
+def _flatten_srgb(foreground: tuple[float, float, float, float],
+                  background: tuple[float, float, float]) -> tuple[float, float, float]:
+    alpha = foreground[3]
+    return tuple(alpha * foreground[i] + (1.0 - alpha) * background[i] for i in range(3))
 
 
-def _flatten(foreground: tuple, background: tuple) -> tuple[float, float, float]:
-    return tuple(foreground[3] * foreground[i] + (1 - foreground[3]) * background[i]
-                 for i in range(3))
-
-
-def _luminance(linear_rgb: tuple[float, float, float]) -> float:
-    red, green, blue = linear_rgb
+def _luminance(srgb: tuple[float, float, float]) -> float:
+    red, green, blue = (_to_linear(channel) for channel in srgb)
     return 0.2126 * red + 0.7152 * green + 0.0722 * blue
 
 
 def ratio(foreground: str, background: str, opaque_base: str) -> float:
-    """WCAG contrast, compositing translucent layers over the opaque base (card)."""
-    back = _linear(background)
-    if back[3] < 1.0:
-        back = (*_flatten(back, _linear(opaque_base)[:3]), 1.0)
-    light, dark = sorted((_luminance(_flatten(_linear(foreground), back[:3])), _luminance(back[:3])),
-                            reverse=True)
+    """WCAG contrast using CSS sRGB source-over compositing over opaque_base."""
+    base = _parse(opaque_base)[:3]
+    bg_rgba = _parse(background)
+    back = _flatten_srgb(bg_rgba, base) if bg_rgba[3] < 1.0 else bg_rgba[:3]
+    front = _flatten_srgb(_parse(foreground), back)
+    light, dark = sorted((_luminance(front), _luminance(back)), reverse=True)
     return (light + 0.05) / (dark + 0.05)
 
 

@@ -1,25 +1,6 @@
 use super::super::*;
+use crate::presentation::editor::camera::camera_commands;
 use boardstudio_web_ui_model::Workspace;
-
-pub(in crate::presentation) fn camera_commands(
-    camera: super::camera::CameraActions,
-) -> impl Iterator<Item = boardstudio_web_ui_shared::ui::command::Command> {
-    [
-        ("Fit board", camera.fit_board),
-        ("Zoom out", camera.zoom_out),
-        ("Zoom in", camera.zoom_in),
-    ]
-    .into_iter()
-    .map(
-        |(label, on_select)| boardstudio_web_ui_shared::ui::command::Command {
-            group: "View",
-            label: label.into(),
-            reason: None,
-            hint: None,
-            on_select,
-        },
-    )
-}
 
 pub(super) fn use_view_commands(
     state: &super::session_state::SessionState,
