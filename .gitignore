@@ -78,5 +78,6 @@ web/assets/cad-worker/
 web/assets/cad/
 web/assets/renderer/
 web/assets/modules-index.json
+web/assets/imported-parts.min.json
 web/assets/modules/
 /web/assets/tailwind.css

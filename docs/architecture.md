@@ -102,8 +102,8 @@ matches `runtime_cache_prefixes`. That split keeps the app shell available
 offline while heavy provider payloads stay on demand:
 `scripts/build-web.py` stages `assets/ergogen-models/`, `assets/cad/`,
 `assets/cad-worker/bundled-step/` and `assets/modules/` under those prefixes,
-writes a small `modules-index.json`, and ships per-module assets lazily instead
-of inside the shell bundle. Caches are version-scoped and the worker deletes
+writes `modules-index.json` and `imported-parts.min.json` into the shell assets,
+and ships per-module assets lazily instead of inside the shell bundle. Caches are version-scoped and the worker deletes
 older same-scope caches on activation.
 
 ## Build and test topology
