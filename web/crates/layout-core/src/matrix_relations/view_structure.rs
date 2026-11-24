@@ -68,7 +68,7 @@ impl View<'_> {
             .find(|exception| exception.kind == kind && exception.mirror_id == id)
             .map(|exception| exception.state)
             .or_else(|| {
-                boardstudio_model::mirrored_half::derived_override_state(&self.document, kind, id)
+                boardstudio_model::mirrored_half::derived_override_state(self.document, kind, id)
             })
     }
 

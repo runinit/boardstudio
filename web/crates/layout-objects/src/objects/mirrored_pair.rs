@@ -263,7 +263,7 @@ use crate::{
     matrix_setup_operation::{MatrixSetupRequest, next_matrix_id},
     mirrored_pair_geometry::{MirroredPairGeometryInput, MirroredPairIds, project_mirrored_pair},
     mirrored_pair_lifecycle::{PairFormStage, PairFormState},
-    presentation::canvas_interaction::{CanvasMode, LayoutInteraction, MirroredPairPayload},
+    presentation::canvas_interaction::{CanvasMode, LayoutInteraction},
     runtime::Runtime,
 };
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
@@ -474,9 +474,7 @@ pub fn use_mirrored_pair(
             let next = open_id()
                 .checked_add(1)
                 .expect("mirrored pair identity exhausted");
-            if !canvas_interaction
-                .begin_mirrored_pair_placement(MirroredPairPayload { open_id: next })
-            {
+            if !canvas_interaction.begin(CanvasMode::PlacingMirroredPair) {
                 return;
             }
             open_id.set(next);

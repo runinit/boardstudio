@@ -34,18 +34,16 @@ pub fn matrix_drag_transport(document: &ProjectDoc, matrix_id: &str) -> MatrixDr
     }
     if let Some((derived, _, _)) =
         boardstudio_model::mirrored_half::derived_matrix(document, matrix_id)
-    {
-        if let Some(pair) = document
+        && let Some(pair) = document
             .hardware
             .iter()
             .flat_map(|hardware| &hardware.pairs)
             .find(|pair| pair.id == derived.id)
-        {
-            return MatrixDragTransport::Reflected {
-                translation: pair.mapping.at,
-                rotation: pair.mapping.rotation,
-            };
-        }
+    {
+        return MatrixDragTransport::Reflected {
+            translation: pair.mapping.at,
+            rotation: pair.mapping.rotation,
+        };
     }
     MatrixDragTransport::World
 }
