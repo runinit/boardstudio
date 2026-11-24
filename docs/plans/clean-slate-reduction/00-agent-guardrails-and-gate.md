@@ -113,6 +113,7 @@ Exit codes:
 8. **No Copy-Paste Folds:** Did `--max-file-lines`, `--max-relocation-ratio`, and `git diff --stat` confirm deleted files were genuinely simplified rather than pasted into neighboring files or renamed (`owner.rs` -> `session.rs`)?
 9. **Zero Async Ceremony on Sync Edits:** Were `PendingSettlement`, polling `use_effect`s, `ProjectionIdentity` mirrors, and sync-edit generation/request-ID/prop-bag boilerplate deleted from `Runtime::commit` paths?
 10. **Ceiling & Signal Discipline:** Do touched UI files stay within their target LOC ceilings without piling `>5` scattered `use_signal`s instead of one cohesive state struct/enum?
+11. **Layer Direction:** Did workspaces (`layout_workspace`, `pcb_workspace`, etc.) avoid importing up into `workbench::editor_session` (shared canvas/adapter code must live downward under `presentation/editor/`)?
 
 ---
 

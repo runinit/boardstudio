@@ -106,11 +106,24 @@ def _category(ref: str, path: str, line_no: int) -> str:
     return "other"
 
 
+def _is_non_workbench_presentation(path: str) -> bool:
+    return (
+        path.startswith("web/src/presentation/")
+        and not path.startswith("web/src/presentation/workbench/")
+        and path
+        not in {
+            "web/src/presentation/workbench.rs",
+            "web/src/presentation/editor.rs",
+            "web/src/presentation/workspace_composition.rs",
+        }
+    )
+
+
 def compute_diff_stats(
     base: str, head: str
-) -> tuple[dict[str, tuple[int, int, int]], Counter[str], Counter[str]]:
+) -> tuple[dict[str, tuple[int, int, int]], Counter[str], Counter[str], list[str]]:
     counts: Counter[tuple[str, str]] = Counter()
-    file_add, file_del = Counter(), Counter()
+    file_add, file_del, upward_imports = Counter(), Counter(), []
     diff = git("diff", "--no-renames", "--no-color", "--unified=0", base, head)
     old = new = ""
     i = j = 0
@@ -136,12 +149,15 @@ def compute_diff_stats(
             counts[cat, "+"] += 1
             if cat == "prod_rust":
                 file_add[new] += 1
+                added = line[1:].lstrip()
+                if _is_non_workbench_presentation(new) and not added.startswith("//") and "editor_session::" in added:
+                    upward_imports.append(f"{new}:{j}")
             j += 1
     out: dict[str, tuple[int, int, int]] = {}
     for cat in ("prod_rust", "test_rust", "scripts", "other"):
         added, deleted = counts[cat, "+"], counts[cat, "-"]
         out[cat] = (added, deleted, added - deleted)
-    return out, file_add, file_del
+    return out, file_add, file_del, upward_imports
 
 
 def compute_deltas(base: str, head: str) -> dict[str, tuple[int, int, int]]:
@@ -190,7 +206,7 @@ def main() -> int:
             limit = min(0, max_val) if target is None else 0
         return limit, target
 
-    deltas, file_add, file_del = compute_diff_stats(args.base, args.head)
+    deltas, file_add, file_del, upward_imports = compute_diff_stats(args.base, args.head)
     labels = {
         "prod_rust": ("Production Rust", *_limit_and_target(args.max_prod_delta, args.target_prod_delta, True)),
         "test_rust": ("Test Rust", *_limit_and_target(args.max_test_delta, args.target_test_delta, True)),
@@ -273,6 +289,10 @@ def main() -> int:
         if hits:
             failures.append(f"Forbidden symbol '{sym}' found in {len(hits)} file(s): {hits[:3]}")
             print(f"FORBID-SYMBOL FAIL: '{sym}' found in {hits[:3]}")
+
+    if upward_imports:
+        failures.append(f"Upward editor_session imports added in workspace layer: {upward_imports[:3]}")
+        print(f"LAYER-DIRECTION FAIL: added upward import(s) into editor_session from workspace layer: {upward_imports[:3]}")
 
     print("-" * 74)
     if failures:
