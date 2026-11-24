@@ -26,7 +26,7 @@ pub(in crate::presentation) fn use_layout_canvas(
     frame: &workspace_composition::WorkspaceFrame,
     canvas: &super::inspector_wiring::CanvasNamed,
     transform_menu: &objects::LayoutTransformMenuMount,
-    pointer: &super::super::workbench::editor_session::canvas_adapter::LayoutPointer,
+    pointer: &super::super::editor::canvas_adapter::LayoutPointer,
     overlay: &OutlineOverlay,
     extras: LayoutCanvasExtras,
 ) -> Element {
@@ -281,18 +281,16 @@ fn selection_anchor(
                             let Some(snapshot) = current.accepted else { return; };
                             let positions: Vec<_> = snapshot.document.parts.iter().filter(|p| current.selected_part_ids.contains(&p.id)).map(|p| Position { id: p.id.clone(), at: p.pose.at }).collect();
                             if positions.is_empty() { return; }
-                            workbench::editor_session::canvas_adapter::capture_canvas_drag(
+                            super::super::editor::canvas_adapter::capture_canvas_drag(
                                 arbiter,
-                                workbench::editor_session::canvas_adapter::CanvasDragStart {
-                                    id: pointer.pointer_id(),
-                                    client: client_point(&pointer),
-                                    control: pointer.ctrl_key(),
-                                    seed: GestureSeed::PartDrag {
-                                        scope: scope.clone(),
-                                        generation: owner.generation,
-                                        origin_mm: origin,
-                                        positions,
-                                    },
+                                pointer.pointer_id(),
+                                client_point(&pointer),
+                                pointer.ctrl_key(),
+                                GestureSeed::PartDrag {
+                                    scope: scope.clone(),
+                                    generation: owner.generation,
+                                    origin_mm: origin,
+                                    positions,
                                 },
                                 &runtime,
                                 &svg,

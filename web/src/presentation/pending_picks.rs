@@ -1,26 +1,15 @@
 use super::*;
 use boardstudio_web_ui_model::Workspace;
 
-pub(crate) struct PendingSplayOriginPick<'a> {
-    pub(crate) pending: &'a mut Signal<Option<objects::MatrixTransformInspectorOwner>>,
-    pub(crate) inspector: &'a objects::MatrixTransformInspectorMount,
-    pub(crate) point: Vec2,
-    pub(crate) swing: bool,
-}
-
-pub(crate) struct PendingAnchorPick<'a> {
-    pub(crate) pending: &'a mut Signal<Option<objects::MatrixTransformInspectorOwner>>,
-    pub(crate) inspector: &'a objects::MatrixTransformInspectorMount,
-    pub(crate) matrix_id: String,
-    pub(crate) row: u32,
-    pub(crate) column: u32,
-}
+pub(crate) type PickOwner<'a> = (
+    &'a Runtime,
+    Signal<Workspace>,
+    &'a SelectionAdapter,
+    &'a LayoutOwnerIdentity,
+);
 
 fn pick_owner_valid(
-    runtime: &Runtime,
-    workspace: Signal<Workspace>,
-    adapter: &SelectionAdapter,
-    owner: &LayoutOwnerIdentity,
+    (runtime, workspace, adapter, owner): PickOwner<'_>,
     picked: &objects::MatrixTransformInspectorOwner,
     inspector: &objects::MatrixTransformInspectorMount,
     is_kind: impl Fn(&objects::TreeContext) -> bool,
@@ -36,55 +25,43 @@ fn pick_owner_valid(
 }
 
 pub(crate) fn apply_pending_splay_origin_pick(
-    runtime: &Runtime,
-    workspace: Signal<Workspace>,
-    adapter: &SelectionAdapter,
-    owner: &LayoutOwnerIdentity,
-    pick: PendingSplayOriginPick<'_>,
+    owner_ctx: PickOwner<'_>,
+    pending: &mut Signal<Option<objects::MatrixTransformInspectorOwner>>,
+    inspector: &objects::MatrixTransformInspectorMount,
+    (point, swing): (Vec2, bool),
 ) -> bool {
-    let Some(picked) = pick.pending.peek().clone() else {
+    let Some(picked) = pending.peek().clone() else {
         return false;
     };
-    pick.pending.set(None);
-    if !pick_owner_valid(
-        runtime,
-        workspace,
-        adapter,
-        owner,
-        &picked,
-        pick.inspector,
-        |c| matches!(c, objects::TreeContext::Column { .. }),
-    ) || !pick.inspector.pick_splay_origin(pick.point, pick.swing)
-    {
-        runtime.report("Column selection changed. Pick the splay origin again.");
+    pending.set(None);
+    let ok = pick_owner_valid(owner_ctx, &picked, inspector, |c| {
+        matches!(c, objects::TreeContext::Column { .. })
+    });
+    if !ok || !inspector.pick_splay_origin(point, swing) {
+        owner_ctx
+            .0
+            .report("Column selection changed. Pick the splay origin again.");
     }
     true
 }
 
 pub(crate) fn apply_pending_anchor_pick(
-    runtime: &Runtime,
-    workspace: Signal<Workspace>,
-    adapter: &SelectionAdapter,
-    owner: &LayoutOwnerIdentity,
-    pick: PendingAnchorPick<'_>,
+    owner_ctx: PickOwner<'_>,
+    pending: &mut Signal<Option<objects::MatrixTransformInspectorOwner>>,
+    inspector: &objects::MatrixTransformInspectorMount,
+    (matrix_id, row, column): (String, u32, u32),
 ) -> bool {
-    let Some(picked) = pick.pending.peek().clone() else {
+    let Some(picked) = pending.peek().clone() else {
         return false;
     };
-    pick.pending.set(None);
-    if !pick_owner_valid(
-        runtime,
-        workspace,
-        adapter,
-        owner,
-        &picked,
-        pick.inspector,
-        |c| matches!(c, objects::TreeContext::Matrix { .. }),
-    ) || !pick
-        .inspector
-        .pick_matrix_anchor(pick.matrix_id, pick.row, pick.column)
-    {
-        runtime.report("Matrix selection changed. Pick the anchor key again.");
+    pending.set(None);
+    let ok = pick_owner_valid(owner_ctx, &picked, inspector, |c| {
+        matches!(c, objects::TreeContext::Matrix { .. })
+    });
+    if !ok || !inspector.pick_matrix_anchor(matrix_id, row, column) {
+        owner_ctx
+            .0
+            .report("Matrix selection changed. Pick the anchor key again.");
     }
     true
 }

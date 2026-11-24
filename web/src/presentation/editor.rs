@@ -1,3 +1,5 @@
+pub(in crate::presentation) mod canvas_adapter;
+
 use super::workbench::editor_session::EditorSession;
 use super::*;
 use boardstudio_web_ui_model::editor::EditorContext;

@@ -1,6 +1,6 @@
 //! Private routing for the six independently owned workspace surfaces.
+use super::workbench::editor_session::camera;
 use super::workbench::editor_session::commands::camera_commands;
-use super::workbench::editor_session::{camera, keyboard};
 use super::*;
 use boardstudio_web_ui_model::editor::EditorContext;
 
@@ -504,13 +504,13 @@ impl WorkspaceFrame {
             )
         };
         let handlers = CanvasEventHandlers {
-            wheel: EventHandler::new(keyboard::build_wheel(
-                editor,
-                adapter,
-                &self.scope,
+            wheel: EventHandler::new(super::editor::canvas_adapter::wheel_handler(
+                editor.runtime(),
+                self.svg.clone(),
+                self.scope.clone(),
+                adapter.clone(),
                 self.owner.generation,
-                &self.svg,
-                &bounds,
+                bounds.canvas_bounds(),
             )),
             ..self.handlers.clone()
         };

@@ -832,7 +832,7 @@ pub(in crate::presentation) fn use_layout_bundle(
         use_hook(|| Rc::new(super::inspector::LayoutComponentInspectorLifetime::default()));
     let canvas = inspector_wiring::use_canvas_bundle(frame, &mounts, lifetime.clone());
     let toolbar_wiring = toolbar_wiring::use_layout_toolbar(frame, &canvas, &mounts, lifetime);
-    let pointer = super::workbench::editor_session::canvas_adapter::build_canvas_pointer(frame);
+    let pointer = super::editor::canvas_adapter::build_canvas_pointer(frame);
     let overlay = scene::use_outline_overlay(frame);
     let selected_tree_context = canvas.selection.selected_tree_context.clone();
     let bridge = scene::selected_bridge(&frame.snapshot, selected_tree_context.as_ref());

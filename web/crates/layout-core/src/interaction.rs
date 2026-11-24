@@ -40,6 +40,13 @@ impl CanvasMode {
             Self::PickingSplayOrigin | Self::PickingMatrixAnchor | Self::PickingRailAnchor
         )
     }
+
+    pub fn is_placing(self) -> bool {
+        matches!(
+            self,
+            Self::PlacingPart | Self::PlacingMatrix | Self::PlacingMirroredPair
+        )
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

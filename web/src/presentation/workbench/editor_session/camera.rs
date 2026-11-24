@@ -147,6 +147,18 @@ pub(in crate::presentation) struct SceneBounds {
     pub view_box: String,
 }
 
+impl SceneBounds {
+    pub(in crate::presentation) fn canvas_bounds(
+        &self,
+    ) -> super::super::super::editor::canvas_adapter::CanvasBounds {
+        (
+            (self.view_x, self.view_y, self.width, self.height),
+            self.keymap_scale_ratio,
+            (self.min_x, self.max_x, self.min_y, self.max_y),
+        )
+    }
+}
+
 pub(in crate::presentation) fn use_scene_bounds(input: SceneBoundsInput<'_>) -> SceneBounds {
     let SceneBoundsInput {
         enabled,
