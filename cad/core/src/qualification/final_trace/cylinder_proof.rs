@@ -4,6 +4,7 @@
 //! rationals of the retained f64 geometry. No mesher tolerance is a proof input.
 use super::super::generated_qualification::GeneratedQualification;
 use crate::layered::brep::Point3;
+use crate::vec3::q::{cross, sub};
 use num_rational::BigRational as Q;
 use num_traits::{Signed, ToPrimitive, Zero};
 use std::collections::{BTreeMap, BTreeSet};
@@ -22,16 +23,6 @@ fn q(v: f64) -> Proof<Q> {
 }
 fn point(p: Point3) -> Proof<P> {
     Ok([q(p.x)?, q(p.y)?, q(p.z)?])
-}
-fn sub(a: &P, b: &P) -> P {
-    std::array::from_fn(|i| &a[i] - &b[i])
-}
-fn cross(a: &P, b: &P) -> P {
-    [
-        &a[1] * &b[2] - &a[2] * &b[1],
-        &a[2] * &b[0] - &a[0] * &b[2],
-        &a[0] * &b[1] - &a[1] * &b[0],
-    ]
 }
 fn det(a: &P, b: &P) -> Q {
     &a[0] * &b[1] - &a[1] * &b[0]

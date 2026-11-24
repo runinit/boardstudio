@@ -1,5 +1,6 @@
 //! Independent planar B-rep measurements from Part21 records, without kernel conversion.
 //! Unsupported curved geometry fails explicitly; it is never measured as vertex chords.
+use crate::vec3::f64::{cross, sub};
 use std::collections::{BTreeMap, BTreeSet};
 use step_p21::ast::{EntityInstance, Exchange, Name, Parameter, Record};
 
@@ -868,20 +869,9 @@ fn vector(value: &Parameter) -> Result<Point> {
         number(&values[2])?,
     ])
 }
-fn sub(a: Point, b: Point) -> Point {
-    std::array::from_fn(|i| a[i] - b[i])
-}
 fn dot(a: Point, b: Point) -> f64 {
     a.into_iter().zip(b).map(|(x, y)| x * y).sum()
 }
-fn cross(a: Point, b: Point) -> Point {
-    [
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    ]
-}
-
 fn unit(v: Point) -> Result<Point> {
     let length = v[0].hypot(v[1]).hypot(v[2]);
     if !length.is_finite() || length == 0.0 {

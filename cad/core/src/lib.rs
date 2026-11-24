@@ -17,6 +17,7 @@ mod test_support;
 use test_support::{ProfileInput, ProfileKind, ProfileRegion, build_profile};
 
 mod step;
+mod vec3;
 pub use step::{
     ImportedStep, StepAccuracy, StepFaceOccurrence, StepImportOptions, StepLineOccurrence,
     StepLinePresentation, StepPrecision, StepSourceFace, StepUncertainty, import_step,
