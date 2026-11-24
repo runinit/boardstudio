@@ -519,8 +519,7 @@ fn PartInputSection(
 
 /// Switches inherit wiring from their key assembly; this section only shows
 /// the named terminals and their inherited nets.
-#[component]
-pub fn SwitchSection(source: PcbWiringSource, on_edit_board_wiring: EventHandler<()>) -> Element {
+pub fn switch_section(source: &PcbWiringSource, on_edit_board_wiring: EventHandler<()>) -> Element {
     let document = &source.document;
     let Some(board) = document
         .boards

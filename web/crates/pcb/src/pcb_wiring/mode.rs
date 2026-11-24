@@ -74,6 +74,8 @@ pub(super) fn board_mode(document: &ProjectDoc, board_id: &str) -> ElectricalMod
         .map_or(ElectricalMode::Matrix, |configuration| configuration.mode)
 }
 
+type DocumentEdit = Box<dyn Fn(&AcceptedSnapshot, &mut ProjectDoc) -> Result<Vec<String>, String>>;
+
 /// The shared `ReplaceDocument` resolver for board-wiring edits: clone the
 /// accepted document, apply `edit` (submit targets or retire reason), resolve
 /// `Unchanged` when the clone still equals the accepted document (ADR-0005).
@@ -81,6 +83,10 @@ pub(super) fn replace_document_resolver(
     name: &'static str,
     edit: impl Fn(&AcceptedSnapshot, &mut ProjectDoc) -> Result<Vec<String>, String> + 'static,
 ) -> EditResolver {
+    replace_document_resolver_boxed(name, Box::new(edit))
+}
+
+fn replace_document_resolver_boxed(name: &'static str, edit: DocumentEdit) -> EditResolver {
     EditResolver::new(name, move |accepted: &AcceptedSnapshot| {
         let mut replacement = accepted.document.as_ref().clone();
         match edit(accepted, &mut replacement) {

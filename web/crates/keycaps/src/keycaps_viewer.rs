@@ -29,8 +29,7 @@ use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::rc::Rc;
 
-#[component]
-fn KeycapStatus(
+fn keycap_status(
     blocker: Option<String>,
     pending: bool,
     error: Option<String>,
@@ -210,16 +209,14 @@ pub fn KeycapsAssemblyViewer(
         }
     };
 
-    let keycap_status = rsx! {
-        KeycapStatus {
-            blocker: keycaps_fit
-                .as_ref()
-                .and_then(|fit| fit.preview_blocker_message()),
-            pending: keycaps.pending,
-            error: keycaps.error.clone(),
-            on_retry: keycaps.retry,
-        }
-    };
+    let keycap_status = keycap_status(
+        keycaps_fit
+            .as_ref()
+            .and_then(|fit| fit.preview_blocker_message()),
+        keycaps.pending,
+        keycaps.error.clone(),
+        keycaps.retry,
+    );
     let Some(preview) = preview else {
         let preview_error = runtime.layout_preview_error();
         let message = if let Some(error) = preview_error.as_ref() {

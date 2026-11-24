@@ -166,7 +166,7 @@ pub async fn resolve(
     let preset = preset(id);
     let mut members = recipe_members(
         preset,
-        |source| {
+        &|source| {
             entries
                 .iter()
                 .find(|entry| {
@@ -205,7 +205,7 @@ pub fn customization_recipe(
 ) -> Result<Vec<crate::parts_preview::PartsPreviewRecipeMember>, String> {
     recipe_members(
         preset(id),
-        |source| {
+        &|source| {
             definitions
                 .iter()
                 .find(|definition| {
@@ -224,7 +224,7 @@ pub fn customization_recipe(
 
 fn recipe_members(
     preset: &Preset,
-    mut find_definition: impl FnMut(&str) -> Option<PartDefinition>,
+    find_definition: &dyn Fn(&str) -> Option<PartDefinition>,
     reversible: bool,
     orientation: SwitchOrientation,
     preview_definition: Option<PartDefinition>,

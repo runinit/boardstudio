@@ -231,7 +231,7 @@ pub fn PcbWiringInspector(props: PcbWiringInspectorProps) -> Element {
             PartKind::Controller => board_section(&props),
             PartKind::Switch => {
                 let _ = (part, definition);
-                rsx! { part_input_settings::SwitchSection { source: props.source.clone(), on_edit_board_wiring: props.on_edit_board_wiring } }
+                part_input_settings::switch_section(&props.source, props.on_edit_board_wiring)
             }
             _ => rsx! {
                 part_input_settings::PartSection {

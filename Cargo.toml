@@ -183,10 +183,12 @@ incremental = false
 # inliner from inflating the large serde visitors back past the baseline;
 # measured core-worker -1.5% and cad-worker -0.8% vs the pre-split record.
 # Wave 6 added lto = "thin", bringing the release main page wasm to 23,401,010 bytes (22.32 MiB).
+# P2 added strip = "debuginfo" (plus trimmed duplicate component/generic monomorphizations), bringing the release main page wasm to 19,276,206 bytes (18.38 MiB).
 [profile.release]
 codegen-units = 1
 lto = "thin"
 opt-level = 2
+strip = "debuginfo"
 
 # The profile for every wasm build `scripts/check.py` makes: the packaged page
 # (`build-web.py --fast`), the page tests and each crate's `wasm-pack test`. With the wasm rustflags
