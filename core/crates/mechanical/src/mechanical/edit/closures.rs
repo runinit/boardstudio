@@ -3,7 +3,6 @@
 use super::super::change::{MechanicalChange, MechanicalEdit, MechanicalTarget};
 use super::super::features;
 use super::super::inputs::{effective_document, effective_inputs};
-use super::paired::{project_changed, validate_supplied_template};
 use super::{
     AUTO_CLOSURE_PREFIX, GENERATED_DEFINITION_PREFIX, GENERATED_PART_PREFIX,
     MechanicalIdentityLedger, apply_change, instance_configuration_mut, pair_index, pair_owner_ids,
@@ -114,6 +113,32 @@ pub(super) fn validate_mounting_hole(template: &PartDefinition) -> Result<(), St
     Ok(())
 }
 
+/// Rejects a malformed supplied mounting-hole template before anything mutates.
+///
+/// Settings-only edits validate the template even when the projection never
+/// runs, so a malformed catalogue entry is always an error.
+pub(super) fn validate_supplied_template(
+    mounting_hole: Option<&PartDefinition>,
+) -> Result<(), String> {
+    if let Some(template) = mounting_hole {
+        validate_mounting_hole(template)?;
+    }
+    Ok(())
+}
+
+/// Runs the owned projection and records only the generated ids it changed.
+///
+/// Generated closure holes and memberships refresh in the same atomic edit, and
+/// the reported ids stay deduplicated against the ids the edit already named.
+pub(super) fn project_changed(
+    doc: &mut ProjectDoc,
+    mounting_hole: Option<&PartDefinition>,
+    changed: &mut Vec<String>,
+) -> Result<(), String> {
+    project(doc, mounting_hole, changed)?;
+    dedup_changed(changed);
+    Ok(())
+}
 /// Resolves the assembly from the proposed document and materializes its
 /// suggested closure mounts onto the proposed configuration.
 ///

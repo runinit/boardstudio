@@ -21,7 +21,6 @@ mod closures;
 mod feature_lifecycle;
 mod identity;
 mod ownership;
-mod paired;
 mod processes;
 mod validation;
 
