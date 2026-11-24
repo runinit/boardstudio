@@ -31,8 +31,7 @@ use board::{BoardInspectorView, board_outline_inspector};
 #[component]
 pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Element {
     let mut perimeter_open = projection.ui.editing_points;
-    let mut selected_point = projection.ui.selected_point;
-    let selected_connection_id = projection.ui.selected_connection_id;
+    let mut canvas_ui = projection.ui.canvas_ui;
     let enabled = projection.enabled;
     let draft_serial = use_signal(|| 0u64);
     let active_value = projection.active_version_id.clone().unwrap_or_default();
@@ -49,25 +48,29 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
     let point_attachment = use_memo(use_reactive(
         (&projection.connections,),
         move |(connections,)| {
+            let canvas = canvas_ui.read();
             Some(
                 connections
                     .iter()
                     .find(|connection| {
-                        Some(&connection.id) == selected_connection_id.read().as_ref()
+                        Some(&connection.id) == canvas.selected_connection_id.as_ref()
                     })
                     .and_then(|connection| {
-                        connection
-                            .points
-                            .get(selected_point().min(connection.points.len().saturating_sub(1)))
+                        connection.points.get(
+                            canvas
+                                .selected_point
+                                .min(connection.points.len().saturating_sub(1)),
+                        )
                     })
                     .and_then(|point| point.part_id.clone())
                     .unwrap_or_default(),
             )
         },
     ));
+    let selected_point = canvas_ui.read().selected_point;
     let point_index = perimeter
         .as_ref()
-        .map(|perimeter| selected_point().min(perimeter.points.len().saturating_sub(1)))
+        .map(|perimeter| selected_point.min(perimeter.points.len().saturating_sub(1)))
         .unwrap_or_default();
     let point = perimeter
         .as_ref()
@@ -231,7 +234,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                             let a = points[point_index];
                                             let b = points[next];
                                             points.insert(point_index + 1, Vec2 { x: (a.x + b.x) / 2.0, y: (a.y + b.y) / 2.0 });
-                                            selected_point.set(point_index + 1);
+                                            canvas_ui.write().selected_point = point_index + 1;
                                             commit_perimeter_points(&projection, &target, &points, point_index);
                                         }
                                     },
@@ -250,7 +253,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                         move |_| {
                                             if point_count <= 3 { return; }
                                             points.remove(point_index);
-                                            selected_point.set(point_index.saturating_sub(1));
+                                            canvas_ui.write().selected_point = point_index.saturating_sub(1);
                                             commit_perimeter_points(&projection, &target, &points, point_index);
                                         }
                                     },
@@ -281,7 +284,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                                     std::collections::HashSet::new()
                                                 },
                                             ),
-                                            on_pressed_change: move |_| selected_point.set(index),
+                                            on_pressed_change: move |_| canvas_ui.write().selected_point = index,
                                             ToggleItem {
                                                 class: "grid! w-full! grid-cols-[54px_minmax(0,1fr)_minmax(0,1fr)] gap-2 rounded-none! px-2 py-1.5 text-left text-xs! font-normal! tabular-nums max-[760px]:min-h-control-touch",
                                                 index: 0usize,

@@ -1,13 +1,13 @@
-//! Outline planning vocabulary and pure edit settlement shared with the Layout crate.
+//! Outline planning vocabulary and pure edit evaluation shared with the Layout crate.
 
 pub mod edit;
 pub mod planner;
 
 pub use edit::{
-    Admission, OutlineDrawTool, OutlineFeedback, OutlineVersionChoice, OutlineVersionOwnership,
-    active_outline, admission, blocked_export_labels, editable_perimeter, gap_focus_camera,
-    outline_action_matches_saved_owner, outline_edit, outline_state, outline_version,
-    retire_reason, settle, target_ids, version_geometry,
+    OutlineDrawTool, OutlineFeedback, OutlineVersionChoice, OutlineVersionOwnership,
+    active_outline, blocked_export_labels, editable_perimeter, evaluate_outline_edit,
+    gap_focus_camera, outline_action_matches_saved_owner, outline_edit, outline_state,
+    outline_version, target_ids, version_geometry,
 };
 pub use planner::{
     EditablePerimeter, OutlineAction, OutlineActionEnvelope, OutlineActionKind, OutlinePointTarget,

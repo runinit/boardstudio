@@ -9,11 +9,11 @@ pub(super) fn version_controls(
 ) -> Element {
     let projection = &view.projection;
     let active_selection = view.active_selection;
-    let mut version_name = projection.ui.version_name_draft;
-    let name_draft = version_name();
+    let mut version_ui = projection.ui.version_ui;
+    let name_draft = version_ui.read().version_name_draft.clone();
     let active_version = projection.active_version_id.clone();
     let accepted_name = projection.version_name.clone();
-    let name_failure = projection.ui.version_name_failure.read().clone();
+    let name_failure = version_ui.read().version_name_failure.clone();
     let enabled = projection.enabled;
     let active_problem = active_choice.filter(|item| item.problem_message.is_some());
     // Alternatives that cannot resolve are listed without pretending the active outline
@@ -60,15 +60,14 @@ pub(super) fn version_controls(
                         class: "grid gap-[5px] text-xs text-muted-foreground", control_class: "",
                         maxlength: Some("120".to_owned()), aria_invalid: Some(name_draft.trim().is_empty()),
                         value: "{name_draft}", disabled: !enabled,
-                        oninput: move |event: FormEvent| version_name.set(event.value()),
+                        oninput: move |event: FormEvent| version_ui.write().version_name_draft = event.value(),
                         onblur: {
                             let version_id = version_id.clone();
                             let accepted_name = accepted_name.clone();
                             let projection = projection.clone();
                             move |_| {
-                                let draft = version_name();
-                                let name = draft.trim().to_owned();
-                                version_name.set(name.clone());
+                                let name = version_ui.read().version_name_draft.trim().to_owned();
+                                version_ui.write().version_name_draft = name.clone();
                                 if !name.is_empty() && name.len() <= 120 && name != accepted_name {
                                     projection.update(OutlineEdit::RenameVersion { version_id: version_id.clone(), name });
                                 }
@@ -86,7 +85,7 @@ pub(super) fn version_controls(
                                 }
                                 "Escape" => {
                                     event.prevent_default();
-                                    version_name.set(accepted_name.clone());
+                                    version_ui.write().version_name_draft = accepted_name.clone();
                                 }
                                 _ => {}
                             }

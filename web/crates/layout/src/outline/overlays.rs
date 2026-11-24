@@ -256,7 +256,7 @@ pub fn OutlinePointCanvasOverlay(
     if perimeter.canvas_points.len() < 3 {
         return rsx! {};
     }
-    let selected_point = projection.ui.selected_point;
+    let canvas_ui = projection.ui.canvas_ui;
     let saved_points = perimeter.points.clone();
     let canvas_points = perimeter.canvas_points.clone();
     let target = perimeter.target.clone();
@@ -324,8 +324,8 @@ pub fn OutlinePointCanvasOverlay(
             }
             for (index, point) in rendered_points.iter().copied().enumerate() {
                 {
-                    let is_selected = selected_point() == index;
-                    let mut point_selected = selected_point;
+                    let is_selected = canvas_ui.read().selected_point == index;
+                    let mut point_selected = canvas_ui;
                     let point_id = format!("outline-point-{index}");
                     let point_label = format!("Outline point {}", index + 1);
                     let down_ctx = ctx.clone();
@@ -362,7 +362,7 @@ pub fn OutlinePointCanvasOverlay(
                             "aria-label": "{point_label}",
                             "aria-pressed": "{is_selected}",
                             cx: "{point.x}", cy: "{point.y}", r: "{handle_radius}",
-                            onfocus: move |_| point_selected.set(index),
+                            onfocus: move |_| point_selected.write().selected_point = index,
                             onpointerdown: move |event: PointerEvent| {
                                 let Some(pointer) = event.data().try_as_web_event() else { return; };
                                 if !enabled || pointer.button() != 0 || down_ctx.arbiter.current().is_some() { return; }
@@ -388,7 +388,7 @@ pub fn OutlinePointCanvasOverlay(
                                 {
                                     pointer.prevent_default();
                                     focus_svg(&handle);
-                                    point_selected.set(index);
+                                    point_selected.write().selected_point = index;
                                     let cancel_ctx = down_ctx.clone();
                                     down_ctx.arbiter.on_cancel(move || {
                                         if let Some(canceled) = cancel_ctx.arbiter.take_canceled_outline_drag() {
@@ -433,7 +433,7 @@ pub fn OutlinePointCanvasOverlay(
                                     _ if key.key() == "Delete" || key.key() == "Backspace" => {
                                         key.prevent_default(); key.stop_propagation();
                                         if points.len() <= 3 { return; }
-                                        points.remove(index); point_selected.set(index.saturating_sub(1));
+                                        points.remove(index); point_selected.write().selected_point = index.saturating_sub(1);
                                         key_ctx.projection.dispatch(OutlineActionKind::EditPerimeter {
                                             target: key_target.clone(), points, phase: EditPhase::Commit,
                                             transaction_id: format!("outline-delete-{}-{}", key_ctx.runtime.operation().0, index),
@@ -482,12 +482,12 @@ pub fn OutlineDraftCanvasOverlay(
         3
     };
     let mut drawing_operation = projection.ui.drawing_operation;
-    let points = projection.ui.drawing_points;
+    let mut canvas_ui = projection.ui.canvas_ui;
     let paths = projection.snap_paths.clone();
     let origins = Rc::new(origins);
     let grid = grid_step(pitch, snap_settings.snap_fraction).unwrap_or_default();
     let geometry_snap = snap_settings.geometry_snap;
-    let draft = points.read().clone();
+    let draft = canvas_ui.read().drawing_points.clone();
     let point_string = draft
         .iter()
         .map(|point| format!("{},{}", point.x, point.y))
@@ -499,10 +499,10 @@ pub fn OutlineDraftCanvasOverlay(
     let revision = projection.revision;
     let finish_projection = projection.clone();
     let finish = {
-        let mut points = points;
+        let mut canvas_ui = canvas_ui;
         let runtime = runtime.clone();
         move || {
-            let draft = points.read().clone();
+            let draft = canvas_ui.read().drawing_points.clone();
             if draft.len() < minimum_points
                 || matches!(tool, OutlineDrawTool::Polygon(_))
                     && polygon_signed_area(&draft).abs() < 1e-6
@@ -530,7 +530,7 @@ pub fn OutlineDraftCanvasOverlay(
                     finish_projection.dispatch(OutlineActionKind::AddConnection { points: draft });
                 }
             }
-            points.set(Vec::new());
+            canvas_ui.write().drawing_points.clear();
             drawing_operation.set(None);
         }
     };
@@ -542,11 +542,10 @@ pub fn OutlineDraftCanvasOverlay(
                 fill: "transparent", tabindex: "0", role: "application",
                 "aria-label": "Outline drawing canvas. Click to add points. Enter finishes; Escape cancels.",
                 onpointerdown: move |event: PointerEvent| {
-                    let mut points = points;
                     let Some(pointer) = event.data().try_as_web_event() else { return; };
                     if !enabled || pointer.button() != 0 || arbiter.current().is_some() { return; }
                     let Some(at) = crate::coordinates(&svg, &pointer, view_x, view_y, width, height) else { return; };
-                    let path_points = points.read().clone();
+                    let path_points = canvas_ui.read().drawing_points.clone();
                     let context = crate::presentation::outline_snapping::Context { anchor: path_points.last().copied(), previous: path_points.iter().rev().nth(1).copied(), exclude: None, neighbor: None };
                     let px = svg.borrow().as_ref().map(|surface| surface.get_bounding_client_rect().width()).unwrap_or(1.0).max(1.0);
                     let tolerance = width / px * 7.0;
@@ -556,7 +555,9 @@ pub fn OutlineDraftCanvasOverlay(
                     {
                         snapped.at = at;
                     }
-                    if !path_points.iter().any(|point| (point.x-snapped.at.x).abs() < 1e-7 && (point.y-snapped.at.y).abs() < 1e-7) { points.set(path_points.into_iter().chain([snapped.at]).collect()); }
+                    if !path_points.iter().any(|point| (point.x-snapped.at.x).abs() < 1e-7 && (point.y-snapped.at.y).abs() < 1e-7) {
+                        canvas_ui.write().drawing_points.push(snapped.at);
+                    }
                     pointer.prevent_default();
                     if let Some(target) = pointer.target().and_then(|target| target.dyn_into::<SvgElement>().ok()) {
                         focus_svg(&target);
@@ -564,14 +565,14 @@ pub fn OutlineDraftCanvasOverlay(
                 },
                 onkeydown: {
                     let mut finish = finish.clone();
-                    let mut points = points;
+                    let mut canvas_ui = canvas_ui;
                     let mut drawing_operation = drawing_operation;
                     move |event: KeyboardEvent| {
                         let Some(key) = event.data().try_as_web_event() else { return; };
                         match key.key().as_str() {
                             "Enter" => { key.prevent_default(); key.stop_propagation(); finish(); },
-                            "Escape" => { key.prevent_default(); key.stop_propagation(); points.set(Vec::new()); drawing_operation.set(None); },
-                            "Backspace" | "Delete" => { key.prevent_default(); key.stop_propagation(); let mut next = points.read().clone(); next.pop(); points.set(next); },
+                            "Escape" => { key.prevent_default(); key.stop_propagation(); canvas_ui.write().drawing_points.clear(); drawing_operation.set(None); },
+                            "Backspace" | "Delete" => { key.prevent_default(); key.stop_propagation(); canvas_ui.write().drawing_points.pop(); },
                             _ => {}
                         }
                     }

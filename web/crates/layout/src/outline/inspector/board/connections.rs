@@ -19,8 +19,9 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
     let point_attachment = view.point_attachment;
     let active_version = projection.active_version_id.clone();
     let enabled = projection.enabled;
-    let mut selected_point = projection.ui.selected_point;
-    let mut selected_connection_id = projection.ui.selected_connection_id;
+    let mut canvas_ui = projection.ui.canvas_ui;
+    let selected_conn = canvas_ui.read().selected_connection_id.clone();
+    let selected_pt = canvas_ui.read().selected_point;
     rsx! {
         if !projection.connections.is_empty() {
             div {
@@ -35,7 +36,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                         ToggleGroup {
                             aria_label: "Geometry selection",
                             pressed: Some(
-                                if selected_connection_id().as_deref() == Some(connection.id.as_str()) {
+                                if selected_conn.as_deref() == Some(connection.id.as_str()) {
                                     std::collections::HashSet::from([0usize])
                                 } else {
                                     std::collections::HashSet::new()
@@ -43,7 +44,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                             ),
                             on_pressed_change: {
                                 let id = connection.id.clone();
-                                move |_| selected_connection_id.set(Some(id.clone()))
+                                move |_| canvas_ui.write().selected_connection_id = Some(id.clone())
                             },
                             ToggleItem { index: 0usize,
                                 "Connection {index + 1} · {connection.points.len()} points · {connection.width:.2} mm"
@@ -65,7 +66,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                                     connections.retain(|item| item.id != connection_id);
                                 }
                                 set_connection_feature(&projection, version_id.clone(), before.clone(), after);
-                                selected_connection_id.set(None);
+                                canvas_ui.write().selected_connection_id = None;
                             }
                         },
 
@@ -78,7 +79,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
             }
         }
         if let (Some(connection_id), Some(before)) = (
-            selected_connection_id().as_ref(),
+            selected_conn.as_ref(),
             projection.connection_feature.as_ref(),
         )
         {
@@ -112,7 +113,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                     }
                     if !connection.points.is_empty() {
                         {
-                            let index = selected_point().min(connection.points.len() - 1);
+                            let index = selected_pt.min(connection.points.len() - 1);
                             let point = &connection.points[index];
                             let world = connection_point_world(point, &projection.outline_parts);
                             rsx! {
@@ -197,7 +198,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                                                 at: Vec2 { x: (a.x + b.x) * 0.5, y: (a.y + b.y) * 0.5 },
                                                 part_id: None,
                                             });
-                                            selected_point.set(index + 1);
+                                            canvas_ui.write().selected_point = index + 1;
                                             set_connection_feature(&projection, version_id.clone(), before.clone(), after);
                                         }
                                     }
@@ -222,7 +223,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                                             && connection.points.len() > 2 && index < connection.points.len()
                                         {
                                             connection.points.remove(index);
-                                            selected_point.set(index.saturating_sub(1));
+                                            canvas_ui.write().selected_point = index.saturating_sub(1);
                                             set_connection_feature(&projection, version_id.clone(), before.clone(), after);
                                         }
                                     }
@@ -243,13 +244,13 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                                                 ToggleGroup {
                                                     aria_label: "Select connection point {index + 1}",
                                                     pressed: Some(
-                                                        if index == selected_point() {
+                                                        if index == selected_pt {
                                                             std::collections::HashSet::from([0usize])
                                                         } else {
                                                             std::collections::HashSet::new()
                                                         },
                                                     ),
-                                                    on_pressed_change: move |_| selected_point.set(index),
+                                                    on_pressed_change: move |_| canvas_ui.write().selected_point = index,
                                                     ToggleItem {
                                                         index: 0usize,
                                                         key: "connection-point-{index}",
