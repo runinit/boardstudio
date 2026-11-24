@@ -122,21 +122,8 @@ pub(super) fn apply_change(
     changed: &mut Vec<String>,
 ) -> Result<(), String> {
     let previous = configuration.clone();
-    if matches!(
-        change,
-        MechanicalChange::Enable
-            | MechanicalChange::Disable
-            | MechanicalChange::InitializeClosures
-            | MechanicalChange::LinkMirrorPair { .. }
-            | MechanicalChange::UnlinkMirrorPair { .. }
-            | MechanicalChange::RemovePhysicalInstance
-            | MechanicalChange::MakeFeatureLocal { .. }
-            | MechanicalChange::OmitFeatureMember { .. }
-            | MechanicalChange::RejoinFeatureMember { .. }
-    ) {
-        return Err("This change is handled by the mechanical edit lifecycle.".into());
-    }
-    // Each domain owns its variants; exactly one handles the change.
+    // Each domain owns its variants; exactly one handles the change. Anything
+    // else is a lifecycle change, which the staged apply routes elsewhere.
     if construction::try_apply(configuration, change, document, board_id, changed)?.is_some() {
     } else if mounts::try_apply(configuration, change, document, identity_floor, changed)?.is_some()
     {
@@ -144,7 +131,7 @@ pub(super) fn apply_change(
     } else if gaskets::try_apply(configuration, change, changed)?.is_some() {
     } else if profiles::try_apply(configuration, change, document, board_id, changed)?.is_some() {
     } else {
-        return Err("A change was routed to no edit domain.".into());
+        return Err("This change is handled by the mechanical edit lifecycle.".into());
     }
 
     let family =
