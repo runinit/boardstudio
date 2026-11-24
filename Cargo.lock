@@ -381,13 +381,10 @@ dependencies = [
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
  "dioxus",
- "dioxus-web",
- "js-sys",
  "serde",
  "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
- "web-sys",
 ]
 
 [[package]]
@@ -435,7 +432,6 @@ dependencies = [
  "dioxus",
  "dioxus-web",
  "serde_json",
- "web-sys",
 ]
 
 [[package]]
@@ -446,13 +442,10 @@ dependencies = [
  "boardstudio-core-mechanical",
  "boardstudio-model",
  "boardstudio-web-runtime",
- "boardstudio-web-test-runtime",
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
  "dioxus",
- "dioxus-web",
  "serde_json",
- "web-sys",
 ]
 
 [[package]]
@@ -460,7 +453,6 @@ name = "boardstudio-web-layout"
 version = "0.1.0"
 dependencies = [
  "boardstudio-application",
- "boardstudio-core-kernel",
  "boardstudio-core-mechanical",
  "boardstudio-model",
  "boardstudio-web-catalogue",
@@ -529,7 +521,6 @@ dependencies = [
  "boardstudio-model",
  "boardstudio-web-host",
  "boardstudio-web-runtime",
- "boardstudio-web-test-runtime",
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
  "boardstudio_core",
@@ -537,7 +528,6 @@ dependencies = [
  "dioxus-web",
  "gloo-timers",
  "js-sys",
- "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -558,8 +548,6 @@ dependencies = [
  "boardstudio-web-ui-shared",
  "dioxus",
  "dioxus-web",
- "futures-channel",
- "gloo-timers",
  "js-sys",
  "serde",
  "serde_json",
@@ -581,14 +569,11 @@ dependencies = [
  "boardstudio-web-host",
  "boardstudio-web-parts",
  "boardstudio-web-runtime",
- "boardstudio-web-test-runtime",
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
  "boardstudio_core",
  "dioxus",
  "dioxus-web",
- "futures-channel",
- "gloo-timers",
  "js-sys",
  "serde_json",
  "wasm-bindgen",
@@ -614,7 +599,6 @@ dependencies = [
  "sha2",
  "wasm-bindgen",
  "wasm-bindgen-futures",
- "wasm-bindgen-test",
  "web-sys",
 ]
 
@@ -637,10 +621,8 @@ dependencies = [
  "boardstudio-application",
  "boardstudio-model",
  "boardstudio-web-runtime",
- "boardstudio_core",
  "dioxus",
  "serde_json",
- "wasm-bindgen",
  "web-sys",
 ]
 
@@ -653,7 +635,6 @@ dependencies = [
  "boardstudio-model",
  "boardstudio-web-host",
  "boardstudio-web-runtime",
- "boardstudio-web-test-runtime",
  "boardstudio-web-ui-model",
  "dioxus",
  "dioxus-primitives",
@@ -674,7 +655,6 @@ dependencies = [
  "boardstudio-core-kernel",
  "boardstudio-model",
  "futures-channel",
- "gloo-timers",
  "js-sys",
  "serde",
  "serde-wasm-bindgen",
