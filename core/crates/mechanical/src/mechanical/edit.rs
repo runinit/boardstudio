@@ -276,7 +276,7 @@ fn apply_staged(
 ///
 /// See [`changes::change_effects`] for the shared classification table.
 pub fn requires_projection(change: &MechanicalChange) -> bool {
-    changes::change_effects(change).requires_projection
+    changes::change_effects(change).1
 }
 
 /// Whether a mechanical change can alter the inputs the outline composer reads.

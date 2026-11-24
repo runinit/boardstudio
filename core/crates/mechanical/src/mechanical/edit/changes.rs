@@ -242,22 +242,15 @@ pub(super) fn apply_change(
     Ok(())
 }
 
-/// What one mechanical change does to derived state.
+/// What one mechanical change does to derived state: whether it normalizes
+/// the layer processes afterwards, and whether it can create, move or remove
+/// generated clearance geometry.
 ///
 /// Process normalization and generated-closure projection classify the same
 /// variants along different axes: most settings edits normalize the layer
 /// processes without moving generated holes, while geometry edits move holes
 /// without touching processes. One table answers both so the two
 /// classifications cannot drift apart.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) struct ChangeEffects {
-    /// Whether the change normalizes the layer processes afterwards.
-    pub(super) normalizes_processes: bool,
-    /// Whether the change can create, move or remove generated clearance geometry.
-    pub(super) requires_projection: bool,
-}
-
-/// Classifies one mechanical change for process normalization and projection.
 ///
 /// Only the clearance dimension changes a generated closure-hole diameter, so
 /// it is the one `SetDimension` field that projects; battery, opening and
@@ -266,31 +259,10 @@ pub(super) struct ChangeEffects {
 /// mounts, closure mounts, openings and gasket supports into and out of each
 /// half's ordinary configuration, so the generated holes the projection
 /// derives can appear, disappear or move.
-pub(super) fn change_effects(change: &MechanicalChange) -> ChangeEffects {
-    // Geometry that projects but never normalizes: openings, mount
-    // repositioning, gasket placement and reset.
-    const PROJECTION_ONLY: ChangeEffects = ChangeEffects {
-        normalizes_processes: false,
-        requires_projection: true,
-    };
-    // Pure settings that normalize without moving generated holes.
-    const NORMALIZE_ONLY: ChangeEffects = ChangeEffects {
-        normalizes_processes: true,
-        requires_projection: false,
-    };
-    // Geometry that does both: mounts, closure mounts, profiles and the pair
-    // lifecycle (whose normalization arm is unreachable but kept normalizing).
-    const BOTH: ChangeEffects = ChangeEffects {
-        normalizes_processes: true,
-        requires_projection: true,
-    };
-    // Pure settings that do neither: battery, closure hardware, critical fits,
-    // hardware items and stabilizers.
-    const NEITHER: ChangeEffects = ChangeEffects {
-        normalizes_processes: false,
-        requires_projection: false,
-    };
+pub(super) fn change_effects(change: &MechanicalChange) -> (bool, bool) {
     match change {
+        // Geometry that projects but never normalizes: openings, mount
+        // repositioning, gasket placement and reset.
         MechanicalChange::AddOpening
         | MechanicalChange::RemoveOpening { .. }
         | MechanicalChange::AddOpeningVertex { .. }
@@ -298,7 +270,8 @@ pub(super) fn change_effects(change: &MechanicalChange) -> ChangeEffects {
         | MechanicalChange::SetOpeningDimension { .. }
         | MechanicalChange::SetMountPosition { .. }
         | MechanicalChange::SetGasketSupportPlacement { .. }
-        | MechanicalChange::ResetGasketPlacement => PROJECTION_ONLY,
+        | MechanicalChange::ResetGasketPlacement => (false, true),
+        // Pure settings that normalize without moving generated holes.
         MechanicalChange::SetMethod(_)
         | MechanicalChange::SetMount(_)
         | MechanicalChange::SetBottomStyle(_)
@@ -310,7 +283,9 @@ pub(super) fn change_effects(change: &MechanicalChange) -> ChangeEffects {
         | MechanicalChange::RemoveProcessOverride { .. }
         | MechanicalChange::SetProcessMethod { .. }
         | MechanicalChange::SetProcessMaterial { .. }
-        | MechanicalChange::SetProcessThickness { .. } => NORMALIZE_ONLY,
+        | MechanicalChange::SetProcessThickness { .. } => (true, false),
+        // Geometry that does both: mounts, closure mounts, profiles and the pair
+        // lifecycle (whose normalization arm is unreachable but kept normalizing).
         MechanicalChange::Enable
         | MechanicalChange::Disable
         | MechanicalChange::InitializeClosures
@@ -332,7 +307,9 @@ pub(super) fn change_effects(change: &MechanicalChange) -> ChangeEffects {
         | MechanicalChange::RemovePhysicalInstance
         | MechanicalChange::MakeFeatureLocal { .. }
         | MechanicalChange::OmitFeatureMember { .. }
-        | MechanicalChange::RejoinFeatureMember { .. } => BOTH,
+        | MechanicalChange::RejoinFeatureMember { .. } => (true, true),
+        // Pure settings that do neither: battery, closure hardware, critical
+        // fits, hardware items and stabilizers.
         MechanicalChange::SetBatteryEnabled(_)
         | MechanicalChange::SetClosureInsertPreset(_)
         | MechanicalChange::SetClosureDrive(_)
@@ -352,7 +329,7 @@ pub(super) fn change_effects(change: &MechanicalChange) -> ChangeEffects {
         | MechanicalChange::SetHardwareMount { .. }
         | MechanicalChange::SetHardwareText { .. }
         | MechanicalChange::SetHardwareDimension { .. }
-        | MechanicalChange::SetStabilizerKind(_) => NEITHER,
+        | MechanicalChange::SetStabilizerKind(_) => (false, false),
         MechanicalChange::SetDimension { field, .. } => {
             let skip = matches!(
                 field,
@@ -387,15 +364,11 @@ pub(super) fn change_effects(change: &MechanicalChange) -> ChangeEffects {
                     | MechanicalDimension::ClosureSeatLeadDiameter
                     | MechanicalDimension::ClosureBearingThickness
             );
-            ChangeEffects {
-                normalizes_processes: !skip,
-                // Only the clearance changes a generated closure-hole diameter.
-                requires_projection: matches!(field, MechanicalDimension::Clearance),
-            }
+            (!skip, matches!(field, MechanicalDimension::Clearance))
         }
     }
 }
 
 pub(super) fn skip_process_normalization(change: &MechanicalChange) -> bool {
-    !change_effects(change).normalizes_processes
+    !change_effects(change).0
 }
