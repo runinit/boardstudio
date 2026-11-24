@@ -47,28 +47,7 @@ pub(super) fn point(p: FPoint) -> Check<Point> {
     }
     Ok(out)
 }
-pub(super) fn sub(a: &Point, b: &Point) -> Point {
-    std::array::from_fn(|i| &a[i] - &b[i])
-}
-pub(super) fn add(a: &Point, b: &Point) -> Point {
-    std::array::from_fn(|i| &a[i] + &b[i])
-}
-pub(super) fn mul(a: &Point, s: &Q) -> Point {
-    std::array::from_fn(|i| &a[i] * s)
-}
-pub(super) fn dot(a: &Point, b: &Point) -> Q {
-    (0..3).map(|i| &a[i] * &b[i]).sum()
-}
-pub(super) fn cross(a: &Point, b: &Point) -> Point {
-    [
-        &a[1] * &b[2] - &a[2] * &b[1],
-        &a[2] * &b[0] - &a[0] * &b[2],
-        &a[0] * &b[1] - &a[1] * &b[0],
-    ]
-}
-pub(super) fn norm2(a: &Point) -> Q {
-    dot(a, a)
-}
+pub(super) use crate::vec3::q::{add, cross, dot, mul, norm2, sub};
 pub(super) fn normal(t: &Triangle) -> Point {
     cross(&sub(&t[1], &t[0]), &sub(&t[2], &t[0]))
 }

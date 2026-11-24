@@ -88,14 +88,8 @@ fn box_lower(a: Bounds, b: Bounds) -> f64 {
     sum.lo.max(0.0)
 }
 fn triangle_lower(a: &FTriangle, b: &FTriangle) -> f64 {
-    let subtract = |p: FPoint, q: FPoint| std::array::from_fn::<_, 3, _>(|i| p[i] - q[i]);
-    let cross = |p: FPoint, q: FPoint| {
-        [
-            p[1] * q[2] - p[2] * q[1],
-            p[2] * q[0] - p[0] * q[2],
-            p[0] * q[1] - p[1] * q[0],
-        ]
-    };
+    let subtract = crate::vec3::f64::sub;
+    let cross = crate::vec3::f64::cross;
     let ea = std::array::from_fn::<_, 3, _>(|i| subtract(a[(i + 1) % 3], a[i]));
     let eb = std::array::from_fn::<_, 3, _>(|i| subtract(b[(i + 1) % 3], b[i]));
     let mut lower = box_lower(bounds(a), bounds(b));
