@@ -214,6 +214,9 @@ fn preset_choices(p: MatrixSetupPreset) -> (bool, bool, bool) {
     )
 }
 
+/// Resolve creating a mirrored pair against the accepted document at execution time.
+/// The pair was prepared from values captured at submit; here the board must still exist
+/// and none of the new matrices or layouts may already be in use.
 fn mirrored_pair_resolver(
     board_id: String,
     left: Layout,

@@ -174,6 +174,9 @@ fn project(
         &snapshot.scene.matrix_scenes,
         &scope.board_id,
     );
+    // The tree context identifies the current Inspector section, but Ctrl/Shift canvas
+    // selection can contain parts that are not members of the last hit context. Use the
+    // accepted selected IDs as the authority, matching React's selectedKeycaps projection.
     let selected_set = selected_keycap_ids(&model.selected_part_ids, &placement_list);
     let overlap_references =
         overlap_references(&snapshot.document.parts, &placement_list, &selected_set);
@@ -206,6 +209,8 @@ fn project(
     let mixed_x = unit_items.iter().skip(1).any(|c| c.x != units.x);
     let mixed_y = unit_items.iter().skip(1).any(|c| c.y != units.y);
     let mixed = mixed_x || mixed_y;
+    // Key-size edits commit synchronously against the accepted snapshot while an earlier save is
+    // in flight, so only an unrecoverable, preview/gesture, or unopened session disables controls.
     let editable = model.lifecycle == Lifecycle::Ready
         && matches!(
             model.durability,

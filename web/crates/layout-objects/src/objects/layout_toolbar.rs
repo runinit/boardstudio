@@ -1,4 +1,6 @@
 //! Private Layout selection and snap controls plus their shared value adapters.
+// Pure value adapters live in `layout_toolbar_logic` so they run under `cargo test`.
+// The toolbar delegates to that production module (no duplicate predicates).
 pub(super) use super::layout_toolbar_logic::SNAP_STEPS;
 pub use super::layout_toolbar_logic::{
     GestureSnapInputs, LayoutCanvasGridStyle, LayoutSnapIntent, context_for_selection_kind,
@@ -243,6 +245,7 @@ pub fn LayoutCommandPill(
                             && t.matches(".layout-scope-trigger, .layout-action-control, .layout-geometry-control, .layout-popup-close, .layout-menu-actions [data-slot=popover-trigger], .layout-menu-actions [data-slot=dropdown-menu-trigger], .layout-scope-popup [data-slot=button], .layout-settings-popup [data-slot=button], .layout-settings-popup [data-slot=checkbox][aria-label='Geometry snap'], .layout-settings-popup [data-slot=checkbox][aria-label='Envelope gap']").unwrap_or(false))
                     })
                 {
+                    // Native control activation must not become the canvas's Space-pan shortcut.
                     event.stop_propagation();
                     raw.stop_propagation();
                 }
@@ -335,6 +338,9 @@ fn selection_icon(kind: LayoutSelectionKind) -> Element {
     }
 }
 
+/// Always-visible snapping preferences; the existing intent owner remains authoritative.
+/// The Canvas handles checkbox below them flips workspace view state only: hiding
+/// handles never submits an edit and never touches document or history.
 #[component]
 pub fn LayoutSnapDock(
     settings: LayoutSnapSettings,
@@ -364,6 +370,7 @@ pub fn LayoutSnapDock(
     }
 }
 
+/// Free-form settings use Popover; action-only menus use DropdownMenu.
 #[component]
 pub(super) fn LayoutCommandPopup(
     mut open_menu: Signal<Option<LayoutCommandMenu>>,
@@ -387,7 +394,7 @@ pub(super) fn LayoutCommandPopup(
     });
     rsx! {
         Popover { open: is_open, is_modal: false,
-            on_open_change: move |next| if next { open_menu.set(Some(menu)); } else if is_open { dismiss_layout_popup(open_menu, menu, &menu_id()); },
+            on_open_change: move |next| if next { open_menu.set(Some(menu)); } else if open_menu() == Some(menu) { dismiss_layout_popup(open_menu, menu, &menu_id()); },
             PopoverTrigger { id: trigger_id, aria_label: label.clone(), aria_haspopup: "dialog", aria_expanded: is_open, aria_controls: is_open.then(menu_id), {trigger} }
             PopoverContent { id: menu_id(), class: "layout-settings-popup", role: "dialog", aria_label: label.clone(), inert: (!is_open).then_some(""),
                 attributes: vec![onmounted(move |_| if open_menu() == Some(menu) { focus_layout_popup(&menu_id()); })],

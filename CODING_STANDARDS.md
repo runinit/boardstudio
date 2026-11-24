@@ -13,7 +13,8 @@ file holds the judgement calls that no check can make.
   and pin it with an exact-equality test.
 - **Say why a pinned contract is pinned.** Any variant, flag, `debug-assertions` exception
   (`dioxus-cli-config`), or branch kept for a golden fixture (`core/tests/fixtures/boundary/transcript.json`)
-  or runtime invariant carries a comment naming it so later cleanup does not undo it.
+  or runtime invariant carries a comment naming it so later cleanup does not undo it. Never delete
+  invariant or "why" comments to pad LOC reductions (`check_reduction.py` excludes comments/blank lines).
 - **Audit the full corpus before writing custom parsers or workarounds.** Before extending a custom
   format reader or repair layer (STEP, KiCad, etc.), measure entity/feature coverage across the
   entire asset corpus first; prefer a small permissive crate or general algorithm over per-fixture

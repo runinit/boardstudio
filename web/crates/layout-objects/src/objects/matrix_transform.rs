@@ -38,6 +38,7 @@ pub struct MatrixTransformProjection {
     pub fields: MatrixTransformFields,
 }
 
+/// Whether a departure (a reset or convert listed under Relations) can run now, and why not.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DepartureControl {
     pub label: &'static str,
@@ -45,12 +46,17 @@ pub struct DepartureControl {
     pub reason: Option<String>,
 }
 
+/// What the transform inspector and the canvas controls need: the runtime, the selection they
+/// edit, the splay scope the user chose and the canvas multi-pick draft.
 #[derive(Clone, PartialEq)]
 pub struct MatrixTransformInspectorMount {
     pub runtime: LayoutTransformRuntime,
     pub selected: Option<ScopedTreeContext>,
     pub splay_affect: Signal<MatrixSplayAffect>,
+    /// The pending canvas multi-Pick draft, owner-tagged so a selection change orphans it.
     pub aggregate_pick_draft: Signal<Option<(MatrixTransformInspectorOwner, Vec<AnchorPart>)>>,
+    /// The bundled catalogue's definitions, loaded once per document reversibility, so a key can
+    /// pick an assembly or attach a component the document does not hold yet.
     pub catalogue: Signal<Vec<PartDefinition>>,
 }
 
@@ -123,10 +129,14 @@ impl MatrixTransformInspectorMount {
         self.parts().is_some()
     }
 
+    /// Field edits commit synchronously against the accepted snapshot, so the inspector stays
+    /// editable while saving whenever the session is ready and no preview or drag is active.
     pub fn editable(&self) -> bool {
         nudge_session_is_ready(&self.runtime.0.model())
     }
 
+    /// A canvas pick of the anchor key retargets the anchor, keeping the Follow subset. Core
+    /// validates the target (same Layout, no cycle, not constraint-driven).
     pub fn pick_matrix_anchor(&self, matrix_id: String, row: u32, column: u32) -> bool {
         let ok = matches!(
             self.parts(),
@@ -140,6 +150,7 @@ impl MatrixTransformInspectorMount {
         ok && self.edit_reported(Field::MatrixAnchorPick, val)
     }
 
+    /// A canvas multi-Pick of one aggregate part appends to the pending draft without writing.
     pub fn pick_aggregate_part(&self, matrix_id: String, row: u32, column: u32) -> bool {
         let Some(proj) = self.projection() else {
             return false;
@@ -177,6 +188,7 @@ impl MatrixTransformInspectorMount {
         draft.set(None);
     }
 
+    /// A canvas pick of the splay origin; with Ctrl held it swings the keys instead of holding them.
     pub fn pick_splay_origin(&self, point: Vec2, swing: bool) -> bool {
         let f = if swing {
             Field::SplayOriginSwingPoint
@@ -251,6 +263,7 @@ impl MatrixTransformInspectorMount {
         (blocked.is_none() && self.editable()).then(|| self.edit(field, value))
     }
 
+    /// Commit one field edit synchronously; the error is the reason it did not land.
     pub fn edit(&self, field: Field, value: Value) -> Result<(), String> {
         let runtime = &self.runtime.0;
         let model = runtime.model();
@@ -274,9 +287,16 @@ impl MatrixTransformInspectorMount {
             (Field::KeyOmit, Value::Bool(omit), TreeContext::Key { row, column, .. }) => {
                 key_half_exception_at_resolver(matrix_id, *row, *column, *omit)
             }
-            _ => edit_resolver(
-                matrix_id, board_id, context, cells, field, value, affect, cat,
-            ),
+            _ => edit_resolver(EditSpec {
+                matrix_id,
+                board_id,
+                context,
+                cells,
+                field,
+                value,
+                affect,
+                catalogue: cat,
+            }),
         };
         runtime
             .commit("layout-matrix-transform", resolver)
@@ -288,8 +308,7 @@ fn resolver(f: impl Fn(&AcceptedSnapshot) -> Resolution + 'static) -> EditResolv
     EditResolver::new("layout-matrix-transform", f)
 }
 
-#[allow(clippy::too_many_arguments)]
-fn edit_resolver(
+struct EditSpec {
     matrix_id: String,
     board_id: String,
     context: TreeContext,
@@ -298,7 +317,20 @@ fn edit_resolver(
     value: Value,
     affect: MatrixSplayAffect,
     catalogue: Vec<PartDefinition>,
-) -> EditResolver {
+}
+
+/// Resolve one field edit against the accepted document when the edit runs.
+fn edit_resolver(spec: EditSpec) -> EditResolver {
+    let EditSpec {
+        matrix_id,
+        board_id,
+        context,
+        cells,
+        field,
+        value,
+        affect,
+        catalogue,
+    } = spec;
     resolver(move |accepted| {
         let doc = &accepted.document;
         let Some(matrix) = matrix_by_id(doc, &matrix_id) else {
@@ -359,6 +391,7 @@ fn edit_resolver(
             }
             _ => Vec::new(),
         };
+        // An assembly or attachment the document lacks arrives with its catalogue definition.
         let missing = missing_definitions(doc, &catalogue, &wanted);
         if wanted
             .iter()
@@ -641,7 +674,18 @@ pub fn MatrixTransformInspector(
                     {deg(Field::MatrixRotation, "Rotation", *rotation)}
                     SelectField::<Option<Mirror>> { label: "Mirror", value: *mirror, options, on_commit: move |n| error.set(edit.edit(Field::MatrixMirror, Value::Mirror(n)).err()) }
                 }
-                {anchor_controls(&mount, &projection.owner, anchor.as_ref(), error, anchor_pick_pending, on_pick_anchor, on_cancel_anchor_pick, on_navigate_anchor_part)}
+                {anchor_controls(
+                    &mount,
+                    &projection.owner,
+                    anchor.as_ref(),
+                    error,
+                    AnchorPick {
+                        pending: anchor_pick_pending,
+                        on_pick: on_pick_anchor,
+                        on_cancel: on_cancel_anchor_pick,
+                        on_navigate: on_navigate_anchor_part,
+                    },
+                )}
             }
         }
         F::Row {
@@ -748,22 +792,32 @@ pub fn MatrixTransformInspector(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+struct AnchorPick {
+    pending: bool,
+    on_pick: EventHandler<()>,
+    on_cancel: EventHandler<()>,
+    on_navigate: EventHandler<TreeContext>,
+}
+
 fn anchor_controls(
     mount: &MatrixTransformInspectorMount,
     owner: &MatrixTransformInspectorOwner,
     anchor: Option<&MatrixAnchor>,
     mut error: Signal<Option<String>>,
-    pending: bool,
-    on_pick: EventHandler<()>,
-    on_cancel: EventHandler<()>,
-    on_navigate: EventHandler<TreeContext>,
+    pick: AnchorPick,
 ) -> Element {
+    let AnchorPick {
+        pending,
+        on_pick,
+        on_cancel,
+        on_navigate,
+    } = pick;
     let aggregate = anchor.and_then(|a| a.aggregate.as_ref());
     let mut picked = (mount.aggregate_pick_draft)()
         .filter(|(o, _)| o == owner)
         .map_or_else(Vec::new, |(_, p)| p);
     picked.retain(|p| aggregate.is_none_or(|a| !a.parts.contains(p)));
+    // A refused detach names the linked partner; the next press confirms it.
     let partner = error().and_then(|msg| {
         let prefix = format!(
             "Detaching {} would move its linked partner ",

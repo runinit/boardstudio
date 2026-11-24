@@ -15,6 +15,7 @@ Every track measures repository-wide deltas (`git diff <base> HEAD`) using [chec
   - **Net Other LOC** (`.evidence/`, markdown inventories, JSON fixtures) MUST be `<= +200`.
   - All `--must-delete`, `--forbid-symbol`, `--max-file-lines`, `--max-pattern`, and `--max-relocation-ratio` checks MUST pass with 0 violations.
 - **A Fold Is Not a Simplification:** Deleting a controller/hook/adapter file and pasting its body into a sibling file (or renaming e.g. `owner.rs` -> `session.rs`, `adapter.rs` -> `edit.rs`) is a **hard rejection**, even if unrelated deletions make `--max-prod-delta 0` pass. Track lanes must enforce per-file line ceilings, zero obsolete pattern ceilings, and relocation ratio audits.
+- **Never Strip Invariant Comments:** [check_reduction.py](check_reduction.py) counts non-comment, non-blank Rust code lines for both LOC deltas and `--max-file-lines`; never delete invariant, ordering, safety, or "why" comments to pad metrics.
 - **Advisory Reduction Targets (`--target-prod-delta`, `--target-test-delta`, or `--advisory-loc`):**
   - Per-track numeric targets (e.g., `-31,000`, `-12,500`, `-7,500`) are **stretch benchmarks** to measure whether legacy plumbing/controller/prop-bag boilerplate was genuinely removed — **never hard exit-1 blockers to be chased by amputating features or domain test invariants**.
 
@@ -114,6 +115,7 @@ Exit codes:
 9. **Zero Async Ceremony on Sync Edits:** Were `PendingSettlement`, polling `use_effect`s, `ProjectionIdentity` mirrors, and sync-edit generation/request-ID/prop-bag boilerplate deleted from `Runtime::commit` paths?
 10. **Ceiling & Signal Discipline:** Do touched UI files stay within their target LOC ceilings without piling `>5` scattered `use_signal`s instead of one cohesive state struct/enum?
 11. **Layer Direction:** Did workspaces (`layout_workspace`, `pcb_workspace`, etc.) avoid importing up into `workbench::editor_session` (shared canvas/adapter code must live downward under `presentation/editor/`)?
+12. **Invariant Comments Intact:** Did edits preserve all safety, ordering, sync-gate, ticket, and "why" comments instead of trimming comments to game LOC or file-size limits?
 
 ---
 

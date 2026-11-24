@@ -82,8 +82,9 @@ pub fn use_canvas_align(
 
     let eligible_ids: Vec<_> = projection.references.iter().map(|r| r.id.clone()).collect();
     let authoritative = projection.reference_authoritative;
-    // Reconcile after render using peek(); non-authoritative projections (owner
-    // workspace hidden) never overwrite the persisted reference choice.
+    // Reconcile the retained choice after render using peek(); writing the signal here
+    // would mark subscribers dirty mid-pass, and non-authoritative projections (owner
+    // workspace hidden) never write, preserving the choice across switches.
     use_effect(use_reactive(
         (&eligible_ids, &authoritative),
         move |(eligible, auth)| {
@@ -437,6 +438,8 @@ fn linked_selection(
         })
 }
 
+/// Resolve an align against the accepted document at execution time. Every moved part
+/// and reference must remain eligible so the replacement applies on top of the current poses.
 fn align_resolver(
     context: TreeContext,
     moving_ids: Vec<String>,

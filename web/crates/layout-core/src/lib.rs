@@ -64,6 +64,9 @@ pub fn scene_cell<'a>(
     scene_cell_in(scene_by_id(scenes, matrix_id)?, row, column)
 }
 
+/// The canonical member Core assigns a matrix slot. Only a fallback for naming a
+/// Local/Omitted overlay whose part is suppressed from the scene; never a navigation
+/// or highlight target.
 pub fn canonical_matrix_member(matrix_id: &str, row: u32, column: u32) -> String {
     format!("matrix/{matrix_id}/r{row}c{column}")
 }

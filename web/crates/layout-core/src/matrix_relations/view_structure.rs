@@ -61,7 +61,9 @@ impl View<'_> {
             })
     }
 
-    /// Mirrors the sync gate: a matrix stays linked unless covered by a Local or Omitted exception.
+    /// Whether Core's `sync` would copy this matrix's edits to its partner:
+    /// a Local/Omitted matrix never authors its partner, and a Local
+    /// partner never takes the copy. Mirrors the sync gate, read-only.
     pub(super) fn matrix_linked(&self, matrix_id: &str) -> bool {
         !matches!(
             self.exception(MirroredItemKind::Matrix, matrix_id),

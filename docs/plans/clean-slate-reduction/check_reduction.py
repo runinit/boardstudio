@@ -16,6 +16,82 @@ def git(*args: str) -> str:
     return subprocess.check_output(["git", *args], text=True)
 
 
+def _strip_rust_comments(src: str) -> str:
+    """Strip Rust // and nested /* */ comments while preserving string/char literals and newlines."""
+    out: list[str] = []
+    i, n = 0, len(src)
+    while i < n:
+        c = src[i]
+        nxt = src[i + 1] if i + 1 < n else ""
+        if c == "/" and nxt == "/":
+            j = src.find("\n", i)
+            if j == -1:
+                break
+            i = j
+        elif c == "/" and nxt == "*":
+            depth, j = 1, i + 2
+            while j < n and depth > 0:
+                if src[j : j + 2] == "/*":
+                    depth += 1
+                    j += 2
+                elif src[j : j + 2] == "*/":
+                    depth -= 1
+                    j += 2
+                else:
+                    if src[j] == "\n":
+                        out.append("\n")
+                    j += 1
+            i = j
+        elif c in ("r", "b") and (not i or not (src[i - 1].isalnum() or src[i - 1] == "_")) and (
+            m := re.match(r'b?r(#*)"', src[i:])
+        ):
+            close = '"' + m.group(1)
+            j = i + len(m.group(0))
+            end = src.find(close, j)
+            end = n if end == -1 else end + len(close)
+            out.append(src[i:end])
+            i = end
+        elif c == '"':
+            j = i + 1
+            while j < n:
+                if src[j] == "\\":
+                    j += 2
+                elif src[j] == '"':
+                    j += 1
+                    break
+                else:
+                    j += 1
+            out.append(src[i:j])
+            i = j
+        elif c == "'" and i + 1 < n:
+            if src[i + 1] == "\\":
+                end = src.find("'", i + 2)
+                if end != -1 and end - i <= 8 and "\n" not in src[i:end]:
+                    out.append(src[i : end + 1])
+                    i = end + 1
+                    continue
+            elif i + 2 < n and src[i + 2] == "'" and src[i + 1] != "\n":
+                out.append(src[i : i + 3])
+                i += 3
+                continue
+            out.append(c)
+            i += 1
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
+
+@cache
+def _code_lines_in_file(ref: str, path: str) -> frozenset[int]:
+    if not path.endswith(".rs"):
+        return frozenset()
+    src = git("show", f"{ref}:{path}")
+    return frozenset(
+        ln for ln, line in enumerate(_strip_rust_comments(src).splitlines(), 1) if line.strip()
+    )
+
+
 def _strip_rust_comments_and_strings(src: str) -> str:
     """Fast lexer-free stripping of line/block comments and string literals preserving newlines."""
     out: list[str] = []
@@ -140,18 +216,25 @@ def compute_diff_stats(
             continue
         elif line.startswith("-"):
             cat = _category(base, old, i)
+            if cat in ("prod_rust", "test_rust") and i not in _code_lines_in_file(base, old):
+                i += 1
+                continue
             counts[cat, "-"] += 1
             if cat == "prod_rust":
                 file_del[old] += 1
             i += 1
         elif line.startswith("+"):
             cat = _category(head, new, j)
-            counts[cat, "+"] += 1
             if cat == "prod_rust":
-                file_add[new] += 1
                 added = line[1:].lstrip()
                 if _is_non_workbench_presentation(new) and not added.startswith("//") and "editor_session::" in added:
                     upward_imports.append(f"{new}:{j}")
+            if cat in ("prod_rust", "test_rust") and j not in _code_lines_in_file(head, new):
+                j += 1
+                continue
+            counts[cat, "+"] += 1
+            if cat == "prod_rust":
+                file_add[new] += 1
             j += 1
     out: dict[str, tuple[int, int, int]] = {}
     for cat in ("prod_rust", "test_rust", "scripts", "other"):
@@ -192,7 +275,12 @@ def main() -> int:
     )
     parser.add_argument("--must-delete", action="append", default=[], help="Tracked path/prefix that must have 0 files.")
     parser.add_argument("--forbid-symbol", action="append", default=[], help="Symbol that must not appear in *.rs.")
-    parser.add_argument("--max-file-lines", action="append", default=[], help="Fail if PATH exceeds N lines (PATH=N).")
+    parser.add_argument(
+        "--max-file-lines",
+        action="append",
+        default=[],
+        help="Fail if PATH exceeds N code lines for .rs or lines otherwise (PATH=N).",
+    )
     parser.add_argument("--max-pattern", action="append", default=[], help="Fail if non-test/non-comment REGEX matches >N under PATH_PREFIX (PATH:REGEX=N).")
     parser.add_argument("--max-relocation-ratio", type=float, default=None, help="Fail if relocated fraction of --must-delete prod LOC exceeds ratio.")
     args = parser.parse_args()
@@ -265,10 +353,15 @@ def main() -> int:
         path, limit_s = spec.rsplit("=", 1)
         limit = int(limit_s)
         if path in tracked_set:
-            count = len(git("show", f"{args.head}:{path}").splitlines())
+            if path.endswith(".rs"):
+                count = len(_code_lines_in_file(args.head, path))
+                unit = "code lines"
+            else:
+                count = len(git("show", f"{args.head}:{path}").splitlines())
+                unit = "lines"
             if count > limit:
-                failures.append(f"{path} has {count} lines (limit {limit})")
-                print(f"MAX-FILE-LINES FAIL: {path} has {count} lines (limit {limit})")
+                failures.append(f"{path} has {count} {unit} (limit {limit})")
+                print(f"MAX-FILE-LINES FAIL: {path} has {count} {unit} (limit {limit})")
 
     for spec in args.max_pattern:
         left, limit_s = spec.rsplit("=", 1)

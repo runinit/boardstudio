@@ -606,6 +606,8 @@ fn focus_pt(m: &Matrix, p: &MatrixScene) -> Vec2 {
         .map_or(m.origin, |c| c.pose.at)
 }
 
+/// The anchor frame a matrix drag inverse-solves through; `Err` when the matrix is anchored to
+/// a key that is not laid out, so the drag never solves through a stale frame.
 fn matrix_drag_anchor(acc: &AcceptedSnapshot, m: &Matrix) -> Result<Option<MatrixDragAnchor>, ()> {
     let Some(a) = m.anchor.as_ref() else {
         return Ok(None);
@@ -785,6 +787,7 @@ fn matrix_tokens(
     let (ax, deg) = ((axis.x, axis.y), (-axis.y).atan2(axis.x).to_degrees());
     let mut out = Vec::new();
     for &tool in tools {
+        // Column 0 follows the pitch, so it has no Spread step; Origin stays on the canvas (`origin_handle`).
         let (mut dis, mut g) = (false, None);
         let (lbl, val) = if let Some((p, l, _, gk)) = matrix_placement(tool, ctx, ctrl) {
             g = gk.map(|a| if a { ax } else { (1.0, 0.0) });
@@ -1121,6 +1124,8 @@ fn handle_token_keydown(rv: &RailView, tool: T, event: &KeyboardEvent) {
     let Some(accepted) = rv.runtime.model().accepted else {
         return;
     };
+    // Preflight decides whether the key belongs to this token; the resolver below recomputes from
+    // the current accepted snapshot, refusing anchored matrices whose anchor key is not laid out.
     let Ok(pre) = resolve_nudge(&accepted, matrix, &nudge) else {
         rv.runtime.report(ANCHOR_ERR);
         return;

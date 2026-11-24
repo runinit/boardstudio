@@ -168,6 +168,8 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
 }
 
 /// Resolve placing a prepared matrix against the accepted document at execution time.
+/// Only the definitions the accepted document does not yet have are sent, so a placement
+/// running after an edit that already added one still lands.
 fn place_matrix_resolver(matrix: Matrix, definitions: Vec<PartDefinition>) -> EditResolver {
     EditResolver::new("layout-matrix-placement", move |acc: &AcceptedSnapshot| {
         let doc = &acc.document;

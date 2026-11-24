@@ -925,6 +925,7 @@ mod browser {
         let (mut ws, mut kind) = (c.host.workspace, c.host.layout_selection_kind);
         match res {
             Ok(snap) => {
+                // Select from the accepted document at landing; nothing when the placed part is no longer there.
                 let general = owner.workflow == PlacementWorkflow::GeneralComponent;
                 let placed = snap.document.parts.iter().any(|p| p.id == owner.part_id);
                 let updated = c.host.runtime.model();
@@ -1159,6 +1160,7 @@ mod browser {
         if !route_current {
             return;
         }
+        // The resolver checks the key in the accepted document it actually edits.
         c.ui.clone().write().error = c
             .host
             .runtime
