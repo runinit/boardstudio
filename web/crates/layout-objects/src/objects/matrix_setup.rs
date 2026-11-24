@@ -266,7 +266,7 @@ pub fn use_matrix_placement(
             let c = ctx.clone();
             move |_| {
                 let act = {
-                    let s = c.ui.read();
+                    let s = c.ui.peek();
                     s.preparing
                         .clone()
                         .or_else(|| s.placement.as_ref().map(|p| p.owner.clone()))
@@ -280,6 +280,32 @@ pub fn use_matrix_placement(
         },
     ));
 
+    let on_place = use_callback({
+        let c = ctx.clone();
+        move |src| start_place(&c, src)
+    });
+    let on_move = use_callback({
+        let c = ctx.clone();
+        move |m: MatrixPlacementMove| move_place(&c, m)
+    });
+    let on_commit = use_callback({
+        let c = ctx.clone();
+        move |m| commit_place(&c, m)
+    });
+    let on_cancel = use_callback({
+        let c = ctx;
+        move |o: MatrixPlacementOwner| {
+            let act = {
+                let s = c.ui.read();
+                s.preparing.as_ref() == Some(&o)
+                    || s.placement.as_ref().is_some_and(|p| p.owner == o)
+            };
+            if act {
+                c.clear();
+            }
+        }
+    });
+
     let s = ui.read();
     MatrixPlacementSession {
         cancel_owner: s
@@ -289,28 +315,10 @@ pub fn use_matrix_placement(
         placement: s.placement.clone(),
         busy: s.preparing.is_some(),
         error: s.error.clone(),
-        on_place: EventHandler::new({
-            let c = ctx.clone();
-            move |src| start_place(&c, src)
-        }),
-        on_move: EventHandler::new({
-            let c = ctx.clone();
-            move |m: MatrixPlacementMove| move_place(&c, m)
-        }),
-        on_commit: EventHandler::new({
-            let c = ctx.clone();
-            move |m| commit_place(&c, m)
-        }),
-        on_cancel: EventHandler::new(move |o: MatrixPlacementOwner| {
-            let act = {
-                let s = ctx.ui.read();
-                s.preparing.as_ref() == Some(&o)
-                    || s.placement.as_ref().is_some_and(|p| p.owner == o)
-            };
-            if act {
-                ctx.clear();
-            }
-        }),
+        on_place,
+        on_move,
+        on_commit,
+        on_cancel,
     }
 }
 

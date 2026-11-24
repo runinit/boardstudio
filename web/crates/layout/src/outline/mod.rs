@@ -351,7 +351,7 @@ pub fn project_outline_inspector(
         active_version_id.as_deref(),
         ui.canvas_ui.read().selected_feature_id.as_deref(),
     );
-    // Outline edits queue behind each other, so outline edits keep the panel editable while saving.
+    // Outline edits commit synchronously against the accepted snapshot, keeping the panel editable while saving.
     let enabled = matches!(
         model.durability,
         Durability::Saved { .. } | Durability::Saving { .. }

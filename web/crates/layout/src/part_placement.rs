@@ -67,24 +67,28 @@ pub struct PlacementOwner {
     pub(crate) intent: PlacementIntent,
 }
 
+pub(crate) struct PlacementCapture<'a> {
+    pub scope: Scope,
+    pub generation: u64,
+    pub part_id: String,
+    pub definition_id: String,
+    pub kind: &'a PartKind,
+    pub workflow: PlacementWorkflow,
+    pub intent: PlacementIntent,
+    pub source_workspace: Workspace,
+    pub layout_id: Option<String>,
+    pub at: Vec2,
+}
+
 impl PlacementOwner {
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn capture(
-        snap: &AcceptedSnapshot,
-        scope: Scope,
-        generation: u64,
-        part_id: String,
-        definition_id: String,
-        kind: &PartKind,
-        workflow: PlacementWorkflow,
-        intent: PlacementIntent,
-        source_workspace: Workspace,
-        layout_id: Option<String>,
-        at: Vec2,
-    ) -> Option<Self> {
-        if snap.document.id != scope.document_id
-            || snap.session_epoch != scope.session_epoch
-            || !snap.document.boards.iter().any(|b| b.id == scope.board_id)
+    pub(crate) fn capture(snap: &AcceptedSnapshot, c: PlacementCapture<'_>) -> Option<Self> {
+        if snap.document.id != c.scope.document_id
+            || snap.session_epoch != c.scope.session_epoch
+            || !snap
+                .document
+                .boards
+                .iter()
+                .any(|b| b.id == c.scope.board_id)
         {
             return None;
         }
@@ -93,17 +97,17 @@ impl PlacementOwner {
             session_epoch: snap.session_epoch,
             project_id: snap.document.id.clone(),
             revision: snap.document.revision,
-            board_id: scope.board_id.clone(),
-            scope,
-            generation,
-            source_workspace,
-            part_id,
-            definition_id,
-            reference: next_component_reference(&snap.document, kind),
-            layout_id,
-            at,
-            workflow,
-            intent,
+            board_id: c.scope.board_id.clone(),
+            scope: c.scope,
+            generation: c.generation,
+            source_workspace: c.source_workspace,
+            part_id: c.part_id,
+            definition_id: c.definition_id,
+            reference: next_component_reference(&snap.document, c.kind),
+            layout_id: c.layout_id,
+            at: c.at,
+            workflow: c.workflow,
+            intent: c.intent,
         })
     }
 
@@ -311,8 +315,9 @@ mod browser {
         placement_source_definition, update_pending_part,
     };
     use super::{
-        ActivePartPlacement, ComponentPlacementAction, PlacementOwner, PlacementWorkflow,
-        component_part, controller_part, key_component_resolver, placement_resolver,
+        ActivePartPlacement, ComponentPlacementAction, PlacementCapture, PlacementOwner,
+        PlacementWorkflow, component_part, controller_part, key_component_resolver,
+        placement_resolver,
     };
     use crate::canvas_interaction::{CanvasMode, LayoutInteraction};
     use crate::objects::{self, LayoutSnapSettings};
@@ -327,7 +332,10 @@ mod browser {
     use boardstudio_web_ui_model::Workspace;
     use boardstudio_web_ui_model::tree::{ScopedTreeContext, TreeContext};
     use dioxus::prelude::*;
-    use std::{cell::Cell, rc::Rc};
+    use std::{
+        cell::{Cell, RefCell},
+        rc::Rc,
+    };
     use wasm_bindgen::{JsCast, JsValue};
     use wasm_bindgen_futures::spawn_local;
 
@@ -495,19 +503,31 @@ mod browser {
             ws: Workspace,
             prefs: &Option<SetupGuidePreferences>,
         ) {
+            let (drop_chooser, drop_active, drop_preparing) = {
+                let s = self.ui.peek();
+                (
+                    s.chooser.is_some()
+                        && !chooser_live(s.chooser.as_ref(), &self.host.runtime, gen_id, ws),
+                    s.active.as_ref().is_some_and(|p| {
+                        !self.owner_current(&p.owner, m, gen_id, ws, Workspace::Layout, prefs)
+                    }),
+                    s.preparing.as_ref().is_some_and(|(_, o)| {
+                        !self.owner_current(o, m, gen_id, ws, o.source_workspace, prefs)
+                    }),
+                )
+            };
+            if !drop_chooser && !drop_active && !drop_preparing {
+                return;
+            }
             let mut ui = self.ui;
             let mut s = ui.write();
-            if !chooser_live(s.chooser.as_ref(), &self.host.runtime, gen_id, ws) {
+            if drop_chooser {
                 s.chooser = None;
             }
-            if s.active.as_ref().is_some_and(|p| {
-                !self.owner_current(&p.owner, m, gen_id, ws, Workspace::Layout, prefs)
-            }) {
+            if drop_active {
                 s.active = None;
             }
-            if s.preparing.as_ref().is_some_and(|(_, o)| {
-                !self.owner_current(o, m, gen_id, ws, o.source_workspace, prefs)
-            }) {
+            if drop_preparing {
                 s.preparing = None;
             }
         }
@@ -544,13 +564,13 @@ mod browser {
             move || a.set(false)
         });
 
+        let h = Rc::new(host);
         let c = Ctx {
-            host: Rc::new(host),
+            host: h.clone(),
             ui,
             alive,
             inter,
         };
-        let h = &c.host;
         let render_snap = h.runtime.model().accepted.filter(|a| {
             snapshot_saved(&h.runtime, a)
                 && h.runtime.scope().as_ref().is_some_and(|s| {
@@ -591,23 +611,103 @@ mod browser {
             c_eff.prune_with(&c_eff.host.runtime.model(), obs_gen, obs_ws, &obs_guide);
         }));
 
-        let s = ui.read();
-        let projection = s
-            .active
-            .as_ref()
-            .filter(|p| {
-                owner_live(
-                    &p.owner,
-                    &h.runtime,
-                    &h.runtime.model(),
-                    (h.generation)(),
-                    (h.workspace)(),
-                    Workspace::Layout,
-                    &(h.guide_preferences)(),
-                )
-            })
-            .cloned();
-        let busy = s.preparing.is_some();
+        let latest = use_hook(|| Rc::new(RefCell::new((c.clone(), guard.clone(), ordinary_ctrl))));
+        *latest.borrow_mut() = (c, guard, ordinary_ctrl);
+
+        let on_choose_controller = use_callback({
+            let latest = latest.clone();
+            move |_| {
+                let (c, guard, _) = latest.borrow().clone();
+                choose_controller(&c, guard.as_ref());
+            }
+        });
+        let on_place_controller = use_callback({
+            let latest = latest.clone();
+            move |id| {
+                let (c, guard, ordinary) = latest.borrow().clone();
+                let wf = if ordinary {
+                    PlacementWorkflow::PcbController
+                } else {
+                    PlacementWorkflow::WiringController
+                };
+                if wf != PlacementWorkflow::PcbController
+                    || guard_live(guard.as_ref(), &c.host, Workspace::Parts)
+                {
+                    start_placement(
+                        &c,
+                        id,
+                        PartKind::Controller,
+                        wf,
+                        false,
+                        None,
+                        PlacementIntent::Existing,
+                    );
+                }
+            }
+        });
+        let on_controller_back = use_callback({
+            let latest = latest.clone();
+            move |_| {
+                let (c, _, _) = latest.borrow().clone();
+                if chooser_live(
+                    c.ui.read().chooser.as_ref(),
+                    &c.host.runtime,
+                    (c.host.generation)(),
+                    (c.host.workspace)(),
+                ) && c.inter.current().is_none()
+                {
+                    let (mut ui, mut ws) = (c.ui, c.host.workspace);
+                    ui.write().chooser = None;
+                    ws.set(Workspace::Pcb);
+                }
+            }
+        });
+        let on_place_component = use_callback({
+            let latest = latest.clone();
+            move |a| {
+                let (c, guard, _) = latest.borrow().clone();
+                place_component(&c, guard.as_ref(), a);
+            }
+        });
+        let on_move = use_callback(move |at| {
+            if inter.current() == Some(CanvasMode::PlacingPart) {
+                let mut ui = ui;
+                if let Some(p) = ui.write().active.as_mut() {
+                    update_pending_part(&mut p.pending, at);
+                }
+            }
+        });
+        let on_commit = use_callback({
+            let latest = latest.clone();
+            move |at| {
+                let (c, _, _) = latest.borrow().clone();
+                commit_placement(&c, at);
+            }
+        });
+        let on_cancel = use_callback(move |_| {
+            let (c, _, _) = latest.borrow().clone();
+            cancel_placement(&c);
+        });
+
+        let (projection, busy, error) = {
+            let s = ui.read();
+            let projection = s
+                .active
+                .as_ref()
+                .filter(|p| {
+                    owner_live(
+                        &p.owner,
+                        &h.runtime,
+                        &h.runtime.model(),
+                        (h.generation)(),
+                        (h.workspace)(),
+                        Workspace::Layout,
+                        &(h.guide_preferences)(),
+                    )
+                })
+                .cloned();
+            (projection, s.preparing.is_some(), s.error.clone())
+        };
         let owns_canvas = busy || projection.is_some();
         use_effect(use_reactive(
             (
@@ -626,71 +726,15 @@ mod browser {
         PartPlacementSession {
             projection,
             busy,
-            error: s.error.clone(),
-            on_choose_controller: EventHandler::new({
-                let (c, g) = (c.clone(), guard.clone());
-                move |_| choose_controller(&c, g.as_ref())
-            }),
-            on_place_controller: EventHandler::new({
-                let (c, g) = (c.clone(), guard.clone());
-                let wf = if ordinary_ctrl {
-                    PlacementWorkflow::PcbController
-                } else {
-                    PlacementWorkflow::WiringController
-                };
-                move |id| {
-                    if wf != PlacementWorkflow::PcbController
-                        || guard_live(g.as_ref(), &c.host, Workspace::Parts)
-                    {
-                        start_placement(
-                            &c,
-                            id,
-                            PartKind::Controller,
-                            wf,
-                            false,
-                            None,
-                            PlacementIntent::Existing,
-                        );
-                    }
-                }
-            }),
+            error,
+            on_choose_controller,
+            on_place_controller,
             controller_placement_enabled: ordinary_ctrl || guided_ctrl,
-            controller_back: ordinary_ctrl.then(|| {
-                let c = c.clone();
-                EventHandler::new(move |_| {
-                    if chooser_live(
-                        c.ui.read().chooser.as_ref(),
-                        &c.host.runtime,
-                        (c.host.generation)(),
-                        (c.host.workspace)(),
-                    ) && c.inter.current().is_none()
-                    {
-                        let (mut ui, mut ws) = (c.ui, c.host.workspace);
-                        ui.write().chooser = None;
-                        ws.set(Workspace::Pcb);
-                    }
-                })
-            }),
-            on_place_component: EventHandler::new({
-                let (c, g) = (c.clone(), guard);
-                move |a| place_component(&c, g.as_ref(), a)
-            }),
-            on_move: EventHandler::new({
-                let c = c.clone();
-                move |at| {
-                    if c.inter.current() == Some(CanvasMode::PlacingPart) {
-                        let mut ui = c.ui;
-                        if let Some(p) = ui.write().active.as_mut() {
-                            update_pending_part(&mut p.pending, at);
-                        }
-                    }
-                }
-            }),
-            on_commit: EventHandler::new({
-                let c = c.clone();
-                move |at| commit_placement(&c, at)
-            }),
-            on_cancel: EventHandler::new(move |_| cancel_placement(&c)),
+            controller_back: ordinary_ctrl.then_some(on_controller_back),
+            on_place_component,
+            on_move,
+            on_commit,
+            on_cancel,
         }
     }
 
@@ -1051,16 +1095,18 @@ mod browser {
         });
         let Some(owner) = PlacementOwner::capture(
             snap,
-            scope,
-            gen_id,
-            part_id,
-            def_id.clone(),
-            &kind,
-            workflow,
-            intent,
-            source_ws,
-            layout_id,
-            at,
+            PlacementCapture {
+                scope,
+                generation: gen_id,
+                part_id,
+                definition_id: def_id.clone(),
+                kind: &kind,
+                workflow,
+                intent,
+                source_workspace: source_ws,
+                layout_id,
+                at,
+            },
         ) else {
             return;
         };

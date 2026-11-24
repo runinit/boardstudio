@@ -30,6 +30,7 @@ pub struct OutlineFeedback {
     pub message: Option<String>,
 }
 
+/// How one outline version came to exist.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OutlineVersionOwnership {
     Generated,
@@ -383,7 +384,7 @@ fn update(
                 return None;
             }
             // Protecting stores the candidate's points, so the edit reviews the source shape it
-            // came from and retires if a queued change moved it.
+            // came from and retires if an intervening change moved it.
             let (change, reviewed) = if *protected {
                 (
                     C::SetProtectedGap {

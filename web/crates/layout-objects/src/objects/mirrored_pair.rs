@@ -150,10 +150,10 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
         .ok()
         .filter(|v| v.is_finite() && *v >= 0.0);
     let dims = super::matrix_setup_fields::parse_matrix_dimensions(&rv, &cv);
-    let valid_names =
-        !left.trim().is_empty() && !right.trim().is_empty() && left.trim() != right.trim();
-    let can_preview =
-        props.projection.editable && dims.is_some() && gap_mm.is_some() && valid_names;
+    let can_preview = props.projection.editable
+        && dims.zip(gap_mm).is_some_and(|((rows, cols), g)| {
+            valid_pair_inputs(&left, &right, matrix_dimensions_valid(rows, cols), g)
+        });
     let (owner, on_preview, on_cancel) = (
         props.projection.owner.clone(),
         props.on_preview,
@@ -173,9 +173,16 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                 onsubmit: move |e: FormEvent| {
                     e.prevent_default();
                     let (Some((rows, columns)), Some(gap_mm)) = (dims, gap_mm) else { return; };
-                    let (left_name, right_name) = (sl.trim().to_owned(), sr.trim().to_owned());
-                    if !left_name.is_empty() && !right_name.is_empty() && left_name != right_name {
-                        on_preview.call(MirroredPairRequest { owner: so.clone(), left_name, right_name, rows, columns, preset, gap_mm });
+                    if valid_pair_inputs(&sl, &sr, matrix_dimensions_valid(rows, columns), gap_mm) {
+                        on_preview.call(MirroredPairRequest {
+                            owner: so.clone(),
+                            left_name: sl.trim().to_owned(),
+                            right_name: sr.trim().to_owned(),
+                            rows,
+                            columns,
+                            preset,
+                            gap_mm,
+                        });
                     }
                 },
                 div { class: "grid grid-cols-2 gap-x-4 gap-y-3", role: "group", aria_label: "Mirrored pair dimensions",
@@ -254,6 +261,14 @@ struct ActivePair {
     placement: MirroredPairPlacement,
 }
 
+const STALE_BOARD_ERROR: &str =
+    "The accepted board changed. Cancel this setup and reopen it before placing a pair.";
+
+fn valid_pair_inputs(left: &str, right: &str, dims_valid: bool, gap_mm: f64) -> bool {
+    let (l, r) = (left.trim(), right.trim());
+    dims_valid && !l.is_empty() && !r.is_empty() && l != r && gap_mm.is_finite() && gap_mm >= 0.0
+}
+
 #[derive(Clone)]
 struct PairUi {
     next_open_id: u64,
@@ -294,13 +309,28 @@ impl PairUi {
         self.error = Some(msg);
         self.status = None;
     }
+    fn mark_stale(&mut self) {
+        self.preparing = None;
+        self.placement = None;
+        self.form_state.stage = PairFormStage::Setup;
+        self.status = None;
+        self.error = Some(STALE_BOARD_ERROR.into());
+    }
+    fn is_stale_marked(&self) -> bool {
+        self.preparing.is_none()
+            && self.placement.is_none()
+            && self.form_state.stage == PairFormStage::Setup
+            && self.status.is_none()
+            && self.error.as_deref() == Some(STALE_BOARD_ERROR)
+    }
     fn clear_stale(&mut self, owner: &MirroredPairOwner) {
         if self.preparing.as_ref() == Some(owner) {
-            self.preparing = None;
-            self.form_state.stage = PairFormStage::Setup;
-            self.status = None;
             if self.open.as_ref() == Some(owner) {
-                self.error = Some("The accepted board changed. Cancel this setup and reopen it before placing a pair.".into());
+                self.mark_stale();
+            } else {
+                self.preparing = None;
+                self.form_state.stage = PairFormStage::Setup;
+                self.status = None;
             }
         }
     }
@@ -335,9 +365,14 @@ pub fn use_mirrored_pair(
     let inter = use_context::<LayoutInteraction>();
     let mut ui = use_signal(PairUi::default);
     let alive = use_hook(|| Rc::new(Cell::new(true)));
+    let on_created_cell = use_hook(|| Rc::new(Cell::new(on_created)));
+    on_created_cell.set(on_created);
     use_drop({
         let a = alive.clone();
-        move || a.set(false)
+        move || {
+            a.set(false);
+            inter.end(CanvasMode::PlacingMirroredPair);
+        }
     });
 
     use_effect(use_reactive(
@@ -345,7 +380,7 @@ pub fn use_mirrored_pair(
         {
             let rt = runtime.clone();
             move |(_, ws, generation)| {
-                let Some(o) = ui.read().open.clone() else {
+                let Some(o) = ui.peek().open.clone() else {
                     return;
                 };
                 if ws != Workspace::Layout
@@ -356,19 +391,15 @@ pub fn use_mirrored_pair(
                     inter.end(CanvasMode::PlacingMirroredPair);
                 } else if rt.model().accepted.as_ref().is_none_or(|s| {
                     !owner_source_matches(&o.scope, o.snapshot_token, o.revision, &o.scope, s)
-                }) {
-                    let mut s = ui.write();
-                    s.preparing = None;
-                    s.placement = None;
-                    s.form_state.stage = PairFormStage::Setup;
-                    s.status = None;
-                    s.error = Some("The accepted board changed. Cancel this setup and reopen it before placing a pair.".into());
+                }) && !ui.peek().is_stale_marked()
+                {
+                    ui.write().mark_stale();
                 }
             }
         },
     ));
 
-    let on_open = EventHandler::new({
+    let on_open = use_callback({
         let rt = runtime.clone();
         move |_| {
             if ui.read().open.is_some()
@@ -406,7 +437,7 @@ pub fn use_mirrored_pair(
         }
     });
 
-    let on_cancel = EventHandler::new(move |o: MirroredPairOwner| {
+    let on_cancel = use_callback(move |o: MirroredPairOwner| {
         let active = {
             let s = ui.read();
             s.open.as_ref() == Some(&o)
@@ -418,14 +449,14 @@ pub fn use_mirrored_pair(
         }
     });
 
-    let on_preview = EventHandler::new({
+    let on_preview = use_callback({
         let (rt, alive) = (runtime.clone(), alive.clone());
         move |req: MirroredPairRequest| {
             start_preview(&rt, inter, ui, &alive, workspace, scope_generation, req)
         }
     });
 
-    let on_move = EventHandler::new({
+    let on_move = use_callback({
         let rt = runtime.clone();
         move |req: MirroredPairMove| {
             if inter.current() != Some(CanvasMode::PlacingMirroredPair) {
@@ -460,8 +491,8 @@ pub fn use_mirrored_pair(
         }
     });
 
-    let on_commit = EventHandler::new({
-        let rt = runtime.clone();
+    let on_commit = use_callback({
+        let (rt, on_created_cell) = (runtime.clone(), on_created_cell.clone());
         move |req: MirroredPairMove| {
             let owner = req.owner;
             if inter.current() != Some(CanvasMode::PlacingMirroredPair)
@@ -512,7 +543,7 @@ pub fn use_mirrored_pair(
                     ui.write().reset();
                     inter.end(CanvasMode::PlacingMirroredPair);
                     if on_board {
-                        on_created.call(MirroredPairCreated {
+                        on_created_cell.get().call(MirroredPairCreated {
                             scope: owner.scope.clone(),
                             owner,
                             result_token: snap.token,
@@ -535,41 +566,54 @@ pub fn use_mirrored_pair(
         }
     });
 
-    let s = ui.read();
-    let form = s
-        .form_state
-        .setup_is_visible()
-        .then(|| {
-            s.open.clone().map(|owner| MirroredPairFormProjection {
-                editable: s.form_state.setup_is_editable()
-                    && s.preparing.is_none()
-                    && owner_live(
-                        &runtime,
-                        &owner,
-                        workspace(),
-                        scope_generation(),
-                        s.open.as_ref(),
-                    ),
-                owner,
-                values: s.form_state.values.clone(),
-                error: s.error.clone(),
-                status: s.status.clone(),
+    let (form, placement, owns_canvas, can_open) = {
+        let s = ui.read();
+        let form = s
+            .form_state
+            .setup_is_visible()
+            .then(|| {
+                s.open.clone().map(|owner| MirroredPairFormProjection {
+                    editable: s.form_state.setup_is_editable()
+                        && s.preparing.is_none()
+                        && owner_live(
+                            &runtime,
+                            &owner,
+                            workspace(),
+                            scope_generation(),
+                            s.open.as_ref(),
+                        ),
+                    owner,
+                    values: s.form_state.values.clone(),
+                    error: s.error.clone(),
+                    status: s.status.clone(),
+                })
             })
-        })
-        .flatten();
-    let owns_canvas = s.open.is_some() || s.preparing.is_some() || s.placement.is_some();
-    let can_open = inter.current().is_none()
-        && !owns_canvas
-        && matrix_source(
-            &runtime,
-            &runtime.model(),
-            runtime.scope().as_ref(),
-            workspace(),
+            .flatten();
+        let owns_canvas = s.open.is_some() || s.preparing.is_some() || s.placement.is_some();
+        let can_open = inter.current().is_none()
+            && !owns_canvas
+            && matrix_source(
+                &runtime,
+                &runtime.model(),
+                runtime.scope().as_ref(),
+                workspace(),
+            )
+            .is_some();
+        (
+            form,
+            s.placement.as_ref().map(|a| a.placement.clone()),
+            owns_canvas,
+            can_open,
         )
-        .is_some();
+    };
+    use_effect(use_reactive((&owns_canvas,), move |(owns,)| {
+        if !owns {
+            inter.end(CanvasMode::PlacingMirroredPair);
+        }
+    }));
     MirroredPairSession {
         form,
-        placement: s.placement.as_ref().map(|a| a.placement.clone()),
+        placement,
         can_open,
         owns_canvas,
         on_open,
@@ -603,13 +647,12 @@ fn start_preview(
     if !ok {
         return;
     }
-    if !matrix_dimensions_valid(req.rows, req.columns)
-        || req.gap_mm < 0.0
-        || !req.gap_mm.is_finite()
-        || req.left_name.trim().is_empty()
-        || req.right_name.trim().is_empty()
-        || req.left_name.trim() == req.right_name.trim()
-    {
+    if !valid_pair_inputs(
+        &req.left_name,
+        &req.right_name,
+        matrix_dimensions_valid(req.rows, req.columns),
+        req.gap_mm,
+    ) {
         ui.write().error = Some(
             "Choose distinct names, a non-negative gap, and dimensions up to 4096 cells.".into(),
         );
