@@ -102,7 +102,7 @@ def run(command, *, cwd=ROOT, env=None):
 def worker_providers():
     return (
         ("m1_cad_worker", WEB / "target/providers/cad-worker", "cad-worker", ROOT / "target/wasm-workers"),
-        ("boardstudio_offline_worker", OFFLINE_WORKER, "service-worker", ROOT / "target/wasm-offline-worker"),
+        ("boardstudio_offline_worker", OFFLINE_WORKER, "service-worker", ROOT / "target/wasm-workers"),
     )
 
 
@@ -496,10 +496,18 @@ def prepare_runtime_providers(fast=False):
         providers = [(name, output, "boardstudio-web", feature, target)
                      for name, output, feature, target in worker_providers()]
         providers.append(("boardstudio_renderer_wasm", ROOT / "renderer/pkg", "boardstudio-renderer", None, ROOT / "target"))
-        def build_provider(provider):
-            fast_provider(*provider, bindgen)
-        with ThreadPoolExecutor(max_workers=min(check_jobs(), len(providers))) as pool:
-            list(pool.map(build_provider, providers))
+        # Both workers build `boardstudio-web --lib` into `target/wasm-workers`; Cargo cannot run
+        # two builds in the same target dir concurrently, so each distinct target dir is one
+        # sequential lane while distinct targets build in parallel.
+        groups: dict[Path, list[tuple]] = {}
+        for provider in providers:
+            groups.setdefault(provider[4], []).append(provider)
+
+        def build_group(group):
+            for provider in group:
+                fast_provider(*provider, bindgen)
+        with ThreadPoolExecutor(max_workers=min(check_jobs(), len(groups))) as pool:
+            list(pool.map(build_group, groups.values()))
         handled = {name for name, *_ in providers}
     for command in commands:
         if command[:2] != ["wasm-pack", "build"]:

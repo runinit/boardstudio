@@ -75,7 +75,7 @@ impl BrowserStore {
     }
 }
 
-pub(super) async fn open_database(name: &str) -> Result<IdbDatabase, PersistError> {
+pub async fn open_database(name: &str) -> Result<IdbDatabase, PersistError> {
     let factory = window()?
         .indexed_db()
         .map_err(js_error)?

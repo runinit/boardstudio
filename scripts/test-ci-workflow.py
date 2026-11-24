@@ -126,20 +126,21 @@ class CachePolicyTests(unittest.TestCase):
             self.assertRegex(step, re.compile(r"^ +env-vars: ImageOS$", re.M), "image family must stay in the key")
 
     def test_web_and_release_build_share_one_key(self):
-        self.assertIn("shared-key: ${{ matrix.cache }}", cache_steps(job("web"))[0])
-        self.assertIn("- suite: packaged\n            cache: web\n", job("web"))
+        [step] = cache_steps(job("web"))
+        self.assertIn("shared-key: web\n", step)
         self.assertIn("shared-key: web\n", cache_steps(job("release-build"))[0])
 
-    def test_both_web_suites_gate_release(self):
+    def test_single_web_job_gates_release(self):
         web = job("web")
-        self.assertIn("fail-fast: false", web)
-        self.assertIn("- suite: wasm\n            cache: web-wasm", web)
-        self.assertIn("if: matrix.suite == 'packaged'\n        run: python3 scripts/check.py build browser-packaged", web)
-        self.assertIn("if: matrix.suite == 'wasm'\n        run: python3 scripts/check.py browser-wasm", web)
-        self.assertIn("run: python3 scripts/check.py browser-wasm\n        env:\n"
-                      "          BOARDSTUDIO_WASM_BINDGEN_DIR: ${{ runner.temp }}/wasm-bindgen-patched", web)
+        self.assertNotIn("matrix.", web)
+        self.assertNotIn("name: web-", web)
+        self.assertIn("run: python3 scripts/check.py build browser\n        env:\n"
+                      "          BOARDSTUDIO_WASM_BINDGEN_DIR: ${{ runner.temp }}/wasm-bindgen-patched\n"
+                      '          CARGO_PROFILE_DEV_DEBUG: "false"', web)
+        self.assertIn("name: browser-failure\n", web)
+        self.assertIn("name: drag-browser-receipts\n", web)
         self.assertIn("needs: [native, web]", job("release-build"))
-        self.assertIn('test "${{ needs.web.result }}" = success', job("web-result"))
+        self.assertNotIn("web-result", WORKFLOW)
 
     def test_native_caches_every_cad_target_dir(self):
         [step] = cache_steps(job("native"))
@@ -173,7 +174,7 @@ class ConcurrencyTests(unittest.TestCase):
 
 
 class PatchedPairWorkflowTests(unittest.TestCase):
-    suites = {"packaged": "build browser-packaged", "wasm": "browser-wasm"}
+    suites = {"web": "build browser"}
     cache_path = "${{ runner.temp }}/wasm-bindgen-patched"
     builder_path = "scripts/build-patched-wasm-bindgen.py"
     bins = ("wasm-bindgen", "wasm-bindgen-test-runner")
@@ -186,8 +187,7 @@ class PatchedPairWorkflowTests(unittest.TestCase):
         self.build = self.step("Build patched wasm-bindgen pair on cache miss")
         self.verify = self.step("Verify patched wasm-bindgen pair")
         self.consumers = {
-            "packaged": self.step("Build and check packaged site"),
-            "wasm": self.step("Run Wasm browser tests"),
+            "web": self.step("Build and run browser tests"),
         }
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
@@ -321,7 +321,7 @@ class PatchedPairWorkflowTests(unittest.TestCase):
         for suite, step in self.consumers.items():
             ordered = [self.steps.index(part) for part in (self.key, self.restore, self.build, self.verify, step)]
             self.assertEqual(ordered, sorted(ordered))
-            self.assertIn(f"        if: matrix.suite == '{suite}'\n", step)
+            self.assertNotIn("matrix.suite", step)
             self.assertIn(f"        run: python3 scripts/check.py {self.suites[suite]}\n", step)
             self.assertIn(f"          BOARDSTUDIO_WASM_BINDGEN_DIR: {self.cache_path}\n", step)
             self.assertIn('          CARGO_PROFILE_DEV_DEBUG: "false"\n', step)
@@ -339,27 +339,25 @@ class PatchedPairWorkflowTests(unittest.TestCase):
         for step, mode in ((self.build, "--output"), (self.verify, "--verify")):
             self.assertIn(f'        run: python3 {self.builder_path} {mode} "$RUNNER_TEMP/wasm-bindgen-patched"\n', step)
 
-    def test_each_suite_builds_on_miss_and_reuses_other_suites_pair_on_hit(self):
+    def test_web_builds_on_miss_and_reuses_pair_on_hit(self):
         original = self.lock.read_text()
-        for miss, hit in (("packaged", "wasm"), ("wasm", "packaged")):
-            with self.subTest(miss=miss, hit=hit):
-                self.lock.write_text(original)
-                self.trace.write_text("")
-                cache = {}
-                self.assertEqual(self.run_web_steps(miss, cache).returncode, 0)
-                [key] = cache
-                self.assertEqual(set(path.name for path in self.pair.iterdir()), set(self.bins))
-                shutil.rmtree(self.pair)
-                self.lock.write_text(original.replace("1.0.0", "2.0.0"))
-                self.assertEqual(self.run_web_steps(hit, cache).returncode, 0)
-                self.assertEqual(list(cache), [key])
-                trace = self.trace.read_text().splitlines()
-                self.assertEqual(trace.count("build"), 1)
-                verified = [str(self.pair / name) for name in self.bins]
-                self.assertEqual(trace[-10:], [*verified, *verified, f"consumer {self.suites[miss]} {self.pair}",
-                                               *verified, *verified, f"consumer {self.suites[hit]} {self.pair}"])
-                shutil.rmtree(self.pair)
-                shutil.rmtree(cache[key])
+        self.lock.write_text(original)
+        self.trace.write_text("")
+        cache = {}
+        self.assertEqual(self.run_web_steps("web", cache).returncode, 0)
+        [key] = cache
+        self.assertEqual(set(path.name for path in self.pair.iterdir()), set(self.bins))
+        shutil.rmtree(self.pair)
+        self.lock.write_text(original.replace("1.0.0", "2.0.0"))
+        self.assertEqual(self.run_web_steps("web", cache).returncode, 0)
+        self.assertEqual(list(cache), [key])
+        trace = self.trace.read_text().splitlines()
+        self.assertEqual(trace.count("build"), 1)
+        verified = [str(self.pair / name) for name in self.bins]
+        self.assertEqual(trace[-10:], [*verified, *verified, f"consumer {self.suites['web']} {self.pair}",
+                                       *verified, *verified, f"consumer {self.suites['web']} {self.pair}"])
+        shutil.rmtree(self.pair)
+        shutil.rmtree(cache[key])
 
     def test_workflow_key_tracks_compiler_override_and_rustflags(self):
         def emitted_key():
@@ -383,7 +381,7 @@ class PatchedPairWorkflowTests(unittest.TestCase):
 
     def test_incompatible_lock_blocks_prospective_hit_before_restore(self):
         cache = {}
-        self.assertEqual(self.run_web_steps("packaged", cache).returncode, 0)
+        self.assertEqual(self.run_web_steps("web", cache).returncode, 0)
         shutil.rmtree(self.pair)
         self.trace.write_text("")
         for case, lock in (
@@ -403,7 +401,7 @@ class PatchedPairWorkflowTests(unittest.TestCase):
 
     def test_bad_cached_binary_blocks_either_consumer(self):
         cache = {}
-        self.assertEqual(self.run_web_steps("packaged", cache).returncode, 0)
+        self.assertEqual(self.run_web_steps("web", cache).returncode, 0)
         [cached_pair] = cache.values()
         shutil.rmtree(self.pair)
         for suite in self.suites:

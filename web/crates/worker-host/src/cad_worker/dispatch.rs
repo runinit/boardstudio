@@ -8,7 +8,7 @@ fn failed(reason: impl Into<String>) -> OperationError {
 }
 
 #[allow(clippy::result_large_err)]
-pub(super) async fn run_request(
+pub async fn run_request(
     queue: &Rc<RefCell<WorkerQueue>>,
     module: &JsValue,
     request: WireRequest,
@@ -420,7 +420,7 @@ fn revision_object(revision: u64) -> Result<Object, OperationError> {
     Ok(object)
 }
 
-pub(super) async fn yield_to_worker() {
+pub async fn yield_to_worker() {
     if let Some(promise) =
         Function::new_no_args("return new Promise(resolve => setTimeout(resolve, 0))")
             .call0(&JsValue::NULL)

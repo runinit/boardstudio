@@ -1,5 +1,15 @@
-use super::*;
+use boardstudio_core::model::ProjectDoc;
+use boardstudio_web_host::host::test_hooks::{
+    ASSET_STORE, PROJECT_STORE, has_cached_database, load_value, open_database, request_result,
+    serialize_document, storage_token_str, transaction_completion,
+};
+use boardstudio_web_host::host::{BrowserStore, PersistError, SaveError, StorageToken};
+use std::cell::RefCell;
+use std::collections::BTreeMap;
+use std::rc::Rc;
+use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 use wasm_bindgen_test::*;
+use web_sys::{Event, IdbTransactionMode, window};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -195,7 +205,7 @@ async fn v1_records_use_legacy_tokens_and_cached_connections_allow_database_dele
         .save_document_expected(&document, &BTreeMap::new(), Some(&legacy_token))
         .await
         .unwrap();
-    assert!(nonce.0.starts_with("nonce:"));
+    assert!(storage_token_str(&nonce).starts_with("nonce:"));
     assert_eq!(second.list_documents().await.unwrap(), [document.clone()]);
     assert_eq!(
         second
@@ -211,11 +221,11 @@ async fn v1_records_use_legacy_tokens_and_cached_connections_allow_database_dele
         first.load_document(document.id.clone()).await.unwrap(),
         Some(document.clone())
     );
-    assert!(first.database.borrow().is_some() && second.database.borrow().is_some());
+    assert!(has_cached_database(&first) && has_cached_database(&second));
     request_result(factory.delete_database(&name).unwrap().unchecked_into())
         .await
         .unwrap();
-    assert!(first.database.borrow().is_none() && second.database.borrow().is_none());
+    assert!(!has_cached_database(&first) && !has_cached_database(&second));
     assert_eq!(first.load_document(document.id).await.unwrap(), None);
 }
 
@@ -224,7 +234,7 @@ async fn concurrent_same_token_saves_leave_exactly_one_winner() {
     let name = format!("boardstudio-same-token-{}", js_sys::Date::now());
     let first = BrowserStore::new(&name).unwrap();
     let second = BrowserStore::new(&name).unwrap();
-    let mut document = boardstudio_model::model::ProjectDoc::empty("race", "Original");
+    let mut document = boardstudio_core::model::ProjectDoc::empty("race", "Original");
     document.id = "race".into();
     // Both writers observe the same stored token before either one writes.
     let token = first

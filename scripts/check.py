@@ -4,9 +4,8 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor, wait
-from contextlib import ExitStack, contextmanager
+from contextlib import contextmanager
 import importlib
 import json
 import os
@@ -22,7 +21,6 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import browser_tools
-import cargo_json
 import check_native_tests
 from tailwind_tools import IN_OVERLAP_ENV, TEST_CSS_READY, check_jobs, test_css_command
 import wasm_bindgen_tools
@@ -51,9 +49,6 @@ TOOLING_TESTS = (
 KICAD_PARTS_TEST = [PY, "scripts/test-import-kicad-parts.py"]
 CAD_TEST = [PY, "cad/scripts/test-cad.py"]
 WASM_PAGE = ["--no-default-features", "--features", "page"]
-# Keep browser test builds on the same profile as the checked page.
-WASM_CRATE_BUILD = ["cargo", "test", "--no-run", "--lib", "--target", "wasm32-unknown-unknown",
-                    "--profile", "wasm-check", "--locked", "--message-format=json"]
 DRAG_SMOKE = [PY, "scripts/run-drag-browser.py"]
 CAD_BROWSER = [PY, "cad/scripts/test-cad-browser.py"]
 PROVIDER_CHECKS = [
@@ -61,7 +56,7 @@ PROVIDER_CHECKS = [
     [PY, "-B", "scripts/ergogen-parity/test_generate.py", "--source"],
     [PY, "scripts/model-lookup-pilot.py", "--gate"],
 ]
-# Two depth-one pages. Each further page costs ~15s of loading beside the crate launches, more than
+# Two depth-one pages. Each further page costs ~15s of loading, more than
 # splitting the larger group with `--max-group-tests` saves (measured 2026-11-19).
 PAGE_SUITE = [PY, "scripts/run-wasm-tests.py", "--all", "--depth", "1",
               "--result-json", "web/target/test-results/browser.json"]
@@ -82,45 +77,7 @@ def typecheck() -> list[Command]:
 
 
 def browser() -> list[Command]:
-    return [
-        DRAG_SMOKE,
-        CAD_BROWSER,
-        *PROVIDER_CHECKS,
-        *with_crate_build([
-            crate_launch("host"),
-            crate_launch("worker-host"),
-        ]),
-        PAGE_SUITE,
-    ]
-
-
-def crate_launch(crate: str, *filters: str) -> Command:
-    # The plan uses the crate directory as a stable identity. Cargo supplies the binary at runtime.
-    return [wasm_bindgen_tools.TEST_RUNNER, f"web/crates/{crate}", *filters]
-
-
-def launch_crate(command: Command) -> str | None:
-    """The presentation crate targeted by a browser launch."""
-    if len(command) > 1 and command[0] == wasm_bindgen_tools.TEST_RUNNER:
-        return Path(command[1]).name
-    return None
-
-
-def is_crate_build(command: Command) -> bool:
-    return command[:len(WASM_CRATE_BUILD)] == WASM_CRATE_BUILD
-
-
-def with_crate_build(launches: list[Command]) -> list[Command]:
-    crates = tuple(dict.fromkeys(crate for command in launches if (crate := launch_crate(command))))
-    if not crates:
-        return launches
-    packages = [arg for crate in crates for arg in ("-p", f"boardstudio-web-{crate}")]
-    features = [
-        *(["boardstudio-web-host/page"] if "host" in crates else []),
-        *(["boardstudio-web-worker-host/cad"] if "worker-host" in crates else []),
-    ]
-    flags = ["--features", ",".join(features)] if features else []
-    return [[*WASM_CRATE_BUILD, *packages, *flags], *launches]
+    return [DRAG_SMOKE, CAD_BROWSER, *PROVIDER_CHECKS, PAGE_SUITE]
 
 
 WEB_WASM_LINT_PACKAGES = (
@@ -131,8 +88,7 @@ WEB_WASM_LINT_PACKAGES = (
     "boardstudio-web-layout-objects",
 )
 
-BROWSER_CRATE_BUILD = next(command for command in browser() if is_crate_build(command))
-BROWSER_PREBUILDS = [BROWSER_CRATE_BUILD, PAGE_TEST_BUILD]
+BROWSER_PREBUILDS = [PAGE_TEST_BUILD]
 
 
 # `--no-deps` keeps Clippy off the vendored cgmath fork; its lints are audited separately.
@@ -171,8 +127,6 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
     "test": (True, [*CARGO_TESTS, CAD_TEST, KICAD_PARTS_TEST]),
     "typecheck": (False, typecheck()),
     "browser": (True, browser()),
-    "browser-packaged": (False, [cmd for cmd in browser() if not (is_crate_build(cmd) or launch_crate(cmd))]),
-    "browser-wasm": (False, [cmd for cmd in browser() if is_crate_build(cmd) or launch_crate(cmd)]),
     "drag-smoke": (False, [DRAG_SMOKE]),
     "security": (False, [[PY, "-B", "scripts/security-audit.test.py"], [PY, "scripts/security-audit.py"]]),
     # Fails while any .board-*, .m1-* selector or --wb-* variable remains (the final merge gate).
@@ -183,49 +137,8 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
 DEFAULT = tuple(name for name, (included, _) in STEPS.items() if included)
 
 
-def browser_crates() -> tuple[str, ...]:
-    return tuple(crate for command in browser() if (crate := launch_crate(command)))
-
-
-def select_browser_crate_launches(crates: Iterable[str]) -> list[Command]:
-    chosen = set(crates)
-    return [command for command in browser() if launch_crate(command) in chosen]
-
-
-def parse_only_crates(raw: Sequence[str]) -> list[str]:
-    known = browser_crates()
-    chosen: list[str] = []
-    for item in raw:
-        for part in item.split(","):
-            name = part.strip().removeprefix("web/crates/")
-            if name and name not in chosen:
-                chosen.append(name)
-    if not chosen:
-        raise ValueError("--only requires at least one browser crate name")
-    unknown = [name for name in chosen if name not in known]
-    if unknown:
-        raise ValueError(f"unknown browser crate(s): {', '.join(unknown)}; choose from {', '.join(known)}")
-    return chosen
-
-
 def is_browser_step(name: str) -> bool:
-    return name in ("browser", "browser-packaged", "browser-wasm") or name.startswith("browser (")
-
-
-def crate_test_artifacts(output: str, cwd: Path, crates: Iterable[str]) -> dict[str, Path]:
-    manifests = {cwd / "web/crates" / crate / "Cargo.toml": crate for crate in crates}
-    artifacts: dict[str, Path] = {}
-    for message in cargo_json.messages(output, sys.stdout, flush=True):
-        if not (executable := cargo_json.wasm_executable(message, kind="lib", test=True)):
-            continue
-        if crate := manifests.get(Path(message["manifest_path"])):
-            binary = cwd / executable
-            if crate in artifacts or not binary.is_file():
-                raise ValueError(f"invalid or duplicate test artifact for {crate}: {binary}")
-            artifacts[crate] = binary
-    if missing := set(manifests.values()) - artifacts.keys():
-        raise ValueError(f"missing test wasm artifact(s) for {', '.join(sorted(missing))}")
-    return artifacts
+    return name == "browser"
 
 
 @contextmanager
@@ -393,9 +306,7 @@ def run_commands(name, commands, environment, cwd=ROOT, *, state=None, keep_goin
     for command in commands:
         output = []
         capture = None
-        if is_crate_build(command):
-            code = int(not build_crate_tests(command, environment, cwd, state))
-        elif command == PAGE_TEST_BUILD:
+        if command == PAGE_TEST_BUILD:
             _, code = run_serial(command, environment, cwd, outputs=output)
             if not code:
                 state["page"] = output[0][1].strip()
@@ -416,71 +327,35 @@ def run_commands(name, commands, environment, cwd=ROOT, *, state=None, keep_goin
     return time.monotonic() - started, passed
 
 
-def build_crate_tests(command, environment, cwd, state):
-    if command == state.get("crate_build") and all(path.is_file() for path in state["crates"].values()):
-        return True
-    output = []
-    env = wasm_bindgen_tools.test_build_env(environment, cwd)
-    _, code = run_serial(command, env, cwd, outputs=output)
-    crates = [value.removeprefix("boardstudio-web-") for flag, value in zip(command, command[1:])
-              if flag == "-p"]
-    if output:
-        try:
-            artifacts = crate_test_artifacts(output[0][1], cwd, [] if code else crates)
-        except (ValueError, RuntimeError) as error:
-            print(f"check: {error}", file=sys.stderr)
-            return False
-        if not code:
-            state.update(crate_build=command, crates=artifacts)
-            return True
-    return False
-
-
 def run_browser(commands, environment, cwd, state, keep_going):
     started = time.monotonic()
     failed = False
-    available = False
     lanes, support_checks = [], []
-    with ExitStack() as configs:
-        for command in commands:
-            if is_crate_build(command):
-                available = build_crate_tests(command, environment, cwd, state)
-                failed |= not available
-                if failed and not keep_going:
-                    return time.monotonic() - started, False
-                continue
-            env = environment
-            directory = cwd
-            if crate := launch_crate(command):
-                if not available:
-                    continue
-                directory = cwd / command[1]
-                runner = importlib.import_module("run-wasm-tests")
-                env = configs.enter_context(runner.desktop_webdriver_config(env, directory))
-                env.update(WASM_BINDGEN_TEST_ONLY_WEB="1", RAYON_NUM_THREADS="1")
-                command = [wasm_bindgen_tools.TEST_RUNNER, str(state["crates"][crate]), *command[2:]]
-            elif "scripts/run-wasm-tests.py" in command:
-                if command == PAGE_SUITE and state.get("page"):
-                    command = [*command, "--test-binary", state["page"]]
-                spare = check_jobs() - len(lanes)
-                env = dict(env, BOARDSTUDIO_CHECK_JOBS=str(max(1, min(2, spare))))
-            if command == DRAG_SMOKE and not keep_going and check_jobs() > 2:
-                lanes += [[([*command, "--suite", suite], directory, env)] for suite in ("drag", "collision")]
-            elif not keep_going and (command in (CAD_BROWSER, *PROVIDER_CHECKS) or (crate and support_checks)):
-                if not support_checks:
-                    lanes.append(support_checks)
-                support_checks.append((command, directory, env))
-            else:
-                lanes.append([(command, directory, env)])
-        if check_jobs() > 1:
-            _, passed = run_parallel(lanes, environment)
-            failed |= not passed
+    for command in commands:
+        env = environment
+        directory = cwd
+        if "scripts/run-wasm-tests.py" in command:
+            if command == PAGE_SUITE and state.get("page"):
+                command = [*command, "--test-binary", state["page"]]
+            spare = check_jobs() - len(lanes)
+            env = dict(env, BOARDSTUDIO_CHECK_JOBS=str(max(1, min(2, spare))))
+        if command == DRAG_SMOKE and not keep_going and check_jobs() > 2:
+            lanes += [[([*command, "--suite", suite], directory, env)] for suite in ("drag", "collision")]
+        elif not keep_going and command in (CAD_BROWSER, *PROVIDER_CHECKS):
+            if not support_checks:
+                lanes.append(support_checks)
+            support_checks.append((command, directory, env))
         else:
-            for command, directory, env in (invocation for lane in lanes for invocation in lane):
-                _, code = run_serial(command, env, directory)
-                if code and not keep_going:
-                    return time.monotonic() - started, False
-                failed |= bool(code)
+            lanes.append([(command, directory, env)])
+    if check_jobs() > 1:
+        _, passed = run_parallel(lanes, environment)
+        failed |= not passed
+    else:
+        for command, directory, env in (invocation for lane in lanes for invocation in lane):
+            _, code = run_serial(command, env, directory)
+            if code and not keep_going:
+                return time.monotonic() - started, False
+            failed |= bool(code)
     return time.monotonic() - started, not failed
 
 
@@ -594,10 +469,7 @@ def _run_plan(plan, update_native_baseline=False, *, keep_going=False, totals=No
             env.pop("APPDIR", None)  # KiCad must use its system libraries.
             state.pop("native", None)
         if is_browser_step(name):
-            if any(launch_crate(command) for command in commands):
-                runner = importlib.import_module("run-wasm-tests")
-                env.update(runner.runner_environment(ROOT))
-            elif wasm_bindgen_tools.DIRECTORY_ENV in env:
+            if wasm_bindgen_tools.DIRECTORY_ENV in env:
                 env = wasm_bindgen_tools.configure(env, ROOT)
         elapsed, passed = run_commands(name, commands, env, ROOT / "web" if name == "test-css" else ROOT,
                                        state=state, keep_going=keep_going and is_browser_step(name))
@@ -617,14 +489,10 @@ def _run_plan(plan, update_native_baseline=False, *, keep_going=False, totals=No
     return 0
 
 
-def run(names, update_native_baseline=False, *, only=None, keep_going=False):
-    if only is not None:
-        launches = select_browser_crate_launches(only)
-        plan = [(f"browser (only: {', '.join(only)})", with_crate_build(launches))]
-        return run_plan(plan, update_native_baseline, keep_going=keep_going, partial=True)
+def run(names, update_native_baseline=False, *, keep_going=False):
     names = list(names)
     smoke = next((index for index, name in enumerate(names)
-                  if name in ("browser", "browser-packaged", "drag-smoke")), None)
+                  if name in ("browser", "drag-smoke")), None)
     if smoke is not None:
         try:
             browser_tools.locate_chrome()
@@ -641,11 +509,8 @@ def run(names, update_native_baseline=False, *, only=None, keep_going=False):
     css_ready = IN_OVERLAP_ENV in os.environ
     for name in names:
         commands = STEPS[name][1]
-        if name == "build" and "browser" not in names and set(names).intersection(("browser-packaged", "drag-smoke")):
-            unwanted = [BROWSER_CRATE_BUILD]
-            if "browser-packaged" not in names:
-                unwanted.append(PAGE_TEST_BUILD)
-            commands = [command for command in commands if command not in unwanted]
+        if name == "build" and "browser" not in names and "drag-smoke" in names:
+            commands = [command for command in commands if command != PAGE_TEST_BUILD]
         if name == "lint" and not css_ready:
             plan.append(("test-css", [test_css_command()]))
             css_ready = True
@@ -666,15 +531,27 @@ def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_qu
             names = sorted(selection.packages)
             native = [["cargo", "test", "--locked", *[part for name in names for part in ("-p", name)]]] if names else []
         plan.append(("test", native))
-        crates = {Path(package.directory).name for name, package in packages.items()
-                  if name in selection.packages and package.directory.startswith("web/crates/")}
         if selection.full_rust:
             # Quick deliberately skips checks requiring a packaged site.
             commands = [command for command in browser() if command != DRAG_SMOKE]
         else:
-            commands = with_crate_build(select_browser_crate_launches(crates))
-            if selection.page_files:
-                commands.append([PY, "scripts/run-wasm-tests.py", "--files", *selection.page_files,
+            migrated = []
+            if "boardstudio-web-host" in selection.packages:
+                migrated += [
+                    "web/src/page_suite_tests/boundary_parity_tests.rs",
+                    "web/src/page_suite_tests/storage_lifetime_tests.rs",
+                    "web/src/page_suite_tests/renderer_host_tests.rs",
+                ]
+            if "boardstudio-web-worker-host" in selection.packages:
+                migrated += [
+                    "web/src/page_suite_tests/cad_worker_generated_analysis_tests.rs",
+                    "web/src/page_suite_tests/cad_worker_keycaps_tests.rs",
+                    "web/src/page_suite_tests/cad_worker_qualification_tests.rs",
+                ]
+            files = sorted(set(selection.page_files) | set(migrated))
+            commands = []
+            if files:
+                commands.append([PY, "scripts/run-wasm-tests.py", "--files", *files,
                                  "--depth", "1",
                                  "--result-json", "web/target/test-results/browser-quick.json"])
         if commands:
@@ -709,9 +586,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--list", action="store_true", help="print every step and its commands")
     parser.add_argument("--files", nargs="+", metavar="FILE",
                         help="with `quick`: the changed files, instead of the git diff against main")
-    parser.add_argument("--only", nargs="+", action="extend", metavar="CRATE",
-                        help="with `browser`: run only the named presentation crate launch(es) "
-                        "(partial subset; skips full page build and drag smoke)")
     parser.add_argument("--keep-going", action="store_true",
                         help="in `browser`: continue independent browser launches after a failure "
                         "and exit nonzero if any launch failed")
@@ -719,17 +593,6 @@ def main(argv: list[str] | None = None) -> int:
                         help="after the native tests pass, record the executed test names in "
                         "scripts/check-native-tests-baseline.json (for tests removed or renamed on purpose)")
     args = parser.parse_args(argv)
-    if args.only is not None:
-        if args.list:
-            parser.error("--only cannot be combined with --list")
-        if args.steps != ["browser"]:
-            parser.error("--only applies to `browser` alone (subset runs cannot certify full or other steps)")
-        try:
-            only_crates = parse_only_crates(args.only)
-        except ValueError as error:
-            parser.error(str(error))
-    else:
-        only_crates = None
     if args.keep_going:
         if args.list:
             parser.error("--keep-going cannot be combined with --list")
@@ -755,7 +618,7 @@ def main(argv: list[str] | None = None) -> int:
         print("quick  (changed files only; see `check.py quick`)")
         return 0
     return run(args.steps or list(DEFAULT), args.update_native_baseline,
-               only=only_crates, keep_going=args.keep_going)
+               keep_going=args.keep_going)
 
 def stop_on_sigterm(signum, _frame):
     raise SystemExit(128 + signum)

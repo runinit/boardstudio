@@ -1,6 +1,12 @@
+mod boundary_parity_tests;
 mod cad_runtime_borrow_tests;
+mod cad_worker_generated_analysis_tests;
+mod cad_worker_keycaps_tests;
+mod cad_worker_qualification_tests;
 mod document_core_tests;
 mod mechanical_source_export_browser_tests;
 mod model_decode_boundary_tests;
 mod offline_safety_tests;
+mod renderer_host_tests;
+mod storage_lifetime_tests;
 mod test_wait_tests;

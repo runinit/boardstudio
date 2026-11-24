@@ -114,10 +114,11 @@ KiCad provider suites, so pure controller, projection and layout tests run as
 plain `#[test]`. `typecheck` pins the page binary for `wasm32`; `lint` runs
 Clippy over the workspace and again for `wasm32` across the page, host,
 worker-host, runtime, UI and workspace crates. `browser` stays narrow:
-the drag smoke test, the CAD browser suite, provider checks, two crate test
-binaries (`host`, `worker-host`) and the packaged-page suite
-(`scripts/run-wasm-tests.py --all --depth 1`). Only crates launched there may
-use `#[wasm_bindgen_test]`; everything else proves itself natively, with
+the drag smoke test, the CAD browser suite, provider checks and the
+packaged-page suite (`scripts/run-wasm-tests.py --all --depth 1`), which owns
+every `#[wasm_bindgen_test]` in `web/src/page_suite_tests/` (the host and
+worker-host browser tests run there through the page binary's `test-support`
+seams); everything else proves itself natively, with
 `test-runtime` fixtures bridging the two worlds.
 
 See [development commands](../README.md), [product purpose](../PRODUCT.md),

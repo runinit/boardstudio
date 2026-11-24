@@ -17,7 +17,9 @@ PACKAGES = {
     "layout": quick.Package("layout", "web/crates/layout", {"core", "app"}),
     "keymap": quick.Package("keymap", "web/crates/keymap", {"core"}),
     "footprints": quick.Package("boardstudio-footprints", "catalogue/footprints"),
-    "web": quick.Package("web", "web", {"layout", "keymap"}),
+    "web": quick.Package("web", "web", {"layout", "keymap", "boardstudio-web-host"}),
+    "host": quick.Package("boardstudio-web-host", "web/crates/host", set()),
+    "worker-host": quick.Package("boardstudio-web-worker-host", "web/crates/worker-host", set()),
 }
 PACKAGES = {package.name: package for package in PACKAGES.values()}
 
@@ -129,6 +131,23 @@ class QuickPlanTests(unittest.TestCase):
     def test_other_crate_lint_also_generates_test_css(self):
         self.assertIn("test-css", self.plan(["web/crates/keymap/src/lib.rs"]))
 
+    def test_host_and_worker_host_edits_select_their_migrated_page_tests(self):
+        plan = self.plan(["web/crates/host/src/host/storage.rs"])
+        runner = [command for command in plan["browser"] if "run-wasm-tests.py" in " ".join(command)]
+        self.assertEqual(len(runner), 1)
+        for migrated in ("web/src/page_suite_tests/boundary_parity_tests.rs",
+                         "web/src/page_suite_tests/storage_lifetime_tests.rs",
+                         "web/src/page_suite_tests/renderer_host_tests.rs"):
+            self.assertIn(migrated, runner[0])
+
+        plan = self.plan(["web/crates/worker-host/src/cad_worker.rs"])
+        runner = [command for command in plan["browser"] if "run-wasm-tests.py" in " ".join(command)]
+        self.assertEqual(len(runner), 1)
+        for migrated in ("web/src/page_suite_tests/cad_worker_generated_analysis_tests.rs",
+                         "web/src/page_suite_tests/cad_worker_keycaps_tests.rs",
+                         "web/src/page_suite_tests/cad_worker_qualification_tests.rs"):
+            self.assertIn(migrated, runner[0])
+
     def test_a_page_edit_adds_the_page_runner_for_those_files(self):
         plan = self.plan(["web/src/presentation/a.rs"])
         runner = [command for command in plan["browser"] if "run-wasm-tests.py" in " ".join(command)]
@@ -206,9 +225,6 @@ class QuickPlanTests(unittest.TestCase):
                     self.assertNotEqual(name, "build")
                     for command in commands:
                         self.assertNotIn("--phase", command)
-                        if check.is_crate_build(command):
-                            self.assertNotIn("--bin", command)
-                            self.assertNotIn(check.PAGE_PACKAGE, command)
 
 
 if __name__ == "__main__":

@@ -159,9 +159,39 @@ class BuildWebTests(unittest.TestCase):
              patch.object(BUILD, "_stage_provider_entries"):
             BUILD.prepare_runtime_providers(fast=True)
         self.assertEqual(run.call_count, 5)
-        for call, target in zip(run.call_args_list[:2], ("wasm-workers", "wasm-offline-worker"), strict=True):
-            self.assertEqual(call.kwargs["env"]["CARGO_TARGET_DIR"], str(root / "target" / target))
+        for call in run.call_args_list[:2]:
+            self.assertEqual(call.kwargs["env"]["CARGO_TARGET_DIR"], str(root / "target" / "wasm-workers"))
+            self.assertNotIn("wasm-offline-worker", call.kwargs["env"]["CARGO_TARGET_DIR"])
         self.assertNotIn("env", run.call_args_list[2].kwargs)
+
+    def test_same_target_fast_providers_build_sequentially(self):
+        calls = []
+
+        def fake_fast_provider(name, output, package, feature, target, bindgen):
+            calls.append((name, str(target)))
+
+        providers = [
+            ("m1_cad_worker", Path("cad-worker"), "cad-worker", Path("shared")),
+            ("boardstudio_offline_worker", Path("offline"), "service-worker", Path("shared")),
+            ("boardstudio_renderer_wasm", Path("renderer"), None, Path("other")),
+        ]
+        with patch.object(BUILD, "worker_providers", return_value=tuple(providers[:2])), \
+             patch.object(BUILD, "locked_wasm_bindgen", return_value=Path("bindgen")), \
+             patch.object(BUILD, "fast_provider", side_effect=fake_fast_provider), \
+             patch.object(BUILD, "bake_bundled_step"), \
+             patch.object(BUILD, "provider_commands", return_value=[]), \
+             patch.object(BUILD, "snapshot", return_value={}), \
+             patch.object(BUILD, "_stage_provider_entries"):
+            BUILD.prepare_runtime_providers(fast=True)
+        # Both workers target the same directory, so they must share one sequential lane:
+        # exactly the two worker builds plus the renderer build, with the workers grouped.
+        self.assertEqual(len(calls), 3)
+        worker_calls = [name for name, target in calls if target == "shared"]
+        self.assertEqual(sorted(worker_calls),
+                         ["boardstudio_offline_worker", "m1_cad_worker"])
+        targets = {name: str(target) for name, _, _, target in BUILD.worker_providers()}
+        self.assertEqual(targets["m1_cad_worker"], targets["boardstudio_offline_worker"])
+        self.assertNotIn("wasm-offline-worker", targets["boardstudio_offline_worker"])
 
     def test_two_fast_builds_skip_staging_and_packaging_when_unchanged(self):
         root, web = self.root, self.root / "web"
