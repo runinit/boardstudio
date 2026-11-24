@@ -3,6 +3,7 @@
 use super::LayerVisibility;
 use boardstudio_application::AcceptedSnapshot;
 use boardstudio_model::model::{PadShape, Severity, Vec2};
+use boardstudio_web_ui_shared::svg_points::polygon_points;
 use dioxus::prelude::*;
 use std::collections::BTreeSet;
 
@@ -80,7 +81,7 @@ pub fn ModuleSourceFootprints(props: ModuleSourceFootprintsProps) -> Element {
                     polygon {
                         key: "outline-{index}",
                         class: "fill-none stroke-primary stroke-[0.22] [stroke-dasharray:0.8_0.45] [vector-effect:non-scaling-stroke]",
-                        points: points(&outline.points),
+                        points: polygon_points(&outline.points),
                     }
                 }
             }
@@ -88,7 +89,7 @@ pub fn ModuleSourceFootprints(props: ModuleSourceFootprintsProps) -> Element {
                 for volume in module.volumes.iter().chain(&module.openings) {
                     polygon {
                         key: "clearance-{volume.id}", class: "fill-[#db9d49]/[0.045] stroke-warning-dark stroke-[0.18] [stroke-dasharray:0.6_0.55] [vector-effect:non-scaling-stroke]",
-                        points: points(&volume.geometry.points), "data-qualified": "{volume.qualified}",
+                        points: polygon_points(&volume.geometry.points), "data-qualified": "{volume.qualified}",
                     }
                 }
             }
@@ -126,7 +127,7 @@ pub fn ModuleSourceFootprints(props: ModuleSourceFootprintsProps) -> Element {
                                 "data-source-part": "{footprint.source_part_id}",
                                 polygon {
                                     class: if host_hidden.contains("Courtyards") { "fill-transparent stroke-none stroke-[0.13] [stroke-dasharray:0.3_0.2] [vector-effect:non-scaling-stroke]" } else { "fill-transparent stroke-geometry-outline stroke-[0.13] [stroke-dasharray:0.3_0.2] [vector-effect:non-scaling-stroke]" },
-                                    points: points(&footprint.courtyard),
+                                    points: polygon_points(&footprint.courtyard),
                                 }
                                 for (index, surface) in footprint.surfaces.iter().enumerate() {
                                     {
@@ -159,7 +160,7 @@ pub fn ModuleSourceFootprints(props: ModuleSourceFootprintsProps) -> Element {
                                                 } else if surface.filled {
                                                     polygon {
                                                         key: "surface-{index}", class: "fill-[#becbd0]/[0.08] {stroke} stroke-[0.15] [vector-effect:non-scaling-stroke] pointer-events-none",
-                                                        "data-source-layer": "{surface.layer}", points: points(&surface.points),
+                                                        "data-source-layer": "{surface.layer}", points: polygon_points(&surface.points),
                                                     }
                                                 } else {
                                                     path {
@@ -254,19 +255,11 @@ pub fn PcbFindingMarkers(snapshot: AcceptedSnapshot, board_id: String) -> Elemen
                 class: "wb-outline-finding",
                 "data-finding-id": "{marker.finding_id}",
                 for (index, contour) in marker.contours.iter().enumerate() {
-                    polygon { key: "contour-{index}", points: points(&contour.points) }
+                    polygon { key: "contour-{index}", points: polygon_points(&contour.points) }
                 }
             }
         }
     }
-}
-
-fn points(points: &[Vec2]) -> String {
-    points
-        .iter()
-        .map(|point| format!("{},{}", point.x, point.y))
-        .collect::<Vec<_>>()
-        .join(" ")
 }
 
 fn path(points: &[Vec2]) -> String {

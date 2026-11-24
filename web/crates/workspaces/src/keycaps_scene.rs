@@ -1,8 +1,8 @@
 //! Accepted-snapshot projection and physical 2D scene for the Keycaps workspace.
+use crate::keycap_support::{is_supported_key, keycap_size};
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_model::model::{
-    Contour, KeyBinding, KeycapBoardSettings, KeycapKeySettings, KeycapMatrixSettings, Part,
-    PartDefinition, PartKind, Pose2, ProjectDoc, Vec2,
+    Contour, KeyBinding, KeycapBoardSettings, KeycapMatrixSettings, Pose2, ProjectDoc, Vec2,
 };
 use boardstudio_web_ui_shared::inspector_fields::{SelectField, TextField};
 use boardstudio_web_ui_shared::ui::input::InputType;
@@ -128,34 +128,7 @@ pub fn project(
     }))
 }
 
-fn is_supported_key(doc: &ProjectDoc, part: &Part) -> bool {
-    doc.definitions
-        .iter()
-        .find(|d| d.id == part.definition_id)
-        .is_some_and(|d| d.kind == PartKind::Switch)
-        || doc.matrices.iter().any(|m| {
-            m.part_ids.contains(&part.id)
-                && part
-                    .id
-                    .strip_prefix(&format!("matrix/{}/", m.id))
-                    .is_some_and(|s| !s.contains('/'))
-        })
-}
-
-fn keycap_size(part: &Part, def: Option<&PartDefinition>, s: Option<&KeycapKeySettings>) -> Vec2 {
-    s.and_then(|s| s.units).map_or_else(
-        || {
-            part.keycap
-                .or_else(|| def.and_then(|d| d.keycap))
-                .unwrap_or(Vec2 { x: 18.2, y: 18.2 })
-        },
-        |u| Vec2 {
-            x: u.x * 19.05 - 0.85,
-            y: u.y * 19.05 - 0.85,
-        },
-    )
-}
-
+/// The key binding text a key shows, preferring explicit keycap legends.
 fn key_binding(doc: &ProjectDoc, board_id: &str, key_id: &str) -> String {
     if let Some(b) = doc
         .keymap
@@ -234,7 +207,7 @@ pub fn KeycapsCanvas(
                 for (i, c) in contours.iter().enumerate() {
                     polygon {
                         key: "outline-{i}",
-                        points: c.points.iter().map(|p| format!("{},{}", p.x, p.y)).collect::<Vec<_>>().join(" "),
+                        points: boardstudio_web_ui_shared::svg_points::polygon_points(&c.points),
                         class: if c.hole { "fill-canvas stroke-destructive stroke-[0.3] [stroke-dasharray:0.8_0.55]" } else { "fill-geometry-fill stroke-geometry-board stroke-[0.3]" },
                     }
                 }
@@ -334,6 +307,7 @@ fn foreground_color(color: &str) -> &'static str {
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
+    use boardstudio_model::model::{KeycapKeySettings, Part};
 
     #[test]
     fn foreground_color_picks_contrast_and_keycap_size_scales_units() {

@@ -14,6 +14,7 @@ pub(crate) use boardstudio_web_runtime::runtime;
 
 pub mod finding_navigation;
 pub mod instance_selection;
+pub mod owner;
 pub mod scope_transition;
 pub mod spacing_ghost;
 pub mod split_focus;

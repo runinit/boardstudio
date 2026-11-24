@@ -19,6 +19,9 @@ thread_local! {
     static PENDING_FETCH: RefCell<Option<js_sys::Promise>> = const { RefCell::new(None) };
 }
 
+/// Browser `JsValue` error text. This mirrors the canonical
+/// `boardstudio_web_host::browser::js_error`, kept local so `catalogue` stays
+/// free of `host` (presenters depend on catalogue, never the reverse).
 #[cfg(target_arch = "wasm32")]
 fn js_error(error: wasm_bindgen::JsValue) -> String {
     error.as_string().unwrap_or_else(|| format!("{error:?}"))

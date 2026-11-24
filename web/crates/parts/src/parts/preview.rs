@@ -6,6 +6,7 @@ use crate::preview_logic::*;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_model::model::{Pad, PadShape, PartDefinition, Side, Vec2};
 use boardstudio_web_ui_shared::canvas_layers::{LayerPanel, LayerToggleButton};
+use boardstudio_web_ui_shared::svg_points::polygon_points;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     callout::{Callout, CalloutVariant},
@@ -396,8 +397,12 @@ fn PartsSampleViewer(
         let preview = preview.clone();
         Rc::new(move |identity| {
             runtime.parts_preview_snapshot_is_current(&preview)
-                && identity.scope == preview.owner.scope
-                && identity.snapshot_token == preview.owner.snapshot_token
+                && boardstudio_web_ui_model::owner::owner_is_current(
+                    &preview.owner.scope,
+                    preview.owner.snapshot_token,
+                    &identity.scope,
+                    identity.snapshot_token,
+                )
         })
     };
     let on_signal = {
@@ -631,14 +636,6 @@ fn outline_bounds(points: &[Vec2]) -> Option<(f64, f64, f64, f64)> {
         max_y = max_y.max(point.y);
     }
     Some((min_x, min_y, max_x - min_x, max_y - min_y))
-}
-
-fn polygon_points(points: &[Vec2]) -> String {
-    points
-        .iter()
-        .map(|point| format!("{},{}", point.x, point.y))
-        .collect::<Vec<_>>()
-        .join(" ")
 }
 
 #[component]

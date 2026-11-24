@@ -3,6 +3,7 @@
 //! Rust Core plans, renders and serializes the footprints in one `ExportPcb`
 //! request; Core packs the resulting files directly.
 
+use crate::bundled_models::model_extension;
 use crate::portable_archive::pack_files;
 use boardstudio_application::{AcceptedSnapshot, OperationId};
 use boardstudio_core_kernel::hash::sha256_hex;
@@ -172,16 +173,6 @@ async fn load_model_files(
         }
     }
     Ok((model_paths, files))
-}
-
-fn model_extension(filename: &str) -> Option<&'static str> {
-    match filename.rsplit_once('.')?.1.to_ascii_lowercase().as_str() {
-        "step" => Some("step"),
-        "stp" => Some("stp"),
-        "stl" => Some("stl"),
-        "wrl" => Some("wrl"),
-        _ => None,
-    }
 }
 
 fn push_file(

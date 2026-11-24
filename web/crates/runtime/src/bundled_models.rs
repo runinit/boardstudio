@@ -21,6 +21,18 @@ pub fn preview_model_paths() -> impl Iterator<Item = (&'static str, &'static str
         .map(|model| (model.id, model.url_path))
 }
 
+/// The model-file extension Layout/Case preview and footprint export both
+/// resolve from an asset filename: STEP, STP, STL or WRL.
+pub(crate) fn model_extension(filename: &str) -> Option<&'static str> {
+    match filename.rsplit_once('.')?.1.to_ascii_lowercase().as_str() {
+        "step" => Some("step"),
+        "stp" => Some("stp"),
+        "stl" => Some("stl"),
+        "wrl" => Some("wrl"),
+        _ => None,
+    }
+}
+
 pub async fn is_generator_source(source: &str) -> Result<bool, String> {
     Ok(boardstudio_core_kernel::generators::is_generator(source))
 }

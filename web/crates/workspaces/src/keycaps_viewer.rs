@@ -8,10 +8,12 @@ use boardstudio_application::SelectionMode;
 use boardstudio_web_runtime::layout_viewer_source::LayoutKeycapPickSource;
 use boardstudio_web_runtime::runtime::Runtime;
 use boardstudio_web_ui_model::finding_navigation::{FindingNavigationTarget, KeycapsFitState};
+use boardstudio_web_ui_model::owner::owner_is_current;
 use boardstudio_web_ui_model::selection::{ContextRequest, SelectionAdapter, submit_context};
 use boardstudio_web_ui_model::state::ResolvedAppearance;
 use boardstudio_web_ui_model::tree::{TreeContext, context_for_part};
 use boardstudio_web_ui_shared::case_display::CaseDisplay;
+use boardstudio_web_ui_shared::keyboard::stop_space_pan;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertDescription, AlertVariant},
     button::{Button, ButtonVariant},
@@ -26,7 +28,6 @@ use boardstudio_web_ui_shared::viewport_3d::{
     ViewportSource,
 };
 use dioxus::prelude::*;
-use dioxus_web::WebEventExt;
 use std::rc::Rc;
 
 fn keycap_status(
@@ -54,15 +55,6 @@ fn keycap_status(
                 onclick: move |_| on_retry.call(()),
                 "Retry keycaps"
             }
-        }
-    }
-}
-
-fn stop_space_pan(event: KeyboardEvent) {
-    if event.key().to_string() == " " {
-        event.stop_propagation();
-        if let Some(raw) = event.data().try_as_web_event() {
-            raw.stop_propagation();
         }
     }
 }
@@ -107,8 +99,12 @@ pub fn KeycapsAssemblyViewer(
             };
             if current.owner != preview.owner
                 || !Rc::ptr_eq(&current.lease, &preview.lease)
-                || event.identity.scope != preview.owner.scope
-                || event.identity.snapshot_token != preview.owner.snapshot_token
+                || !owner_is_current(
+                    &preview.owner.scope,
+                    preview.owner.snapshot_token,
+                    &event.identity.scope,
+                    event.identity.snapshot_token,
+                )
             {
                 return;
             }
@@ -199,9 +195,12 @@ pub fn KeycapsAssemblyViewer(
         move |event: ScopedDisplayChange| {
             if event.is_current()
                 && preview.as_ref().is_some_and(|preview| {
-                    event.identity.scope == preview.owner.scope
-                        && event.identity.snapshot_token == preview.owner.snapshot_token
-                        && preview.lease.matches(&preview.owner)
+                    owner_is_current(
+                        &preview.owner.scope,
+                        preview.owner.snapshot_token,
+                        &event.identity.scope,
+                        event.identity.snapshot_token,
+                    ) && preview.lease.matches(&preview.owner)
                 })
             {
                 display.set(event.display);

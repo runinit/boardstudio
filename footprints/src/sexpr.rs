@@ -2,6 +2,8 @@
 //! are different nodes: some checks (pad `layers`, `shape`) only match bare atoms
 //! and the output keeps its quoting.
 use crate::error::{GeneratorError, Result};
+/// JavaScript `\s`, shared with [`number`](crate::number) as `is_js_space`.
+use crate::is_js_space as is_space;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expr {
@@ -55,21 +57,6 @@ pub fn children<'a>(node: &'a [Expr], name: &'a str) -> impl Iterator<Item = &'a
     node.iter()
         .filter(move |item| is_named(item, name))
         .filter_map(Expr::as_list)
-}
-
-/// JavaScript `\s`.
-fn is_space(c: char) -> bool {
-    matches!(
-        c,
-        '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'
-            ..='\u{200a}'
-                | '\u{2028}'
-                | '\u{2029}'
-                | '\u{202f}'
-                | '\u{205f}'
-                | '\u{3000}'
-                | '\u{feff}'
-    )
 }
 
 /// JavaScript `.` does not match line terminators.

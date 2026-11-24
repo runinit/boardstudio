@@ -1,5 +1,6 @@
 use super::view::KeymapView;
-use boardstudio_model::model::{Contour, Vec2};
+use boardstudio_model::model::Contour;
+use boardstudio_web_ui_shared::svg_points::polygon_points;
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
@@ -17,7 +18,7 @@ pub fn KeymapCanvas(
                 for (index, contour) in contours.iter().enumerate() {
                     polygon {
                         key: "outline-{index}",
-                        points: contour_points(&contour.points),
+                        points: polygon_points(&contour.points),
                         class: if contour.hole { "fill-canvas stroke-destructive stroke-[0.3] [stroke-dasharray:0.8_0.55]" } else { "fill-geometry-fill stroke-geometry-board stroke-[0.3]" },
                     }
                 }
@@ -93,12 +94,4 @@ pub fn KeymapCanvas(
             }
         }
     }
-}
-
-fn contour_points(points: &[Vec2]) -> String {
-    points
-        .iter()
-        .map(|point| format!("{},{}", point.x, point.y))
-        .collect::<Vec<_>>()
-        .join(" ")
 }

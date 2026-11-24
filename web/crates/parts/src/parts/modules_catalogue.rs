@@ -371,6 +371,4 @@ pub fn ModuleInspector(
     }
 }
 
-fn js_error(error: JsValue) -> String {
-    error.as_string().unwrap_or_else(|| format!("{error:?}"))
-}
+use boardstudio_web_ui_shared::js_error;

@@ -155,7 +155,8 @@ pub fn counterpart(
     }))
 }
 
-fn feature_member<'a>(
+/// The member record a linked feature carries for one half, by durable id.
+pub fn feature_member<'a>(
     feature: &'a MechanicalFeature,
     instance_id: &str,
 ) -> Option<&'a MechanicalFeatureMember> {
