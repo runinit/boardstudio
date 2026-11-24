@@ -400,11 +400,11 @@ pub(super) fn pair_owner_ids(doc: &ProjectDoc, pair_index: usize) -> Result<Vec<
     Ok(ids)
 }
 
-/// The durable ids one configuration carries for a feature kind.
+/// The durable ids one configuration carries for a feature kind, in stored order.
 pub(super) fn feature_ids(
     configuration: &MechanicalConfiguration,
     kind: MechanicalFeatureKind,
-) -> std::collections::BTreeSet<String> {
+) -> Vec<String> {
     match kind {
         MechanicalFeatureKind::Mount => configuration
             .mounts

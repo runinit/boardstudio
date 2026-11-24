@@ -292,45 +292,42 @@ pub(super) fn accepted_target_contours(
     })
 }
 
+/// The generated ids added, removed or changed between two item lists.
+///
+/// An item counts when its id carries the generated prefix and no identical
+/// item survives on the other side, so an edited generated part reports while
+/// an untouched one stays silent.
+fn generated_item_ids<T: PartialEq>(
+    before: &[T],
+    after: &[T],
+    prefix: &str,
+    id: impl Fn(&T) -> &str,
+    ids: &mut std::collections::BTreeSet<String>,
+) {
+    for item in after {
+        if id(item).starts_with(prefix) && !before.contains(item) {
+            ids.insert(id(item).into());
+        }
+    }
+    for item in before {
+        if id(item).starts_with(prefix) && !after.iter().any(|entry| id(entry) == id(item)) {
+            ids.insert(id(item).into());
+        }
+    }
+}
+
 /// The generated part ids, generated definition ids and membership owners that
 /// differ between two documents.
 pub(super) fn generated_change_ids(before: &ProjectDoc, after: &ProjectDoc) -> Vec<String> {
     let mut ids = std::collections::BTreeSet::new();
-    for part in &after.parts {
-        if part.id.starts_with(GENERATED_PART_PREFIX)
-            && before.parts.iter().find(|entry| entry.id == part.id) != Some(part)
-        {
-            ids.insert(part.id.clone());
-        }
-    }
-    for part in &before.parts {
-        if part.id.starts_with(GENERATED_PART_PREFIX)
-            && !after.parts.iter().any(|entry| entry.id == part.id)
-        {
-            ids.insert(part.id.clone());
-        }
-    }
-    for definition in &after.definitions {
-        if definition.id.starts_with(GENERATED_DEFINITION_PREFIX)
-            && before
-                .definitions
-                .iter()
-                .find(|entry| entry.id == definition.id)
-                != Some(definition)
-        {
-            ids.insert(definition.id.clone());
-        }
-    }
-    for definition in &before.definitions {
-        if definition.id.starts_with(GENERATED_DEFINITION_PREFIX)
-            && !after
-                .definitions
-                .iter()
-                .any(|entry| entry.id == definition.id)
-        {
-            ids.insert(definition.id.clone());
-        }
-    }
+    generated_item_ids(&before.parts, &after.parts, GENERATED_PART_PREFIX, |part| &part.id, &mut ids);
+    generated_item_ids(
+        &before.definitions,
+        &after.definitions,
+        GENERATED_DEFINITION_PREFIX,
+        |definition| &definition.id,
+        &mut ids,
+    );
     let generated_set = |part_ids: Option<&Vec<String>>| {
         part_ids
             .into_iter()
