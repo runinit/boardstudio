@@ -6,13 +6,13 @@
 //! - icons come from `crate::ui::icons` (ticket 004) instead of the `icons` crate
 //! - every root element carries a `data-slot` (theme contract section 9)
 
+use crate::ui::class_merge::merge_classes;
 use crate::ui::icons::{Loader, LoaderCircle};
 use dioxus::prelude::*;
-use tw_merge::tw_merge;
 
 #[component]
 pub fn Spinner(#[props(into, optional)] class: Option<String>) -> Element {
-    let merged_class = tw_merge!("size-4 animate-spin", class.as_deref().unwrap_or(""));
+    let merged_class = merge_classes!("size-4 animate-spin", class.as_deref().unwrap_or(""));
 
     rsx! {
         LoaderCircle { class: "{merged_class}" }
@@ -21,7 +21,7 @@ pub fn Spinner(#[props(into, optional)] class: Option<String>) -> Element {
 
 #[component]
 pub fn SpinnerCircle(#[props(into, optional)] class: Option<String>) -> Element {
-    let merged_class = tw_merge!("size-4 animate-spin", class.as_deref().unwrap_or(""));
+    let merged_class = merge_classes!("size-4 animate-spin", class.as_deref().unwrap_or(""));
 
     rsx! {
         Loader { class: "{merged_class}" }

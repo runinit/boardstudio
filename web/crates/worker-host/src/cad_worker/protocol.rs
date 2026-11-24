@@ -36,7 +36,7 @@ pub(super) fn collision_mesh_buffers(
     ]
 }
 
-pub(super) fn decode_result(value: JsValue) -> Result<CadResult, String> {
+pub fn decode_result(value: JsValue) -> Result<CadResult, String> {
     if Reflect::has(&value, &"queryQualification".into()).map_err(js_message)? {
         exact_fields(&value, &["revision", "collision", "queryQualification"])?;
     }
@@ -143,7 +143,7 @@ pub(super) fn decode_generated_analysis(
     Ok(analysis)
 }
 
-pub(super) fn validate_generated_payload_fields(
+pub fn validate_generated_payload_fields(
     value: &JsValue,
     has_identity: bool,
 ) -> Result<(), String> {
@@ -316,7 +316,7 @@ fn metadata_field<T: serde::de::DeserializeOwned + Serialize>(
     }
 }
 
-pub(super) fn strict_step_accuracy(value: JsValue) -> Result<CadStepAccuracy, String> {
+pub fn strict_step_accuracy(value: JsValue) -> Result<CadStepAccuracy, String> {
     // This pre-v2 field is omitted by the producer when no repair was requested.
     // Normalize only that established omission; v2 nullable fields stay required.
     let object = value
@@ -330,7 +330,7 @@ pub(super) fn strict_step_accuracy(value: JsValue) -> Result<CadStepAccuracy, St
     strict_metadata(normalized.into())
 }
 
-pub(super) fn strict_metadata<T: serde::de::DeserializeOwned + Serialize>(
+pub fn strict_metadata<T: serde::de::DeserializeOwned + Serialize>(
     value: JsValue,
 ) -> Result<T, String> {
     let decoded: T = serde_wasm_bindgen::from_value(value.clone()).map_err(|e| e.to_string())?;
@@ -465,7 +465,7 @@ buffer_reader!(read_f64_buffer, Float64Array, f64);
 buffer_reader!(read_u32_buffer, Uint32Array, u32);
 buffer_reader!(read_u8_buffer, Uint8Array, u8);
 
-pub(super) fn validate_analysis_buffers(positions: &JsValue, tags: &JsValue) -> Result<(), String> {
+pub fn validate_analysis_buffers(positions: &JsValue, tags: &JsValue) -> Result<(), String> {
     let positions = positions
         .dyn_ref::<Float64Array>()
         .ok_or("analysis positions require Float64Array")?;

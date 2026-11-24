@@ -6,7 +6,7 @@
 //! crate's styled preview component. Edits to the upstream file:
 //! - upstream's own state, inline `<script>` and document listeners are replaced by the primitive;
 //! - rust-ui classes go on the primitive's parts through `merge_attributes`, so a caller's `class` is
-//!   appended, not `tw_merge`d;
+//!   appended, not `merge_classes`d;
 //! - every part carries a `data-slot` (theme contract section 9);
 //! - upstream's variants and spacing are kept as classes; the `Outline` variant's borders are removed and
 //! -   the group is filled (`bg-muted`), cards style (theme contract section 8); focus rings kept;

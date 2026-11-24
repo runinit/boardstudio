@@ -6,8 +6,8 @@
 //! - built-in borders removed, cards style (theme contract section 8); focus rings kept; filled with `bg-field`, no shadow
 //! - every root element carries a `data-slot` (theme contract section 9)
 
+use crate::ui::class_merge::merge_classes;
 use dioxus::prelude::*;
-use tw_merge::tw_merge;
 
 #[allow(dead_code)]
 #[derive(Default, Clone, PartialEq, Eq, strum::IntoStaticStr)]
@@ -57,7 +57,7 @@ pub fn Input(
     #[props(into, optional)] oninput: Option<EventHandler<FormEvent>>,
     #[props(into, optional)] onchange: Option<EventHandler<FormEvent>>,
 ) -> Element {
-    let merged_class = tw_merge!(
+    let merged_class = merge_classes!(
         "text-foreground file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground flex h-control w-full min-w-0 rounded-md bg-field px-3 py-1 text-base transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
         "focus-visible:border-ring focus-visible:ring-ring/50",
         "focus-visible:ring-2",

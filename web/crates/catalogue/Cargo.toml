@@ -6,6 +6,9 @@ license = "MIT OR Apache-2.0"
 publish = false
 description = "BoardStudio bundled component catalogue: loading, generator normalization and physical setup proposals."
 
+[features]
+test-support = []
+
 [dependencies]
 boardstudio-core-kernel = { path = "../../../core/crates/kernel" }
 boardstudio-core-mechanical = { path = "../../../core/crates/mechanical" }

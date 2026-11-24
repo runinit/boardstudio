@@ -4,7 +4,6 @@ use boardstudio_application::{EditResolver, Resolution};
 pub trait InstalledAdapters: std::any::Any {
     fn deliver(&self, bytes: &[u8], filename: &str, media_type: Option<&str>);
     fn take_open_observer(&self) -> Option<futures_channel::oneshot::Sender<()>>;
-    fn store_read_completed(&self) -> Pin<Box<dyn Future<Output = ()> + '_>>;
 }
 
 pub fn installed(runtime: &Runtime) -> Rc<dyn InstalledAdapters> {
@@ -37,16 +36,6 @@ pub fn install(
     *runtime.persistence.borrow_mut() = persistence;
     *runtime.test.in_process_adapters.borrow_mut() = Some(adapters);
     runtime.changed();
-}
-
-pub fn set_storage_initializing(runtime: &Runtime, initializing: bool) {
-    runtime.storage_initializing.set(initializing);
-    runtime.changed();
-}
-
-pub fn fail_storage_initialization(runtime: &Runtime, error: &str) {
-    runtime.storage_initializing.set(true);
-    runtime.storage_initialization_failed(error);
 }
 
 /// Commit `document` as one `ReplaceDocument` edit through the real Session and Core,
@@ -84,22 +73,14 @@ pub async fn replace_document(
 
 /// Submit a fixed command through the same resolver route as a production commit.
 pub fn submit_fixed_command(runtime: &Rc<Runtime>, command: boardstudio_model::model::EditCommand) {
-    runtime.submit(fixed_command_event(runtime.operation(), command));
-}
-
-/// Build a resolver event for tests that need to submit through their own observer.
-pub fn fixed_command_event(
-    operation_id: OperationId,
-    command: boardstudio_model::model::EditCommand,
-) -> Event {
     let boardstudio_model::model::EditCommand {
         transaction_id,
         target_ids,
         operation,
         ..
     } = command;
-    Event::ResolveEdit {
-        operation_id,
+    runtime.submit(Event::ResolveEdit {
+        operation_id: runtime.operation(),
         label: "test fixed command".into(),
         resolver: EditResolver::new("test fixed command", move |_| {
             if transaction_id.is_empty() {
@@ -112,7 +93,7 @@ pub fn fixed_command_event(
                 )
             }
         }),
-    }
+    });
 }
 
 /// Make `board_id` the active board through the real Session.
@@ -144,11 +125,6 @@ pub fn deliver_completion(runtime: &Rc<Runtime>, completion: Completion) {
     runtime.test.held_effects.borrow_mut().extend(effects);
 }
 
-pub fn replace_session(runtime: &Runtime, session: Session) {
-    *runtime.session.borrow_mut() = session;
-    runtime.changed();
-}
-
 pub fn observe(
     runtime: &Runtime,
     operation: OperationId,
@@ -160,11 +136,6 @@ pub fn observe_next(runtime: &Runtime) -> crate::operation_outcomes::OutcomeSlot
     runtime
         .operation_outcomes
         .observe(OperationId(runtime.next_operation.get()))
-}
-
-/// Drive one real effect, returning its continuations so a test can pause between them.
-pub async fn run_effect(runtime: &Rc<Runtime>, effect: Effect) -> Vec<Effect> {
-    runtime.run(effect).await
 }
 
 pub async fn run_pending(runtime: &Rc<Runtime>) {
@@ -184,9 +155,4 @@ pub async fn run_pending(runtime: &Rc<Runtime>) {
                 .expect("in-process effect driver was dropped");
         }
     }
-}
-
-pub fn drive_pending(runtime: &Rc<Runtime>) {
-    let effects = std::mem::take(&mut *runtime.test.held_effects.borrow_mut());
-    runtime.drive_effects(effects);
 }

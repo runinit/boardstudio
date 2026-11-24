@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::wasm_bindgen_test;
 
-#[path = "../../../../core/tests/support/boundary.rs"]
+#[path = "../../../core/tests/support/boundary.rs"]
 mod boundary;
 
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
@@ -36,7 +36,7 @@ fn wasm_entry_points_reproduce_the_native_transcript() {
         },
     );
     let golden: Value = serde_json::from_str(include_str!(
-        "../../../../core/tests/fixtures/boundary/transcript.json"
+        "../../../core/tests/fixtures/boundary/transcript.json"
     ))
     .unwrap();
     boundary::assert_golden(&transcript, &golden);
@@ -50,7 +50,7 @@ fn wasm_constraint_depth_boundary_is_conservative() {
     // Mirrors Core's private budget; this pinned WASM boundary fails if it drifts.
     const MAX_DEPENDENCY_DEPTH: usize = 256;
     fn chain(count: usize) -> Value {
-        let mut document = serde_json::to_value(boardstudio_model::model::ProjectDoc::empty(
+        let mut document = serde_json::to_value(boardstudio_core::model::ProjectDoc::empty(
             "wasm-depth",
             "WASM depth",
         ))

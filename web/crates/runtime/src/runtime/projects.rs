@@ -236,13 +236,6 @@ impl Runtime {
         };
         self.spawn_project_open(move |this| async move {
             let loaded = this.load_saved(id).await;
-            #[cfg(any(test, feature = "test-support"))]
-            {
-                let adapters = this.test.in_process_adapters.borrow().clone();
-                if let Some(adapters) = adapters {
-                    adapters.store_read_completed().await;
-                }
-            }
             if this.open_sequence.get() != sequence {
                 return;
             }

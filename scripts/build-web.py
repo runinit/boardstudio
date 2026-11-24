@@ -102,7 +102,7 @@ def run(command, *, cwd=ROOT, env=None):
 def worker_providers():
     return (
         ("m1_cad_worker", WEB / "target/providers/cad-worker", "cad-worker", ROOT / "target/wasm-workers"),
-        ("boardstudio_offline_worker", OFFLINE_WORKER, "service-worker", ROOT / "target/wasm-offline-worker"),
+        ("boardstudio_offline_worker", OFFLINE_WORKER, "service-worker", ROOT / "target/wasm-workers"),
     )
 
 
@@ -250,7 +250,7 @@ def dx_command(route: str, *, release: bool, fast: bool) -> list[str]:
     command = ["dx", "build", "--web", "--base-path", ROUTES[route], *DX_FLAGS,
                "--no-default-features", "--features", "page", "--cargo-args=--locked"]
     if release:
-        command.insert(3, "--release")
+        command[3:3] = ["--release", "--debug-symbols", "false"]
     elif fast:
         # The checked build shares the `wasm-check` profile with every wasm test build.
         command[3:3] = ["--profile", "wasm-check", "--debug-symbols", "false"]
@@ -496,10 +496,18 @@ def prepare_runtime_providers(fast=False):
         providers = [(name, output, "boardstudio-web", feature, target)
                      for name, output, feature, target in worker_providers()]
         providers.append(("boardstudio_renderer_wasm", ROOT / "renderer/pkg", "boardstudio-renderer", None, ROOT / "target"))
-        def build_provider(provider):
-            fast_provider(*provider, bindgen)
-        with ThreadPoolExecutor(max_workers=min(check_jobs(), len(providers))) as pool:
-            list(pool.map(build_provider, providers))
+        # Both workers compile `boardstudio-web --lib` to the same output path
+        # (`target/wasm-workers/.../boardstudio_web.wasm`), so overlapping them could let one
+        # worker's `wasm-bindgen` bind the other's WASM; group shared targets into one sequential lane.
+        groups: dict[Path, list[tuple]] = {}
+        for provider in providers:
+            groups.setdefault(provider[4], []).append(provider)
+
+        def build_group(group):
+            for provider in group:
+                fast_provider(*provider, bindgen)
+        with ThreadPoolExecutor(max_workers=min(check_jobs(), len(groups))) as pool:
+            list(pool.map(build_group, groups.values()))
         handled = {name for name, *_ in providers}
     for command in commands:
         if command[:2] != ["wasm-pack", "build"]:

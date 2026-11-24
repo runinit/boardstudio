@@ -6,7 +6,7 @@
 //! crate's styled preview component. Edits to the upstream file:
 //! - upstream's own state, inline `<script>` and document listeners are replaced by the primitive;
 //! - rust-ui classes go on the primitive's parts through `merge_attributes`, so a caller's `class` is
-//!   appended, not `tw_merge`d;
+//!   appended, not `merge_classes`d;
 //! - every part carries a `data-slot` (theme contract section 9);
 //! - upstream's hidden radio inputs are replaced by the primitive's trigger and content;
 //! - the item divider (`divide-y`) is kept: it separates rows, it is not an outline;
@@ -18,6 +18,7 @@ use dioxus_primitives::accordion::{
 };
 use dioxus_primitives::{dioxus_attributes::attributes, merge_attributes};
 
+use crate::ui::class_merge::merge_classes;
 use crate::ui::icons::ChevronDown;
 
 #[component]
@@ -84,7 +85,7 @@ pub fn AccordionTitle(
     #[props(into, optional)] class: Option<String>,
     children: Element,
 ) -> Element {
-    let merged = tw_merge::tw_merge!("text-sm font-medium", class.as_deref().unwrap_or(""));
+    let merged = merge_classes!("text-sm font-medium", class.as_deref().unwrap_or(""));
     rsx! { span { "data-slot": "accordion-title", class: "{merged}", {children} } }
 }
 
@@ -93,7 +94,7 @@ pub fn AccordionDescription(
     #[props(into, optional)] class: Option<String>,
     children: Element,
 ) -> Element {
-    let merged = tw_merge::tw_merge!(
+    let merged = merge_classes!(
         "text-muted-foreground text-sm",
         class.as_deref().unwrap_or("")
     );

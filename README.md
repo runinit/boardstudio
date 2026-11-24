@@ -119,25 +119,25 @@ fonts, and shared finding outlines live in `web/assets/workbench-base.css`.
 is missing; CI installs it. Only the generator export check (`core/tests/generator_export.rs`) can be skipped
 on purpose, with `BOARDSTUDIO_ALLOW_NO_KICAD=1`; the KiCad integration tests have no skip.
 
-**Browser tests.** The page runner checks that every listed test executes. The presentation crate suite
-builds the selected lib test binaries in one Cargo invocation, then runs them with the locked
-`wasm-bindgen-test-runner` from each crate directory. The checked crate build enables
-`boardstudio-web-host/page` when testing `host`, and the separate page binary
-test build enables `boardstudio-web-host/test-support` so both full builds resolve the same shared
-features. Each launch starts its own `chromedriver` and Chrome.
+**Browser tests.** The page runner checks that every listed test executes. Every browser test lives
+in `web/src/page_suite_tests/` and runs through the single page test binary, built with
+`--no-default-features --features page,boardstudio-web-host/test-support` so the page and its
+host test seams resolve the same shared features, then launched with the locked
+`wasm-bindgen-test-runner` from the page package. Each launch starts its own `chromedriver` and Chrome.
 Layout uses a desktop viewport for the setup guide and the other layout tests. The page filters
 share the local browser job budget with the crate launches (up to six jobs by default, bounded by CPU
 count, or `BOARDSTUDIO_CHECK_JOBS=1` for serial), with a two-minute timeout per
-launch (`WASM_BINDGEN_TEST_TIMEOUT`). Use `python3 scripts/check.py browser --only <crate>...` for a
-partial crate run without the packaged build or drag smoke. Add `--keep-going` to continue across
+launch (`WASM_BINDGEN_TEST_TIMEOUT`). Use `python3 scripts/run-wasm-tests.py --files
+web/src/page_suite_tests/<module>.rs --depth 1` for a partial page run without the packaged build
+or drag smoke. Add `--keep-going` to continue across
 independent browser launches and still exit nonzero on failure. CSS-dependent subsets generate
 the test stylesheet first. Preflight uses the patched pair in
 `~/.cache/boardstudio/wasm-bindgen-patched/` (under `XDG_CACHE_HOME` when set) and builds it
 on a cache miss. Set `BOARDSTUDIO_WASM_BINDGEN_DIR` to override both tools at the version in
 `Cargo.lock`. If the patched build inputs are unavailable, the runner warns before using a
 matching stock pair from `PATH` or wasm-pack's cache.
-For source-level debugging, run `wasm-pack test --headless --chrome web/crates/<crate> --lib` by hand
-with `CARGO_PROFILE_DEV_DEBUG` unset. Add `--features page` for `host`.
+For source-level debugging, run `python3 scripts/run-wasm-tests.py --files
+web/src/page_suite_tests/<module>.rs --depth 1` by hand with `CARGO_PROFILE_DEV_DEBUG` unset.
 The browser step opens the packaged page and runs a trusted mouse-drag smoke over
 Part, Column, Stagger and Ctrl+Offset. It checks live preview, pointer capture, saved document state
 and exact Undo. Its success receipt and failure log are kept under `web/target/test-results/drag-browser/`.

@@ -6,6 +6,11 @@ use boardstudio_model::model::{
     EditOperation, ModuleAttachment, ModuleConnection, ModuleSupport, MountedModule,
     PartDefinition, Side, VikRole, VikSignal,
 };
+use boardstudio_web_parts::parts::load_horizontal_host_connector_definition;
+use boardstudio_web_ui_model::{
+    state::ComponentPlacementAction,
+    tree::{ScopedTreeContext, TreeContext},
+};
 use boardstudio_web_ui_shared::inspector_fields::{
     InspectorSection, NumericField, SelectField, TOUCH_CLS, TextCommitField, ToggleField,
 };
@@ -29,8 +34,8 @@ pub struct InspectorInput {
     pub snapshot: AcceptedSnapshot,
     pub scope: Scope,
     pub module_id: String,
-    pub selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
-    pub on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
+    pub selected_context: Signal<Option<ScopedTreeContext>>,
+    pub on_place_component: EventHandler<ComponentPlacementAction>,
 }
 
 #[derive(Clone, Default)]
@@ -74,8 +79,8 @@ fn PcbMountedModuleInspector(
     snapshot: AcceptedSnapshot,
     scope: Scope,
     module_id: String,
-    selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
-    on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
+    selected_context: Signal<Option<ScopedTreeContext>>,
+    on_place_component: EventHandler<ComponentPlacementAction>,
 ) -> Element {
     let input = InspectorInput {
         runtime: runtime.0,
@@ -199,7 +204,7 @@ fn PcbMountedModuleInspector(
             if needs_connector {
                 preparing.set(true);
                 spawn(async move {
-                    let result = super::parts::load_horizontal_host_connector_definition().await;
+                    let result = load_horizontal_host_connector_definition().await;
                     preparing.set(false);
                     match result {
                         Ok(definition) => finish(Some(Box::new(definition))),
@@ -671,7 +676,7 @@ fn PcbMountedModuleInspector(
                             div { strong { "{constituent.reference} · {constituent.name}" } small { if constituent.purchased { "Purchased assembly · footprint and external contacts only" } else { "{constituent.footprint}" } } }
                             Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS, disabled: !editable || constituent.source_definition.is_none(), aria_label: "Place {constituent.reference}", onclick: move |_| {
                                 if let Some(definition) = constituent.source_definition.clone() {
-                                    on_place_component.call(super::part_placement::ComponentPlacementAction::AddSourceObject {
+                                    on_place_component.call(ComponentPlacementAction::AddSourceObject {
                                         module_definition_id: constituent.module_definition_id.clone(),
                                         definition,
                                     });
@@ -782,7 +787,7 @@ use crate::connector_admission::{
 
 fn mounted_owner_current(
     runtime: &Rc<Runtime>,
-    selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
+    selected_context: Signal<Option<ScopedTreeContext>>,
     scope: &Scope,
     module_id: &str,
     token: boardstudio_application::SnapshotToken,
@@ -801,7 +806,7 @@ fn mounted_owner_current(
 
 fn mounted_selection_current(
     runtime: &Rc<Runtime>,
-    selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
+    selected_context: Signal<Option<ScopedTreeContext>>,
     scope: &Scope,
     module_id: &str,
 ) -> bool {
@@ -813,7 +818,7 @@ fn mounted_selection_current(
     };
     if selected.scope != *scope
         || selected.context
-            != (super::objects::TreeContext::MountedModule {
+            != (TreeContext::MountedModule {
                 board_id: scope.board_id.clone(),
                 module_id: module_id.to_owned(),
             })

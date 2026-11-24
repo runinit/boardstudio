@@ -1,13 +1,9 @@
 use super::in_process_support::DeliveredArtifact;
 use super::project_name_test_support as support;
 use crate::runtime::Runtime;
-use boardstudio_application::Scope;
-use boardstudio_application::{AcceptedSnapshot, Effect, ReadModel};
+use boardstudio_application::{AcceptedSnapshot, Effect, Scope};
 use boardstudio_model::model::*;
-use std::{
-    collections::{BTreeMap, VecDeque},
-    rc::Rc,
-};
+use std::{collections::BTreeMap, rc::Rc};
 
 pub async fn fixture() -> (Rc<Runtime>, AcceptedSnapshot, Scope) {
     let runtime = support::new_runtime();
@@ -17,25 +13,12 @@ pub async fn fixture() -> (Rc<Runtime>, AcceptedSnapshot, Scope) {
     (runtime, accepted, scope)
 }
 
-pub async fn run_effects(runtime: &Rc<Runtime>, initial: Vec<Effect>) {
-    let mut effects = VecDeque::from(initial);
-    while let Some(effect) = effects.pop_front() {
-        effects.extend(support::run_effect(runtime, effect).await);
-    }
-}
-
 pub fn start_export(runtime: &Rc<Runtime>) -> Vec<Effect> {
     runtime.export_firmware();
     support::take_held_effects(runtime)
 }
-pub fn take_effects(runtime: &Runtime) -> Vec<Effect> {
-    support::take_held_effects(runtime)
-}
 pub fn take_deliveries(runtime: &Runtime) -> Vec<DeliveredArtifact> {
     support::installed(runtime).take_deliveries()
-}
-pub fn session_model(runtime: &Runtime) -> ReadModel {
-    runtime.model()
 }
 
 fn definition(

@@ -6,7 +6,7 @@
 //! crate's styled preview component. Edits:
 //! - upstream's own state, inline `<script>` and document listeners are replaced by the primitive;
 //! - rust-ui classes go on the primitive's parts through `merge_attributes`, so a caller's `class` is
-//!   appended, not `tw_merge`d;
+//!   appended, not `merge_classes`d;
 //! - every part carries a `data-slot` (theme contract section 9);
 //! - rust-ui has no combobox file at this commit; the input takes `Input`'s classes (filled with `bg-field`,
 //! -   no border) and the list and options take `select.rs`'s classes;

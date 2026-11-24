@@ -1,16 +1,21 @@
-use super::*;
+use boardstudio_core::model::{PreparedCaseAssemblyIR, PreparedCaseIR};
+use boardstudio_web_host::cad_jobs::{CadOperation, CadReplyOutcome, CadSnapshotIdentity};
+use boardstudio_web_host::cad_worker::test_hooks::{
+    WireReply, WorkerQueue, decode_result, js_message, receive_worker_message, result_transfers,
+    run_request, validate_generated_payload_fields, worker_message, yield_to_worker,
+};
+use js_sys::{Float64Array, Object, Reflect, Uint32Array};
+use std::{cell::RefCell, rc::Rc};
+use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 use wasm_bindgen_test::wasm_bindgen_test;
+use web_sys::DedicatedWorkerGlobalScope;
 
 #[wasm_bindgen_test]
 fn generated_analysis_shared_contract_decodes_and_rejects_mutated_identity_provenance_and_buffers()
 {
-    use crate::cad_jobs::*;
-    let fixture: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../cad/wasm/tests/fixtures/generated-analysis-contract.json"
-    ))
-    .unwrap();
-    let body: boardstudio_model::model::PreparedCaseIR =
-        serde_json::from_value(fixture["preparedBody"].clone()).unwrap();
+    use boardstudio_web_host::cad_jobs::*;
+    let fixture = super::cad_worker_qualification_tests::fixture();
+    let body: PreparedCaseIR = serde_json::from_value(fixture["preparedBody"].clone()).unwrap();
     let geometry_identity = generated_geometry_identity(&body).unwrap();
     assert!(
         geometry_identity.starts_with(
@@ -37,7 +42,7 @@ fn generated_analysis_shared_contract_decodes_and_rejects_mutated_identity_prove
         job_id: "fixture-analysis".into(),
         identity: identity.clone(),
         operation: CadOperation::AnalyzeGeneratedBody,
-        prepared: Some(boardstudio_model::model::PreparedCaseAssemblyIR {
+        prepared: Some(PreparedCaseAssemblyIR {
             revision: body.revision,
             bodies: vec![body],
         }),
@@ -204,43 +209,20 @@ fn generated_analysis_transfers_the_original_typed_buffers() {
 
 #[wasm_bindgen_test]
 async fn generated_analysis_worker_selects_one_body_checks_identity_and_recovers_after_failure() {
-    let body: boardstudio_model::model::PreparedCaseIR = serde_json::from_value(serde_json::json!({
+    let body: PreparedCaseIR = serde_json::from_value(serde_json::json!({
         "revision":7,"body":{"id":"plate","name":"Plate","boardId":"board","kind":"plate","thickness":2,"clearance":0},"regions":[]
     })).unwrap();
-    let metadata = crate::cad_jobs::CadGeneratedAnalysisRequest {
-        body_id: "plate".into(),
-        geometry_identity: crate::cad_jobs::generated_geometry_identity(&body).unwrap(),
-        target_deflection_mm: Some(0.01),
-    };
-    let mut request = WireRequest {
-        header: CadEnvelope {
-            request_id: "analysis-1".into(),
-            job_id: "analysis-1".into(),
-            identity: CadSnapshotIdentity {
-                token: 3,
-                session_epoch: 1,
-                document_id: "doc".into(),
-                board_id: "board".into(),
-                instance_id: None,
-                revision: 7,
-            },
-            operation: CadOperation::AnalyzeGeneratedBody,
-        },
-        prepared: Some(boardstudio_model::model::PreparedCaseAssemblyIR {
-            revision: 7,
-            bodies: vec![body],
-        }),
-        generated_analysis_request: Some(metadata.clone()),
-        source_sha256: None,
-        step_import_options: None,
-        collision_query: None,
-        collision_meshes: None,
-        keycaps: None,
-        input_bytes: vec![],
-        packaged_step: false,
-    };
+    let mut request = super::cad_worker_qualification_tests::analysis_request(
+        "analysis-1",
+        3,
+        "doc",
+        "board",
+        body,
+        Some(0.01),
+    );
+    let metadata = request.generated_analysis_request.clone().unwrap();
     let queue = Rc::new(RefCell::new(WorkerQueue::default()));
-    let module = super::qualification_tests::controlled_provider(true);
+    let module = super::cad_worker_qualification_tests::controlled_provider(true);
     let (_, result) = run_request(&queue, &module, request.clone(), vec![])
         .await
         .unwrap_or_else(|(_, error, _)| panic!("{error}"));
@@ -277,7 +259,9 @@ async fn generated_analysis_worker_selects_one_body_checks_identity_and_recovers
 #[wasm_bindgen_test]
 async fn raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_worker_recovers() {
     let queue = Rc::new(RefCell::new(WorkerQueue::default()));
-    let module = Rc::new(super::qualification_tests::controlled_provider(true));
+    let module = Rc::new(super::cad_worker_qualification_tests::controlled_provider(
+        true,
+    ));
     let replies: Rc<RefCell<Vec<WireReply>>> = Rc::new(RefCell::new(Vec::new()));
     let captured = replies.clone();
     let post_message = Closure::<dyn FnMut(JsValue, JsValue)>::new(
@@ -352,7 +336,7 @@ async fn raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_w
         );
     }
 
-    let body: boardstudio_model::model::PreparedCaseIR = serde_json::from_value(
+    let body: PreparedCaseIR = serde_json::from_value(
         serde_json::json!({
             "revision": 7,
             "body": {"id": "plate", "name": "Plate", "boardId": "board-a", "kind": "plate", "thickness": 2, "clearance": 0},
@@ -383,30 +367,8 @@ async fn raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_w
     assert_eq!(replies.borrow()[1].header.request_id, "raw-preview-case");
     assert_eq!(replies.borrow()[1].outcome, CadReplyOutcome::Completed);
 
-    let keycap = boardstudio_model::model::KeycapSpec {
-        id: "k1".into(),
-        reference: "A1".into(),
-        profile: boardstudio_model::model::KeycapProfile::Cherry,
-        mount: boardstudio_model::model::KeycapMount::Mx,
-        row: 1,
-        size: boardstudio_model::model::Vec2 { x: 18.0, y: 18.0 },
-        top_size: boardstudio_model::model::Vec2 { x: 12.0, y: 12.0 },
-        height: 8.0,
-        tilt: 0.0,
-        dish_depth: 0.0,
-        spherical: false,
-        wall_thickness: 1.2,
-        pose: boardstudio_model::model::Pose2 {
-            at: boardstudio_model::model::Vec2 { x: 0.0, y: 0.0 },
-            rotation: 0.0,
-        },
-        side: boardstudio_model::model::Side::Front,
-        z: 8.4,
-        travel: 4.0,
-        legend: String::new(),
-        color: "#b0b5bd".into(),
-        legend_color: "#202124".into(),
-    };
+    let mut keycap = super::cad_worker_keycaps_tests::spec();
+    keycap.id = "k1".into();
     let keycap_frame = serde_json::json!({
         "requestId": "raw-preview-keycaps",
         "jobId": "job-keycaps",

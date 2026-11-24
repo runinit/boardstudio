@@ -8,14 +8,13 @@ description = "BoardStudio Layout workspace features: the objects tree and matri
 
 [dependencies]
 boardstudio-application = { path = "../../../application" }
-boardstudio-core-kernel = { path = "../../../core/crates/kernel" }
 boardstudio-core-mechanical = { path = "../../../core/crates/mechanical" }
 boardstudio-model = { path = "../../../core/crates/model" }
 boardstudio-web-runtime = { path = "../runtime" }
 boardstudio-web-ui-model = { path = "../ui-model" }
 boardstudio-web-ui-shared = { path = "../ui-shared" }
 boardstudio-web-catalogue = { path = "../catalogue" }
-boardstudio-web-keycaps = { path = "../keycaps" }
+boardstudio-web-workspaces = { path = "../workspaces" }
 boardstudio-web-parts = { path = "../parts" }
 boardstudio-web-layout-core = { path = "../layout-core" }
 boardstudio-web-layout-objects = { path = "../layout-objects" }

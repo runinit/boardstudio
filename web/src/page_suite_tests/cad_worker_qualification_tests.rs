@@ -1,12 +1,27 @@
 //! Controlled provider ownership/transport tests. This double authenticates no geometry.
-use super::*;
-use crate::cad_jobs::*;
+use boardstudio_core::hash::sha256_hex;
+use boardstudio_core::model::{PreparedCaseAssemblyIR, PreparedCaseIR};
+use boardstudio_web_host::cad_jobs::{
+    CadCollisionMeshPair, CadCollisionOperand, CadCollisionQuery, CadGeneratedAnalysis,
+    CadGeneratedAnalysisRequest, CadOperation, CadSnapshotIdentity, CadStepAccuracy,
+    CadStepImportOptions, MAX_COLLISION_QUERY_BYTES, generated_geometry_identity,
+};
+use boardstudio_web_host::cad_qualification as qualification;
+use boardstudio_web_host::cad_worker::test_hooks::{
+    CadEnvelope, WireRequest, WorkerQueue, decode_result, post_owned_result, result_transfers,
+    run_request, strict_metadata, strict_step_accuracy, validate_analysis_buffers,
+};
+use js_sys::{Array, Float64Array, Function, Object, Promise, Reflect, Uint32Array};
+use std::{cell::RefCell, rc::Rc};
+use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 use wasm_bindgen_test::wasm_bindgen_test;
+use web_sys::DedicatedWorkerGlobalScope;
 
-fn fixture() -> serde_json::Value {
-    serde_json::from_str(include_str!(
-        "../../../../cad/wasm/tests/fixtures/generated-analysis-contract.json"
-    ))
+pub(super) fn fixture() -> serde_json::Value {
+    serde_json::from_str(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../cad/wasm/tests/fixtures/generated-analysis-contract.json"
+    )))
     .unwrap()
 }
 
@@ -112,18 +127,23 @@ pub(super) fn controlled_provider(unqualified: bool) -> JsValue {
         .unwrap()
 }
 
-fn preparation(id: &str) -> WireRequest {
-    let body: boardstudio_model::model::PreparedCaseIR =
-        serde_json::from_value(fixture()["preparedBody"].clone()).unwrap();
+pub(super) fn analysis_request(
+    id: &str,
+    token: u64,
+    document_id: &str,
+    board_id: &str,
+    body: PreparedCaseIR,
+    target_deflection_mm: Option<f64>,
+) -> WireRequest {
     WireRequest {
         header: CadEnvelope {
             request_id: id.into(),
             job_id: id.into(),
             identity: CadSnapshotIdentity {
-                token: 11,
-                session_epoch: 2,
-                document_id: "contract-document".into(),
-                board_id: "contract-board".into(),
+                token,
+                session_epoch: if token == 3 { 1 } else { 2 },
+                document_id: document_id.into(),
+                board_id: board_id.into(),
                 instance_id: None,
                 revision: body.revision,
             },
@@ -132,9 +152,9 @@ fn preparation(id: &str) -> WireRequest {
         generated_analysis_request: Some(CadGeneratedAnalysisRequest {
             body_id: body.body.id.clone(),
             geometry_identity: generated_geometry_identity(&body).unwrap(),
-            target_deflection_mm: None,
+            target_deflection_mm,
         }),
-        prepared: Some(boardstudio_model::model::PreparedCaseAssemblyIR {
+        prepared: Some(PreparedCaseAssemblyIR {
             revision: body.revision,
             bodies: vec![body],
         }),
@@ -146,6 +166,11 @@ fn preparation(id: &str) -> WireRequest {
         packaged_step: false,
         keycaps: None,
     }
+}
+
+fn preparation(id: &str) -> WireRequest {
+    let body: PreparedCaseIR = serde_json::from_value(fixture()["preparedBody"].clone()).unwrap();
+    analysis_request(id, 11, "contract-document", "contract-board", body, None)
 }
 
 async fn prepare(

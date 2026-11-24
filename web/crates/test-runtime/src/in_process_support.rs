@@ -5,7 +5,6 @@
 //! the next reply or save, so tests control completion timing without feature-named branches
 //! in Runtime itself.
 
-use crate::gate_driver::{GateDriver, OneShotBehavior};
 use crate::runtime::{DocumentPersistence, test_hooks::InstalledAdapters};
 use boardstudio_application::{
     AcceptedSnapshot, Completion, Effect, Event, OperationId, SaveResult, Scope, Session,
@@ -13,9 +12,7 @@ use boardstudio_application::{
 use boardstudio_model::model::{Board, ProjectDoc};
 use boardstudio_web_host::host::{BrowserStore, SaveError, StorageToken};
 use futures_channel::oneshot;
-use std::{cell::RefCell, collections::BTreeMap, future::Future, pin::Pin, rc::Rc};
-
-type AsyncGate = (oneshot::Sender<()>, oneshot::Receiver<()>);
+use std::{cell::RefCell, collections::BTreeMap, pin::Pin, rc::Rc};
 
 #[derive(Clone)]
 enum PersistTarget {
@@ -27,18 +24,14 @@ enum PersistTarget {
 struct MemorySave {
     document: ProjectDoc,
     token: StorageToken,
-    assets: BTreeMap<String, Vec<u8>>,
 }
 
 /// The test persistence port. Saves run through one target — the production browser store by
-/// default, or in-process memory once a test opts in — behind an optional one-shot behavior
-/// that fails or holds the next save.
+/// default, or in-process memory once a test opts in.
 pub struct TestPersistence {
     target: RefCell<PersistTarget>,
     observed: RefCell<BTreeMap<String, StorageToken>>,
     target_observer: RefCell<Option<oneshot::Sender<()>>>,
-    behavior: GateDriver,
-    gate: RefCell<Option<AsyncGate>>,
 }
 
 impl TestPersistence {
@@ -47,8 +40,6 @@ impl TestPersistence {
             target: RefCell::new(PersistTarget::Store(store)),
             observed: RefCell::default(),
             target_observer: RefCell::new(None),
-            behavior: GateDriver::default(),
-            gate: RefCell::new(None),
         }
     }
 
@@ -61,22 +52,6 @@ impl TestPersistence {
         let (entered, receive) = oneshot::channel();
         *self.target_observer.borrow_mut() = Some(entered);
         receive
-    }
-
-    pub fn fail_next_save(&self, reason: impl Into<String>) {
-        self.behavior.fail_next_save(reason);
-    }
-
-    pub fn gate_next_save(&self) -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
-        let (entered, entered_rx) = oneshot::channel();
-        let (release, release_rx) = oneshot::channel();
-        self.behavior.hold_next_save();
-        *self.gate.borrow_mut() = Some((entered, release_rx));
-        (entered_rx, release)
-    }
-
-    fn take_behavior(&self) -> Option<OneShotBehavior> {
-        self.behavior.take_save()
     }
 
     fn memory_saves(&self) -> Option<Rc<RefCell<BTreeMap<String, MemorySave>>>> {
@@ -92,15 +67,6 @@ impl TestPersistence {
             .borrow()
             .get(project_id)
             .map(|save| save.document.clone())
-    }
-
-    /// The asset bytes the completed save kept alongside the document.
-    pub fn saved_assets(&self, project_id: &str) -> Option<BTreeMap<String, Vec<u8>>> {
-        let saves = self.memory_saves().expect("memory saves are not installed");
-        saves
-            .borrow()
-            .get(project_id)
-            .map(|save| save.assets.clone())
     }
 }
 
@@ -128,18 +94,6 @@ impl DocumentPersistence for TestPersistence {
         expected: Option<&'a StorageToken>,
     ) -> Pin<Box<dyn Future<Output = Result<StorageToken, SaveError>> + 'a>> {
         Box::pin(async move {
-            if let Some(behavior) = self.take_behavior() {
-                match behavior {
-                    OneShotBehavior::Fail(reason) => return Err(SaveError::Storage(reason)),
-                    OneShotBehavior::Hold => {
-                        let Some((entered, release)) = self.gate.borrow_mut().take() else {
-                            return Err(SaveError::Storage("save gate was not configured".into()));
-                        };
-                        let _ = entered.send(());
-                        let _ = release.await;
-                    }
-                }
-            }
             let target = self.target.borrow().clone();
             if let Some(entered) = self.target_observer.borrow_mut().take() {
                 let _ = entered.send(());
@@ -164,7 +118,6 @@ impl DocumentPersistence for TestPersistence {
                         MemorySave {
                             document: document.clone(),
                             token: token.clone(),
-                            assets: assets.clone(),
                         },
                     );
                     self.observe_token(document.id.clone(), token.clone());
@@ -183,18 +136,9 @@ pub struct DeliveredArtifact {
     pub media_type: Option<String>,
 }
 
-struct StoreReadGate {
-    entered: oneshot::Sender<()>,
-    release: oneshot::Receiver<()>,
-}
-
-/// The installed in-process adapters: the current in-process Core (replaced whenever the
-/// runtime restarts its executor) and the gated persistence port. Tests reach the gates and
-/// the saved copies through this handle.
 pub struct InProcessAdapters {
     persistence: Rc<TestPersistence>,
     deliveries: RefCell<Vec<DeliveredArtifact>>,
-    store_read_gate: RefCell<Option<StoreReadGate>>,
     open_observer: RefCell<Option<oneshot::Sender<()>>>,
 }
 
@@ -203,19 +147,8 @@ impl InProcessAdapters {
         Self {
             persistence: Rc::new(TestPersistence::through_store(store)),
             deliveries: RefCell::new(Vec::new()),
-            store_read_gate: RefCell::new(None),
             open_observer: RefCell::new(None),
         }
-    }
-
-    pub fn gate_next_store_read(&self) -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
-        let (entered, entered_rx) = oneshot::channel();
-        let (release, release_rx) = oneshot::channel();
-        *self.store_read_gate.borrow_mut() = Some(StoreReadGate {
-            entered,
-            release: release_rx,
-        });
-        (entered_rx, release)
     }
 
     pub fn observe_next_open(&self) -> oneshot::Receiver<()> {
@@ -278,17 +211,6 @@ pub fn opened_session() -> (Session, AcceptedSnapshot, Scope) {
 }
 
 impl InstalledAdapters for InProcessAdapters {
-    /// Pause observation of a real store result without replacing it.
-    fn store_read_completed(&self) -> Pin<Box<dyn Future<Output = ()> + '_>> {
-        Box::pin(async move {
-            let gate = self.store_read_gate.borrow_mut().take();
-            if let Some(gate) = gate {
-                let _ = gate.entered.send(());
-                let _ = gate.release.await;
-            }
-        })
-    }
-
     fn take_open_observer(&self) -> Option<oneshot::Sender<()>> {
         self.open_observer.borrow_mut().take()
     }

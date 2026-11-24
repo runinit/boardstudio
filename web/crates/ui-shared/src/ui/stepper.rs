@@ -8,9 +8,9 @@
 //! - `hooks/use_stepper.rs` is inlined at the end of this file
 //! - every root element carries a `data-slot` (theme contract section 9)
 
+use crate::ui::class_merge::merge_classes;
 use crate::ui::icons::Check;
 use dioxus::prelude::*;
-use tw_merge::tw_merge;
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, strum::IntoStaticStr)]
 pub enum StepperOrientation {
@@ -33,7 +33,7 @@ struct StepperItemCtx {
 
 #[component]
 pub fn StepperTitle(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
-    let merged = tw_merge!(
+    let merged = merge_classes!(
         "text-sm font-medium text-foreground transition-colors group-data-[state=Pending]/stepper-item:text-muted-foreground group-data-[state=Disabled]/stepper-item:text-muted-foreground/50",
         class.as_deref().unwrap_or("")
     );
@@ -45,7 +45,7 @@ pub fn StepperDescription(
     #[props(into, optional)] class: Option<String>,
     children: Element,
 ) -> Element {
-    let merged = tw_merge!(
+    let merged = merge_classes!(
         "text-sm text-muted-foreground transition-colors group-data-[state=Disabled]/stepper-item:text-muted-foreground/50",
         class.as_deref().unwrap_or("")
     );
@@ -54,7 +54,7 @@ pub fn StepperDescription(
 
 #[component]
 pub fn StepperSeparator(#[props(into, optional)] class: Option<String>) -> Element {
-    let merged = tw_merge!(
+    let merged = merge_classes!(
         "absolute bg-border transition-colors",
         "group-data-[orientation=Horizontal]/stepper:top-4 group-data-[orientation=Horizontal]/stepper:left-[calc(50%+1.5rem)] group-data-[orientation=Horizontal]/stepper:w-[calc(100%-3rem)] group-data-[orientation=Horizontal]/stepper:h-0.5 group-data-[orientation=Horizontal]/stepper:-translate-y-1/2",
         "group-data-[orientation=Vertical]/stepper:top-8 group-data-[orientation=Vertical]/stepper:left-4 group-data-[orientation=Vertical]/stepper:h-full group-data-[orientation=Vertical]/stepper:w-0.5",
@@ -75,7 +75,7 @@ pub fn Stepper(
     let ctx = use_stepper(total_steps, default_step);
     use_context_provider(|| ctx);
 
-    let merged = tw_merge!(
+    let merged = merge_classes!(
         "group/stepper flex w-full",
         if orientation == StepperOrientation::Horizontal {
             "flex-row flex-wrap items-start"
@@ -105,7 +105,7 @@ pub fn StepperItem(
     } else {
         stepper_ctx.step_state(step)
     };
-    let merged = tw_merge!(
+    let merged = merge_classes!(
         "group/stepper-item relative flex flex-1 flex-col items-center gap-2",
         "group-data-[orientation=Vertical]/stepper:flex-row group-data-[orientation=Vertical]/stepper:items-start",
         class.as_deref().unwrap_or("")
@@ -133,7 +133,7 @@ pub fn StepperTrigger(
     let is_disabled = state == StepState::Disabled;
     let is_active = state == StepState::Active;
 
-    let merged = tw_merge!(
+    let merged = merge_classes!(
         "group/stepper-trigger flex flex-1 flex-col items-center gap-2 rounded-md text-center outline-none cursor-pointer",
         "focus-visible:ring-[3px] focus-visible:ring-ring/50",
         "disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed",
@@ -172,7 +172,7 @@ pub fn StepperIndicator(
         StepState::Active | StepState::Completed => "bg-primary text-primary-foreground",
         StepState::Disabled => "bg-muted text-muted-foreground/50",
     };
-    let merged = tw_merge!(
+    let merged = merge_classes!(
         "relative z-10 flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-medium transition-colors",
         variant_class,
         class.as_deref().unwrap_or("")

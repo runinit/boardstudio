@@ -6,12 +6,13 @@
 //! crate's styled preview component. Edits to the upstream file:
 //! - upstream's own state, inline `<script>` and document listeners are replaced by the primitive;
 //! - rust-ui classes go on the primitive's parts through `merge_attributes`, so a caller's `class` is
-//!   appended, not `tw_merge`d;
+//!   appended, not `merge_classes`d;
 //! - every part carries a `data-slot` (theme contract section 9);
 //! - the primitive's root is the backdrop and its content is the panel; upstream's built-in close button
 //! -   is dropped (the primitive has no close part; callers close through `open` / `on_open_change`);
 //! - the panel's border is removed, cards style (theme contract section 8).
 
+use crate::ui::class_merge::merge_classes;
 use dioxus::prelude::*;
 use dioxus_primitives::dialog::{self, DialogDescriptionProps, DialogRootProps, DialogTitleProps};
 use dioxus_primitives::{dioxus_attributes::attributes, merge_attributes};
@@ -57,7 +58,7 @@ pub fn DialogDescription(props: DialogDescriptionProps) -> Element {
 
 #[component]
 pub fn DialogHeader(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
-    let merged = tw_merge::tw_merge!(
+    let merged = merge_classes!(
         "flex flex-col gap-2 text-center sm:text-left",
         class.as_deref().unwrap_or("")
     );
@@ -66,13 +67,13 @@ pub fn DialogHeader(#[props(into, optional)] class: Option<String>, children: El
 
 #[component]
 pub fn DialogBody(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
-    let merged = tw_merge::tw_merge!("flex flex-col gap-4", class.as_deref().unwrap_or(""));
+    let merged = merge_classes!("flex flex-col gap-4", class.as_deref().unwrap_or(""));
     rsx! { div { "data-slot": "dialog-body", class: "{merged}", {children} } }
 }
 
 #[component]
 pub fn DialogFooter(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
-    let merged = tw_merge::tw_merge!(
+    let merged = merge_classes!(
         "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
         class.as_deref().unwrap_or("")
     );

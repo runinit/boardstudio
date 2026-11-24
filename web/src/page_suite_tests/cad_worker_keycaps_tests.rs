@@ -1,5 +1,15 @@
-use super::*;
-use boardstudio_model::model::{KeycapMount, KeycapProfile, Pose2, Side, Vec2};
+use boardstudio_core::model::{KeycapMount, KeycapProfile, KeycapSpec, Pose2, Side, Vec2};
+use boardstudio_web_host::cad_jobs::{
+    CadCollisionMeshPair, CadCollisionObservation, CadCollisionOperand, CadCollisionQuery,
+    CadOperation, CadRequest, CadSnapshotIdentity, CadStepImportOptions, validate_reply,
+};
+use boardstudio_web_host::cad_qualification as qualification;
+use boardstudio_web_host::cad_worker::CadWorker;
+use boardstudio_web_host::cad_worker::test_hooks::{
+    KEYCAP_STEP_UNSUPPORTED, keycap_operation_error,
+};
+use js_sys::Array;
+use wasm_bindgen::JsValue;
 use wasm_bindgen_test::wasm_bindgen_test;
 use web_sys::{Blob, BlobPropertyBag, Url};
 
@@ -23,7 +33,7 @@ impl Drop for WorkerSource {
     }
 }
 
-fn spec() -> KeycapSpec {
+pub(super) fn spec() -> KeycapSpec {
     KeycapSpec {
         id: "key-1".into(),
         reference: "A1".into(),
@@ -210,11 +220,6 @@ async fn keycaps_worker_failure_late_reply_stale_revision_and_retry_are_correlat
 
 #[wasm_bindgen_test]
 async fn read_step_and_collision_query_transfer_typed_arrays_and_validate_replies() {
-    use crate::cad_jobs::{
-        CadCollisionMeshPair, CadCollisionObservation, CadCollisionOperand, CadCollisionQuery,
-        CadStepImportOptions, validate_reply,
-    };
-
     let source = WorkerSource::new(
         r#"
         self.postMessage({ kind: "ready" });
@@ -370,9 +375,10 @@ async fn read_step_and_collision_query_transfer_typed_arrays_and_validate_replie
     let id_mat = [
         1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
     ];
-    let fixture: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../cad/wasm/tests/fixtures/generated-analysis-contract.json"
-    ))
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../cad/wasm/tests/fixtures/generated-analysis-contract.json"
+    )))
     .unwrap();
     let descriptor: qualification::AnalysisMesh = serde_json::from_value(
         fixture["qualificationV2"]["activation"]["descriptors"]["vendor"].clone(),

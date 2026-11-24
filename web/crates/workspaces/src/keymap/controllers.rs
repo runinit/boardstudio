@@ -1,5 +1,4 @@
 //! Synchronous runtime.commit controllers for Keymap layers, bindings, encoders, and macros.
-use super::super::pcb_wiring::PcbWiringResolution;
 use super::view::KeymapView;
 use crate::binding::{BindingLayerChoice, BindingMacroChoice, BindingTarget};
 use crate::encoder::{
@@ -10,7 +9,7 @@ use crate::macro_edit::{MacroEditAction, macro_resolver};
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope, SnapshotToken};
 use boardstudio_model::model::{EditCommand, EditOperation, KeyBinding, KeymapChange, KeymapMacro};
-use boardstudio_web_ui_model::Workspace;
+use boardstudio_web_ui_model::{Workspace, wiring::PcbWiringResolution};
 use dioxus::prelude::*;
 use std::rc::Rc;
 

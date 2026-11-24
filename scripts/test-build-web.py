@@ -7,6 +7,8 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -159,9 +161,67 @@ class BuildWebTests(unittest.TestCase):
              patch.object(BUILD, "_stage_provider_entries"):
             BUILD.prepare_runtime_providers(fast=True)
         self.assertEqual(run.call_count, 5)
-        for call, target in zip(run.call_args_list[:2], ("wasm-workers", "wasm-offline-worker"), strict=True):
-            self.assertEqual(call.kwargs["env"]["CARGO_TARGET_DIR"], str(root / "target" / target))
+        for call in run.call_args_list[:2]:
+            self.assertEqual(call.kwargs["env"]["CARGO_TARGET_DIR"], str(root / "target" / "wasm-workers"))
+            self.assertNotIn("wasm-offline-worker", call.kwargs["env"]["CARGO_TARGET_DIR"])
         self.assertNotIn("env", run.call_args_list[2].kwargs)
+
+    def test_same_target_fast_providers_build_sequentially(self):
+        lock = threading.Lock()
+        active_by_target = set()
+        overlaps = []
+        events = []
+        calls = []
+
+        def fake_fast_provider(name, output, package, feature, target, bindgen):
+            target_key = str(target)
+            with lock:
+                if target_key in active_by_target:
+                    overlaps.append((name, target_key))
+                active_by_target.add(target_key)
+                events.append(("start", name, target_key))
+            try:
+                time.sleep(0.03)
+                with lock:
+                    calls.append((name, target_key))
+            finally:
+                with lock:
+                    active_by_target.remove(target_key)
+                    events.append(("end", name, target_key))
+
+        providers = [
+            ("m1_cad_worker", Path("cad-worker"), "cad-worker", Path("shared")),
+            ("boardstudio_offline_worker", Path("offline"), "service-worker", Path("shared")),
+            ("boardstudio_renderer_wasm", Path("renderer"), None, Path("other")),
+        ]
+        with patch.object(BUILD, "worker_providers", return_value=tuple(providers[:2])), \
+             patch.object(BUILD, "locked_wasm_bindgen", return_value=Path("bindgen")), \
+             patch.object(BUILD, "fast_provider", side_effect=fake_fast_provider), \
+             patch.object(BUILD, "bake_bundled_step"), \
+             patch.object(BUILD, "provider_commands", return_value=[]), \
+             patch.object(BUILD, "snapshot", return_value={}), \
+             patch.object(BUILD, "_stage_provider_entries"):
+            BUILD.prepare_runtime_providers(fast=True)
+        # Both workers write to the same target output path, so they must never overlap
+        # inside one sequential lane even when distinct target dirs run concurrently.
+        self.assertEqual(overlaps, [])
+        self.assertEqual(len(calls), 3)
+        shared_events = [event for event in events if event[2] == "shared"]
+        worker_calls = [name for name, target in calls if target == "shared"]
+        self.assertEqual(sorted(worker_calls),
+                         ["boardstudio_offline_worker", "m1_cad_worker"])
+        self.assertEqual(
+            shared_events,
+            [
+                ("start", worker_calls[0], "shared"),
+                ("end", worker_calls[0], "shared"),
+                ("start", worker_calls[1], "shared"),
+                ("end", worker_calls[1], "shared"),
+            ],
+        )
+        targets = {name: str(target) for name, _, _, target in BUILD.worker_providers()}
+        self.assertEqual(targets["m1_cad_worker"], targets["boardstudio_offline_worker"])
+        self.assertNotIn("wasm-offline-worker", targets["boardstudio_offline_worker"])
 
     def test_two_fast_builds_skip_staging_and_packaging_when_unchanged(self):
         root, web = self.root, self.root / "web"
@@ -413,6 +473,12 @@ class BuildWebTests(unittest.TestCase):
     def test_routes_option_rejects_unknown_routes(self):
         with self.assertRaises(SystemExit):
             BUILD.main(["--routes", "elsewhere"])
+
+    def test_dx_command_strips_release_and_fast_debug_symbols(self):
+        release = BUILD.dx_command("subpath", release=True, fast=False)
+        self.assertEqual(release[3:6], ["--release", "--debug-symbols", "false"])
+        fast = BUILD.dx_command("subpath", release=False, fast=True)
+        self.assertEqual(fast[3:7], ["--profile", "wasm-check", "--debug-symbols", "false"])
 
     def test_checked_build_stages_providers_and_css_before_both_routes(self):
         root = self.root

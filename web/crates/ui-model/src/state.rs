@@ -152,12 +152,6 @@ impl InstanceSelection {
 }
 
 #[cfg(all(any(test, feature = "test-support"), target_arch = "wasm32"))]
-pub fn use_empty_test_instance_selection() {
-    let preference = use_signal(|| None);
-    use_context_provider(|| InstanceSelection(preference));
-}
-
-#[cfg(all(any(test, feature = "test-support"), target_arch = "wasm32"))]
 pub fn use_test_case_generation_state() {
     let live_preview = use_signal(|| true);
     let automatic = use_signal(AutomaticCaseGeneration::new);

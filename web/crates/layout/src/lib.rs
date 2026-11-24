@@ -10,8 +10,6 @@
 // Shared imports keep the paths used by Layout's view and controller modules.
 pub(crate) use crate as presentation;
 #[cfg(target_arch = "wasm32")]
-pub(crate) use boardstudio_web_keycaps::keycaps_fit;
-#[cfg(target_arch = "wasm32")]
 pub use boardstudio_web_layout_objects::canvas_interaction;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use boardstudio_web_parts::parts;
@@ -24,6 +22,8 @@ pub(crate) use boardstudio_web_ui_model::state::*;
 pub(crate) use boardstudio_web_ui_model::svg_coordinates::coordinates;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use boardstudio_web_ui_shared::panels;
+#[cfg(target_arch = "wasm32")]
+pub(crate) use boardstudio_web_workspaces::keycaps_fit;
 
 pub use boardstudio_web_layout_core::{
     anchor_badge, anchor_pick, canvas_projection, companion_placement, component_inspector,
@@ -40,8 +40,6 @@ pub mod board_inspector;
 pub mod layout_findings;
 #[cfg(target_arch = "wasm32")]
 pub mod layout_findings_state;
-#[cfg(target_arch = "wasm32")]
-pub mod layout_viewer;
 #[cfg(target_arch = "wasm32")]
 pub use boardstudio_web_layout_core::outline_snapping;
 #[cfg(target_arch = "wasm32")]

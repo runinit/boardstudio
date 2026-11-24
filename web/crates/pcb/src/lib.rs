@@ -7,10 +7,7 @@
 //! unit tests run under `cargo test`.
 #![cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 
-// Modules keep the page bin's paths: `super::SelectionAdapter`, `super::objects::TreeContext`,
-// `super::parts::is_generator_source`, `crate::runtime`.
-#[cfg(target_arch = "wasm32")]
-pub(crate) use crate as presentation;
+// Modules keep the page bin's paths: `super::SelectionAdapter`, `crate::runtime`.
 #[cfg(target_arch = "wasm32")]
 pub(crate) use board_reference_owner::{
     board_reference_owner_is_current, board_reference_owner_lineage_is_current,
@@ -33,22 +30,6 @@ pub(crate) use boardstudio_web_ui_shared::footprint_graphics;
 pub(crate) use boardstudio_web_ui_shared::{
     board_reference_effect, canvas_layers, model_asset_import,
 };
-
-#[cfg(target_arch = "wasm32")]
-pub(crate) mod objects {
-    pub use boardstudio_web_ui_model::tree::{ScopedTreeContext, TreeContext};
-}
-
-#[cfg(target_arch = "wasm32")]
-pub(crate) mod part_placement {
-    pub use boardstudio_web_ui_model::state::ComponentPlacementAction;
-}
-
-#[cfg(target_arch = "wasm32")]
-pub(crate) mod parts {
-    pub use boardstudio_web_catalogue::bundled::{generator_parameter_schema, is_generator_source};
-    pub use boardstudio_web_parts::parts::load_horizontal_host_connector_definition;
-}
 
 pub mod connector_admission;
 pub mod firmware_position_choices;

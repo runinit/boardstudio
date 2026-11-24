@@ -84,7 +84,7 @@ class BrowserToolsTests(unittest.TestCase):
                                  "os.environ['BOARDSTUDIO_BUILD_LOCK_FD'] = str(f.fileno())\n")
                         calls = {
                             "serial": "import check; check.run_serial(['cargo'], dict(os.environ), captured=[])",
-                            "shared-wasm-build": "import check; check.run_serial(check.WASM_CRATE_BUILD, dict(os.environ), outputs=[])",
+                            "shared-wasm-build": "import check; check.run_serial(['cargo', 'test', '--no-run'], dict(os.environ), outputs=[])",
                             "parallel": "import check; env=dict(os.environ); check.run_parallel([[(['cargo'], check.ROOT, env)]], env)",
                             "grandchild": "import check; check.run_serial(['cargo'], dict(os.environ))",
                             "web": "import importlib; m=importlib.import_module('build-web'); m.run(['cargo'])",

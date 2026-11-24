@@ -18,6 +18,9 @@ pub use boardstudio_model::{electrical_jumpers, electrical_profiles, model};
 #[cfg(target_arch = "wasm32")]
 use model::ArchiveReply;
 /// Handle an artifact request without mutating the stateful document engine.
+///
+/// JSON entry point for native tests only; production WASM uses typed `artifact::handle`.
+#[cfg(feature = "wire-json")]
 pub fn artifact_request(json: &str) -> String {
     artifact::request(json)
 }

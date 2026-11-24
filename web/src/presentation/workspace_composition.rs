@@ -522,7 +522,7 @@ impl WorkspaceFrame {
         canvas: Element,
     ) -> Element {
         if (self.status.layout.assembly_3d())() {
-            rsx! { layout_viewer::LayoutCanonicalViewer { keycaps_fit } }
+            rsx! { keycaps_viewer::KeycapsAssemblyViewer { keycaps_fit } }
         } else {
             canvas
         }

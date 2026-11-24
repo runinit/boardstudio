@@ -6,7 +6,7 @@
 //! crate's styled preview component. Edits to the upstream file:
 //! - upstream's own state, inline `<script>` and document listeners are replaced by the primitive;
 //! - rust-ui classes go on the primitive's parts through `merge_attributes`, so a caller's `class` is
-//!   appended, not `tw_merge`d;
+//!   appended, not `merge_classes`d;
 //! - every part carries a `data-slot` (theme contract section 9);
 //! - upstream's `show_toast` builds toasts with `document::eval` and a script outside the registry; here the
 //! -   primitive's provider and `use_toast()` drive them, and the item takes Card's look (filled card, soft shadow,

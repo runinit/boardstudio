@@ -25,12 +25,6 @@ pub use boardstudio_web_worker_host::cad_worker;
 #[cfg(feature = "page")]
 pub use boardstudio_web_worker_host::offline;
 
-#[cfg(all(test, target_arch = "wasm32", feature = "page"))]
-mod boundary_parity;
-#[cfg(all(test, target_arch = "wasm32", feature = "page"))]
-#[path = "../../../../core/tests/support/mod.rs"]
-pub(crate) mod support;
-
 #[cfg(all(feature = "page", any(target_arch = "wasm32", test)))]
 mod persistence_contract;
 

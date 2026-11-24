@@ -372,5 +372,8 @@ impl MatrixSetupPreset {
     }
 }
 
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_catalogue;
+
 #[cfg(test)]
 mod tests;

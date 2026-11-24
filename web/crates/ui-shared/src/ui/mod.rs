@@ -6,6 +6,7 @@ pub mod badge;
 pub mod button;
 pub mod callout;
 pub mod card;
+pub(crate) mod class_merge;
 pub mod empty;
 pub mod field;
 pub mod icons;

@@ -6,8 +6,8 @@
 //! - built-in borders removed, cards style (theme contract section 8); focus rings kept; the destructive variant is tinted (`bg-destructive/10`)
 //! - every root element carries a `data-slot` (theme contract section 9)
 
+use crate::ui::class_merge::merge_classes;
 use dioxus::prelude::*;
-use tw_merge::tw_merge;
 
 #[allow(dead_code)]
 #[derive(Default, Clone, PartialEq, Eq)]
@@ -32,7 +32,7 @@ pub fn Alert(
     #[props(into, default)] class: Option<String>,
     children: Element,
 ) -> Element {
-    let class = tw_merge!(
+    let class = merge_classes!(
         "relative w-full rounded-lg px-4 py-3 text-sm [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground [&>svg~*]:pl-7",
         variant.as_str(),
         class.as_deref().unwrap_or("")
@@ -44,7 +44,7 @@ pub fn Alert(
 
 #[component]
 pub fn AlertTitle(#[props(into, default)] class: Option<String>, children: Element) -> Element {
-    let class = tw_merge!(
+    let class = merge_classes!(
         "mb-1 font-medium tracking-tight leading-none",
         class.as_deref().unwrap_or("")
     );
@@ -58,7 +58,7 @@ pub fn AlertDescription(
     #[props(into, default)] class: Option<String>,
     children: Element,
 ) -> Element {
-    let class = tw_merge!(
+    let class = merge_classes!(
         "text-sm [&_p]:leading-relaxed",
         class.as_deref().unwrap_or("")
     );

@@ -3,8 +3,6 @@ mod startup;
 use crate::persistence_contract::{sha256_bytes, validate_exact_json_integers};
 use boardstudio_model::model::ProjectDoc;
 use database::CachedDatabase;
-#[cfg(test)]
-use database::open_database;
 use futures_channel::oneshot;
 use js_sys::{Array, Reflect, Uint8Array};
 use serde::Serialize;
@@ -32,8 +30,10 @@ async fn storage_task<T: 'static, E: From<PersistError> + 'static>(
         .map_err(|_| PersistError("storage task was abandoned".into()))?
 }
 
-const PROJECT_STORE: &str = "projects";
-const ASSET_STORE: &str = "assets";
+/// Store names the page suite's storage tests address through `test_hooks`.
+pub const PROJECT_STORE: &str = "projects";
+/// Store names the page suite's storage tests address through `test_hooks`.
+pub const ASSET_STORE: &str = "assets";
 const PROJECT_TOKEN_STORE: &str = "project_tokens";
 const ACTIVE_PROJECT_KEY: &str = "boardstudio-m1-active-project";
 pub const CONFLICT: &str =
@@ -409,22 +409,6 @@ impl BrowserStore {
             .await
     }
 
-    /// Store one raw record without validation, so tests can fabricate entries
-    /// the typed writers never produce (for example values JSON cannot
-    /// represent, which decode to unreadable records with no token).
-    #[cfg(any(test, feature = "test-support"))]
-    pub async fn put_raw_record_for_test(&self, value: JsValue) -> Result<(), PersistError> {
-        let store = self.clone();
-        storage_task(async move {
-            let key = Reflect::get(&value, &"id".into()).map_err(js_error)?;
-            let result = store
-                .change_project(key, None, Some((value, None)), vec![], vec![])
-                .await;
-            result.map_err(|error| PersistError(error.to_string()))
-        })
-        .await
-    }
-
     pub async fn delete_project_expected(
         &self,
         project_id: String,
@@ -648,7 +632,7 @@ fn project_token(nonce: JsValue, json: &serde_json::Value) -> Result<StorageToke
     }
 }
 
-fn serialize_document(document: &ProjectDoc) -> Result<JsValue, PersistError> {
+pub fn serialize_document(document: &ProjectDoc) -> Result<JsValue, PersistError> {
     let value = serde_json::to_value(document).map_err(|error| PersistError(error.to_string()))?;
     validate_exact_json_integers(&value).map_err(PersistError)?;
     value
@@ -672,7 +656,7 @@ fn decode_project_json(value: serde_json::Value) -> Result<ProjectDoc, PersistEr
     serde_json::from_value(value).map_err(invalid_project)
 }
 
-async fn load_value(
+pub async fn load_value(
     store: &BrowserStore,
     store_name: &str,
     key: JsValue,
@@ -687,7 +671,7 @@ async fn load_value(
     Ok((!value.is_undefined()).then_some(value))
 }
 
-fn request_result(
+pub fn request_result(
     request: IdbRequest,
 ) -> impl std::future::Future<Output = Result<JsValue, PersistError>> {
     let (sender, receiver) = oneshot::channel();
@@ -737,7 +721,7 @@ impl Drop for TransactionCallbacks {
     }
 }
 
-fn transaction_completion(
+pub fn transaction_completion(
     transaction: &IdbTransaction,
     failure_reason: Rc<RefCell<Option<String>>>,
 ) -> impl std::future::Future<Output = Result<(), PersistError>> {
@@ -803,9 +787,27 @@ fn js_error(value: JsValue) -> PersistError {
     PersistError(crate::browser::js_error(value))
 }
 
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "storage_lifetime_tests.rs"]
-mod lifetime_tests;
+// Test seam for the page suite's storage lifetime tests: every re-exported item is
+// `pub` inside the private `storage` module, so it stays crate-internal unless the
+// page suite reaches it through this `test-support`-only module.
+#[cfg(feature = "test-support")]
+pub mod test_hooks {
+    pub use super::database::open_database;
+    pub use super::{
+        ASSET_STORE, BrowserStore, PROJECT_STORE, PersistError, StorageToken, load_value,
+        request_result, serialize_document, transaction_completion,
+    };
+
+    /// Whether this store currently holds an open IndexedDB connection.
+    pub fn has_cached_database(store: &BrowserStore) -> bool {
+        store.database.borrow().is_some()
+    }
+
+    /// The opaque storage token bytes the lifetime tests assert on (`nonce:` prefixes).
+    pub fn storage_token_str(token: &StorageToken) -> &str {
+        &token.0
+    }
+}
 
 fn js_decode_error(error: serde_wasm_bindgen::Error) -> PersistError {
     PersistError(error.to_string())
