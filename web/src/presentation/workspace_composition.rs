@@ -1,6 +1,6 @@
 //! Private routing for the six independently owned workspace surfaces.
+use super::workbench::editor_session::camera;
 use super::workbench::editor_session::commands::camera_commands;
-use super::workbench::editor_session::{camera, keyboard};
 use super::*;
 use boardstudio_web_ui_model::editor::EditorContext;
 
@@ -30,7 +30,6 @@ pub(super) struct CanvasEventHandlers {
 // The active workspace supplies its surfaces under the existing dock and canvas shells.
 #[derive(Clone)]
 pub(super) struct WorkspaceInteraction {
-    pub navigation: CanvasNavigationState,
     pub tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
     pub inspector_settings: Signal<PanelSettings>,
 }
@@ -43,9 +42,9 @@ pub(super) struct WorkspaceInteraction {
 pub(super) struct LayoutSessionServices {
     pub matrix_inspector: objects::MatrixInspectorMount,
     pub matrix_transform_inspector: objects::MatrixTransformInspectorMount,
-    pub matrix_placement: objects::MatrixPlacementMount,
-    pub mirrored_pair: objects::MirroredPairMount,
-    pub outline_inspector: Option<outline_lifecycle::OutlineInspectorProjection>,
+    pub matrix_placement: objects::MatrixPlacementSession,
+    pub mirrored_pair: objects::MirroredPairSession,
+    pub outline_inspector: Option<outline::OutlineInspectorProjection>,
     pub layout_findings: boardstudio_web_layout::layout_findings_state::LayoutFindingsState,
     pub on_return_from_layout_finding: Callback<(), ()>,
     pub on_close_layout_findings: Callback<(), ()>,
@@ -67,7 +66,7 @@ pub(super) struct WorkspaceFrame {
     pub svg: Rc<RefCell<Option<SvgElement>>>,
     pub surface_size: Signal<(f64, f64)>,
     pub matrix_setup: objects::MatrixSetupMount,
-    pub part_placement: part_placement::PartPlacementMount,
+    pub part_placement: part_placement::PartPlacementSession,
     pub placement_error: Option<String>,
     pub layout_target: Signal<Option<String>>,
     pub parts_query: parts::PartsQuery,
@@ -505,13 +504,13 @@ impl WorkspaceFrame {
             )
         };
         let handlers = CanvasEventHandlers {
-            wheel: EventHandler::new(keyboard::build_wheel(
-                editor,
-                adapter,
-                &self.scope,
+            wheel: EventHandler::new(super::editor::canvas_adapter::wheel_handler(
+                editor.runtime(),
+                self.svg.clone(),
+                self.scope.clone(),
+                adapter.clone(),
                 self.owner.generation,
-                &self.svg,
-                &bounds,
+                bounds.canvas_bounds(),
             )),
             ..self.handlers.clone()
         };

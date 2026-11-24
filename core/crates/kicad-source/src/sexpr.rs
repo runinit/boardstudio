@@ -55,6 +55,19 @@ pub fn is_back_layer(node: &Node) -> bool {
     field(node, "layer").is_some_and(|layer| layer.starts_with("B."))
 }
 
+/// Stroke width token of a graphic node, preferring a nested `stroke` block.
+pub fn graphic_width(node: &Node) -> Option<&str> {
+    child(node, "stroke")
+        .and_then(|stroke| child(stroke, "width"))
+        .or_else(|| child(node, "width"))
+        .and_then(|width| atom_at(width, 1))
+}
+
+/// Corners of an axis-aligned rectangle, in document order.
+pub fn rect_corners(a: Vec2, b: Vec2) -> [Vec2; 4] {
+    [a, Vec2 { x: b.x, y: a.y }, b, Vec2 { x: a.x, y: b.y }]
+}
+
 #[derive(Debug)]
 pub enum NumberError {
     Invalid,
@@ -272,6 +285,15 @@ pub fn three_point_arc(
     Some((center, first, sweep, radius))
 }
 
+/// Subdivision count for a circular arc at the caller's chord deviation.
+pub fn arc_subdivision_count(sweep: f64, radius: f64, deviation: f64, minimum: usize) -> usize {
+    let step = 2.0
+        * (1.0 - deviation / radius.max(deviation))
+            .clamp(-1.0, 1.0)
+            .acos();
+    (sweep.abs() / step.max(0.001)).ceil().max(minimum as f64) as usize
+}
+
 /// Sample a circular arc using the caller's subdivision count.
 pub fn sample_arc(center: Vec2, start: f64, sweep: f64, radius: f64, steps: usize) -> Vec<Vec2> {
     (0..=steps)
@@ -311,7 +333,8 @@ pub fn chain_loop_from(
     Some(chain)
 }
 
-fn within(a: Vec2, b: Vec2, tolerance: f64) -> bool {
+/// Endpoint proximity shared by courtyard and cutout loop chaining.
+pub fn within(a: Vec2, b: Vec2, tolerance: f64) -> bool {
     (a.x - b.x).hypot(a.y - b.y) <= tolerance
 }
 

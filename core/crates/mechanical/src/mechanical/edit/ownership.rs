@@ -3,11 +3,14 @@
 use super::super::change::{MechanicalChange, MechanicalEdit, MechanicalTarget};
 use super::super::features;
 use super::super::inputs::effective_inputs;
+use super::closures::{project_changed, validate_supplied_template};
+use super::feature_lifecycle::{
+    feature_ids, pair_mut_at, physical_hardware, physical_hardware_mut,
+};
 use super::{
-    closure_list_absent, dedup_changed, default_configuration, feature_ids, find_feature_value,
-    identity_reservation_of, initialize_target_closures, instance_configuration_mut,
-    merge_identity_floor, owner_id, pair_at, pair_mut_at, pair_owner_ids, paired_index, project,
-    remove_feature, reserved_identity_floor, validate_mounting_hole,
+    closure_list_absent, default_configuration, find_feature_value, identity_reservation_of,
+    initialize_target_closures, instance_configuration_mut, merge_identity_floor, owner_id,
+    pair_at, pair_owner_ids, paired_index, remove_feature, reserved_identity_floor,
 };
 use crate::model::*;
 
@@ -31,10 +34,7 @@ pub(super) fn persist(
             Ok(())
         }
         MechanicalTarget::Instance { instance_id } => {
-            let hardware = doc
-                .hardware
-                .as_mut()
-                .ok_or("Physical instances are unavailable")?;
+            let hardware = physical_hardware_mut(doc)?;
             let instance = hardware
                 .instances
                 .iter_mut()
@@ -46,16 +46,125 @@ pub(super) fn persist(
     }
 }
 
+/// Propagates one edited effective configuration into its pair's ownership.
+///
+/// A linked feature belongs to its pair, so a change made from either member
+/// updates the pair's single authored value (stored in the editing member's
+/// frame) and never a second writable copy on the member. An ordinary delete of
+/// a linked feature is the linked deletion: it removes both counterparts and the
+/// relationship itself, while an explicit omit keeps a one-half exception. A
+/// `Pair` member's shared construction change is written to the pair. Every
+/// other field stays in the member's local configuration, which the caller
+/// persists. This is the pair-owned half of [`super::ownership::persist_edit`].
+pub(super) fn persist_paired_feature_edit(
+    doc: &mut ProjectDoc,
+    instance_id: &str,
+    pair_index: usize,
+    before: &MechanicalConfiguration,
+    after: &MechanicalConfiguration,
+    local: &mut MechanicalConfiguration,
+    changed: &mut Vec<String>,
+) -> Result<(), String> {
+    // A change to a linked feature or to the pair's shared construction
+    // changes the derived geometry both halves show, so the report names the
+    // pair and both member instances.
+    let mut pair_touched = false;
+    let pair = pair_at(doc, pair_index)?.clone();
+    for feature in &pair.features {
+        let Some(member) = feature
+            .members
+            .iter()
+            .find(|member| member.instance_id == *instance_id)
+        else {
+            continue;
+        };
+        if member.state == MechanicalFeatureState::Linked {
+            let after_value = find_feature_value(after, feature.kind, &member.feature_id);
+            let before_value = find_feature_value(before, feature.kind, &member.feature_id);
+            if after_value != before_value {
+                pair_touched = true;
+                let pair = pair_mut_at(doc, pair_index)?;
+                match after_value {
+                    Some(value) => {
+                        // The editing member's frame authors the pair's
+                        // single value; the other half derives from it.
+                        let target = pair
+                            .features
+                            .iter_mut()
+                            .find(|entry| entry.id == feature.id)
+                            .ok_or("The mechanical feature is no longer in its pair.")?;
+                        target.value = value;
+                        target.author = instance_id.to_string();
+                    }
+                    None => {
+                        // Ordinary delete of a linked feature removes both
+                        // counterparts: the relationship itself goes. An
+                        // explicit omit is what keeps a one-half exception.
+                        features::remove_linked_feature(pair, &feature.id)?;
+                    }
+                }
+            }
+        }
+        // A linked feature is never persisted on the member; a `Local`
+        // exception stays in its ordinary configuration.
+        if member.state != MechanicalFeatureState::Local {
+            remove_feature(local, feature.kind, &member.feature_id);
+        }
+    }
+    // Generic additions on a paired half join the pair by default, so both
+    // halves show the new feature and neither keeps a private copy. Only
+    // explicit exceptions (Make local) stay local.
+    for kind in [
+        MechanicalFeatureKind::Mount,
+        MechanicalFeatureKind::ClosureMount,
+        MechanicalFeatureKind::Opening,
+        MechanicalFeatureKind::GasketSupport,
+    ] {
+        let existing = feature_ids(before, kind);
+        let added: std::collections::BTreeSet<String> = feature_ids(after, kind)
+            .into_iter()
+            .filter(|id| !existing.contains(id))
+            .collect();
+        for id in added {
+            let Some(value) = find_feature_value(after, kind, &id) else {
+                continue;
+            };
+            let pair = pair_mut_at(doc, pair_index)?;
+            if pair.features.iter().any(|feature| feature.id == id) {
+                continue;
+            }
+            pair_touched = true;
+            features::add_linked_feature(
+                pair,
+                MechanicalFeature {
+                    id: id.clone(),
+                    kind,
+                    author: instance_id.to_string(),
+                    value,
+                    members: Vec::new(),
+                },
+            )?;
+            remove_feature(local, kind, &id);
+        }
+    }
+    let before_shared = features::shared_construction(before);
+    let after_shared = features::shared_construction(after);
+    if before_shared != after_shared {
+        pair_touched = true;
+        pair_mut_at(doc, pair_index)?.construction = after_shared;
+    }
+    if pair_touched {
+        changed.extend(pair_owner_ids(doc, pair_index)?);
+    }
+    Ok(())
+}
+
 /// Persists an edited effective configuration to the ownership that owns each part.
 ///
-/// A linked feature belongs to its pair, so a change made from either member updates
-/// the pair's single authored value (stored in the editing member's frame) and never
-/// a second writable copy on the member. An ordinary delete of a linked feature is the
-/// linked deletion: it removes both counterparts and the relationship itself, while an
-/// explicit omit stores a one-half exception. A `Pair` member's shared construction
-/// change is written to the pair, a `Legacy` member's overlay change is written to the
-/// shared source so the next effective read returns it, and every other field stays
-/// local.
+/// Pair-owned features and shared construction route through
+/// [`persist_paired_feature_edit`]; a `Legacy` member's overlay change is written
+/// to the shared source so the next effective read returns it, and every other
+/// field stays local.
 pub(super) fn persist_edit(
     doc: &mut ProjectDoc,
     target: &MechanicalTarget,
@@ -73,101 +182,15 @@ pub(super) fn persist_edit(
         });
         match pair_index {
             Some(pair_index) => {
-                // A change to a linked feature or to the pair's shared construction
-                // changes the derived geometry both halves show, so the report names the
-                // pair and both member instances.
-                let mut pair_touched = false;
-                let pair = pair_at(doc, pair_index)?.clone();
-                for feature in &pair.features {
-                    let Some(member) = feature
-                        .members
-                        .iter()
-                        .find(|member| member.instance_id == *instance_id)
-                    else {
-                        continue;
-                    };
-                    if member.state == MechanicalFeatureState::Linked {
-                        let after_value =
-                            find_feature_value(&after, feature.kind, &member.feature_id);
-                        let before_value =
-                            find_feature_value(before, feature.kind, &member.feature_id);
-                        if after_value != before_value {
-                            pair_touched = true;
-                            let pair = pair_mut_at(doc, pair_index)?;
-                            match after_value {
-                                Some(value) => {
-                                    // The editing member's frame authors the pair's
-                                    // single value; the other half derives from it.
-                                    let target = pair
-                                        .features
-                                        .iter_mut()
-                                        .find(|entry| entry.id == feature.id)
-                                        .ok_or(
-                                            "The mechanical feature is no longer in its pair.",
-                                        )?;
-                                    target.value = value;
-                                    target.author = instance_id.clone();
-                                }
-                                None => {
-                                    // Ordinary delete of a linked feature removes both
-                                    // counterparts: the relationship itself goes. An
-                                    // explicit omit is what keeps a one-half exception.
-                                    features::remove_linked_feature(pair, &feature.id)?;
-                                }
-                            }
-                        }
-                    }
-                    // A linked feature is never persisted on the member; a `Local`
-                    // exception stays in its ordinary configuration.
-                    if member.state != MechanicalFeatureState::Local {
-                        remove_feature(&mut local, feature.kind, &member.feature_id);
-                    }
-                }
-                // Generic additions on a paired half join the pair by default, so both
-                // halves show the new feature and neither keeps a private copy. Only
-                // explicit exceptions (Make local) stay local.
-                for kind in [
-                    MechanicalFeatureKind::Mount,
-                    MechanicalFeatureKind::ClosureMount,
-                    MechanicalFeatureKind::Opening,
-                    MechanicalFeatureKind::GasketSupport,
-                ] {
-                    let existing = feature_ids(before, kind);
-                    let added: Vec<String> = feature_ids(&after, kind)
-                        .into_iter()
-                        .filter(|id| !existing.contains(id))
-                        .collect();
-                    for id in added {
-                        let Some(value) = find_feature_value(&after, kind, &id) else {
-                            continue;
-                        };
-                        let pair = pair_mut_at(doc, pair_index)?;
-                        if pair.features.iter().any(|feature| feature.id == id) {
-                            continue;
-                        }
-                        pair_touched = true;
-                        features::add_linked_feature(
-                            pair,
-                            MechanicalFeature {
-                                id: id.clone(),
-                                kind,
-                                author: instance_id.clone(),
-                                value,
-                                members: Vec::new(),
-                            },
-                        )?;
-                        remove_feature(&mut local, kind, &id);
-                    }
-                }
-                let before_shared = features::shared_construction(before);
-                let after_shared = features::shared_construction(&after);
-                if before_shared != after_shared {
-                    pair_touched = true;
-                    pair_mut_at(doc, pair_index)?.construction = after_shared;
-                }
-                if pair_touched {
-                    changed.extend(pair_owner_ids(doc, pair_index)?);
-                }
+                persist_paired_feature_edit(
+                    doc,
+                    instance_id,
+                    pair_index,
+                    before,
+                    &after,
+                    &mut local,
+                    changed,
+                )?;
             }
             None => {
                 let ownership = doc
@@ -240,9 +263,7 @@ pub(super) fn enable(
         }
         return Ok(Vec::new());
     }
-    if let Some(template) = edit.mounting_hole.as_deref() {
-        validate_mounting_hole(template)?;
-    }
+    validate_supplied_template(edit.mounting_hole.as_deref())?;
     // The fresh configuration carries the Core defaults (battery, stabilizers and the
     // rest), exactly as the effective read would resolve it, so enabling and the
     // initialization that follows persist the same configuration the adapter shows.
@@ -258,8 +279,7 @@ pub(super) fn enable(
         initialize_target_closures(doc, board_contours, target, &configuration, &mut changed)?;
     configuration.closure_mounts = Some(suggested);
     persist(doc, target, configuration)?;
-    project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
-    dedup_changed(&mut changed);
+    project_changed(doc, edit.mounting_hole.as_deref(), &mut changed)?;
     Ok(changed)
 }
 
@@ -294,9 +314,7 @@ pub(super) fn disable(
     if !present {
         return Ok(Vec::new());
     }
-    if let Some(template) = edit.mounting_hole.as_deref() {
-        validate_mounting_hole(template)?;
-    }
+    validate_supplied_template(edit.mounting_hole.as_deref())?;
     let mut changed = Vec::new();
     // Disabling a paired half is the explicit "unlink and disable this half": both
     // halves keep the model they showed, the pair goes, and only the selected half
@@ -313,10 +331,7 @@ pub(super) fn disable(
     match target {
         MechanicalTarget::Board { .. } => doc.mechanical = None,
         MechanicalTarget::Instance { instance_id } => {
-            let hardware = doc
-                .hardware
-                .as_mut()
-                .ok_or("Physical instances are unavailable")?;
+            let hardware = physical_hardware_mut(doc)?;
             let instance = hardware
                 .instances
                 .iter_mut()
@@ -336,8 +351,7 @@ pub(super) fn disable(
         }
     }
     changed.push(owner_id(target, board_id));
-    project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
-    dedup_changed(&mut changed);
+    project_changed(doc, edit.mounting_hole.as_deref(), &mut changed)?;
     Ok(changed)
 }
 
@@ -358,9 +372,7 @@ pub(super) fn initialize_closures(
     {
         return Err("The current stack no longer needs mounting-location initialization.".into());
     }
-    if let Some(template) = edit.mounting_hole.as_deref() {
-        validate_mounting_hole(template)?;
-    }
+    validate_supplied_template(edit.mounting_hole.as_deref())?;
     let mut changed = vec![owner_id(target, board_id)];
     // A paired half's effective stack carries the pair's linked features. Only its own stored
     // configuration is written back, so those features are not copied into it.
@@ -375,8 +387,7 @@ pub(super) fn initialize_closures(
         initialize_target_closures(doc, board_contours, target, &configuration, &mut changed)?;
     configuration.closure_mounts = Some(suggested);
     persist(doc, target, configuration)?;
-    project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
-    dedup_changed(&mut changed);
+    project_changed(doc, edit.mounting_hole.as_deref(), &mut changed)?;
     Ok(changed)
 }
 
@@ -406,10 +417,7 @@ pub(super) fn link_mirror_pair(
     else {
         return Err("The link operation was dispatched with another change.".into());
     };
-    let hardware = doc
-        .hardware
-        .as_ref()
-        .ok_or("Physical instances are unavailable")?;
+    let hardware = physical_hardware(doc)?;
     if hardware.pairs.iter().any(|pair| pair.id == *pair_id) {
         return Err(format!(
             "A mechanical pair named {pair_id:?} already exists."
@@ -550,10 +558,7 @@ pub(super) fn link_mirror_pair(
         }
     }
 
-    let hardware = doc
-        .hardware
-        .as_mut()
-        .ok_or("Physical instances are unavailable")?;
+    let hardware = physical_hardware_mut(doc)?;
     for (index, member) in members.iter().enumerate() {
         let instance = hardware
             .instances
@@ -588,8 +593,7 @@ pub(super) fn link_mirror_pair(
     features::validate(doc)?;
 
     let mut changed = vec![pair_id.clone(), members[0].clone(), members[1].clone()];
-    project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
-    dedup_changed(&mut changed);
+    project_changed(doc, edit.mounting_hole.as_deref(), &mut changed)?;
     Ok(changed)
 }
 
@@ -611,9 +615,7 @@ pub(super) fn remove_physical_instance(
                 .into(),
         );
     };
-    if let Some(template) = edit.mounting_hole.as_deref() {
-        validate_mounting_hole(template)?;
-    }
+    validate_supplied_template(edit.mounting_hole.as_deref())?;
     let (pair_index, survivor_id) = pair_membership(doc, instance_id)?;
     // The survivor's visible model is read from the accepted state before the pair is
     // cleared, so materializing it cannot lose pair-derived geometry or construction.
@@ -626,10 +628,7 @@ pub(super) fn remove_physical_instance(
     )?;
     let pair_id = pair_at(doc, pair_index)?.id.clone();
     {
-        let hardware = doc
-            .hardware
-            .as_mut()
-            .ok_or("Physical instances are unavailable")?;
+        let hardware = physical_hardware_mut(doc)?;
         hardware.pairs.remove(pair_index);
         let entry = hardware
             .instances
@@ -646,115 +645,7 @@ pub(super) fn remove_physical_instance(
         doc.physical_instance_id = None;
     }
     let mut changed = vec![pair_id, survivor_id, instance_id.clone()];
-    project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
-    dedup_changed(&mut changed);
-    Ok(changed)
-}
-
-/// Converts selected legacy-ownership members to local ownership without changing
-/// what they show.
-///
-/// Every selected member must exist on the target board, be selected once and still use
-/// the legacy shared construction; anything else is an error with no mutation. Each
-/// member's current effective values - including the hardware, critical fits and
-/// profiles the legacy overlay supplied - are materialized into its own configuration
-/// before its ownership becomes `Local`. When the remaining legacy members resolve their
-/// shared subset through a converted member (the first-instance fallback), the prior
-/// common construction is captured as the legacy shared source first, so their baseline
-/// is preserved and later edits to the converted member cannot feed back into it.
-pub(super) fn materialize_legacy_construction(
-    doc: &mut ProjectDoc,
-    board_id: &str,
-    edit: &MechanicalEdit,
-) -> Result<Vec<String>, String> {
-    let MechanicalChange::MaterializeLegacyConstruction { instance_ids } = &edit.change else {
-        return Err("The conversion operation was dispatched with another change.".into());
-    };
-    if instance_ids.is_empty() {
-        return Err("Select at least one physical instance to convert.".into());
-    }
-    let mut seen = std::collections::BTreeSet::new();
-    for instance_id in instance_ids {
-        if !seen.insert(instance_id) {
-            return Err(format!(
-                "Physical instance {instance_id:?} is selected more than once."
-            ));
-        }
-    }
-    {
-        let hardware = doc
-            .hardware
-            .as_ref()
-            .ok_or("Physical instances are unavailable")?;
-        for instance_id in instance_ids {
-            let instance = hardware
-                .instances
-                .iter()
-                .find(|instance| instance.id == *instance_id)
-                .ok_or_else(|| format!("Physical instance {instance_id:?} is unavailable."))?;
-            if instance.board_id != board_id {
-                return Err(format!(
-                    "Physical instance {instance_id:?} belongs to another board."
-                ));
-            }
-            if instance.construction_ownership != MechanicalConstructionOwnership::Legacy {
-                return Err(format!(
-                    "Physical instance {instance_id:?} does not use the legacy shared construction."
-                ));
-            }
-        }
-    }
-    // The prior common construction is captured before conversion when the remaining
-    // legacy members would otherwise fall back to a converted member's configuration.
-    let captured_source = {
-        let hardware = doc
-            .hardware
-            .as_ref()
-            .ok_or("Physical instances are unavailable")?;
-        if hardware.shared_construction.is_some() {
-            None
-        } else {
-            hardware
-                .instances
-                .iter()
-                .find(|instance| instance.mechanical.is_some())
-                .filter(|instance| instance_ids.contains(&instance.id))
-                .and_then(|instance| instance.mechanical.clone())
-        }
-    };
-    // Resolve every selected member's effective values before anything mutates.
-    let materialized = instance_ids
-        .iter()
-        .map(|instance_id| {
-            effective_inputs(
-                doc,
-                &[],
-                &MechanicalTarget::Instance {
-                    instance_id: instance_id.clone(),
-                },
-            )
-            .map(|inputs| (instance_id.clone(), inputs.configuration))
-        })
-        .collect::<Result<Vec<_>, String>>()?;
-    let hardware = doc
-        .hardware
-        .as_mut()
-        .ok_or("Physical instances are unavailable")?;
-    if let Some(common) = &captured_source {
-        hardware.shared_construction = Some(common.clone());
-    }
-    for (instance_id, configuration) in materialized {
-        let instance = hardware
-            .instances
-            .iter_mut()
-            .find(|instance| instance.id == instance_id)
-            .ok_or("The selected physical instance is unavailable.")?;
-        instance.mechanical = Some(configuration);
-        instance.construction_ownership = MechanicalConstructionOwnership::Local;
-    }
-    let mut changed = vec![board_id.to_string()];
-    changed.extend(instance_ids.iter().cloned());
-    dedup_changed(&mut changed);
+    project_changed(doc, edit.mounting_hole.as_deref(), &mut changed)?;
     Ok(changed)
 }
 
@@ -763,10 +654,7 @@ pub(super) fn pair_membership(
     doc: &ProjectDoc,
     instance_id: &str,
 ) -> Result<(usize, String), String> {
-    let hardware = doc
-        .hardware
-        .as_ref()
-        .ok_or("Physical instances are unavailable")?;
+    let hardware = physical_hardware(doc)?;
     let Some(index) = hardware
         .pairs
         .iter()
@@ -835,10 +723,7 @@ pub fn reconcile_physical_topology(
             changed.push(survivor_id);
         }
     }
-    let hardware = doc
-        .hardware
-        .as_mut()
-        .ok_or("Physical instances are unavailable")?;
+    let hardware = physical_hardware_mut(doc)?;
     let paired: std::collections::BTreeSet<String> = hardware
         .pairs
         .iter()
@@ -880,10 +765,7 @@ pub(super) fn materialize_survivor(
     )
     .ok()
     .map(|inputs| inputs.configuration);
-    let hardware = doc
-        .hardware
-        .as_mut()
-        .ok_or("Physical instances are unavailable")?;
+    let hardware = physical_hardware_mut(doc)?;
     let Some(instance) = hardware
         .instances
         .iter_mut()
@@ -927,8 +809,7 @@ pub(super) fn unlink_mirror_pair(
     let (pair_id, members) = dissolve_pair_ownership(doc, pair_index)?;
     let mut changed = vec![pair_id];
     changed.extend(members);
-    project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
-    dedup_changed(&mut changed);
+    project_changed(doc, edit.mounting_hole.as_deref(), &mut changed)?;
     Ok(changed)
 }
 
@@ -968,10 +849,7 @@ pub(super) fn dissolve_pair_ownership(
         let mut configuration = effective_inputs(doc, &[], &target)?.configuration;
         merge_identity_floor(&mut configuration, reserved_identity_floor(doc, &target))?;
         persist(doc, &target, configuration)?;
-        let hardware = doc
-            .hardware
-            .as_mut()
-            .ok_or("Physical instances are unavailable")?;
+        let hardware = physical_hardware_mut(doc)?;
         let instance = hardware
             .instances
             .iter_mut()

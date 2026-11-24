@@ -69,8 +69,8 @@ pub(in crate::presentation) fn use_session_canvas_mount(
     svg: &Rc<RefCell<Option<SvgElement>>>,
     zoom_surface_size: Signal<(f64, f64)>,
     runtime: Rc<Runtime>,
-    part_placement: &part_placement::PartPlacementMount,
-    matrix_placement: &objects::MatrixPlacementMount,
+    part_placement: &part_placement::PartPlacementSession,
+    matrix_placement: &objects::MatrixPlacementSession,
 ) -> EventHandler<MountedEvent> {
     let mount = EventHandler::new(CanvasNavigationState::mount_handler(
         zoom_surface_size,
@@ -145,6 +145,18 @@ pub(in crate::presentation) struct SceneBounds {
     pub view_x: f64,
     pub view_y: f64,
     pub view_box: String,
+}
+
+impl SceneBounds {
+    pub(in crate::presentation) fn canvas_bounds(
+        &self,
+    ) -> super::super::super::editor::canvas_adapter::CanvasBounds {
+        (
+            (self.view_x, self.view_y, self.width, self.height),
+            self.keymap_scale_ratio,
+            (self.min_x, self.max_x, self.min_y, self.max_y),
+        )
+    }
 }
 
 pub(in crate::presentation) fn use_scene_bounds(input: SceneBoundsInput<'_>) -> SceneBounds {
@@ -544,14 +556,12 @@ pub(in crate::presentation) struct PlacementBindingsInput<'a> {
     pub objects_open: Signal<bool>,
     pub inspect_open: Signal<bool>,
     pub matrix_setup: &'a mut objects::MatrixSetupMount,
-    pub mirrored_pair: objects::MirroredPairMount,
+    pub mirrored_pair: objects::MirroredPairSession,
     pub svg: Rc<RefCell<Option<SvgElement>>>,
-    pub canvas_navigation: &'a CanvasNavigationState,
 }
 
 pub(in crate::presentation) struct PlacementBindings {
-    pub part_placement: part_placement::PartPlacementMount,
-    pub drag: Rc<RefCell<Option<Drag>>>,
+    pub part_placement: part_placement::PartPlacementSession,
     pub interaction_version: Signal<u64>,
     pub observed_interaction_version: u64,
 }
@@ -581,32 +591,30 @@ pub(in crate::presentation) fn use_placement_bindings(
         matrix_setup,
         mirrored_pair,
         svg,
-        canvas_navigation,
     } = input;
     let canvas_center =
         part_placement::canvas_world_center(min_x, max_x, min_y, max_y, camera_center);
-    let part_placement =
-        part_placement::use_controller_placement(part_placement::PartPlacementHost {
-            runtime: runtime.clone(),
-            load_definition: Rc::new(|document, definition_id| {
-                Box::pin(async move {
-                    parts::load_component_definition(&document, &definition_id).await
-                })
-            }),
-            workspace,
-            generation: adapter.generation,
-            version,
-            adapter: adapter.clone(),
-            layout_selection_kind,
-            guide_preferences,
-            parts_query,
-            parts_selection,
-            snap_settings: layout_snap_settings,
-            layout_target,
-            canvas_center,
-            objects_open,
-            inspect_open,
-        });
+    let part_placement = part_placement::use_part_placement(part_placement::PartPlacementHost {
+        runtime: runtime.clone(),
+        load_definition: Rc::new(|document, definition_id| {
+            Box::pin(
+                async move { parts::load_component_definition(&document, &definition_id).await },
+            )
+        }),
+        workspace,
+        generation: adapter.generation,
+        version,
+        adapter: adapter.clone(),
+        layout_selection_kind,
+        guide_preferences,
+        parts_query,
+        parts_selection,
+        snap_settings: layout_snap_settings,
+        layout_target,
+        canvas_center,
+        objects_open,
+        inspect_open,
+    });
     if canvas_interaction.current().is_some() {
         matrix_setup.can_open = false;
     }
@@ -626,12 +634,10 @@ pub(in crate::presentation) fn use_placement_bindings(
             }
         }
     }));
-    let drag = canvas_navigation.drag_interaction();
     let interaction_version = use_signal(|| 0_u64);
     let observed_interaction_version = interaction_version() + canvas_interaction.version();
     PlacementBindings {
         part_placement,
-        drag,
         interaction_version,
         observed_interaction_version,
     }
@@ -777,7 +783,6 @@ pub(in crate::presentation) fn use_camera_bundle(
     };
     let PlacementBindings {
         part_placement,
-        drag,
         interaction_version,
         observed_interaction_version,
     } = use_placement_bindings(PlacementBindingsInput {
@@ -801,7 +806,6 @@ pub(in crate::presentation) fn use_camera_bundle(
         matrix_setup: &mut *matrix_setup,
         mirrored_pair: mirrored_pair.clone(),
         svg: svg.clone(),
-        canvas_navigation,
     });
     CamNamed {
         svg_surface: SvgSurface {
@@ -812,7 +816,6 @@ pub(in crate::presentation) fn use_camera_bundle(
         footer_bounds: footer,
         placement: PlacementBindings {
             part_placement,
-            drag,
             interaction_version,
             observed_interaction_version,
         },

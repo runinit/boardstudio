@@ -194,10 +194,7 @@ pub fn matrix_relations(
     context: &TreeContext,
     scenes: &[MatrixScene],
 ) -> Option<MatrixRelations> {
-    let matrix = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == scene.matrix_id)?;
+    let matrix = crate::matrix_by_id(document, &scene.matrix_id)?;
     let view = View {
         document,
         scene,
@@ -257,11 +254,8 @@ pub fn field_preview(
         | TreeContext::Key { matrix_id, .. } => matrix_id,
         _ => return None,
     };
-    let matrix = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == *matrix_id)?;
-    let scene = scenes.iter().find(|scene| scene.matrix_id == *matrix_id)?;
+    let matrix = crate::matrix_by_id(document, matrix_id)?;
+    let scene = crate::scene_by_id(scenes, matrix_id)?;
     let (slots, key_local) = preview_slots(matrix, context, field, splay_affect)?;
     let view = View {
         document,
@@ -280,7 +274,7 @@ pub fn field_preview(
     if let Some((_, partner)) = view.partner()
         && view.matrix_linked(&view.matrix.id)
         && view.matrix_linked(&partner.id)
-        && let Some(partner_scene) = view.scene_of(&partner.id)
+        && let Some(partner_scene) = crate::scene_by_id(scenes, &partner.id)
     {
         let partner_view = View {
             document,
@@ -292,11 +286,11 @@ pub fn field_preview(
             if key_local
                 && (view.exception(
                     MirroredItemKind::Part,
-                    &View::canonical_member(&view.matrix.id, *row, *column),
+                    &crate::canonical_matrix_member(&view.matrix.id, *row, *column),
                 ) == Some(MirroredExceptionState::Local)
                     || view.exception(
                         MirroredItemKind::Part,
-                        &View::canonical_member(&partner.id, *row, *column),
+                        &crate::canonical_matrix_member(&partner.id, *row, *column),
                     ) == Some(MirroredExceptionState::Local))
             {
                 continue;
@@ -512,76 +506,115 @@ fn state_suffix(disabled: bool, deleted: bool) -> &'static str {
     }
 }
 
-/// Stored key shifts across an aggregate, labelled with contributor state.
-fn aggregate_shift(keys: &[AggregatedKey]) -> String {
-    let texts: Vec<String> = keys.iter().map(|key| offset_text(key.shift)).collect();
-    let mut text = uniform_or_varies(texts);
+fn key_state_summary(
+    states: impl IntoIterator<Item = KeyState>,
+    prefix: impl FnOnce(u32) -> String,
+) -> String {
+    let (mut enabled, mut disabled, mut removed) = (0u32, 0u32, 0u32);
+    for state in states {
+        match state {
+            KeyState::Enabled => enabled += 1,
+            KeyState::Disabled => disabled += 1,
+            KeyState::Removed => removed += 1,
+        }
+    }
+    let mut text = prefix(enabled);
+    if disabled > 0 {
+        text.push_str(&format!(", {disabled} disabled"));
+    }
+    if removed > 0 {
+        text.push_str(&format!(", {removed} removed"));
+    }
+    text
+}
+
+fn push_key_carry_items(
+    structure: &mut Vec<RelationItem>,
+    keys: &[AggregatedKey],
+    highlight: &[String],
+) {
+    structure.extend([
+        item("Key shift", aggregate_shift(keys), None, highlight.to_vec()),
+        item("Key bend", aggregate_bend(keys), None, highlight.to_vec()),
+        item(
+            "Cumulative shift",
+            aggregate_cumulative_shift(keys),
+            None,
+            highlight.to_vec(),
+        ),
+        item(
+            "Cumulative bend",
+            aggregate_cumulative_bend(keys),
+            None,
+            highlight.to_vec(),
+        ),
+    ]);
+}
+
+fn aggregate_stored_field(
+    keys: &[AggregatedKey],
+    format_value: impl Fn(&AggregatedKey) -> String,
+    is_nonzero: impl Fn(&AggregatedKey) -> bool,
+) -> String {
+    let mut text = uniform_or_varies(keys.iter().map(format_value).collect());
     let (mut disabled, mut deleted) = (false, false);
-    for key in keys {
-        if key.shift != ZERO {
-            match key.state {
-                KeyState::Disabled => disabled = true,
-                KeyState::Removed => deleted = true,
-                KeyState::Enabled => {}
-            }
+    for key in keys.iter().filter(|key| is_nonzero(key)) {
+        match key.state {
+            KeyState::Disabled => disabled = true,
+            KeyState::Removed => deleted = true,
+            KeyState::Enabled => {}
         }
     }
     text.push_str(state_suffix(disabled, deleted));
     text
 }
 
+fn aggregate_cumulative_field<T: Copy>(
+    keys: &[AggregatedKey],
+    extract: impl Fn(&AggregatedKey) -> Option<T>,
+    format_value: impl Fn(T) -> String,
+    is_nonzero: impl Fn(T) -> bool,
+) -> String {
+    let texts: Vec<String> = keys.iter().filter_map(&extract).map(format_value).collect();
+    if texts.is_empty() {
+        return "not shown (keys removed)".to_owned();
+    }
+    let mut text = uniform_or_varies(texts);
+    let disabled = keys
+        .iter()
+        .any(|key| extract(key).is_some_and(&is_nonzero) && key.state == KeyState::Disabled);
+    text.push_str(state_suffix(disabled, false));
+    text
+}
+
+/// Stored key shifts across an aggregate, labelled with contributor state.
+fn aggregate_shift(keys: &[AggregatedKey]) -> String {
+    aggregate_stored_field(keys, |key| offset_text(key.shift), |key| key.shift != ZERO)
+}
+
 /// Stored key bends across an aggregate, labelled with contributor state.
 fn aggregate_bend(keys: &[AggregatedKey]) -> String {
-    let texts: Vec<String> = keys.iter().map(|key| bend_text(key.bend)).collect();
-    let mut text = uniform_or_varies(texts);
-    let (mut disabled, mut deleted) = (false, false);
-    for key in keys {
-        if key.bend != 0.0 {
-            match key.state {
-                KeyState::Disabled => disabled = true,
-                KeyState::Removed => deleted = true,
-                KeyState::Enabled => {}
-            }
-        }
-    }
-    text.push_str(state_suffix(disabled, deleted));
-    text
+    aggregate_stored_field(keys, |key| bend_text(key.bend), |key| key.bend != 0.0)
 }
 
 /// Core's cumulative shifts across scene-present keys; keys removed from the
 /// scene carry no published total.
 fn aggregate_cumulative_shift(keys: &[AggregatedKey]) -> String {
-    let texts: Vec<String> = keys
-        .iter()
-        .filter_map(|key| key.cumulative_shift)
-        .map(|shift| format!("{}, {} mm in matrix axes", mm(shift.x), mm(shift.y)))
-        .collect();
-    if texts.is_empty() {
-        return "not shown (keys removed)".to_owned();
-    }
-    let mut text = uniform_or_varies(texts);
-    let disabled = keys.iter().any(|key| {
-        key.cumulative_shift.is_some_and(|shift| shift != ZERO) && key.state == KeyState::Disabled
-    });
-    text.push_str(state_suffix(disabled, false));
-    text
+    aggregate_cumulative_field(
+        keys,
+        |key| key.cumulative_shift,
+        |shift| format!("{}, {} mm in matrix axes", mm(shift.x), mm(shift.y)),
+        |shift| shift != ZERO,
+    )
 }
 
 fn aggregate_cumulative_bend(keys: &[AggregatedKey]) -> String {
-    let texts: Vec<String> = keys
-        .iter()
-        .filter_map(|key| key.cumulative_bend)
-        .map(|bend| format!("{}° (row and key only)", mm(bend)))
-        .collect();
-    if texts.is_empty() {
-        return "not shown (keys removed)".to_owned();
-    }
-    let mut text = uniform_or_varies(texts);
-    let disabled = keys.iter().any(|key| {
-        key.cumulative_bend.is_some_and(|bend| bend != 0.0) && key.state == KeyState::Disabled
-    });
-    text.push_str(state_suffix(disabled, false));
-    text
+    aggregate_cumulative_field(
+        keys,
+        |key| key.cumulative_bend,
+        |bend| format!("{}° (row and key only)", mm(bend)),
+        |bend| bend != 0.0,
+    )
 }
 
 /// A millimetre or degree value without trailing zeros; a minus sign is U+2212.

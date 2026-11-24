@@ -62,9 +62,9 @@ pub(crate) use boardstudio_web_ui_model::state::{
 };
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::state::{
-    CaseGenerationState, CompactPanelState, Drag, FieldPreview, FieldPreviewSource,
-    FieldPreviewState, InstanceSelection, LayerVisibility, LayoutOwnerIdentity, RelationHighlight,
-    ResolvedAppearance, WorkspaceState,
+    CaseGenerationState, CompactPanelState, FieldPreview, FieldPreviewSource, FieldPreviewState,
+    InstanceSelection, LayerVisibility, LayoutOwnerIdentity, RelationHighlight, ResolvedAppearance,
+    WorkspaceState,
 };
 pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
     PointerLocation, coordinates, coordinates_at, coordinates_with_scale, pointer_location,
@@ -76,7 +76,7 @@ mod layout_matrix_relations;
 mod layout_workspace;
 pub(crate) use boardstudio_web_case::mechanical_settings;
 pub(crate) use boardstudio_web_layout::objects;
-pub(crate) use boardstudio_web_layout::outline_lifecycle;
+pub(crate) use boardstudio_web_layout::outline;
 pub(crate) use boardstudio_web_layout::outline_snapping;
 pub(crate) use boardstudio_web_layout::part_placement;
 pub(crate) use boardstudio_web_library::library;
@@ -114,8 +114,8 @@ mod zmk_firmware_export;
 
 use crate::case_generation_lifecycle::AutomaticCaseGeneration;
 use boardstudio_web_layout::canvas_interaction::{
-    CanvasEvent, CanvasKey, CanvasMode, InteractionEffect, LayoutInteraction, client_point,
-    focus_svg,
+    CanvasEvent, CanvasKey, CanvasMode, GestureSeed, InteractionEffect, LayoutInteraction,
+    client_point, focus_svg,
 };
 pub(crate) use boardstudio_web_ui_shared::footprint_graphics;
 use canvas_layers::CanvasLayers;
@@ -144,19 +144,14 @@ pub(crate) use mechanical_settings::{
 };
 pub(crate) use notifications::RuntimeReportBanner;
 pub(crate) use owner_checks::{
-    canvas_owner_is_current, case_setup_context_is_current, current_case_layer_ids,
-    pcb_add_layout_open_handler, pcb_add_layout_owner_is_current, pcb_add_outline_select_handler,
-    pcb_owner_is_current,
+    case_setup_context_is_current, current_case_layer_ids, pcb_add_layout_open_handler,
+    pcb_add_layout_owner_is_current, pcb_add_outline_select_handler, pcb_owner_is_current,
 };
 use panels::{
     DockLayout, InspectorPanel, ObjectsPanel, PanelMode, PanelSettings, PanelSide,
     use_panel_settings,
 };
 use parts::{PartsQuery, PartsSelection};
-pub(crate) use pending_picks::{
-    PendingAnchorPick, PendingSplayOriginPick, apply_pending_anchor_pick,
-    apply_pending_splay_origin_pick,
-};
 pub(crate) use routing::WorkspaceRoutingSlots;
 use selection::{ReentrancyReset, SelectionAdapter};
 use setup_guide::{PendingNewKeyboard, SetupGuideRequest, SetupGuideStage};

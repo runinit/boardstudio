@@ -111,9 +111,7 @@ pub(crate) fn mirrored_fixture() -> ProjectDoc {
                 },
                 "halves": {
                     "sourceBoardId": "board-main",
-                    "mirrorBoardId": "board-mirror",
-                    "correspondences": [{"kind": "part", "sourceId": "part-previous", "mirrorId": "part-previous-mirror"}],
-                    "exceptions": [{"kind": "part", "mirrorId": "part-previous-mirror", "state": "omitted"}]
+                    "mirrorBoardId": "board-mirror"
                 }
             }]
         }))

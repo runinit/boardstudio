@@ -118,7 +118,7 @@ fn captured_owner_rejects_changed_snapshot_scope_generation_or_guide_stage() {
             generation: 4,
             part_id: "part-controller".into(),
             definition_id: "catalog:controller".into(),
-            kind: PartKind::Controller,
+            kind: &PartKind::Controller,
             workflow: PlacementWorkflow::WiringController,
             intent: PlacementIntent::Existing,
             source_workspace: Workspace::Parts,

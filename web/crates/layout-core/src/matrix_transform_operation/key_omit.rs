@@ -2,30 +2,26 @@
 
 use super::KeyHalfException;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
-use boardstudio_model::model::{
-    EditOperation, HalfExceptionState, MirroredExceptionState, MirroredItemKind, ProjectDoc,
-};
+use boardstudio_model::model::{EditOperation, HalfExceptionState, MirroredItemKind, ProjectDoc};
 
-/// Read one mirror-side key's native-pair exception context, if the member
-/// part is the mirror side of a Part correspondence. Pure: unit-tested beside
-/// the resolver it feeds.
+/// Read one mirror-side key's derived-pair exception context, if the member
+/// part is the derived mirror side of a live or omitted link. Pure:
+/// unit-tested beside the resolver it feeds.
 pub fn key_half_exception(document: &ProjectDoc, member_id: &str) -> Option<KeyHalfException> {
-    let hardware = document.hardware.as_ref()?;
-    let (pair, halves) = hardware
-        .pairs
-        .iter()
-        .filter_map(|pair| pair.halves.as_ref().map(|halves| (pair, halves)))
-        .find(|(_, halves)| {
-            halves
-                .correspondences
-                .iter()
-                .any(|link| link.kind == MirroredItemKind::Part && link.mirror_id == member_id)
-        })?;
-    let omitted = halves.exceptions.iter().any(|exception| {
-        exception.kind == MirroredItemKind::Part
-            && exception.mirror_id == member_id
-            && exception.state == MirroredExceptionState::Omitted
-    });
+    let (pair, _, state) = boardstudio_model::mirrored_half::derived_part(document, member_id)?;
+    if !matches!(
+        state,
+        None | Some(
+            boardstudio_model::mirrored_half::MirrorOverride::Omitted
+                | boardstudio_model::mirrored_half::MirrorOverride::CompanionPose(_)
+        )
+    ) {
+        return None;
+    }
+    let omitted = matches!(
+        state,
+        Some(boardstudio_model::mirrored_half::MirrorOverride::Omitted)
+    );
     Some(KeyHalfException {
         pair_id: pair.id.clone(),
         mirror_id: member_id.to_owned(),
@@ -48,17 +44,7 @@ pub fn key_half_exception_at_resolver(
         move |accepted: &AcceptedSnapshot| {
             // A live key resolves through its scene cell; an omitted key left
             // the scene, so its Omitted overlay names the canonical member.
-            let member = accepted
-                .scene
-                .matrix_scenes
-                .iter()
-                .find(|scene| scene.matrix_id == matrix_id)
-                .and_then(|scene| {
-                    scene
-                        .cells
-                        .iter()
-                        .find(|cell| cell.row == row && cell.column == column)
-                })
+            let member = crate::scene_cell(&accepted.scene.matrix_scenes, &matrix_id, row, column)
                 .and_then(|cell| cell.member_id.clone());
             let member = match member {
                 Some(member) => member,
@@ -92,41 +78,46 @@ pub fn key_half_exception_omitted(
     row: u32,
     column: u32,
 ) -> Option<KeyHalfException> {
-    let candidate = format!("matrix/{matrix_id}/r{row}c{column}");
+    let candidate = crate::canonical_matrix_member(matrix_id, row, column);
     key_half_exception(document, &candidate).filter(|exception| exception.omitted)
 }
 
 /// Resolve one key's Omit/Rejoin toggle against the accepted document. Only the
-/// pair/correspondence identity is captured; the overlay is read at execution
-/// time, so omitting one key is a single atomic edit with one Undo entry that
-/// composes with other field edits.
+/// pair identity is captured; the overlay is read at execution time, so
+/// omitting one key is a single atomic edit with one Undo entry that composes
+/// with other field edits.
 pub fn key_half_exception_resolver(pair_id: String, mirror_id: String, omit: bool) -> EditResolver {
     EditResolver::new(
         "layout-matrix-key-omit",
         move |accepted: &AcceptedSnapshot| {
-            let Some(halves) = accepted
+            let Some(pair) = accepted
                 .document
-                .hardware
-                .as_ref()
-                .and_then(|hardware| hardware.pairs.iter().find(|pair| pair.id == pair_id))
-                .and_then(|pair| pair.halves.as_ref())
+                .mirrored_pairs
+                .iter()
+                .find(|pair| pair.id == pair_id)
             else {
                 return Resolution::Retire("The mirrored pair no longer exists.".into());
             };
-            if !halves
-                .correspondences
-                .iter()
-                .any(|link| link.kind == MirroredItemKind::Part && link.mirror_id == mirror_id)
-            {
+            let Some((_, override_state)) = boardstudio_model::mirrored_half::pair_derivation(
+                &accepted.document,
+                pair,
+                &mirror_id,
+            ) else {
+                return Resolution::Retire("The linked key no longer exists.".into());
+            };
+            if !matches!(
+                override_state,
+                None | Some(
+                    boardstudio_model::mirrored_half::MirrorOverride::Omitted
+                        | boardstudio_model::mirrored_half::MirrorOverride::CompanionPose(_)
+                )
+            ) {
                 return Resolution::Retire("The linked key no longer exists.".into());
             }
-            let omitted = halves
-                .exceptions
-                .iter()
-                .find(|exception| {
-                    exception.kind == MirroredItemKind::Part && exception.mirror_id == mirror_id
-                })
-                .is_some_and(|exception| exception.state == MirroredExceptionState::Omitted);
+            let omitted = matches!(
+                override_state,
+                Some(boardstudio_model::mirrored_half::MirrorOverride::Omitted)
+            );
             if omitted == omit {
                 return Resolution::Unchanged;
             }

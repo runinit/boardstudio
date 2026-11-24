@@ -3,7 +3,7 @@ use super::mechanical_extract::circular_arc_parameters;
 use super::parsed_board::{BoardParseError, ParsedBoard};
 use super::sexpr::{
     NumberError, atom, atom_at, chain_loop_from, child, children, decoded_text, head,
-    is_back_layer, items, parse_finite, sample_arc, three_point_arc,
+    is_back_layer, items, parse_finite, rect_corners, sample_arc, three_point_arc,
 };
 use crate::model::*;
 use boardstudio_contracts::polygon_contains;
@@ -184,9 +184,7 @@ fn graphic(
         circle(c, r, r)
     } else if tag.ends_with("_rect") {
         closed = true;
-        let a = xy(n, "start")?;
-        let b = xy(n, "end")?;
-        vec![a, Vec2 { x: b.x, y: a.y }, b, Vec2 { x: a.x, y: b.y }]
+        rect_corners(xy(n, "start")?, xy(n, "end")?).to_vec()
     } else if tag.ends_with("_poly") {
         closed = true;
         child(n, "pts")

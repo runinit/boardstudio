@@ -1,15 +1,27 @@
 use super::*;
 use boardstudio_web_ui_shared::inspector_fields::SelectField;
 
+fn set_connection_feature(
+    projection: &OutlineInspectorProjection,
+    version_id: Option<String>,
+    before: OutlineFeature,
+    after: OutlineFeature,
+) {
+    projection.dispatch(OutlineActionKind::SetFeature {
+        version_id,
+        before,
+        after,
+    });
+}
+
 pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
     let projection = &view.projection;
     let point_attachment = view.point_attachment;
     let active_version = projection.active_version_id.clone();
-    let on_action = projection.on_action;
-    let action_context = projection.action_context.clone();
     let enabled = projection.enabled;
-    let mut selected_point = projection.selected_point;
-    let mut selected_connection_id = projection.selected_connection_id;
+    let mut canvas_ui = projection.ui.canvas_ui;
+    let selected_conn = canvas_ui.read().selected_connection_id.clone();
+    let selected_pt = canvas_ui.read().selected_point;
     rsx! {
         if !projection.connections.is_empty() {
             div {
@@ -24,7 +36,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                         ToggleGroup {
                             aria_label: "Geometry selection",
                             pressed: Some(
-                                if selected_connection_id().as_deref() == Some(connection.id.as_str()) {
+                                if selected_conn.as_deref() == Some(connection.id.as_str()) {
                                     std::collections::HashSet::from([0usize])
                                 } else {
                                     std::collections::HashSet::new()
@@ -32,7 +44,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                             ),
                             on_pressed_change: {
                                 let id = connection.id.clone();
-                                move |_| selected_connection_id.set(Some(id.clone()))
+                                move |_| canvas_ui.write().selected_connection_id = Some(id.clone())
                             },
                             ToggleItem { index: 0usize,
                                 "Connection {index + 1} · {connection.points.len()} points · {connection.width:.2} mm"
@@ -44,7 +56,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
     disabled: !enabled,
     aria_label: "Remove connection {index + 1}",
     onclick: {
-                            let action_context = action_context.clone();
+                            let projection = projection.clone();
                             let before = before.clone();
                             let version_id = active_version.clone();
                             let connection_id = connection.id.clone();
@@ -53,8 +65,8 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                                 if let OutlineFeature::PartEnvelope { connections, .. } = &mut after {
                                     connections.retain(|item| item.id != connection_id);
                                 }
-                                on_action.call(action_context.set_feature(version_id.clone(), before.clone(), after));
-                                selected_connection_id.set(None);
+                                set_connection_feature(&projection, version_id.clone(), before.clone(), after);
+                                canvas_ui.write().selected_connection_id = None;
                             }
                         },
 
@@ -67,7 +79,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
             }
         }
         if let (Some(connection_id), Some(before)) = (
-            selected_connection_id().as_ref(),
+            selected_conn.as_ref(),
             projection.connection_feature.as_ref(),
         )
         {
@@ -82,7 +94,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                         minimum: 0.001,
                         editable: enabled,
                         on_commit: {
-                            let action_context = action_context.clone();
+                            let projection = projection.clone();
                             let before = before.clone();
                             let version_id = active_version.clone();
                             let connection_id = connection_id.clone();
@@ -95,29 +107,26 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                                 {
                                     connection.width = value;
                                 }
-                                on_action
-                                    .call(
-                                        action_context.set_feature(version_id.clone(), before.clone(), after),
-                                    );
+                                set_connection_feature(&projection, version_id.clone(), before.clone(), after);
                             }
                         },
                     }
                     if !connection.points.is_empty() {
                         {
-                            let index = selected_point().min(connection.points.len() - 1);
+                            let index = selected_pt.min(connection.points.len() - 1);
                             let point = &connection.points[index];
                             let world = connection_point_world(point, &projection.outline_parts);
                             rsx! {
                                 h4 { "Connection point {index + 1} of {connection.points.len()}" }
                                 {
-                                    let action_context = action_context.clone();
+                                    let projection = projection.clone();
                                     let before = before.clone();
                                     let version_id = active_version.clone();
                                     let connection_id = connection.id.clone();
                                     let parts = projection.outline_parts.clone();
                                     vec2_fields(format!("Point {}", index + 1), world, enabled, move |world| {
                                         let next = move_connection_point(&before, &connection_id, index, world, &parts);
-                                        on_action.call(action_context.set_feature(version_id.clone(), before.clone(), next));
+                                        set_connection_feature(&projection, version_id.clone(), before.clone(), next);
                                     })
                                 }
                                 SelectField {
@@ -149,7 +158,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                                     aria_label: format!("Point {} attachment", index + 1),
                                     disabled: !enabled,
                                         on_commit: {
-                                            let action_context = action_context.clone();
+                                            let projection = projection.clone();
                                             let before = before.clone();
                                             let version_id = active_version.clone();
                                             let connection_id = connection.id.clone();
@@ -162,11 +171,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                                                     (!value.is_empty()).then_some(value.as_str()),
                                                     &parts,
                                                 );
-                                                on_action.call(action_context.set_feature(
-                                                    version_id.clone(),
-                                                    before.clone(),
-                                                    next,
-                                                ));
+                                                set_connection_feature(&projection, version_id.clone(), before.clone(), next);
                                             }
                                         },
                                 }
@@ -176,7 +181,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
     disabled: !enabled || index + 1 == connection.points.len(),
     aria_label: "Insert after connection point {index + 1}",
     onclick: {
-                                    let action_context = action_context.clone();
+                                    let projection = projection.clone();
                                     let before = before.clone();
                                     let version_id = active_version.clone();
                                     let connection_id = connection.id.clone();
@@ -193,8 +198,8 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                                                 at: Vec2 { x: (a.x + b.x) * 0.5, y: (a.y + b.y) * 0.5 },
                                                 part_id: None,
                                             });
-                                            selected_point.set(index + 1);
-                                            on_action.call(action_context.set_feature(version_id.clone(), before.clone(), after));
+                                            canvas_ui.write().selected_point = index + 1;
+                                            set_connection_feature(&projection, version_id.clone(), before.clone(), after);
                                         }
                                     }
                                 },
@@ -207,7 +212,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
     disabled: !enabled || connection.points.len() <= 2,
     aria_label: "Remove connection point {index + 1}",
     onclick: {
-                                    let action_context = action_context.clone();
+                                    let projection = projection.clone();
                                     let before = before.clone();
                                     let version_id = active_version.clone();
                                     let connection_id = connection.id.clone();
@@ -218,8 +223,8 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                                             && connection.points.len() > 2 && index < connection.points.len()
                                         {
                                             connection.points.remove(index);
-                                            selected_point.set(index.saturating_sub(1));
-                                            on_action.call(action_context.set_feature(version_id.clone(), before.clone(), after));
+                                            canvas_ui.write().selected_point = index.saturating_sub(1);
+                                            set_connection_feature(&projection, version_id.clone(), before.clone(), after);
                                         }
                                     }
                                 },
@@ -239,13 +244,13 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                                                 ToggleGroup {
                                                     aria_label: "Select connection point {index + 1}",
                                                     pressed: Some(
-                                                        if index == selected_point() {
+                                                        if index == selected_pt {
                                                             std::collections::HashSet::from([0usize])
                                                         } else {
                                                             std::collections::HashSet::new()
                                                         },
                                                     ),
-                                                    on_pressed_change: move |_| selected_point.set(index),
+                                                    on_pressed_change: move |_| canvas_ui.write().selected_point = index,
                                                     ToggleItem {
                                                         index: 0usize,
                                                         key: "connection-point-{index}",

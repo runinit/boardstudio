@@ -4,8 +4,8 @@
 //! is only a preview projection; callers must retain `KicadSource.source` for
 //! export and must not regenerate an imported footprint from that projection.
 
+use super::footprint_geometry::project_source_geometry;
 use super::sexpr::{self, format_decimal as num, is_back_layer};
-use super::source_geometry::project_source_geometry;
 use crate::model::{
     ArtifactDiagnostic, ArtifactDiagnosticKind, ArtifactError, ArtifactErrorCode,
     CompiledFootprint, EnvelopeOrigin, EnvelopeSource, FootprintGeometry, FootprintPatch,
@@ -159,6 +159,9 @@ fn remove_text_render_caches(source: &str) -> Result<String, ArtifactError> {
     let mut edits = Vec::new();
     for node in &document.nodes {
         visit(node, &mut edits);
+    }
+    if edits.is_empty() {
+        return Ok(source.to_owned());
     }
     sexpr::replace_spans(source, edits).ok_or_else(|| {
         ArtifactError::new(

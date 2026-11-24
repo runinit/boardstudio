@@ -1,5 +1,5 @@
 use super::*;
-use crate::outline::hook::OutlineVersionChoice;
+use crate::outline::OutlineVersionChoice;
 use boardstudio_web_ui_shared::inspector_fields::{SelectField, TextField};
 
 pub(super) fn version_controls(
@@ -9,13 +9,11 @@ pub(super) fn version_controls(
 ) -> Element {
     let projection = &view.projection;
     let active_selection = view.active_selection;
-    let mut version_name = projection.version_name_draft;
-    let name_draft = version_name();
+    let mut version_ui = projection.ui.version_ui;
+    let name_draft = version_ui.read().version_name_draft.clone();
     let active_version = projection.active_version_id.clone();
     let accepted_name = projection.version_name.clone();
-    let name_failure = projection.version_name_failure.read().clone();
-    let on_action = projection.on_action;
-    let action_context = projection.action_context.clone();
+    let name_failure = version_ui.read().version_name_failure.clone();
     let enabled = projection.enabled;
     let active_problem = active_choice.filter(|item| item.problem_message.is_some());
     // Alternatives that cannot resolve are listed without pretending the active outline
@@ -42,11 +40,11 @@ pub(super) fn version_controls(
             aria_label: "Active outline",
             disabled: !enabled,
             on_commit: {
-                let action_context = action_context.clone();
+                let projection = projection.clone();
                 move |value: String| {
-                    on_action.call(
-                        action_context.activate_action((!value.is_empty()).then_some(value)),
-                    );
+                    projection.dispatch(OutlineActionKind::Activate {
+                        version_id: (!value.is_empty()).then_some(value),
+                    });
                 }
             },
         }
@@ -62,17 +60,16 @@ pub(super) fn version_controls(
                         class: "grid gap-[5px] text-xs text-muted-foreground", control_class: "",
                         maxlength: Some("120".to_owned()), aria_invalid: Some(name_draft.trim().is_empty()),
                         value: "{name_draft}", disabled: !enabled,
-                        oninput: move |event: FormEvent| version_name.set(event.value()),
+                        oninput: move |event: FormEvent| version_ui.write().version_name_draft = event.value(),
                         onblur: {
                             let version_id = version_id.clone();
                             let accepted_name = accepted_name.clone();
-                            let action_context = action_context.clone();
+                            let projection = projection.clone();
                             move |_| {
-                                let draft = version_name();
-                                let name = draft.trim().to_owned();
-                                version_name.set(name.clone());
+                                let name = version_ui.read().version_name_draft.trim().to_owned();
+                                version_ui.write().version_name_draft = name.clone();
                                 if !name.is_empty() && name.len() <= 120 && name != accepted_name {
-                                    on_action.call(action_context.action(OutlineEdit::RenameVersion { version_id: version_id.clone(), name }));
+                                    projection.update(OutlineEdit::RenameVersion { version_id: version_id.clone(), name });
                                 }
                             }
                         },
@@ -88,7 +85,7 @@ pub(super) fn version_controls(
                                 }
                                 "Escape" => {
                                     event.prevent_default();
-                                    version_name.set(accepted_name.clone());
+                                    version_ui.write().version_name_draft = accepted_name.clone();
                                 }
                                 _ => {}
                             }
@@ -136,8 +133,8 @@ pub(super) fn version_controls(
             Button { variant: ButtonVariant::Secondary,
     disabled: !enabled,
     onclick: {
-            let action_context = action_context.clone();
-            move |_| on_action.call(action_context.action(OutlineEdit::CreateAutomatic))
+            let projection = projection.clone();
+            move |_| projection.update(OutlineEdit::CreateAutomatic)
         },
 
                 "Generate automatic outline"

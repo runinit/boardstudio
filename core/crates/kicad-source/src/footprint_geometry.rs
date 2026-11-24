@@ -11,14 +11,14 @@ use crate::model::{
 };
 use kiutils_sexpr::Node;
 
-pub(super) struct SourceGeometryProjection {
+pub struct SourceGeometryProjection {
     pub pads: Vec<Pad>,
     pub courtyard: Vec<Vec2>,
     pub conservative_bounds: Vec<Vec2>,
     pub diagnostics: Vec<ArtifactDiagnostic>,
 }
 
-pub(super) fn project_source_geometry(
+pub fn project_source_geometry(
     source: &str,
     root: &Node,
 ) -> Result<SourceGeometryProjection, ArtifactError> {
@@ -341,7 +341,7 @@ fn project_courtyard(
                 )?;
                 let a = convert(a);
                 let b = convert(b);
-                explicit_shapes.push(vec![a, Vec2 { x: b.x, y: a.y }, b, Vec2 { x: a.x, y: b.y }]);
+                explicit_shapes.push(sexpr::rect_corners(a, b).to_vec());
             }
             Some("fp_circle") => {
                 let c = point(
@@ -422,7 +422,7 @@ fn chain_courtyard_edges(mut edges: Vec<Vec<Vec2>>) -> Option<Vec<Vec2>> {
 
 fn convex_hull(mut points: Vec<Vec2>) -> Vec<Vec2> {
     points.sort_by(|a, b| a.x.total_cmp(&b.x).then(a.y.total_cmp(&b.y)));
-    points.dedup_by(|a, b| near(*a, *b, 1e-12));
+    points.dedup_by(|a, b| sexpr::within(*a, *b, 1e-12));
     if points.len() <= 2 {
         return points;
     }
@@ -450,9 +450,6 @@ fn convex_hull(mut points: Vec<Vec2>) -> Vec<Vec2> {
     lower.extend(upper);
     lower
 }
-fn near(a: Vec2, b: Vec2, tol: f64) -> bool {
-    (a.x - b.x).hypot(a.y - b.y) <= tol
-}
 fn flatten_arc(node: &Node) -> Result<Vec<Vec2>, ArtifactError> {
     let start_node = sexpr::child(node, "start").ok_or_else(|| error("Arc needs start"))?;
     let end_node = sexpr::child(node, "end").ok_or_else(|| error("Arc needs end"))?;
@@ -477,8 +474,7 @@ fn flatten_arc(node: &Node) -> Result<Vec<Vec2>, ArtifactError> {
         circular_arc_parameters(start, Some(mid), end, None)
             .map_err(|_| error("Degenerate courtyard arc"))?
     };
-    let step = 2.0 * (1.0 - 0.01 / radius.max(0.01)).clamp(-1.0, 1.0).acos();
-    let count = (sweep.abs() / step.max(0.001)).ceil().max(2.0) as usize;
+    let count = sexpr::arc_subdivision_count(sweep, radius, 0.01, 2);
     Ok(sexpr::sample_arc(center, first, sweep, radius, count))
 }
 
@@ -487,7 +483,7 @@ fn primitive_extent(node: &Node) -> Result<Option<Vec2>, ArtifactError> {
     let mut found = false;
     let mut stroke_radius: f64 = 0.0;
     for item in sexpr::items(node).into_iter().flatten().skip(1) {
-        if let Some(width) = graphic_width(item) {
+        if let Some(width) = sexpr::graphic_width(item) {
             stroke_radius = stroke_radius.max(parse_finite(width)?.abs() / 2.0);
         }
         match sexpr::head(item) {
@@ -563,25 +559,19 @@ fn bounds_from_pads(pads: &[Pad]) -> Option<Vec<Vec2>> {
         miny = miny.min(p.at.y - hy);
         maxy = maxy.max(p.at.y + hy);
     }
-    let m = 0.5;
-    Some(vec![
-        Vec2 {
-            x: minx - m,
-            y: miny - m,
-        },
-        Vec2 {
-            x: maxx + m,
-            y: miny - m,
-        },
-        Vec2 {
-            x: maxx + m,
-            y: maxy + m,
-        },
-        Vec2 {
-            x: minx - m,
-            y: maxy + m,
-        },
-    ])
+    Some(
+        sexpr::rect_corners(
+            Vec2 {
+                x: minx - 0.5,
+                y: miny - 0.5,
+            },
+            Vec2 {
+                x: maxx + 0.5,
+                y: maxy + 0.5,
+            },
+        )
+        .to_vec(),
+    )
 }
 
 fn bounds_from_pads_and_graphics(
@@ -599,11 +589,7 @@ fn bounds_from_pads_and_graphics(
         ) {
             continue;
         }
-        let layer = sexpr::child(node, "layer")
-            .and_then(sexpr::items)
-            .and_then(|v| v.get(1))
-            .and_then(sexpr::atom)
-            .unwrap_or("");
+        let layer = sexpr::field(node, "layer").unwrap_or("");
         if layer.ends_with(".CrtYd") {
             continue;
         }
@@ -656,12 +642,9 @@ fn bounds_from_pads_and_graphics(
                         .ok_or_else(|| error("Graphic rectangle needs end"))?,
                     "graphic",
                 )?;
-                points.extend([
-                    convert(a)?,
-                    convert(Vec2 { x: b.x, y: a.y })?,
-                    convert(b)?,
-                    convert(Vec2 { x: a.x, y: b.y })?,
-                ]);
+                for corner in sexpr::rect_corners(a, b) {
+                    points.push(convert(corner)?);
+                }
             }
             Some("fp_poly") => {
                 if let Some(pts) = sexpr::child(node, "pts") {
@@ -693,7 +676,7 @@ fn bounds_from_pads_and_graphics(
             }
             _ => {}
         }
-        let width = graphic_width(node)
+        let width = sexpr::graphic_width(node)
             .map(parse_finite)
             .transpose()?
             .unwrap_or(0.05);
@@ -719,12 +702,10 @@ fn bounds_from_pads_and_graphics(
                 .map(|point| point.y)
                 .fold(f64::NEG_INFINITY, f64::max)
                 + width / 2.0;
-            points.extend([
+            points.extend(sexpr::rect_corners(
                 Vec2 { x: min_x, y: min_y },
-                Vec2 { x: max_x, y: min_y },
                 Vec2 { x: max_x, y: max_y },
-                Vec2 { x: min_x, y: max_y },
-            ]);
+            ));
         }
     }
     if points.is_empty() {
@@ -742,34 +723,19 @@ fn bounds_from_pads_and_graphics(
         miny = miny.min(p.y);
         maxy = maxy.max(p.y);
     }
-    let m = 0.5;
-    Ok(Some(vec![
-        Vec2 {
-            x: minx - m,
-            y: miny - m,
-        },
-        Vec2 {
-            x: maxx + m,
-            y: miny - m,
-        },
-        Vec2 {
-            x: maxx + m,
-            y: maxy + m,
-        },
-        Vec2 {
-            x: minx - m,
-            y: maxy + m,
-        },
-    ]))
-}
-
-fn graphic_width(node: &Node) -> Option<&str> {
-    sexpr::child(node, "stroke")
-        .and_then(|stroke| sexpr::child(stroke, "width"))
-        .or_else(|| sexpr::child(node, "width"))
-        .and_then(sexpr::items)
-        .and_then(|values| values.get(1))
-        .and_then(sexpr::atom)
+    Ok(Some(
+        sexpr::rect_corners(
+            Vec2 {
+                x: minx - 0.5,
+                y: miny - 0.5,
+            },
+            Vec2 {
+                x: maxx + 0.5,
+                y: maxy + 0.5,
+            },
+        )
+        .to_vec(),
+    ))
 }
 
 #[cfg(test)]

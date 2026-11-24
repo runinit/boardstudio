@@ -46,11 +46,9 @@ pub mod layout_findings_state;
 #[cfg(target_arch = "wasm32")]
 pub mod layout_viewer;
 #[cfg(target_arch = "wasm32")]
-pub use boardstudio_web_layout_objects::objects;
-#[cfg(target_arch = "wasm32")]
-pub mod outline_lifecycle;
-#[cfg(target_arch = "wasm32")]
 pub use boardstudio_web_layout_core::outline_snapping;
+#[cfg(target_arch = "wasm32")]
+pub use boardstudio_web_layout_objects::objects;
 pub mod part_placement;
 #[cfg(target_arch = "wasm32")]
 pub mod setup_guide;

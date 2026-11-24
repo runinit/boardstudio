@@ -7,8 +7,6 @@ pub(super) fn outline_settings(
 ) -> Element {
     let projection = &view.projection;
     let corner_selection = view.corner_selection;
-    let on_action = projection.on_action;
-    let action_context = projection.action_context.clone();
     let enabled = projection.enabled;
     // Margin, bridge width and cleanup belong to an envelope, which Generated and a linked
     // refinement have and an edited (fixed) copy does not.
@@ -27,8 +25,7 @@ pub(super) fn outline_settings(
                         value: corner_selection().unwrap_or_default(), disabled: !enabled,
                         options: vec![("sharp".into(), "Sharp".into()), ("fillet".into(), "Fillet".into()), ("chamfer".into(), "Chamfer".into())],
                         on_commit: commit_setting(
-                            action_context.clone(),
-                            on_action,
+                            projection.clone(),
                             |choice: String| match choice.as_str() {
                                 "fillet" => OutlineEdit::SetCorners(CornerStyle::Fillet),
                                 "chamfer" => OutlineEdit::SetCorners(CornerStyle::Chamfer),
@@ -45,8 +42,7 @@ pub(super) fn outline_settings(
                     minimum: 0.0,
                     editable: enabled,
                     on_commit: commit_setting(
-                        action_context.clone(),
-                        on_action,
+                        projection.clone(),
                         OutlineEdit::SetSize,
                     ),
                 }
@@ -59,8 +55,7 @@ pub(super) fn outline_settings(
                         minimum: 0.0,
                         editable: enabled,
                         on_commit: commit_setting(
-                            action_context.clone(),
-                            on_action,
+                            projection.clone(),
                             OutlineEdit::SetMargin,
                         ),
                     }
@@ -71,8 +66,7 @@ pub(super) fn outline_settings(
                     minimum: 0.001,
                     editable: enabled,
                     on_commit: commit_setting(
-                        action_context.clone(),
-                        on_action,
+                        projection.clone(),
                         OutlineEdit::SetBridgeWidth,
                     ),
                 }
@@ -93,9 +87,11 @@ pub(super) fn outline_settings(
     aria_label: "Show gap {index + 1}",
     disabled: !enabled,
     onclick: {
-                            let action_context = action_context.clone();
+                            let projection = projection.clone();
                             let gap_id = gap.id.clone();
-                            move |_| on_action.call(action_context.focus_gap(gap_id.clone()))
+                            move |_| projection.dispatch(OutlineActionKind::FocusGap {
+                                gap_id: gap_id.clone(),
+                            })
                         },
 
                                 "Gap {index + 1} · {gap.span:.1} mm span"
@@ -122,8 +118,7 @@ pub(super) fn outline_settings(
                                             on_checked_change: {
                                                 let gap_id = gap.id.clone();
                                                 commit_setting(
-                                                    action_context.clone(),
-                                                    on_action,
+                                                    projection.clone(),
                                                     move |checked: CheckboxState| {
                                                         OutlineEdit::SetProtectedGap {
                                                             gap_id: gap_id.clone(),
@@ -164,8 +159,7 @@ pub(super) fn outline_settings(
                                         },
                                     ),
                                     on_checked_change: commit_setting(
-                                        action_context.clone(),
-                                        on_action,
+                                        projection.clone(),
                                         |checked: CheckboxState| {
                                             OutlineEdit::SetRepairEnabled(bool::from(checked))
                                         },
@@ -182,8 +176,7 @@ pub(super) fn outline_settings(
                         minimum: 0.0,
                         editable: enabled,
                         on_commit: commit_setting(
-                            action_context.clone(),
-                            on_action,
+                            projection.clone(),
                             OutlineEdit::SetMaximumGapSpan,
                         ),
                     }
@@ -194,8 +187,7 @@ pub(super) fn outline_settings(
                     minimum: 0.0,
                     editable: enabled,
                     on_commit: commit_setting(
-                        action_context.clone(),
-                        on_action,
+                        projection.clone(),
                         OutlineEdit::SetMinimumConnectionWidth,
                     ),
                 }
@@ -205,8 +197,7 @@ pub(super) fn outline_settings(
                     minimum: 0.0,
                     editable: enabled,
                     on_commit: commit_setting(
-                        action_context.clone(),
-                        on_action,
+                        projection.clone(),
                         OutlineEdit::SetEdgeClearance,
                     ),
                 }
@@ -221,8 +212,8 @@ pub(super) fn outline_settings(
     disabled: !enabled,
     onclick: {
                         let gap_id = gap.id.clone();
-                        let action_context = action_context.clone();
-                        move |_| on_action.call(action_context.action(OutlineEdit::RemoveProtectedGap { gap_id: gap_id.clone() }))
+                        let projection = projection.clone();
+                        move |_| projection.update(OutlineEdit::RemoveProtectedGap { gap_id: gap_id.clone() })
                     },
 
                             "Remove protected gap {index + 1}"

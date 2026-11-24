@@ -10,11 +10,8 @@ pub fn logical_matrix<'a>(id: &str, doc: &'a ProjectDoc) -> Result<Cow<'a, Matri
         return Ok(Cow::Borrowed(matrix));
     }
     use crate::model::{MirroredExceptionState, MirroredItemKind};
-    let links = doc
-        .layouts
-        .iter()
-        .filter_map(|layout| layout.mirror_link.as_ref())
-        .map(|link| {
+    let links = doc.layouts.iter().filter_map(|layout| {
+        layout.mirror_link.as_ref().map(|link| {
             (
                 &link.correspondences,
                 &link.exceptions,
@@ -22,21 +19,20 @@ pub fn logical_matrix<'a>(id: &str, doc: &'a ProjectDoc) -> Result<Cow<'a, Matri
                 link.split_gap,
             )
         })
-        .chain(
-            doc.hardware
+    });
+    let derived = boardstudio_model::mirrored_half::derived_matrix(doc, id).and_then(
+        |(pair, source, state)| {
+            let mapping = doc
+                .hardware
                 .iter()
                 .flat_map(|hardware| &hardware.pairs)
-                .filter_map(|pair| {
-                    pair.halves.as_ref().map(|halves| {
-                        (
-                            &halves.correspondences,
-                            &halves.exceptions,
-                            pair.mapping,
-                            None,
-                        )
-                    })
-                }),
-        );
+                .find(|candidate| candidate.id == pair.id)
+                .map(|candidate| candidate.mapping)
+                .unwrap_or(pair.mapping);
+            (state == Some(&boardstudio_model::mirrored_half::MirrorOverride::Omitted))
+                .then_some((pair, source, mapping))
+        },
+    );
     for (records, exceptions, mapping, gap) in links {
         let Some(record) = records
             .iter()
@@ -75,6 +71,36 @@ pub fn logical_matrix<'a>(id: &str, doc: &'a ProjectDoc) -> Result<Cow<'a, Matri
         }
         return super::layout::reflected(source, &target, mapping, false, gap.is_some())
             .map(Cow::Owned);
+    }
+    // A derived two-board mirror resolves from its source while omitted: the
+    // derived anchor target follows the source's anchor through the same
+    // deterministic naming, and the pair map orients the reflection.
+    if let Some((pair, source_id, mapping)) = derived {
+        let source = doc
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == source_id)
+            .ok_or("Omitted matrix source is missing")?;
+        let mut target = source.clone();
+        target.id = id.to_owned();
+        target.board_id = doc
+            .layouts
+            .iter()
+            .find(|layout| layout.matrix_ids.iter().any(|member| member == id))
+            .map(|layout| layout.board_id.clone());
+        if let Some(anchor) = &mut target.anchor {
+            let source_anchor = anchor.matrix_id.clone();
+            let owned = doc.matrices.iter().any(|matrix| {
+                matrix.id == source_anchor
+                    && boardstudio_model::mirrored_half::owns_matrix(doc, &pair.source, matrix)
+            });
+            if !owned {
+                return Err("Omitted matrix anchor correspondence is missing".into());
+            }
+            anchor.matrix_id =
+                boardstudio_model::mirrored_half::mirrored_matrix_id(&pair.id, &source_anchor);
+        }
+        return super::layout::reflected(source, &target, mapping, false, false).map(Cow::Owned);
     }
     Err(format!("Logical matrix {id} is missing"))
 }
@@ -273,20 +299,17 @@ fn follow_basis(matrix: &Matrix, doc: &ProjectDoc) -> FollowBasis {
             };
         }
     }
-    if let Some(hardware) = &doc.hardware {
-        for pair in &hardware.pairs {
-            if pair.halves.as_ref().is_some_and(|halves| {
-                halves
-                    .correspondences
-                    .iter()
-                    .any(|c| c.kind == MirroredItemKind::Matrix && c.mirror_id == matrix.id)
-            }) {
-                return FollowBasis::Reflected {
-                    translation: pair.mapping.at,
-                    rotation: pair.mapping.rotation,
-                };
-            }
-        }
+    if let Some((derived, _, _)) = boardstudio_model::mirrored_half::derived_matrix(doc, &matrix.id)
+        && let Some(pair) = doc
+            .hardware
+            .iter()
+            .flat_map(|hardware| &hardware.pairs)
+            .find(|pair| pair.id == derived.id)
+    {
+        return FollowBasis::Reflected {
+            translation: pair.mapping.at,
+            rotation: pair.mapping.rotation,
+        };
     }
     FollowBasis::World
 }

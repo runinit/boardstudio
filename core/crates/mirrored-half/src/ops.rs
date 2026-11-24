@@ -1,5 +1,8 @@
 use crate::model::{EditOperation, HalfExceptionState, Pose2, ProjectDoc};
 use crate::{MirrorOverride, MirroredPair, PartOverride, project_document};
+use boardstudio_model::mirrored_half::{
+    mirrored_entity_id, mirrored_part_id, owns_matrix, owns_part,
+};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum MirrorEditRefused {
@@ -25,7 +28,6 @@ impl std::fmt::Display for MirrorEditRefused {
 }
 
 pub fn admit_edit(doc: &ProjectDoc, operation: &EditOperation) -> Result<(), MirrorEditRefused> {
-    use crate::project::{entity_id, owns_matrix, owns_part};
     use EditOperation::*;
 
     let mut part_targets = Vec::new();
@@ -84,7 +86,7 @@ pub fn admit_edit(doc: &ProjectDoc, operation: &EditOperation) -> Result<(), Mir
             if part_targets.is_empty() || !owns_part(doc, &mirror.source, &source.id) {
                 continue;
             }
-            let target_id = crate::project::part_id(doc, mirror, &source.id);
+            let target_id = mirrored_part_id(doc, mirror, &source.id);
             if part_targets.contains(&target_id.as_str())
                 && !mirror.overrides.iter().any(|item| {
                     item.source_id == source.id && matches!(item.state, MirrorOverride::Local(_))
@@ -101,7 +103,7 @@ pub fn admit_edit(doc: &ProjectDoc, operation: &EditOperation) -> Result<(), Mir
             if matrix_targets.is_empty() || !owns_matrix(doc, &mirror.source, source) {
                 continue;
             }
-            let target_id = entity_id(mirror, "matrix", &source.id);
+            let target_id = mirrored_entity_id(mirror, "matrix", &source.id);
             if matrix_targets.contains(&target_id.as_str()) {
                 return Err(MirrorEditRefused::LinkedTarget {
                     target_id,
@@ -148,7 +150,7 @@ pub fn set_exception(
         .map(|part| &part.id)
         .chain(mirror.overrides.iter().map(|item| &item.source_id))
         .find(|source_id| {
-            crate::project::part_id(doc, mirror, source_id) == target_id
+            mirrored_part_id(doc, mirror, source_id) == target_id
             || mirror.overrides.iter().any(|item| &item.source_id == *source_id
                 && matches!(&item.state, MirrorOverride::Local(part) if part.id == target_id))
         })
@@ -226,7 +228,7 @@ pub fn set_companion_pose(
         .parts
         .iter()
         .map(|part| &part.id)
-        .find(|id| crate::project::part_id(doc, mirror, id) == target_id)
+        .find(|id| mirrored_part_id(doc, mirror, id) == target_id)
         .cloned()
         .ok_or("Unknown mirror target")?;
     let mirror = &mut doc.mirrored_pairs[index];
@@ -405,8 +407,8 @@ pub fn companion_placement_disabled_reason(
         return Some("Unknown derived mirror pair");
     };
     let source = doc.parts.iter().find(|part| {
-        crate::project::owns_part(doc, &pair.source, &part.id)
-            && (part.id == item_id || crate::project::part_id(doc, pair, &part.id) == item_id)
+        owns_part(doc, &pair.source, &part.id)
+            && (part.id == item_id || mirrored_part_id(doc, pair, &part.id) == item_id)
     });
     let Some(source) = source else {
         return Some("Unknown derived mirror companion");
@@ -428,7 +430,6 @@ fn admit_geometry_edit(
     operation: &EditOperation,
 ) -> Result<(), MirrorEditRefused> {
     use crate::MirrorDestination;
-    use crate::project::entity_id;
     use boardstudio_model::mechanical::change::MechanicalTarget;
     use boardstudio_model::outline_edit::OutlineChange;
 
@@ -481,7 +482,7 @@ fn admit_geometry_edit(
         };
         if let Some(id) = module
             && let Some(authored) = doc.modules.iter().find(|item| {
-                &item.host_board_id == source && entity_id(pair, "module", &item.id) == id
+                &item.host_board_id == source && mirrored_entity_id(pair, "module", &item.id) == id
             })
         {
             return refusal(id, &authored.id);
@@ -494,7 +495,7 @@ fn admit_geometry_edit(
                     .and_then(|item| {
                         item.outline_ids
                             .iter()
-                            .find(|authored| entity_id(pair, "outline", authored) == id)
+                            .find(|authored| mirrored_entity_id(pair, "outline", authored) == id)
                     })
         {
             return refusal(id, authored);

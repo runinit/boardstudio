@@ -12,6 +12,7 @@ pub(crate) use boardstudio_model::{electrical_jumpers, electrical_profiles};
 
 pub mod electrical;
 pub mod electrical_peripherals;
+pub(crate) mod geometry2d;
 pub mod keymap;
 pub mod mechanical;
 pub mod mechanical_checks;

@@ -146,12 +146,10 @@ pub(super) fn adopt_pair_parts(
         if let Some(layout) = doc.layouts.iter_mut().find(|layout| layout.id == target_id)
             && let Some(link) = layout.mirror_link.as_mut()
         {
-            link.correspondences.push(MirroredCorrespondence {
+            link.correspondences.push(LayoutLinkPair {
                 kind: MirroredItemKind::Part,
                 source_id: source_part.clone(),
                 mirror_id: mirror_part.clone(),
-                companion_mode: None,
-                companion_tweak: None,
             });
             changed.push(source_part);
             changed.push(mirror_part);

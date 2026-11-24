@@ -530,69 +530,6 @@ fn author_gasket_support(
         })
 }
 
-/// A legacy-ownership configuration whose hardware, critical fits and profiles are
-/// distinguishable by `marker`.
-fn legacy_configuration(marker: &str, plate_thickness: f64) -> MechanicalConfiguration {
-    let mut value = serde_json::to_value(fixture::mechanical("board")).unwrap();
-    let object = value.as_object_mut().unwrap();
-    object.insert("boardId".into(), json!("board"));
-    object.insert("plateThickness".into(), json!(plate_thickness));
-    object.insert(
-        "hardware".into(),
-        json!([{
-            "id": format!("hw-{marker}"), "partId": "plate", "featureId": "mount-1",
-            "designation": marker, "thread": "M3", "length": 6.0, "quantity": 1
-        }]),
-    );
-    object.insert(
-        "criticalFits".into(),
-        json!([{
-            "id": format!("fit-{marker}"), "partId": "plate", "label": marker,
-            "from": {"x": 0.0, "y": 0.0}, "to": {"x": 1.0, "y": 1.0}, "tolerance": "0.2"
-        }]),
-    );
-    object.insert(
-        "profiles".into(),
-        json!([{
-            "definitionId": format!("def-{marker}"), "source": marker, "cutouts": [],
-            "plateToPcb": 3.5
-        }]),
-    );
-    serde_json::from_value(value).unwrap()
-}
-
-fn legacy_instance(id: &str, marker: &str, plate_thickness: f64) -> PhysicalBoardInstance {
-    paired_instance(
-        id,
-        "board",
-        "controller",
-        Some(legacy_configuration(marker, plate_thickness)),
-        MechanicalConstructionOwnership::Legacy,
-    )
-}
-
-/// Three legacy members whose first member is the fallback shared source.
-fn legacy_document() -> ProjectDoc {
-    let mut document = document();
-    document.hardware = Some(hardware(vec![
-        legacy_instance("a", "a", 1.5),
-        legacy_instance("b", "b", 9.9),
-        legacy_instance("c", "c", 9.9),
-    ]));
-    document
-}
-
-fn convert(document: &mut ProjectDoc, ids: &[&str]) -> Result<Vec<String>, String> {
-    apply_edit(
-        document,
-        board_target(),
-        MechanicalChange::MaterializeLegacyConstruction {
-            instance_ids: ids.iter().map(|id| (*id).to_string()).collect(),
-        },
-        false,
-    )
-}
-
 fn stored_instance<'a>(document: &'a ProjectDoc, id: &str) -> &'a PhysicalBoardInstance {
     document
         .hardware

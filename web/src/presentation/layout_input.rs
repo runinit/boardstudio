@@ -189,13 +189,14 @@ fn event_target(event: &web_sys::Event) -> Option<web_sys::Element> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use boardstudio_application::{Scope, SessionEpoch};
+    use boardstudio_core::model::Vec2;
     use boardstudio_web_ui_shared::{
         test_wait::wait_until,
         ui::dialog::{Dialog, DialogTitle},
     };
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
-
     #[wasm_bindgen_test]
     async fn space_pan_prevents_scroll_on_layout_controls_but_allows_typing() {
         let root = test_mount_helpers::mount(VirtualDom::new(CanvasHost), None);
@@ -209,7 +210,6 @@ mod tests {
             assert_eq!(keydown(&root, target, " ", "Space"), prevents_scroll);
         }
     }
-
     #[component]
     fn CanvasHost() -> Element {
         let input = use_layout_input();
@@ -223,12 +223,32 @@ mod tests {
             interaction.space_down(),
             interaction.control_down()
         );
+        let scope = || Scope {
+            session_epoch: SessionEpoch(0),
+            document_id: "p".into(),
+            board_id: "b".into(),
+            instance_id: None,
+        };
         let mut arm = move |mode: CanvasMode| {
+            let seed = match mode {
+                CanvasMode::Panning => GestureSeed::Pan {
+                    scope: scope(),
+                    generation: 0,
+                    start_camera: Vec2::default(),
+                },
+                CanvasMode::DraggingParts => GestureSeed::PartDrag {
+                    scope: scope(),
+                    generation: 0,
+                    origin_mm: Vec2::default(),
+                    positions: Vec::new(),
+                },
+                _ => return,
+            };
             interaction.handle(CanvasEvent::PointerDown {
-                mode,
                 id: 7,
                 client: (0.0, 0.0),
                 control: false,
+                seed: Some(seed),
             });
             refresh += 1;
         };
@@ -254,14 +274,12 @@ mod tests {
             }
         }
     }
-
     fn canvas_state(root: &test_mount_helpers::MountedRoot) -> Option<String> {
         root.query_selector("#interaction-state")
             .ok()
             .flatten()
             .and_then(|state| state.text_content())
     }
-
     async fn expect_state(root: &test_mount_helpers::MountedRoot, expected: &'static str) {
         wait_until("canvas interaction state", || {
             canvas_state(root).as_deref() == Some(expected)
@@ -269,7 +287,6 @@ mod tests {
         .await;
         assert_eq!(canvas_state(root).as_deref(), Some(expected));
     }
-
     fn click(root: &test_mount_helpers::MountedRoot, selector: &str) {
         root.query_selector(selector)
             .unwrap()
@@ -278,7 +295,6 @@ mod tests {
             .unwrap()
             .click();
     }
-
     fn keydown(
         root: &test_mount_helpers::MountedRoot,
         selector: &str,
@@ -299,7 +315,6 @@ mod tests {
             .unwrap();
         event.default_prevented()
     }
-
     #[wasm_bindgen_test]
     async fn non_layout_canvas_admits_space_pan_and_escape_without_control() {
         let root = test_mount_helpers::mount(VirtualDom::new(CanvasHost), None);
@@ -320,7 +335,6 @@ mod tests {
         assert!(keydown(&root, "#canvas-key", "Escape", "Escape"));
         expect_state(&root, "None|true|false").await;
     }
-
     #[wasm_bindgen_test]
     async fn non_canvas_ignores_space_and_pointerdown_clears_stale_control() {
         let root = test_mount_helpers::mount(VirtualDom::new(CanvasHost), None);

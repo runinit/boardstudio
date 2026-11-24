@@ -103,8 +103,6 @@ pub(super) fn part_pointer_down(
     let scope = frame.scope.clone();
     let generation = frame.owner.generation;
     let svg = frame.svg.clone();
-    let navigation = interaction.navigation.clone();
-    let drag = navigation.drag_interaction();
     let owner = frame.owner.clone();
     let accepted_token = frame.snapshot.token;
     let accepted_revision = frame.snapshot.document.revision;
@@ -124,7 +122,6 @@ pub(super) fn part_pointer_down(
             || !pcb_owner_is_current(&runtime, workspace, &adapter, &owner)
             || !instance_selection.is_current(&runtime.model())
             || canvas_interaction.current().is_some()
-            || drag.borrow().is_some()
             || runtime.model().gesture.is_some()
         {
             return;
@@ -142,28 +139,19 @@ pub(super) fn part_pointer_down(
         };
         let client = (f64::from(request.client_x), f64::from(request.client_y));
         if canvas_interaction.space_down() {
-            if super::workbench::editor_session::canvas_adapter::capture_canvas_drag(
+            super::editor::canvas_adapter::capture_canvas_drag(
                 canvas_interaction,
-                super::workbench::editor_session::canvas_adapter::CanvasDragStart {
-                    mode: CanvasMode::Panning,
-                    id: request.pointer_id as i32,
-                    client,
-                    control: false,
+                request.pointer_id as i32,
+                client,
+                false,
+                GestureSeed::Pan {
+                    scope: scope.clone(),
+                    generation,
+                    start_camera: runtime.with_model(|model| model.camera.center),
                 },
                 &runtime,
-                &drag,
                 &svg,
-            ) {
-                navigation.start_space_pan(
-                    boardstudio_web_ui_shared::canvas_navigation::PanStart {
-                        pointer_id: request.pointer_id,
-                        scope: scope.clone(),
-                        generation,
-                        client,
-                        camera: runtime.with_model(|model| model.camera.center),
-                    },
-                );
-            }
+            );
             return;
         }
         let model = runtime.model();
@@ -274,34 +262,20 @@ pub(super) fn part_pointer_down(
         {
             return;
         }
-        if !super::workbench::editor_session::canvas_adapter::capture_canvas_drag(
+        super::editor::canvas_adapter::capture_canvas_drag(
             canvas_interaction,
-            super::workbench::editor_session::canvas_adapter::CanvasDragStart {
-                mode: CanvasMode::DraggingParts,
-                id: request.pointer_id as i32,
-                client: (f64::from(request.client_x), f64::from(request.client_y)),
-                control: false,
+            request.pointer_id as i32,
+            (f64::from(request.client_x), f64::from(request.client_y)),
+            false,
+            GestureSeed::PartDrag {
+                scope: scope.clone(),
+                generation,
+                origin_mm: origin,
+                positions,
             },
             &runtime,
-            &drag,
             &svg,
-        ) {
-            return;
-        }
-        *drag.borrow_mut() = Some(Drag {
-            pointer: request.pointer_id,
-            scope: scope.clone(),
-            generation,
-            gesture_generation: None,
-            origin,
-            client_x: f64::from(request.client_x),
-            client_y: f64::from(request.client_y),
-            positions,
-            last_sample: None,
-            active: false,
-            pan: false,
-            camera: Vec2::default(),
-        });
+        );
     })
 }
 
@@ -309,7 +283,6 @@ pub(super) fn empty_hit(
     editor: EditorContext,
     adapter: SelectionAdapter,
     frame: &WorkspaceFrame,
-    interaction: &WorkspaceInteraction,
 ) -> EventHandler<PointerEvent> {
     let runtime = editor.runtime();
     let workspace = editor.workspace;
@@ -317,14 +290,12 @@ pub(super) fn empty_hit(
     let scope = frame.scope.clone();
     let generation = frame.owner.generation;
     let token = frame.snapshot.token;
-    let drag = interaction.navigation.drag_interaction();
     let canvas_interaction = use_context::<LayoutInteraction>();
     EventHandler::new(move |event: PointerEvent| {
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
         };
         if pointer.button() != 0
-            || drag.borrow().is_some()
             || canvas_interaction.current().is_some()
             || canvas_interaction.space_down()
             || workspace() != Workspace::Pcb

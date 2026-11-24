@@ -531,21 +531,32 @@ fn dragging_the_authority_retunes_a_saved_linked_target() {
         "formatVersion": boardstudio_core::document_format::CURRENT_VERSION,
         "revision": 0,
         "id": "framed", "name": "Framed drag",
-        "parameters": {}, "matrices": [], "nets": [], "outline": [], "boards": [],
+        "parameters": {}, "matrices": [], "nets": [], "outline": [],
+        "boards": [
+            {"id": "alpha", "name": "Alpha", "partIds": ["alpha/T"],
+             "outlineIds": [], "netIds": [], "thickness": 1.6},
+            {"id": "beta", "name": "Beta", "partIds": [],
+             "outlineIds": [], "netIds": [], "thickness": 1.6}
+        ],
         "caseBodies": [], "materials": [], "assets": [],
         "definitions": [{"id": "d", "name": "Fixture", "kind": "custom", "pads": [], "courtyard": []}],
         "parts": [
             {"id": "source", "definitionId": "d", "reference": "S1", "side": "front",
              "pose": {"at": {"x": 1, "y": 2}, "rotation": 0}},
             {"id": "alpha/T", "definitionId": "d", "reference": "T1", "side": "front",
-             "pose": {"at": {"x": 16, "y": 4}, "rotation": 180}},
-            {"id": "beta/T", "definitionId": "d", "reference": "T2", "side": "front",
-             "pose": {"at": {"x": 4, "y": 4}, "rotation": 0}}
+             "pose": {"at": {"x": 16, "y": 4}, "rotation": 180}}
         ],
+        "mirroredPairs": [{
+            "id": "pair",
+            "source": {"kind": "secondBoard", "id": "alpha"},
+            "destination": {"kind": "secondBoard", "id": "beta"},
+            "mapping": {"at": {"x": 20, "y": 0}, "rotation": 0},
+            "overrides": []
+        }],
         "constraints": [{
             "kind": "framed", "id": "drag",
             "source": {"kind": "part", "partId": "source"},
-            "target": {"kind": "linked-mirror", "pairId": "pair", "sourcePartId": "alpha/T", "mirrorPartId": "beta/T"},
+            "target": {"kind": "linked-mirror", "pairId": "pair", "sourcePartId": "alpha/T", "mirrorPartId": "4/pair/part/alpha/T"},
             "relation": {"kind": "offset", "offset": {"x": 3, "y": 2}, "rotation": -0.0}
         }],
         "hardware": {
@@ -560,8 +571,7 @@ fn dragging_the_authority_retunes_a_saved_linked_target() {
                 "construction": {"method": "printed", "mount": "tray", "integratedPlateFrame": false,
                     "plateThickness": 1.5, "plateFoamThickness": 0, "bottomFoamThickness": 0,
                     "bottomThickness": 1.5, "plateToPcb": 5, "wallThickness": 2, "clearance": 0.2},
-                "halves": {"sourceBoardId": "alpha", "mirrorBoardId": "beta",
-                    "correspondences": [{"kind": "part", "sourceId": "alpha/T", "mirrorId": "beta/T"}]}
+                "halves": {"sourceBoardId": "alpha", "mirrorBoardId": "beta"}
             }]
         }
     })).unwrap();

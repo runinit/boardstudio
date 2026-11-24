@@ -8,6 +8,7 @@ pub use boardstudio_model::model;
 pub(crate) use boardstudio_core_kernel::{hash, matrix};
 use model::Vec2;
 
+pub mod footprint_geometry;
 pub mod mechanical_extract;
 pub mod parsed_board;
 pub mod preview;

@@ -2,18 +2,18 @@ use boardstudio_model::mechanical::pair;
 
 use crate::MirroredPair;
 use crate::model::{Matrix, Mirror, Pose2};
-use crate::project::entity_id;
+use boardstudio_model::mirrored_half::mirrored_entity_id;
 
 pub(crate) fn matrix(mirror: &MirroredPair, source: &Matrix, board_id: &str) -> Matrix {
     let mut target = source.clone();
-    target.id = entity_id(mirror, "matrix", &source.id);
+    target.id = mirrored_entity_id(mirror, "matrix", &source.id);
     target.board_id = Some(board_id.into());
     target.mirror = Some(match source.mirror {
         Some(Mirror::X | Mirror::Y) => Mirror::None,
         _ => Mirror::X,
     });
     if let Some(anchor) = &mut target.anchor {
-        anchor.matrix_id = entity_id(mirror, "matrix", &anchor.matrix_id);
+        anchor.matrix_id = mirrored_entity_id(mirror, "matrix", &anchor.matrix_id);
         target.origin.x = -target.origin.x;
         target.rotation = source.rotation.map(|angle| -angle);
     } else {
@@ -57,7 +57,7 @@ pub(crate) fn outline(
             points,
             ..
         } => {
-            *id = entity_id(mirror, "outline", id);
+            *id = mirrored_entity_id(mirror, "outline", id);
             if let Some(anchor) = anchor_part_id {
                 *anchor = parts.get(anchor.as_str())?.clone();
                 for point in points.iter_mut() {
@@ -77,7 +77,7 @@ pub(crate) fn outline(
             rotation,
             ..
         } => {
-            *id = entity_id(mirror, "outline", id);
+            *id = mirrored_entity_id(mirror, "outline", id);
             if let Some(anchor) = anchor_part_id {
                 *anchor = parts.get(anchor.as_str())?.clone();
                 center.x = -center.x;
@@ -96,13 +96,13 @@ pub(crate) fn outline(
             connections,
             ..
         } => {
-            *id = entity_id(mirror, "outline", id);
+            *id = mirrored_entity_id(mirror, "outline", id);
             *part_ids = part_ids
                 .iter()
                 .filter_map(|id| parts.get(id.as_str()).cloned())
                 .collect();
             for connection in connections {
-                connection.id = entity_id(mirror, "connection", &connection.id);
+                connection.id = mirrored_entity_id(mirror, "connection", &connection.id);
                 for point in &mut connection.points {
                     point.at = pair::forward(mirror.mapping, point.at);
                     point.part_id = point

@@ -1175,10 +1175,20 @@ pub struct LayoutMirrorLink {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spacing: Option<f64>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub correspondences: Vec<MirroredCorrespondence>,
+    pub correspondences: Vec<LayoutLinkPair>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub exceptions: Vec<MirroredException>,
 }
+/// One same-board layout mirror pair: the mirror of one source item.
+/// Each side is unique per kind.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LayoutLinkPair {
+    pub kind: MirroredItemKind,
+    pub source_id: String,
+    pub mirror_id: String,
+}
+
 impl LayoutMirrorLink {
     pub fn partner_matrix(&self, id: &str) -> Option<&str> {
         self.correspondences.iter().find_map(|record| {

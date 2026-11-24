@@ -2,10 +2,12 @@
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
 
-use super::hook::{OutlineDrawTool, OutlineInspectorProjection, OutlineVersionOwnership};
 use super::overlays::{OutlineCoordinate, OutlineDimension};
 use super::planner::{
     PerimeterAnchor, attach_connection_point, connection_point_world, move_connection_point,
+};
+use super::{
+    OutlineActionKind, OutlineDrawTool, OutlineInspectorProjection, OutlineVersionOwnership,
 };
 use crate::outline_settings::OutlineEdit;
 use boardstudio_model::model::{
@@ -28,16 +30,8 @@ use board::{BoardInspectorView, board_outline_inspector};
 
 #[component]
 pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Element {
-    let mut inspector_mounted = projection.inspector_mounted;
-    use_effect(move || {
-        inspector_mounted.set(true);
-    });
-    use_drop(move || inspector_mounted.set(false));
-    let mut perimeter_open = projection.editing_points;
-    let mut selected_point = projection.selected_point;
-    let selected_connection_id = projection.selected_connection_id;
-    let on_action = projection.on_action;
-    let action_context = projection.action_context.clone();
+    let mut perimeter_open = projection.ui.editing_points;
+    let mut canvas_ui = projection.ui.canvas_ui;
     let enabled = projection.enabled;
     let draft_serial = use_signal(|| 0u64);
     let active_value = projection.active_version_id.clone().unwrap_or_default();
@@ -54,25 +48,29 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
     let point_attachment = use_memo(use_reactive(
         (&projection.connections,),
         move |(connections,)| {
+            let canvas = canvas_ui.read();
             Some(
                 connections
                     .iter()
                     .find(|connection| {
-                        Some(&connection.id) == selected_connection_id.read().as_ref()
+                        Some(&connection.id) == canvas.selected_connection_id.as_ref()
                     })
                     .and_then(|connection| {
-                        connection
-                            .points
-                            .get(selected_point().min(connection.points.len().saturating_sub(1)))
+                        connection.points.get(
+                            canvas
+                                .selected_point
+                                .min(connection.points.len().saturating_sub(1)),
+                        )
                     })
                     .and_then(|point| point.part_id.clone())
                     .unwrap_or_default(),
             )
         },
     ));
+    let selected_point = canvas_ui.read().selected_point;
     let point_index = perimeter
         .as_ref()
-        .map(|perimeter| selected_point().min(perimeter.points.len().saturating_sub(1)))
+        .map(|perimeter| selected_point.min(perimeter.points.len().saturating_sub(1)))
         .unwrap_or_default();
     let point = perimeter
         .as_ref()
@@ -175,12 +173,12 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                 h3 { class: "mt-4 mb-2 text-[13px] font-semibold", "Point {point_index + 1} of {point_count}" }
                                 div { class: "grid gap-2.5",
                                     OutlineCoordinate {
-                                        key: format!("{:?}:{:?}:{point_index}:x", action_context.envelope.scope, perimeter.target),
+                                        key: format!("{:?}:{:?}:{point_index}:x", projection.scope, perimeter.target),
                                         label: format!("Point {} X mm", point_index + 1),
                                         value: point.x,
                                         editable: enabled,
                                         on_commit: {
-                                            let action_context = action_context.clone();
+                                            let projection = projection.clone();
                                             let target = perimeter.target.clone();
                                             let mut points = perimeter.points.clone();
                                             let world_points = perimeter.canvas_points.clone();
@@ -193,29 +191,17 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                                     let next = Vec2 { x: value, y: world.y };
                                                     *point = anchor.map_or(next, |anchor| anchor.local(next));
                                                 }
-                                                on_action
-                                                    .call(
-                                                        action_context
-                                                            .edit_perimeter(
-                                                                target.clone(),
-                                                                points.clone(),
-                                                                EditPhase::Commit,
-                                                                format!(
-                                                                    "outline-point-{}-{point_index}",
-                                                                    action_context.envelope.revision,
-                                                                ),
-                                                            ),
-                                                    );
+                                                commit_perimeter_points(&projection, &target, &points, point_index);
                                             }
                                         },
                                     }
                                     OutlineCoordinate {
-                                        key: format!("{:?}:{:?}:{point_index}:y", action_context.envelope.scope, perimeter.target),
+                                        key: format!("{:?}:{:?}:{point_index}:y", projection.scope, perimeter.target),
                                         label: format!("Point {} Y mm", point_index + 1),
                                         value: point.y,
                                         editable: enabled,
                                         on_commit: {
-                                            let action_context = action_context.clone();
+                                            let projection = projection.clone();
                                             let target = perimeter.target.clone();
                                             let mut points = perimeter.points.clone();
                                             let world_points = perimeter.canvas_points.clone();
@@ -228,19 +214,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                                     let next = Vec2 { x: world.x, y: value };
                                                     *point = anchor.map_or(next, |anchor| anchor.local(next));
                                                 }
-                                                on_action
-                                                    .call(
-                                                        action_context
-                                                            .edit_perimeter(
-                                                                target.clone(),
-                                                                points.clone(),
-                                                                EditPhase::Commit,
-                                                                format!(
-                                                                    "outline-point-{}-{point_index}",
-                                                                    action_context.envelope.revision,
-                                                                ),
-                                                            ),
-                                                    );
+                                                commit_perimeter_points(&projection, &target, &points, point_index);
                                             }
                                         },
                                     }
@@ -251,7 +225,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
     disabled: !enabled,
     aria_label: "Insert after {point_index + 1}",
     onclick: {
-                                        let action_context = action_context.clone();
+                                        let projection = projection.clone();
                                         let target = perimeter.target.clone();
                                         let mut points = perimeter.points.clone();
                                         move |_| {
@@ -260,8 +234,8 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                             let a = points[point_index];
                                             let b = points[next];
                                             points.insert(point_index + 1, Vec2 { x: (a.x + b.x) / 2.0, y: (a.y + b.y) / 2.0 });
-                                            selected_point.set(point_index + 1);
-                                            on_action.call(action_context.edit_perimeter(target.clone(), points.clone(), EditPhase::Commit, format!("outline-point-{}-{point_index}", action_context.envelope.revision)));
+                                            canvas_ui.write().selected_point = point_index + 1;
+                                            commit_perimeter_points(&projection, &target, &points, point_index);
                                         }
                                     },
 
@@ -273,14 +247,14 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
     disabled: !enabled || point_count <= 3,
     aria_label: "Remove point {point_index + 1}",
     onclick: {
-                                        let action_context = action_context.clone();
+                                        let projection = projection.clone();
                                         let target = perimeter.target.clone();
                                         let mut points = perimeter.points.clone();
                                         move |_| {
                                             if point_count <= 3 { return; }
                                             points.remove(point_index);
-                                            selected_point.set(point_index.saturating_sub(1));
-                                                on_action.call(action_context.edit_perimeter(target.clone(), points.clone(), EditPhase::Commit, format!("outline-point-{}-{point_index}", action_context.envelope.revision)));
+                                            canvas_ui.write().selected_point = point_index.saturating_sub(1);
+                                            commit_perimeter_points(&projection, &target, &points, point_index);
                                         }
                                     },
 
@@ -310,7 +284,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                                     std::collections::HashSet::new()
                                                 },
                                             ),
-                                            on_pressed_change: move |_| selected_point.set(index),
+                                            on_pressed_change: move |_| canvas_ui.write().selected_point = index,
                                             ToggleItem {
                                                 class: "grid! w-full! grid-cols-[54px_minmax(0,1fr)_minmax(0,1fr)] gap-2 rounded-none! px-2 py-1.5 text-left text-xs! font-normal! tabular-nums max-[760px]:min-h-control-touch",
                                                 index: 0usize,
@@ -336,6 +310,20 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                         {board_outline_inspector(BoardInspectorView { projection: projection.clone(), draft_serial, active_selection, corner_selection, point_attachment })}
                     }
                 }
+}
+
+fn commit_perimeter_points(
+    projection: &OutlineInspectorProjection,
+    target: &super::OutlinePointTarget,
+    points: &[Vec2],
+    point_index: usize,
+) {
+    projection.dispatch(OutlineActionKind::EditPerimeter {
+        target: target.clone(),
+        points: points.to_vec(),
+        phase: EditPhase::Commit,
+        transaction_id: format!("outline-point-{}-{point_index}", projection.revision),
+    });
 }
 
 fn contour_preview(contours: &[Contour]) -> Option<(String, Vec<(String, bool)>)> {

@@ -20,14 +20,13 @@ struct CanvasContexts {
     layout_state: layout_workspace::LayoutWorkspaceState,
     keycaps: keycaps_workspace::KeycapsWorkspaceState,
     adapter: SelectionAdapter,
-    interaction: workspace_composition::WorkspaceInteraction,
 }
 
 pub(in crate::presentation) fn use_layout_canvas(
     frame: &workspace_composition::WorkspaceFrame,
     canvas: &super::inspector_wiring::CanvasNamed,
     transform_menu: &objects::LayoutTransformMenuMount,
-    pointer: &super::pointer::LayoutPointer,
+    pointer: &super::super::editor::canvas_adapter::LayoutPointer,
     overlay: &OutlineOverlay,
     extras: LayoutCanvasExtras,
 ) -> Element {
@@ -36,7 +35,6 @@ pub(in crate::presentation) fn use_layout_canvas(
         layout_state: use_context::<layout_workspace::LayoutWorkspaceState>(),
         keycaps: use_context::<keycaps_workspace::KeycapsWorkspaceState>(),
         adapter: use_context::<SelectionAdapter>(),
-        interaction: use_context::<workspace_composition::WorkspaceInteraction>(),
     };
     let layout_assembly_3d = contexts.layout_state.assembly_3d();
     let focused_keycaps_finding = contexts.keycaps.focused_finding();
@@ -154,11 +152,11 @@ fn scene_boards(
                 polygon { points: polygon_points(&contour.points), class: if contour.hole { "fill-canvas stroke-destructive stroke-[0.3] [stroke-dasharray:0.8_0.55]" } else { "fill-geometry-fill stroke-geometry-board stroke-[0.3]" } }
             }
         }
-        if let Some(projection) = outline_inspector.clone().filter(|projection| (projection.editing_points)()) {
-            outline_lifecycle::OutlinePointCanvasOverlay {
+        if let Some(projection) = outline_inspector.clone().filter(|projection| (projection.ui.editing_points)()) {
+            outline::OutlinePointCanvasOverlay {
                 key: "{outline_overlay_key.as_deref().unwrap_or_default()}",
                 projection,
-                runtime: outline_lifecycle::OutlineRuntimeHandle::new(
+                runtime: outline::OutlineRuntimeHandle::new(
                     runtime.clone(),
                 ),
                 svg: svg.clone(),
@@ -179,8 +177,8 @@ fn scene_boards(
 
 pub(in crate::presentation) fn scene_placement_previews(
     layer_visibility: &LayerVisibility,
-    matrix_placement: &objects::MatrixPlacementMount,
-    mirrored_pair: &objects::MirroredPairMount,
+    matrix_placement: &objects::MatrixPlacementSession,
+    mirrored_pair: &objects::MirroredPairSession,
 ) -> Element {
     rsx! {
         if !(layer_visibility.hidden)().contains("Keys") {
@@ -237,12 +235,10 @@ fn selection_anchor(
 ) -> Element {
     let editor = &contexts.editor;
     let adapter = &contexts.adapter;
-    let interaction = &contexts.interaction;
     let matrix_transform_inspector = frame.layout_services().matrix_transform_inspector.clone();
     let selected_tree_context = &selection.selected_tree_context;
     let runtime = editor.runtime();
     let svg = frame.svg.clone();
-    let drag = interaction.navigation.drag_interaction();
     let layout_owner = frame.owner.clone();
     let render_scope = frame.scope.clone();
     let workspace = editor.workspace;
@@ -259,7 +255,7 @@ fn selection_anchor(
                 objects::SelectionDeleteControl { mount: matrix_transform_inspector.clone() }
             }
             if !matches!(selected_tree_context.as_ref().map(|selected| &selected.context), Some(objects::TreeContext::Column { .. } | objects::TreeContext::Row { .. })) {
-            { let runtime = runtime.clone(); let svg = svg.clone(); let drag = drag.clone();
+            { let runtime = runtime.clone(); let svg = svg.clone();
                   let owner = layout_owner.clone(); let adapter = adapter.clone();
                   let arbiter = consume_context::<LayoutInteraction>(); let scope = render_scope.clone();
                   rsx! {
@@ -278,26 +274,27 @@ fn selection_anchor(
                             let Some(pointer) = event.data().try_as_web_event() else { return; };
                             if pointer.button() != 0 || arbiter.current().is_some()
                                 || !layout_owner_is_current(&runtime, workspace, &adapter, &owner)
-                                || drag.borrow().is_some() || runtime.model().gesture.is_some() { return; }
+                                || runtime.model().gesture.is_some() { return; }
                             pointer.prevent_default(); pointer.stop_propagation();
                             let Some(origin) = coordinates(&svg, &pointer, view_x, view_y, width, height) else { return; };
                             let current = runtime.model();
                             let Some(snapshot) = current.accepted else { return; };
                             let positions: Vec<_> = snapshot.document.parts.iter().filter(|p| current.selected_part_ids.contains(&p.id)).map(|p| Position { id: p.id.clone(), at: p.pose.at }).collect();
                             if positions.is_empty() { return; }
-                            if !workbench::editor_session::canvas_adapter::capture_canvas_drag(
+                            super::super::editor::canvas_adapter::capture_canvas_drag(
                                 arbiter,
-                                workbench::editor_session::canvas_adapter::CanvasDragStart {
-                                    mode: CanvasMode::DraggingParts,
-                                    id: pointer.pointer_id(),
-                                    client: client_point(&pointer),
-                                    control: pointer.ctrl_key(),
+                                pointer.pointer_id(),
+                                client_point(&pointer),
+                                pointer.ctrl_key(),
+                                GestureSeed::PartDrag {
+                                    scope: scope.clone(),
+                                    generation: owner.generation,
+                                    origin_mm: origin,
+                                    positions,
                                 },
                                 &runtime,
-                                &drag,
                                 &svg,
-                            ) { return; }
-                            *drag.borrow_mut() = Some(Drag { pointer: i64::from(pointer.pointer_id()), scope: scope.clone(), generation: owner.generation, gesture_generation: None, origin, client_x: f64::from(pointer.client_x()), client_y: f64::from(pointer.client_y()), positions, last_sample: None, active: false, pan: false, camera: Vec2::default() });
+                            );
                         },
                         circle { r: "5" }
                         path { d: "M0 -3.2v6.4M-3.2 0h6.4M-1.4 -1.8 0 -3.2l1.4 1.4M-1.4 1.8 0 3.2l1.4 -1.4M-1.8 -1.4-3.2 0l1.4 1.4M1.8 -1.4 3.2 0l-1.4 1.4" }
@@ -446,7 +443,7 @@ fn part_rail(
 }
 
 fn placement_preview(
-    part_placement: &part_placement::PartPlacementMount,
+    part_placement: &part_placement::PartPlacementSession,
     width: f64,
     zoom_surface_size: Signal<(f64, f64)>,
 ) -> Element {
@@ -521,11 +518,11 @@ fn finding_marker_draft(
             finding: focused_keycaps_finding(),
             markers: Rc::from(snapshot.scene.finding_markers.clone()),
         }
-        if let Some(projection) = outline_inspector.clone().filter(|projection| (projection.drawing_operation)().is_some()) {
-            outline_lifecycle::OutlineDraftCanvasOverlay {
+        if let Some(projection) = outline_inspector.clone().filter(|projection| (projection.ui.drawing_operation)().is_some()) {
+            outline::OutlineDraftCanvasOverlay {
                 key: "{outline_overlay_key.as_deref().unwrap_or_default()}-draft",
                 projection,
-                runtime: outline_lifecycle::OutlineRuntimeHandle::new(runtime.clone()),
+                runtime: outline::OutlineRuntimeHandle::new(runtime.clone()),
                 svg: svg.clone(),
                 view_x,
                 view_y,
@@ -835,7 +832,7 @@ pub(in crate::presentation) fn use_outline_overlay(
     let outline_snap_settings = layout_snap_settings.read().clone();
     let outline_grid_active = outline_inspector
         .as_ref()
-        .is_some_and(|projection| (projection.editing_points)());
+        .is_some_and(|projection| (projection.ui.editing_points)());
     let canvas_grid = objects::layout_canvas_grid_style(
         width,
         zoom_surface_size().0,
@@ -845,7 +842,7 @@ pub(in crate::presentation) fn use_outline_overlay(
     );
     let outline_overlay_key = outline_inspector
         .as_ref()
-        .map(outline_lifecycle::OutlineInspectorProjection::canvas_edit_key);
+        .map(outline::OutlineInspectorProjection::canvas_edit_key);
     OutlineOverlay {
         outline_pitch,
         outline_snap_origins,

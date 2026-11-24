@@ -13,7 +13,7 @@
 //! that needs no initialization is a no-op that reports nothing.
 use crate::model::*;
 
-use super::change::{MechanicalChange, MechanicalDimension, MechanicalEdit, MechanicalTarget};
+use super::change::{MechanicalChange, MechanicalEdit, MechanicalTarget};
 use super::inputs::effective_inputs;
 
 mod changes;
@@ -28,12 +28,12 @@ use changes::apply_change;
 pub use changes::default_configuration;
 pub use closures::resolve_target;
 use closures::{
-    apply_settings, closure_list_absent, dedup_changed, initialize_target_closures, owner_id,
-    paired_index, project, target_board_id, validate_mounting_hole,
+    apply_settings, closure_list_absent, initialize_target_closures, owner_id, paired_index,
+    target_board_id,
 };
 use feature_lifecycle::{
-    apply_feature_lifecycle, feature_ids, find_feature_value, instance_configuration_mut, pair_at,
-    pair_mut_at, pair_owner_ids,
+    apply_feature_lifecycle, find_feature_value, instance_configuration_mut, pair_at,
+    pair_owner_ids,
 };
 pub use feature_lifecycle::{install_feature, remove_feature};
 pub use identity::{IdentityFloor, MechanicalIdentityLedger};
@@ -43,14 +43,13 @@ use identity::{
 };
 pub use ownership::reconcile_physical_topology;
 use ownership::{
-    disable, enable, initialize_closures, link_mirror_pair, materialize_legacy_construction,
-    pair_index, persist, persist_edit, remove_physical_instance, unlink_mirror_pair,
+    disable, enable, initialize_closures, link_mirror_pair, pair_index, persist, persist_edit,
+    remove_physical_instance, unlink_mirror_pair,
 };
 use processes::{
-    closure_hardware_mut, critical_fit_mut, family_assignment_changes, hardware_mut,
-    initial_switch_family, is_process_target, material_options, normalize_processes,
-    process_default_thickness, process_mut, profile_family, resize_closure_insert,
-    stabilizer_target_exists,
+    closure_hardware_mut, critical_fit_mut, hardware_mut, initial_switch_family, is_process_target,
+    material_options, normalize_processes, process_default_thickness, process_mut, profile_family,
+    resize_closure_insert, stabilizer_target_exists,
 };
 use validation::{
     ProfileTargetKind, mount_collection_mut, set_dimension, valid_profile_polygons,
@@ -246,9 +245,6 @@ fn apply_staged(
         MechanicalChange::RemovePhysicalInstance => {
             remove_physical_instance(doc, board_contours, edit)
         }
-        MechanicalChange::MaterializeLegacyConstruction { .. } => {
-            materialize_legacy_construction(doc, &board_id, edit)
-        }
         MechanicalChange::MakeFeatureLocal { .. }
         | MechanicalChange::OmitFeatureMember { .. }
         | MechanicalChange::RejoinFeatureMember { .. } => apply_feature_lifecycle(doc, edit),
@@ -258,10 +254,6 @@ fn apply_staged(
 
 /// Whether a mechanical change can create, move or remove generated clearance
 /// geometry.
-///
-/// Legacy conversion is deliberately absent: it materializes each selected member's
-/// current effective values without changing any closure mount, so the generated
-/// clearance geometry it derives is unchanged and no mounting-hole template is needed.
 ///
 /// Projection rebuilds the generated closure-hole parts, definitions and
 /// memberships. Whenever it is required the caller must supply the normalized
@@ -280,47 +272,10 @@ fn apply_staged(
 /// configuration, so the generated holes derived from those features can appear,
 /// disappear or move. Projection therefore always runs for them and the caller
 /// must supply the mounting-hole template.
+///
+/// See `changes::change_effects` for the shared classification table.
 pub fn requires_projection(change: &MechanicalChange) -> bool {
-    match change {
-        MechanicalChange::Enable
-        | MechanicalChange::Disable
-        | MechanicalChange::InitializeClosures => true,
-        MechanicalChange::AddOpening
-        | MechanicalChange::RemoveOpening { .. }
-        | MechanicalChange::AddOpeningVertex { .. }
-        | MechanicalChange::RemoveOpeningVertex { .. }
-        | MechanicalChange::SetOpeningDimension { .. }
-        | MechanicalChange::AddMount { .. }
-        | MechanicalChange::AddSuggestedClosureMounts(_)
-        | MechanicalChange::SetMountCollection { .. }
-        | MechanicalChange::AdoptClosurePositions(_)
-        | MechanicalChange::SetMountDimension { .. }
-        | MechanicalChange::SetMountPosition { .. }
-        | MechanicalChange::SetMountKind { .. }
-        | MechanicalChange::RemoveMount { .. }
-        | MechanicalChange::SetGasketSupportPlacement { .. }
-        | MechanicalChange::ResetGasketPlacement
-        | MechanicalChange::AssignSwitchProfile { .. }
-        | MechanicalChange::AssignStabilizerProfile { .. }
-        | MechanicalChange::AssignImportedGeometryProfile { .. }
-        | MechanicalChange::UpdateProfile(_)
-        | MechanicalChange::RemoveProfile { .. }
-        | MechanicalChange::SetSwitchFamily { .. } => true,
-        // Linking, unlinking, member removal and the feature lifecycle rewrite each
-        // half's ordinary mounts/openings/supports, so generated closure clearance
-        // can change shape even though no settings field was edited.
-        MechanicalChange::LinkMirrorPair { .. }
-        | MechanicalChange::UnlinkMirrorPair { .. }
-        | MechanicalChange::RemovePhysicalInstance
-        | MechanicalChange::MakeFeatureLocal { .. }
-        | MechanicalChange::OmitFeatureMember { .. }
-        | MechanicalChange::RejoinFeatureMember { .. } => true,
-        MechanicalChange::SetDimension { field, .. } => {
-            // Only the clearance changes a generated closure-hole diameter.
-            matches!(field, MechanicalDimension::Clearance)
-        }
-        _ => false,
-    }
+    changes::change_effects(change).1
 }
 
 /// Whether a mechanical change can alter the inputs the outline composer reads.

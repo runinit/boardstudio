@@ -1,14 +1,16 @@
 use super::*;
-use boardstudio_model::model::{ColumnLayout, RowLayout};
+use boardstudio_model::model::{ColumnLayout, MatrixCell, RowLayout};
 
 impl View<'_> {
-    pub(super) fn key_state(&self, row: u32, column: u32) -> KeyState {
-        match self
-            .matrix
+    pub(super) fn cell(&self, row: u32, column: u32) -> Option<&MatrixCell> {
+        self.matrix
             .cells
             .iter()
             .find(|cell| cell.row == row && cell.column == column)
-        {
+    }
+
+    pub(super) fn key_state(&self, row: u32, column: u32) -> KeyState {
+        match self.cell(row, column) {
             Some(cell) if cell.deleted => KeyState::Removed,
             Some(cell) if !cell.enabled => KeyState::Disabled,
             _ => KeyState::Enabled,
@@ -16,32 +18,19 @@ impl View<'_> {
     }
 
     pub(super) fn member(&self, row: u32, column: u32) -> Option<&str> {
-        self.scene
-            .cells
-            .iter()
-            .find(|cell| cell.row == row && cell.column == column)
-            .and_then(|cell| cell.member_id.as_deref())
-    }
-
-    pub(super) fn scene_of(&self, matrix_id: &str) -> Option<&MatrixScene> {
-        self.scenes
-            .iter()
-            .find(|scene| scene.matrix_id == matrix_id)
+        crate::scene_cell_in(self.scene, row, column).and_then(|cell| cell.member_id.as_deref())
     }
 
     /// The live member of another matrix's key, resolved against the current
     /// accepted scenes. `None` when the key has no live member, so references
     /// never highlight or navigate a stale identity.
     pub(super) fn member_of(&self, matrix_id: &str, row: u32, column: u32) -> Option<&str> {
-        self.scene_of(matrix_id)?
-            .cells
-            .iter()
-            .find(|cell| cell.row == row && cell.column == column)
+        crate::scene_cell(self.scenes, matrix_id, row, column)
             .and_then(|cell| cell.member_id.as_deref())
     }
 
     pub(super) fn scene_members(&self, matrix_id: &str) -> Vec<String> {
-        self.scene_of(matrix_id)
+        crate::scene_by_id(self.scenes, matrix_id)
             .map(|scene| {
                 scene
                     .cells
@@ -52,8 +41,9 @@ impl View<'_> {
             .unwrap_or_default()
     }
 
-    /// Mirrors Core's exception lookup over same-board links and native pairs,
-    /// read-only: what Local/Omitted overlay covers this linked item, if any.
+    /// Mirrors Core's exception lookup over same-board links and derived
+    /// pairs, read-only: what Local/Omitted overlay covers this linked item,
+    /// if any.
     pub(super) fn exception(
         &self,
         kind: MirroredItemKind,
@@ -64,23 +54,11 @@ impl View<'_> {
             .iter()
             .filter_map(|layout| layout.mirror_link.as_ref())
             .flat_map(|link| &link.exceptions)
-            .chain(
-                self.document
-                    .hardware
-                    .iter()
-                    .flat_map(|hardware| &hardware.pairs)
-                    .filter_map(|pair| pair.halves.as_ref())
-                    .flat_map(|halves| &halves.exceptions),
-            )
             .find(|exception| exception.kind == kind && exception.mirror_id == id)
             .map(|exception| exception.state)
-    }
-
-    /// The canonical member Core assigns a matrix slot. Only a fallback for
-    /// naming a Local/Omitted overlay whose part is suppressed from the scene;
-    /// never a navigation or highlight target.
-    pub(super) fn canonical_member(matrix_id: &str, row: u32, column: u32) -> String {
-        format!("matrix/{matrix_id}/r{row}c{column}")
+            .or_else(|| {
+                boardstudio_model::mirrored_half::derived_override_state(self.document, kind, id)
+            })
     }
 
     /// Whether Core's `sync` would copy this matrix's edits to its partner:
@@ -97,7 +75,7 @@ impl View<'_> {
         let member = self
             .member(row, column)
             .map(str::to_owned)
-            .unwrap_or_else(|| Self::canonical_member(&self.matrix.id, row, column));
+            .unwrap_or_else(|| crate::canonical_matrix_member(&self.matrix.id, row, column));
         self.exception(MirroredItemKind::Part, &member)
     }
 
@@ -557,23 +535,10 @@ impl View<'_> {
 
     pub(super) fn matrix(&self) -> MatrixRelations {
         let matrix = self.matrix;
-        let (mut enabled, mut disabled, mut removed) = (0u32, 0u32, 0u32);
-        for row in 0..matrix.rows {
-            for column in 0..matrix.columns {
-                match self.key_state(row, column) {
-                    KeyState::Enabled => enabled += 1,
-                    KeyState::Disabled => disabled += 1,
-                    KeyState::Removed => removed += 1,
-                }
-            }
-        }
-        let mut size = format!("{} × {}, {} keys", matrix.rows, matrix.columns, enabled);
-        if disabled > 0 {
-            size.push_str(&format!(", {disabled} disabled"));
-        }
-        if removed > 0 {
-            size.push_str(&format!(", {removed} removed"));
-        }
+        let keys = self.all_keys();
+        let size = key_state_summary(keys.iter().map(|key| key.state), |enabled| {
+            format!("{} × {}, {} keys", matrix.rows, matrix.columns, enabled)
+        });
         let all = self.members(|_, _| true);
         let mut structure = vec![
             item("Matrix", size, None, all.clone()),
@@ -718,7 +683,6 @@ impl View<'_> {
         }
         // Shared values across the matrix, or "Varies" when members disagree.
         // No per-key value is presented as universal.
-        let keys = self.all_keys();
         let spreads: Vec<String> = (1..matrix.columns)
             .map(|column| self.spread_text(column))
             .collect();
@@ -793,20 +757,7 @@ impl View<'_> {
             None,
             all.clone(),
         ));
-        structure.push(item("Key shift", aggregate_shift(&keys), None, all.clone()));
-        structure.push(item("Key bend", aggregate_bend(&keys), None, all.clone()));
-        structure.push(item(
-            "Cumulative shift",
-            aggregate_cumulative_shift(&keys),
-            None,
-            all.clone(),
-        ));
-        structure.push(item(
-            "Cumulative bend",
-            aggregate_cumulative_bend(&keys),
-            None,
-            all.clone(),
-        ));
+        push_key_carry_items(&mut structure, &keys, &all);
         for column in 0..matrix.columns {
             let members = self.members(|_, c| c == column);
             if self.stagger(column) != 0.0 {

@@ -1,45 +1,279 @@
-//! Layout Inspector controls for accepted keycap size.
+//! Layout Inspector controls and synchronous commit path for accepted keycap size.
 use super::keycap_resize::ResizeAxis;
-use super::keycap_size_controller::{KeySizeMount, KeySizeOwner, KeySizeRequest};
+use super::keycap_size_logic::{
+    overlap_references, placements, quarter, resize_resolver_for, selected_keycap_ids,
+};
+use super::{ScopedTreeContext, TreeContext};
+use crate::runtime::Runtime;
+use boardstudio_application::{Durability, Lifecycle};
+use boardstudio_model::model::Vec2;
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::inspector_fields::{SelectField, ToggleField};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
 use boardstudio_web_ui_shared::ui::field::FieldError;
-
 use dioxus::prelude::*;
-use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
-#[derive(Clone)]
-struct ResizeIntent {
-    owner: KeySizeOwner,
-    snapshot_token: boardstudio_application::SnapshotToken,
-    revision: u64,
-    units: boardstudio_model::model::Vec2,
-    axis: Option<ResizeAxis>,
+#[derive(Clone, Debug, PartialEq)]
+pub struct KeySizeItem {
+    pub id: String,
+    pub size: Vec2,
+    pub pitch: Vec2,
+    pub gap: Vec2,
 }
 
-#[derive(Props, Clone, PartialEq)]
-pub struct KeySizeControlsProps {
-    pub mount: KeySizeMount,
+#[derive(Clone, Debug, PartialEq)]
+pub struct KeySizeProjection {
+    pub board_id: String,
+    pub selected_ids: Vec<String>,
+    pub items: Vec<KeySizeItem>,
+    pub units: Vec2,
+    pub mixed: bool,
+    pub mixed_x: bool,
+    pub mixed_y: bool,
+    pub overlap_references: Vec<String>,
+}
+
+#[derive(Clone, PartialEq)]
+pub struct KeySizeMount {
+    pub projection: Option<KeySizeProjection>,
+    pub editable: bool,
+    pub error: Option<String>,
+    pub on_resize: EventHandler<(Vec2, Option<ResizeAxis>)>,
+}
+
+pub fn use_key_size(
+    runtime: Rc<Runtime>,
+    version: Signal<u64>,
+    selected_context: Signal<Option<ScopedTreeContext>>,
+    workspace: Signal<Workspace>,
+    scope_generation: Signal<u64>,
+) -> KeySizeMount {
+    let _ = version();
+    let current_generation = scope_generation();
+    let mut error = use_signal(|| None::<String>);
+    let selected = selected_context.read().clone();
+    let current_workspace = workspace();
+    let (projection, editable) = project(&runtime, selected.as_ref(), current_workspace)
+        .map_or((None, false), |(p, e)| (Some(p), e));
+    let error_scope = (
+        current_workspace,
+        current_generation,
+        selected.map(|s| (s.scope, s.context)),
+        projection.as_ref().map(|p| p.selected_ids.clone()),
+    );
+    use_effect(use_reactive((&error_scope,), move |_| {
+        if error.peek().is_some() {
+            error.set(None);
+        }
+    }));
+
+    let on_resize = use_callback({
+        let runtime = runtime.clone();
+        move |(units, axis): (Vec2, Option<ResizeAxis>)| {
+            if workspace() != Workspace::Layout {
+                return;
+            }
+            let selected = selected_context.peek().clone();
+            let Some((current, editable)) = project(&runtime, selected.as_ref(), Workspace::Layout)
+            else {
+                return;
+            };
+            if !should_send(&current, units, axis) {
+                return;
+            }
+            if !editable {
+                error.set(Some(
+                    "The accepted layout is not ready to edit. Wait for it to save, then retry."
+                        .into(),
+                ));
+                return;
+            }
+            let model = runtime.model();
+            let Some(accepted) = model.accepted.as_ref() else {
+                return;
+            };
+            let result = runtime.commit(
+                "layout-key-size",
+                resize_resolver_for(
+                    &accepted.document,
+                    current.board_id,
+                    current.selected_ids,
+                    units,
+                    axis,
+                ),
+            );
+            error.set(result.err());
+        }
+    });
+
+    KeySizeMount {
+        projection,
+        editable,
+        error: error.read().clone(),
+        on_resize,
+    }
+}
+
+fn should_send(projection: &KeySizeProjection, units: Vec2, axis: Option<ResizeAxis>) -> bool {
+    match axis {
+        Some(ResizeAxis::X) => {
+            projection.mixed_x
+                || projection
+                    .items
+                    .iter()
+                    .any(|item| quarter((item.size.x + item.gap.x) / item.pitch.x) != units.x)
+        }
+        Some(ResizeAxis::Y) => {
+            projection.mixed_y
+                || projection
+                    .items
+                    .iter()
+                    .any(|item| quarter((item.size.y + item.gap.y) / item.pitch.y) != units.y)
+        }
+        None => projection.mixed || units != projection.units,
+    }
+}
+
+fn project(
+    runtime: &Runtime,
+    selected: Option<&ScopedTreeContext>,
+    workspace: Workspace,
+) -> Option<(KeySizeProjection, bool)> {
+    if workspace != Workspace::Layout {
+        return None;
+    }
+    let model = runtime.model();
+    let scope = runtime.scope()?;
+    let selected = selected?;
+    if scope != selected.scope {
+        return None;
+    }
+    if !matches!(
+        selected.context,
+        TreeContext::Matrix { .. }
+            | TreeContext::Row { .. }
+            | TreeContext::Column { .. }
+            | TreeContext::Key { .. }
+    ) {
+        return None;
+    }
+    let snapshot = model.accepted.as_ref()?;
+    if snapshot.session_epoch != scope.session_epoch
+        || snapshot.document.id != scope.document_id
+        || model.active_board_id != scope.board_id
+        || model.active_instance_id != scope.instance_id
+    {
+        return None;
+    }
+    if !crate::selection::context_is_current(&model, &scope, &selected.context) {
+        return None;
+    }
+    let placement_list = placements(
+        &snapshot.document,
+        &snapshot.scene.matrix_scenes,
+        &scope.board_id,
+    );
+    // The tree context identifies the current Inspector section, but Ctrl/Shift canvas
+    // selection can contain parts that are not members of the last hit context. Use the
+    // accepted selected IDs as the authority, matching React's selectedKeycaps projection.
+    let selected_set = selected_keycap_ids(&model.selected_part_ids, &placement_list);
+    let overlap_references =
+        overlap_references(&snapshot.document.parts, &placement_list, &selected_set);
+    let items: Vec<_> = placement_list
+        .iter()
+        .filter(|placement| selected_set.contains(&placement.id))
+        .filter_map(|placement| {
+            let matrix = snapshot
+                .document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == placement.matrix_id)?;
+            Some(KeySizeItem {
+                id: placement.id.clone(),
+                size: placement.size,
+                pitch: matrix.pitch,
+                gap: matrix.edge_gap.unwrap_or(Vec2 { x: 1.0, y: 1.0 }),
+            })
+        })
+        .collect();
+    if items.is_empty() {
+        return None;
+    }
+    let to_units = |item: &KeySizeItem| Vec2 {
+        x: quarter((item.size.x + item.gap.x) / item.pitch.x),
+        y: quarter((item.size.y + item.gap.y) / item.pitch.y),
+    };
+    let units = to_units(&items[0]);
+    let unit_items: Vec<_> = items.iter().map(to_units).collect();
+    let mixed_x = unit_items.iter().skip(1).any(|c| c.x != units.x);
+    let mixed_y = unit_items.iter().skip(1).any(|c| c.y != units.y);
+    let mixed = mixed_x || mixed_y;
+    // Key-size edits commit synchronously against the accepted snapshot while an earlier save is
+    // in flight, so only an unrecoverable, preview/gesture, or unopened session disables controls.
+    let editable = model.lifecycle == Lifecycle::Ready
+        && matches!(
+            model.durability,
+            Durability::Saved { .. } | Durability::Saving { .. }
+        )
+        && model.display_preview.is_none()
+        && model.gesture.is_none();
+    Some((
+        KeySizeProjection {
+            board_id: scope.board_id,
+            selected_ids: items.iter().map(|item| item.id.clone()).collect(),
+            items,
+            units,
+            mixed,
+            mixed_x,
+            mixed_y,
+            overlap_references,
+        },
+        editable,
+    ))
 }
 
 #[component]
-pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
-    let Some(projection) = props.mount.projection.clone() else {
+pub fn KeySizeControls(mount: ReadSignal<KeySizeMount>) -> Element {
+    let on_size_commit = use_callback(move |choice: String| {
+        let Ok(size) = choice.parse::<f64>() else {
+            return;
+        };
+        let current = mount.peek();
+        let Some(projection) = current.projection.as_ref() else {
+            return;
+        };
+        let next = if projection.units.y > projection.units.x {
+            Vec2 { x: 1.0, y: size }
+        } else {
+            Vec2 { x: size, y: 1.0 }
+        };
+        current.on_resize.call((next, None));
+    });
+    let on_rotate_commit = use_callback(move |checked: bool| {
+        let current = mount.peek();
+        let Some(projection) = current.projection.as_ref() else {
+            return;
+        };
+        let long = projection.units.x.max(projection.units.y);
+        let short = projection.units.x.min(projection.units.y);
+        let next = if checked {
+            Vec2 { x: short, y: long }
+        } else {
+            Vec2 { x: long, y: short }
+        };
+        current.on_resize.call((next, None));
+    });
+
+    let current = mount.read();
+    let Some(projection) = current.projection.as_ref() else {
         return rsx! {};
     };
-    let mut draft = use_signal(|| projection.units);
-    let mut draft_dirty = use_signal(|| false);
-    let sent = use_signal(|| None::<String>);
-    let keyboard_generation = use_hook(|| std::rc::Rc::new(Cell::new(0u64)));
-    let sequence = props.mount.request_sequence;
-    let base_units = projection.units;
+    let units = projection.units;
     let mixed = projection.mixed;
-    let mixed_x = projection.mixed_x;
-    let mixed_y = projection.mixed_y;
-    let items = projection.items.clone();
     let overlap_warning = (!projection.overlap_references.is_empty()).then(|| {
-        let references = projection.overlap_references[..projection.overlap_references.len().min(8)]
-            .join(", ");
+        let shown = projection.overlap_references.len().min(8);
+        let references = projection.overlap_references[..shown].join(", ");
         let remaining = projection.overlap_references.len().saturating_sub(8);
         if remaining > 0 {
             format!("Keycaps overlap: {references} and {remaining} more. Adjust their rows or columns to clear the overlap.")
@@ -47,244 +281,80 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
             format!("Keycaps overlap: {references}. Adjust their rows or columns to clear the overlap.")
         }
     });
-    let snapshot_token = projection.snapshot_token;
-    let revision = projection.revision;
-    let owner_for_effect = projection.owner.clone();
-    let owner_for_projection =
-        use_hook(|| std::rc::Rc::new(RefCell::new(projection.owner.clone())));
-    let feedback = props.mount.feedback.clone();
-    let mut draft_for_effect = draft;
-    let mut sent_for_effect = sent;
-    let mut dirty_for_effect = draft_dirty;
-    use_effect(use_reactive(
-        (&owner_for_effect, &base_units, &mixed, &feedback),
-        {
-            let keyboard_generation = keyboard_generation.clone();
-            move |(owner, units, _, _)| {
-                keyboard_generation.set(keyboard_generation.get().wrapping_add(1));
-                let mut previous_owner = owner_for_projection.borrow_mut();
-                if *previous_owner != owner || !*dirty_for_effect.peek() {
-                    if *draft_for_effect.peek() != units {
-                        draft_for_effect.set(units);
-                    }
-                    if *dirty_for_effect.peek() {
-                        dirty_for_effect.set(false);
-                    }
-                }
-                *previous_owner = owner;
-                sent_for_effect.set(None);
-            }
-        },
-    ));
-
-    let submit = use_callback({
-        let callback = props.mount.on_resize;
-        let owner = projection.owner.clone();
-        let mut sent = sent;
-        let mut sequence = sequence;
-        move |intent: ResizeIntent| {
-            if intent.owner != owner
-                || intent.snapshot_token != snapshot_token
-                || intent.revision != revision
-            {
-                return;
-            }
-            let units = intent.units;
-            let axis = intent.axis;
-            let should_send = match axis {
-                Some(ResizeAxis::X) => {
-                    mixed_x
-                        || items.iter().any(|item| {
-                            quarter((item.size.x + item.gap.x) / item.pitch.x) != units.x
-                        })
-                }
-                Some(ResizeAxis::Y) => {
-                    mixed_y
-                        || items.iter().any(|item| {
-                            quarter((item.size.y + item.gap.y) / item.pitch.y) != units.y
-                        })
-                }
-                None => mixed || units != base_units,
-            };
-            if !should_send {
-                return;
-            }
-            let signature = format!(
-                "{}:{}:{:.2}:{:.2}",
-                identity_key(&intent.owner),
-                axis_key(axis),
-                units.x,
-                units.y
-            );
-            if sent().as_deref() == Some(signature.as_str()) {
-                return;
-            }
-            sent.set(Some(signature));
-            let request_id = sequence() + 1;
-            sequence.set(request_id);
-            draft_dirty.set(false);
-            callback.call(KeySizeRequest {
-                owner: intent.owner,
-                request_id,
-                snapshot_token: intent.snapshot_token,
-                revision: intent.revision,
-                units,
-                axis,
-            });
-        }
-    });
-
-    let current_request_id = (props.mount.request_sequence)();
-    let error = feedback
-        .as_ref()
-        .filter(|value| value.request_id == current_request_id && value.owner == projection.owner)
-        .and_then(|value| value.message.clone());
     let value_label = if mixed {
         "Mixed".to_owned()
     } else {
-        format!("{}u × {}u", draft().x, draft().y)
+        format!("{}u × {}u", units.x, units.y)
     };
-    let selected_size = use_memo(use_reactive((&mixed,), move |(mixed,)| {
-        let units = draft();
-        if mixed || units.x.min(units.y) != 1.0 {
-            "custom".to_owned()
-        } else {
-            units.x.max(units.y).to_string()
-        }
-    }));
-    let event_owner = projection.owner.clone();
-    let timer_generation = keyboard_generation.clone();
+    let custom = mixed || units.x.min(units.y) != 1.0;
+    let selected_size = if custom {
+        "custom".to_owned()
+    } else {
+        units.x.max(units.y).to_string()
+    };
+    let mut options = Vec::new();
+    if custom {
+        options.push(("custom".to_owned(), value_label.clone()));
+    }
+    for step in 4..=28 {
+        let size = f64::from(step) / 4.0;
+        options.push((size.to_string(), format!("{size}u")));
+    }
+    let scale = 80.0 / units.y.max(units.x / 2.0).max(1.0);
+    let width = units.x * scale;
+    let height = units.y * scale;
 
     rsx! {
         section { class: "grid min-w-0 gap-2.5 border-b border-border p-0 text-foreground", aria_label: "Key size",
-        onkeydown: super::stop_space_pan,
-            {
-                let units = draft();
-                let scale = 80.0 / units.y.max(units.x / 2.0).max(1.0);
-                let width = units.x * scale;
-                let height = units.y * scale;
-                rsx! {
-                    figure { class: "m-0 mb-3 text-center",
-                        svg {
-                            class: "block h-[100px] w-full",
-                            view_box: "0 0 200 120",
-                            role: "img",
-                            "aria-label": "Keycap size {value_label}",
-                            rect {
-                                class: "fill-secondary stroke-primary stroke-[1]",
-                                x: "{100.0 - width / 2.0}",
-                                y: "{60.0 - height / 2.0}",
-                                width: "{width}",
-                                height: "{height}",
-                                rx: "5",
-                            }
-                            rect {
-                                class: "fill-field stroke-border-strong stroke-[1]",
-                                x: "{104.0 - width / 2.0}",
-                                y: "{64.0 - height / 2.0}",
-                                width: "{(width - 8.0).max(1.0)}",
-                                height: "{(height - 8.0).max(1.0)}",
-                                rx: "3",
-                            }
-                        }
-                        figcaption {
-                            output { "{value_label}" }
-                        }
+            onkeydown: super::stop_space_pan,
+            figure { class: "m-0 mb-3 text-center",
+                svg {
+                    class: "block h-[100px] w-full",
+                    view_box: "0 0 200 120",
+                    role: "img",
+                    "aria-label": "Keycap size {value_label}",
+                    rect {
+                        class: "fill-secondary stroke-primary stroke-[1]",
+                        x: "{100.0 - width / 2.0}",
+                        y: "{60.0 - height / 2.0}",
+                        width: "{width}",
+                        height: "{height}",
+                        rx: "5",
+                    }
+                    rect {
+                        class: "fill-field stroke-border-strong stroke-[1]",
+                        x: "{104.0 - width / 2.0}",
+                        y: "{64.0 - height / 2.0}",
+                        width: "{(width - 8.0).max(1.0)}",
+                        height: "{(height - 8.0).max(1.0)}",
+                        rx: "3",
                     }
                 }
+                figcaption { output { "{value_label}" } }
             }
             SelectField {
                 label: "Size".to_owned(),
-                value: selected_size(),
-                options: {
-                    let mut options = Vec::new();
-                    if mixed || draft().x.min(draft().y) != 1.0 {
-                        options.push(("custom".to_owned(), value_label.to_string()));
-                    }
-                    for step in 4..=28 {
-                        let size = f64::from(step) / 4.0;
-                        options.push((size.to_string(), format!("{size}u")));
-                    }
-                    options
-                },
+                value: selected_size,
+                options,
                 aria_label: "Key size",
-                disabled: !props.mount.editable,
-                on_commit: {
-                    let owner = event_owner.clone();
-                    let generation = timer_generation.clone();
-                    move |choice: String| {
-                        let Ok(size) = choice.parse::<f64>() else {
-                            return;
-                        };
-                        generation.set(generation.get().wrapping_add(1));
-                        let rotated = draft().y > draft().x;
-                        let next = if rotated {
-                            boardstudio_model::model::Vec2 { x: 1.0, y: size }
-                        } else {
-                            boardstudio_model::model::Vec2 { x: size, y: 1.0 }
-                        };
-                        draft_dirty.set(true);
-                        draft.set(next);
-                        submit.call(ResizeIntent {
-                            owner: owner.clone(),
-                            snapshot_token,
-                            revision,
-                            units: next,
-                            axis: None,
-                        });
-                    }
-                },
+                disabled: !current.editable,
+                on_commit: on_size_commit,
             }
             ToggleField {
                 label: "Rotate 90°".to_owned(),
-                checked: !mixed && draft().y > draft().x,
+                checked: !mixed && units.y > units.x,
                 aria_label: "Rotate keycap",
-                disabled_reason: (!props.mount.editable).then(|| "Placement is unavailable".to_owned()),
-                on_commit: {
-                    let owner = event_owner.clone();
-                    let generation = timer_generation.clone();
-                    move |checked: bool| {
-                        generation.set(generation.get().wrapping_add(1));
-                        let current = draft();
-                        let long = current.x.max(current.y);
-                        let short = current.x.min(current.y);
-                        let next = if checked {
-                            boardstudio_model::model::Vec2 { x: short, y: long }
-                        } else {
-                            boardstudio_model::model::Vec2 { x: long, y: short }
-                        };
-                        draft_dirty.set(true);
-                        draft.set(next);
-                        submit.call(ResizeIntent {
-                            owner: owner.clone(),
-                            snapshot_token,
-                            revision,
-                            units: next,
-                            axis: None,
-                        });
-                    }
-                },
+                disabled_reason: (!current.editable).then(|| "Placement is unavailable".to_owned()),
+                on_commit: on_rotate_commit,
             }
-            if let Some(error) = error {
-                FieldError { "{error}"  }
+            if let Some(error) = current.error.as_deref() {
+                FieldError { "{error}" }
             }
         }
         if let Some(warning) = overlap_warning {
-            div { role: "status", class: "-mt-1 mx-4 mb-3 rounded-[4px] border border-warning-dark bg-warning-light px-2.5 py-2 text-[14px] leading-[1.55] text-warning-dark", Callout { variant: CalloutVariant::Warning, "{warning}" } }
+            div { role: "status", class: "-mt-1 mx-4 mb-3 rounded-[4px] border border-warning-dark bg-warning-light px-2.5 py-2 text-[14px] leading-[1.55] text-warning-dark",
+                Callout { variant: CalloutVariant::Warning, "{warning}" }
+            }
         }
-    }
-}
-
-fn quarter(value: f64) -> f64 {
-    (value * 4.0).round() / 4.0
-}
-fn identity_key(owner: &super::keycap_size_controller::KeySizeOwner) -> String {
-    format!("{:?}", owner)
-}
-fn axis_key(axis: Option<ResizeAxis>) -> &'static str {
-    match axis {
-        Some(ResizeAxis::X) => "x",
-        Some(ResizeAxis::Y) => "y",
-        None => "both",
     }
 }

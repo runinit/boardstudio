@@ -1313,8 +1313,6 @@ fn apply_create_mirrored_half(
                 companion_mode: *companion_mode,
                 source_board_id,
                 mirror_board_id,
-                correspondences: vec![],
-                exceptions: vec![],
             });
         }
     }

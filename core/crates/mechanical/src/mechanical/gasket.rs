@@ -1,5 +1,6 @@
 //! Discrete plate supports and their matching case/retainer geometry.
 use super::*;
+use crate::geometry2d::{add, distance, overlaps, paths, scale};
 mod internal;
 const SUPPORT_COUNT: usize = 6;
 const RETAINER_THICKNESS: f64 = 3.0;
@@ -16,21 +17,6 @@ pub(super) struct Region {
     candidates: Vec<Candidate>,
     tracks: Vec<MechanicalGasketTrack>,
 }
-fn add(a: Vec2, b: Vec2) -> Vec2 {
-    Vec2 {
-        x: a.x + b.x,
-        y: a.y + b.y,
-    }
-}
-fn scale(a: Vec2, s: f64) -> Vec2 {
-    Vec2 {
-        x: a.x * s,
-        y: a.y * s,
-    }
-}
-fn distance(a: Vec2, b: Vec2) -> f64 {
-    (a.x - b.x).hypot(a.y - b.y)
-}
 fn rectangle(c: &Candidate, length: f64, inside: f64, outside: f64) -> Vec<Vec2> {
     [
         (-length / 2., -inside),
@@ -40,33 +26,6 @@ fn rectangle(c: &Candidate, length: f64, inside: f64, outside: f64) -> Vec<Vec2>
     ]
     .map(|(t, n)| add(c.at, add(scale(c.tangent, t), scale(c.normal, n))))
     .to_vec()
-}
-fn paths(contours: &[Contour]) -> Vec<FloatPath> {
-    contours
-        .iter()
-        .map(|c| c.points.iter().map(|p| [p.x, p.y]).collect())
-        .collect()
-}
-fn overlaps(a: &[Vec2], b: &[Vec2]) -> bool {
-    let bounds = |points: &[Vec2]| {
-        points.iter().fold(
-            [
-                f64::INFINITY,
-                f64::INFINITY,
-                f64::NEG_INFINITY,
-                f64::NEG_INFINITY,
-            ],
-            |b, p| [b[0].min(p.x), b[1].min(p.y), b[2].max(p.x), b[3].max(p.y)],
-        )
-    };
-    let x = bounds(a);
-    let y = bounds(b);
-    if x[0] >= y[2] || x[2] <= y[0] || x[1] >= y[3] || x[3] <= y[1] {
-        return false;
-    }
-    let a = a.iter().map(|p| [p.x, p.y]).collect::<FloatPath>();
-    let b = b.iter().map(|p| [p.x, p.y]).collect::<FloatPath>();
-    !crate::geometry::overlay(&a, &b, crate::geometry::BooleanOverlayRule::Intersect).is_empty()
 }
 fn union(contours: &[Contour], extras: &[Vec<Vec2>]) -> Vec<Contour> {
     let mut shapes = paths(

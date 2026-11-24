@@ -3,6 +3,7 @@
 use super::super::change::{MechanicalChange, MechanicalEdit, MechanicalTarget};
 use super::super::features;
 use super::super::inputs::{effective_document, effective_inputs};
+use super::feature_lifecycle::physical_hardware;
 use super::{
     AUTO_CLOSURE_PREFIX, GENERATED_DEFINITION_PREFIX, GENERATED_PART_PREFIX,
     MechanicalIdentityLedger, apply_change, instance_configuration_mut, pair_index, pair_owner_ids,
@@ -18,11 +19,7 @@ pub(super) fn apply_settings(
     board_id: &str,
     identities: &MechanicalIdentityLedger,
 ) -> Result<Vec<String>, String> {
-    // A supplied template is validated even when the edit is settings-only and the
-    // projection never runs, so a malformed catalogue entry is always an error.
-    if let Some(template) = edit.mounting_hole.as_deref() {
-        validate_mounting_hole(template)?;
-    }
+    validate_supplied_template(edit.mounting_hole.as_deref())?;
     let inputs = effective_inputs(doc, &[], &edit.target)?;
     let mut configuration = inputs.configuration;
     let before = configuration.clone();
@@ -64,7 +61,7 @@ pub(super) fn apply_settings(
     // construction, and the member's own configuration for everything local.
     persist_edit(doc, &edit.target, &before, configuration, &mut changed)?;
     if projection_required {
-        project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
+        project_changed(doc, edit.mounting_hole.as_deref(), &mut changed)?;
     }
     dedup_changed(&mut changed);
     Ok(changed)
@@ -117,6 +114,32 @@ pub(super) fn validate_mounting_hole(template: &PartDefinition) -> Result<(), St
     Ok(())
 }
 
+/// Rejects a malformed supplied mounting-hole template before anything mutates.
+///
+/// Settings-only edits validate the template even when the projection never
+/// runs, so a malformed catalogue entry is always an error.
+pub(super) fn validate_supplied_template(
+    mounting_hole: Option<&PartDefinition>,
+) -> Result<(), String> {
+    if let Some(template) = mounting_hole {
+        validate_mounting_hole(template)?;
+    }
+    Ok(())
+}
+
+/// Runs the owned projection and records only the generated ids it changed.
+///
+/// Generated closure holes and memberships refresh in the same atomic edit, and
+/// the reported ids stay deduplicated against the ids the edit already named.
+pub(super) fn project_changed(
+    doc: &mut ProjectDoc,
+    mounting_hole: Option<&PartDefinition>,
+    changed: &mut Vec<String>,
+) -> Result<(), String> {
+    project(doc, mounting_hole, changed)?;
+    dedup_changed(changed);
+    Ok(())
+}
 /// Resolves the assembly from the proposed document and materializes its
 /// suggested closure mounts onto the proposed configuration.
 ///
@@ -295,73 +318,92 @@ pub(super) fn accepted_target_contours(
     })
 }
 
-/// The generated part ids, generated definition ids and membership owners that
-/// differ between two documents.
-pub(super) fn generated_change_ids(before: &ProjectDoc, after: &ProjectDoc) -> Vec<String> {
-    let mut ids = std::collections::BTreeSet::new();
-    for part in &after.parts {
-        if part.id.starts_with(GENERATED_PART_PREFIX)
-            && before.parts.iter().find(|entry| entry.id == part.id) != Some(part)
-        {
-            ids.insert(part.id.clone());
+/// The generated ids added, removed or changed between two item lists.
+///
+/// An item counts when its id carries the generated prefix and no identical
+/// item survives on the other side, so an edited generated part reports while
+/// an untouched one stays silent.
+fn generated_item_ids<T: PartialEq>(
+    before: &[T],
+    after: &[T],
+    prefix: &str,
+    id: impl Fn(&T) -> &str,
+    ids: &mut std::collections::BTreeSet<String>,
+) {
+    for item in after {
+        if id(item).starts_with(prefix) && !before.contains(item) {
+            ids.insert(id(item).into());
         }
     }
-    for part in &before.parts {
-        if part.id.starts_with(GENERATED_PART_PREFIX)
-            && !after.parts.iter().any(|entry| entry.id == part.id)
-        {
-            ids.insert(part.id.clone());
+    for item in before {
+        if id(item).starts_with(prefix) && !after.iter().any(|entry| id(entry) == id(item)) {
+            ids.insert(id(item).into());
         }
     }
-    for definition in &after.definitions {
-        if definition.id.starts_with(GENERATED_DEFINITION_PREFIX)
-            && before
-                .definitions
-                .iter()
-                .find(|entry| entry.id == definition.id)
-                != Some(definition)
-        {
-            ids.insert(definition.id.clone());
-        }
-    }
-    for definition in &before.definitions {
-        if definition.id.starts_with(GENERATED_DEFINITION_PREFIX)
-            && !after
-                .definitions
-                .iter()
-                .any(|entry| entry.id == definition.id)
-        {
-            ids.insert(definition.id.clone());
-        }
-    }
-    let generated_set = |part_ids: Option<&Vec<String>>| {
-        part_ids
-            .into_iter()
+}
+
+/// Records the owners whose generated membership changed between two lists.
+///
+/// A board or layout reports when its generated part set differs, so a
+/// projected hole moving between owners is attributed to both sides.
+fn generated_membership_changed<T>(
+    before: &[T],
+    after: &[T],
+    id: impl Fn(&T) -> &str,
+    part_ids: impl Fn(&T) -> Option<&Vec<String>>,
+    ids: &mut std::collections::BTreeSet<String>,
+) {
+    let part_ids = &part_ids;
+    let generated_set = |ids: Option<&Vec<String>>| {
+        ids.into_iter()
             .flatten()
             .filter(|id| id.starts_with(GENERATED_PART_PREFIX))
             .cloned()
             .collect::<std::collections::BTreeSet<_>>()
     };
-    for board in &after.boards {
+    for item in after {
         let before_ids = before
-            .boards
             .iter()
-            .find(|entry| entry.id == board.id)
-            .map(|entry| &entry.part_ids);
-        if generated_set(before_ids) != generated_set(Some(&board.part_ids)) {
-            ids.insert(board.id.clone());
+            .find(|entry| id(entry) == id(item))
+            .and_then(part_ids);
+        if generated_set(before_ids) != generated_set(part_ids(item)) {
+            ids.insert(id(item).into());
         }
     }
-    for layout in &after.layouts {
-        let before_ids = before
-            .layouts
-            .iter()
-            .find(|entry| entry.id == layout.id)
-            .map(|entry| &entry.part_ids);
-        if generated_set(before_ids) != generated_set(Some(&layout.part_ids)) {
-            ids.insert(layout.id.clone());
-        }
-    }
+}
+
+/// The generated part ids, generated definition ids and membership owners that
+/// differ between two documents.
+pub(super) fn generated_change_ids(before: &ProjectDoc, after: &ProjectDoc) -> Vec<String> {
+    let mut ids = std::collections::BTreeSet::new();
+    generated_item_ids(
+        &before.parts,
+        &after.parts,
+        GENERATED_PART_PREFIX,
+        |part| &part.id,
+        &mut ids,
+    );
+    generated_item_ids(
+        &before.definitions,
+        &after.definitions,
+        GENERATED_DEFINITION_PREFIX,
+        |definition| &definition.id,
+        &mut ids,
+    );
+    generated_membership_changed(
+        &before.boards,
+        &after.boards,
+        |board| &board.id,
+        |board| Some(&board.part_ids),
+        &mut ids,
+    );
+    generated_membership_changed(
+        &before.layouts,
+        &after.layouts,
+        |layout| &layout.id,
+        |layout| Some(&layout.part_ids),
+        &mut ids,
+    );
     ids.into_iter().collect()
 }
 
@@ -378,10 +420,7 @@ pub fn resolve_target<'a>(
     match target {
         MechanicalTarget::Board { board_id } => Ok((board_id.clone(), None)),
         MechanicalTarget::Instance { instance_id } => {
-            let hardware = doc
-                .hardware
-                .as_ref()
-                .ok_or("Physical instances are unavailable")?;
+            let hardware = physical_hardware(doc)?;
             let instance = hardware
                 .instances
                 .iter()

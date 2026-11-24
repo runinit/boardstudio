@@ -1,9 +1,7 @@
 //! The board-outline (non-perimeter) section of the outline Inspector.
-use super::super::hook::OutlineActionContext;
-use super::super::planner::OutlineAction;
+use super::super::OutlineActionKind;
 use super::vec2_fields::vec2_fields;
 use super::*;
-use std::rc::Rc;
 
 mod connections;
 mod drawing;
@@ -12,20 +10,18 @@ mod settings;
 mod versions;
 
 /// Build an `on_commit` closure that maps the committed value to one outline
-/// settings edit through the shared action context.
+/// settings edit directly through the projection.
 pub(super) fn commit_setting<T>(
-    action_context: Rc<OutlineActionContext>,
-    on_action: EventHandler<OutlineAction>,
+    projection: OutlineInspectorProjection,
     edit: impl Fn(T) -> OutlineEdit,
 ) -> impl Fn(T) {
-    move |value| on_action.call(action_context.action(edit(value)))
+    move |value| projection.update(edit(value))
 }
 
 /// Build an `on_commit` closure that rewrites one saved feature: the committed
 /// value mutates a copy of `before`, then the before/after pair is submitted.
 pub(super) fn commit_feature_edit(
-    action_context: Rc<OutlineActionContext>,
-    on_action: EventHandler<OutlineAction>,
+    projection: OutlineInspectorProjection,
     before: OutlineFeature,
     version_id: Option<String>,
     mutate: impl Fn(&mut OutlineFeature, f64),
@@ -33,7 +29,11 @@ pub(super) fn commit_feature_edit(
     move |value| {
         let mut after = before.clone();
         mutate(&mut after, value);
-        on_action.call(action_context.set_feature(version_id.clone(), before.clone(), after));
+        projection.dispatch(OutlineActionKind::SetFeature {
+            version_id: version_id.clone(),
+            before: before.clone(),
+            after,
+        });
     }
 }
 
@@ -48,16 +48,8 @@ pub(super) struct BoardInspectorView {
 pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
     let projection = &view.projection;
     let contour_view = contour_preview(&projection.contours);
-    let copy = projection.copy_action();
-    let delete = projection.delete_action();
-    let freeze = projection.freeze_action();
-    let refine = projection.refine_action();
-    let copy_handler = projection.on_action;
-    let refine_handler = projection.on_action;
-    let freeze_handler = projection.on_action;
-    let delete_handler = projection.on_action;
-    let mut perimeter_open = projection.editing_points;
-    let mut selected_point = projection.selected_point;
+    let mut perimeter_open = projection.ui.editing_points;
+    let mut canvas_ui = projection.ui.canvas_ui;
     let enabled = projection.enabled;
     let active_choice = projection
         .versions
@@ -65,6 +57,13 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
         .find(|item| Some(&item.id) == projection.active_version_id.as_ref());
     let active_ownership =
         active_choice.map_or(OutlineVersionOwnership::Generated, |item| item.ownership);
+    let copy_projection = projection.clone();
+    let freeze_projection = projection.clone();
+    let refine_projection = projection.clone();
+    let delete_projection = projection.clone();
+    let can_freeze = projection.has_linked_active_version();
+    let can_refine = projection.has_generated && projection.active_version_id.is_none();
+    let delete_version_id = projection.active_version_id.clone();
     rsx! {
         section { class: "border-b border-border px-4 py-3.5 [&>p]:my-2 [&>p]:text-muted-foreground", "aria-label": "Board outline",
         onkeydown: crate::objects::stop_space_pan,
@@ -100,7 +99,7 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
     button_type: "button",
     disabled: !enabled,
     onclick: move |_| {
-                selected_point.set(0);
+                canvas_ui.write().selected_point = 0;
                 perimeter_open.set(true);
             },
 
@@ -121,37 +120,40 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
                     variant: ButtonVariant::Secondary,
                     button_type: "button",
                     disabled: !projection.enabled,
-                    onclick: move |_| copy_handler.call(copy.clone()),
+                    onclick: move |_| copy_projection.dispatch(OutlineActionKind::Copy),
                     "Copy outline"
                 }
-                if let Some(freeze) = freeze.clone() {
+                if can_freeze {
                     Button {
                         variant: ButtonVariant::Secondary,
                         button_type: "button",
                         disabled: !projection.enabled,
-                        onclick: move |_| freeze_handler.call(freeze.clone()),
+                        onclick: {
+                            let version_id = projection.active_version_id.clone().unwrap_or_default();
+                            move |_| freeze_projection.dispatch(OutlineActionKind::Freeze { version_id: version_id.clone() })
+                        },
 
                         "Freeze into an edited copy"
 
                     }
                 }
-                if let Some(refine) = refine.clone() {
+                if can_refine {
                     Button {
                         variant: ButtonVariant::Secondary,
                         button_type: "button",
                         disabled: !projection.enabled,
-                        onclick: move |_| refine_handler.call(refine.clone()),
+                        onclick: move |_| refine_projection.dispatch(OutlineActionKind::Refine),
 
                         "Refine outline"
 
                     }
                 }
-                if let Some(delete) = delete {
+                if let Some(version_id) = delete_version_id {
                     Button {
                         variant: ButtonVariant::Secondary,
                         button_type: "button",
                         disabled: !projection.enabled,
-                        onclick: move |_| delete_handler.call(delete.clone()),
+                        onclick: move |_| delete_projection.dispatch(OutlineActionKind::Delete { version_id: version_id.clone() }),
                         "Delete outline"
                     }
                 }

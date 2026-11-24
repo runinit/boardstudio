@@ -81,23 +81,19 @@ impl SceneBasis {
     /// its own key's running frame. Padding has no drag gesture, so its basis
     /// only feeds the exhaustiveness of the lookup.
     pub fn for_parameter(scene: &MatrixScene, parameter: PlacementParameter) -> Option<Self> {
-        if let PlacementParameter::ColumnOffset { column }
-        | PlacementParameter::RowOffset { row: column }
-        | PlacementParameter::RowShift { row: column }
-        | PlacementParameter::RowBend { row: column }
-        | PlacementParameter::KeyShift { column, .. }
-        | PlacementParameter::KeyBend { column, .. } = parameter
-        {
-            let (row, column) = match parameter {
-                PlacementParameter::ColumnOffset { .. } => (0, column),
-                PlacementParameter::KeyShift { row, column }
-                | PlacementParameter::KeyBend { row, column } => (row, column),
-                _ => (column, 0),
-            };
-            let cell = scene
-                .cells
-                .iter()
-                .find(|cell| cell.row == row && cell.column == column)?;
+        let cell_coords = match parameter {
+            PlacementParameter::ColumnOffset { column } => Some((0, column)),
+            PlacementParameter::RowOffset { row }
+            | PlacementParameter::RowShift { row }
+            | PlacementParameter::RowBend { row } => Some((row, 0)),
+            PlacementParameter::KeyShift { row, column }
+            | PlacementParameter::KeyBend { row, column } => Some((row, column)),
+            PlacementParameter::Stagger { .. }
+            | PlacementParameter::ColumnSpread { .. }
+            | PlacementParameter::RowPadding { .. } => None,
+        };
+        if let Some((row, column)) = cell_coords {
+            let cell = crate::scene_cell_in(scene, row, column)?;
             return Some(Self {
                 stagger_axis: cell.shift_frame.axis_y,
                 axis_x: cell.offset_frame.axis_x,
@@ -109,14 +105,8 @@ impl SceneBasis {
         }
         let column = match parameter {
             PlacementParameter::Stagger { column }
-            | PlacementParameter::ColumnOffset { column }
             | PlacementParameter::ColumnSpread { column } => column,
-            PlacementParameter::RowOffset { .. }
-            | PlacementParameter::RowShift { .. }
-            | PlacementParameter::RowBend { .. }
-            | PlacementParameter::RowPadding { .. } => 0,
-            PlacementParameter::KeyShift { column, .. }
-            | PlacementParameter::KeyBend { column, .. } => column,
+            _ => 0,
         };
         scene
             .columns

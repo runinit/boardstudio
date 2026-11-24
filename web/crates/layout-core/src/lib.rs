@@ -34,3 +34,39 @@ pub mod rail_drag;
 pub mod rail_gesture;
 pub mod screen_scale;
 pub mod setup_guide_state;
+
+use boardstudio_model::model::{Matrix, MatrixScene, MatrixSceneCell, ProjectDoc};
+
+pub fn matrix_by_id<'a>(document: &'a ProjectDoc, matrix_id: &str) -> Option<&'a Matrix> {
+    document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == matrix_id)
+}
+
+pub fn scene_by_id<'a>(scenes: &'a [MatrixScene], matrix_id: &str) -> Option<&'a MatrixScene> {
+    scenes.iter().find(|scene| scene.matrix_id == matrix_id)
+}
+
+pub fn scene_cell_in(scene: &MatrixScene, row: u32, column: u32) -> Option<&MatrixSceneCell> {
+    scene
+        .cells
+        .iter()
+        .find(|cell| cell.row == row && cell.column == column)
+}
+
+pub fn scene_cell<'a>(
+    scenes: &'a [MatrixScene],
+    matrix_id: &str,
+    row: u32,
+    column: u32,
+) -> Option<&'a MatrixSceneCell> {
+    scene_cell_in(scene_by_id(scenes, matrix_id)?, row, column)
+}
+
+/// The canonical member Core assigns a matrix slot. Only a fallback for naming a
+/// Local/Omitted overlay whose part is suppressed from the scene; never a navigation
+/// or highlight target.
+pub fn canonical_matrix_member(matrix_id: &str, row: u32, column: u32) -> String {
+    format!("matrix/{matrix_id}/r{row}c{column}")
+}
