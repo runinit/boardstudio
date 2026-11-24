@@ -1,7 +1,8 @@
 //! Projection of the focused Keycaps fit finding onto its accepted Layout scene.
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_model::model::{FindingMarker, Vec2};
+use boardstudio_model::model::FindingMarker;
 use boardstudio_web_ui_model::Workspace;
+use boardstudio_web_ui_shared::svg_points::polygon_points;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -75,7 +76,7 @@ pub fn FocusedFindingMarker(
         rsx! {
             g { class: "wb-outline-finding is-focused", "data-finding-id": "{marker.finding_id}",
                 for (i, c) in marker.contours.iter().enumerate() {
-                    polygon { key: "focused-finding-contour-{i}", points: contour_points(&c.points) }
+                    polygon { key: "focused-finding-contour-{i}", points: polygon_points(&c.points) }
                 }
             }
         }
@@ -97,14 +98,6 @@ pub fn is_current_finding(
         && token == Some(finding.token)
         && revision == Some(finding.revision)
         && active_board_id == finding.scope.board_id
-}
-
-fn contour_points(points: &[Vec2]) -> String {
-    points
-        .iter()
-        .map(|p| format!("{},{}", p.x, p.y))
-        .collect::<Vec<_>>()
-        .join(" ")
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]

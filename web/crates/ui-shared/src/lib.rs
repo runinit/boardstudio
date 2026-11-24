@@ -71,6 +71,12 @@ pub mod footprint_graphics;
 mod generator_preview_defaults;
 pub mod inspector_fields;
 #[cfg(target_arch = "wasm32")]
+pub mod keyboard;
+/// Canonical browser `JsValue` error text, re-exported from `host` so presenters
+/// share one copy without depending on `host` directly.
+#[cfg(target_arch = "wasm32")]
+pub use boardstudio_web_host::browser::js_error;
+#[cfg(target_arch = "wasm32")]
 pub mod layer_dock;
 pub mod layout_camera;
 #[cfg(any(test, target_arch = "wasm32"))]
@@ -81,6 +87,7 @@ pub mod object_options;
 pub mod panels;
 #[cfg(target_arch = "wasm32")]
 pub mod project_menu;
+pub mod svg_points;
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 pub mod viewport_3d;
 // Vendored components include hooks that are active only in browser builds.

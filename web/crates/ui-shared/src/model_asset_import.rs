@@ -7,8 +7,6 @@ use boardstudio_web_runtime::model_delivery::ModelFormat;
 #[cfg(target_arch = "wasm32")]
 use js_sys::Uint8Array;
 #[cfg(target_arch = "wasm32")]
-use wasm_bindgen::JsValue;
-#[cfg(target_arch = "wasm32")]
 use wasm_bindgen_futures::JsFuture;
 
 const MAX_MODEL_BYTES: f64 = 32.0 * 1024.0 * 1024.0;
@@ -74,9 +72,7 @@ fn imported_model(filename: String, format: ModelFormat, bytes: Vec<u8>) -> Impo
 }
 
 #[cfg(target_arch = "wasm32")]
-fn js_error(error: JsValue) -> String {
-    error.as_string().unwrap_or_else(|| format!("{error:?}"))
-}
+use boardstudio_web_host::browser::js_error;
 
 #[cfg(test)]
 mod tests {

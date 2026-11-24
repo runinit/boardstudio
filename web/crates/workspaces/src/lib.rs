@@ -39,6 +39,7 @@ pub mod keymap {
     pub use view_controls::{FitCamera, fit_camera, selected_bounds};
 }
 
+pub(crate) mod keycap_support;
 pub mod keycaps_scene;
 
 #[cfg(any(target_arch = "wasm32", test))]

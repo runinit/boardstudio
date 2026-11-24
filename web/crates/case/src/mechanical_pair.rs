@@ -17,6 +17,9 @@ use boardstudio_core_mechanical::mechanical::change::{
 };
 use boardstudio_core_mechanical::mechanical::features;
 use boardstudio_core_mechanical::mechanical::inputs::effective_inputs;
+/// `MechanicalFeatureMember` is built directly only by the suite (reached through
+/// `use super::*`); production code resolves members through `features::feature_member`.
+#[allow(unused_imports)]
 use boardstudio_model::model::{
     BoardContours, EditCommand, EditOperation, EditPhase, MechanicalConfiguration,
     MechanicalFeature, MechanicalFeatureKind, MechanicalFeatureMember, MechanicalFeatureState,
@@ -79,8 +82,8 @@ pub fn pair_projection(
         .features
         .iter()
         .filter_map(|feature| {
-            let member = member_record(feature, instance_id)?;
-            let counterpart_member = member_record(feature, counterpart)?;
+            let member = features::feature_member(feature, instance_id)?;
+            let counterpart_member = features::feature_member(feature, counterpart)?;
             Some(MechanicalPairFeatureRow {
                 feature_id: member.feature_id.clone(),
                 kind: feature.kind,
@@ -534,7 +537,7 @@ fn rejoin_preview(
     feature: &MechanicalFeature,
     source_instance_id: &str,
 ) -> Option<String> {
-    let source = member_record(feature, source_instance_id)?;
+    let source = features::feature_member(feature, source_instance_id)?;
     if source.state == MechanicalFeatureState::Omitted {
         return None;
     }
@@ -605,19 +608,9 @@ fn located_feature<'a>(
     feature_id: &str,
 ) -> Option<&'a MechanicalFeature> {
     pair.features.iter().find(|feature| {
-        member_record(feature, instance_id).is_some_and(|member| member.feature_id == feature_id)
+        features::feature_member(feature, instance_id)
+            .is_some_and(|member| member.feature_id == feature_id)
     })
-}
-
-/// The member record a linked feature has for one half, by durable id.
-fn member_record<'a>(
-    feature: &'a MechanicalFeature,
-    instance_id: &str,
-) -> Option<&'a MechanicalFeatureMember> {
-    feature
-        .members
-        .iter()
-        .find(|member| member.instance_id == instance_id)
 }
 
 /// One feature of a half's effective configuration, by its durable id.

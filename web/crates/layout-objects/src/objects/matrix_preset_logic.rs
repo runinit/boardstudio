@@ -28,16 +28,7 @@ impl MatrixPreset {
     ];
 
     pub fn as_str(self) -> &'static str {
-        match self {
-            Self::MxSolder => "mx-solder",
-            Self::MxHotswap => "mx-hotswap",
-            Self::ChocSolder => "choc-solder",
-            Self::ChocHotswap => "choc-hotswap",
-            Self::MxRgb => "mx-rgb",
-            Self::ChocRgb => "choc-rgb",
-            Self::MxHotswapRgb => "mx-hotswap-rgb",
-            Self::ChocHotswapRgb => "choc-hotswap-rgb",
-        }
+        self.setup().as_str()
     }
 
     pub fn label(self) -> &'static str {

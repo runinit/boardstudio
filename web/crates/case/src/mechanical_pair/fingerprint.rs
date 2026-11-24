@@ -54,7 +54,7 @@ fn rejoin_fingerprint(
             pair.id
         )
     })?;
-    let destination = member_record(feature, instance_id).ok_or_else(|| {
+    let destination = features::feature_member(feature, instance_id).ok_or_else(|| {
         format!("Physical instance {instance_id:?} has no linked feature {feature_id:?}.")
     })?;
     let counterpart = pair
@@ -62,7 +62,7 @@ fn rejoin_fingerprint(
         .iter()
         .find(|member| member.as_str() != instance_id)
         .ok_or("The mechanical pair has no other member.")?;
-    let counterpart_record = member_record(feature, counterpart).ok_or_else(|| {
+    let counterpart_record = features::feature_member(feature, counterpart).ok_or_else(|| {
         format!(
             "The mechanical pair {:?} has no counterpart feature.",
             pair.id

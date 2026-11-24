@@ -4,6 +4,7 @@
 //! a mechanical `CadScene`. Authored and imported boards share the physical Case
 //! owner while retaining their existing, distinct Core preview producers.
 
+use crate::bundled_models::model_extension;
 use crate::model_delivery::{
     PreviewLease, PreviewSlot, PreviewSnapshot, capture_board_preview_request,
 };
@@ -262,16 +263,6 @@ pub fn accept_native_preview(
         preview,
         board_reference,
     })
-}
-
-fn model_extension(filename: &str) -> Option<&'static str> {
-    match filename.rsplit_once('.')?.1.to_ascii_lowercase().as_str() {
-        "step" => Some("step"),
-        "stp" => Some("stp"),
-        "stl" => Some("stl"),
-        "wrl" => Some("wrl"),
-        _ => None,
-    }
 }
 
 /// Build the existing export-relative path table for preview model resolution.

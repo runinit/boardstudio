@@ -2,6 +2,7 @@
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
 use boardstudio_model::model::{PadShape, Side, Vec2};
 use boardstudio_web_ui_shared::footprint_graphics::FootprintGraphics;
+use boardstudio_web_ui_shared::svg_points::polygon_points;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::collections::BTreeSet;
@@ -85,7 +86,7 @@ pub fn PcbScene(props: PcbSceneProps) -> Element {
                     polygon {
                         key: "outline-{index}",
                         "data-layer": "Edge.Cuts",
-                        points: points(&contour.points),
+                        points: polygon_points(&contour.points),
                         class: if contour.hole { "fill-canvas stroke-destructive stroke-[0.3] [stroke-dasharray:0.8_0.55]" } else { "fill-geometry-fill stroke-geometry-board stroke-[0.3]" },
                     }
                 }
@@ -116,7 +117,7 @@ pub fn PcbScene(props: PcbSceneProps) -> Element {
                     let definition_name = definition.map(|definition| definition.name.as_str()).unwrap_or("Part definition unavailable");
                     let label = format!("{reference}, {definition_name}, X {:.2} Y {:.2}", pose.at.x, pose.at.y);
                     let courtyard_points = definition.map(|definition| definition.courtyard.as_slice()).unwrap_or_default();
-                    let courtyard = points(courtyard_points);
+                    let courtyard = polygon_points(courtyard_points);
                     let hit_bounds = courtyard_bounds(courtyard_points);
                     let generator_parameters = part.generator_parameters.clone();
                     rsx! {
@@ -258,14 +259,6 @@ pub fn PcbScene(props: PcbSceneProps) -> Element {
             }
         }
     }
-}
-
-fn points(points: &[Vec2]) -> String {
-    points
-        .iter()
-        .map(|point| format!("{},{}", point.x, point.y))
-        .collect::<Vec<_>>()
-        .join(" ")
 }
 
 fn courtyard_bounds(points: &[Vec2]) -> (f64, f64, f64, f64) {

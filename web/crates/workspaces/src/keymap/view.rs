@@ -1,7 +1,7 @@
+use crate::keycap_support::{is_supported_key, keycap_size};
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_model::model::{
-    KeyBinding, KeycapBoardSettings, KeycapKeySettings, KeymapLayer, KeymapMacro, Part,
-    PartDefinition, PartKind, Pose2, ProjectDoc, Vec2,
+    KeyBinding, KeycapBoardSettings, KeymapLayer, KeymapMacro, Pose2, ProjectDoc, Vec2,
 };
 use std::rc::Rc;
 
@@ -106,34 +106,6 @@ pub fn project(
         })
         .collect();
     Some(Rc::new(KeymapView { layers, keys }))
-}
-
-fn is_supported_key(doc: &ProjectDoc, part: &Part) -> bool {
-    doc.definitions
-        .iter()
-        .find(|d| d.id == part.definition_id)
-        .is_some_and(|d| d.kind == PartKind::Switch)
-        || doc.matrices.iter().any(|m| {
-            m.part_ids.contains(&part.id)
-                && part
-                    .id
-                    .strip_prefix(&format!("matrix/{}/", m.id))
-                    .is_some_and(|s| !s.contains('/'))
-        })
-}
-
-fn keycap_size(part: &Part, def: Option<&PartDefinition>, s: Option<&KeycapKeySettings>) -> Vec2 {
-    s.and_then(|s| s.units).map_or_else(
-        || {
-            part.keycap
-                .or_else(|| def.and_then(|d| d.keycap))
-                .unwrap_or(Vec2 { x: 18.2, y: 18.2 })
-        },
-        |u| Vec2 {
-            x: u.x * 19.05 - 0.85,
-            y: u.y * 19.05 - 0.85,
-        },
-    )
 }
 
 fn binding_title_for(

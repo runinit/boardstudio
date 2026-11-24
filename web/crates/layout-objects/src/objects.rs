@@ -15,7 +15,6 @@ use boardstudio_web_ui_shared::ui::{
 use boardstudio_web_ui_shared::inspector_fields::SelectField;
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
 use dioxus::prelude::*;
-use dioxus_web::WebEventExt;
 use existing_half::use_existing_half;
 use std::{collections::BTreeSet, rc::Rc};
 
@@ -857,14 +856,7 @@ fn AddMenuEntry(
 
 /// Keep Space activation on controls from starting canvas pan: native control
 /// activation must not become the canvas's Space-pan shortcut.
-pub fn stop_space_pan(event: KeyboardEvent) {
-    if event.key().to_string() == " " {
-        event.stop_propagation();
-        if let Some(raw) = event.data().try_as_web_event() {
-            raw.stop_propagation();
-        }
-    }
-}
+pub use boardstudio_web_ui_shared::keyboard::stop_space_pan;
 
 fn focus_add_object() {
     use wasm_bindgen::JsCast;
