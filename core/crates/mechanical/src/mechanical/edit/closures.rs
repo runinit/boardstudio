@@ -320,7 +320,13 @@ fn generated_item_ids<T: PartialEq>(
 /// differ between two documents.
 pub(super) fn generated_change_ids(before: &ProjectDoc, after: &ProjectDoc) -> Vec<String> {
     let mut ids = std::collections::BTreeSet::new();
-    generated_item_ids(&before.parts, &after.parts, GENERATED_PART_PREFIX, |part| &part.id, &mut ids);
+    generated_item_ids(
+        &before.parts,
+        &after.parts,
+        GENERATED_PART_PREFIX,
+        |part| &part.id,
+        &mut ids,
+    );
     generated_item_ids(
         &before.definitions,
         &after.definitions,

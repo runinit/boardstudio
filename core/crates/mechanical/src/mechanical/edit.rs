@@ -48,9 +48,9 @@ use ownership::{
     remove_physical_instance, unlink_mirror_pair,
 };
 use processes::{
-    closure_hardware_mut, critical_fit_mut, hardware_mut, initial_switch_family,
-    is_process_target, material_options, normalize_processes, process_default_thickness,
-    process_mut, profile_family, resize_closure_insert, stabilizer_target_exists,
+    closure_hardware_mut, critical_fit_mut, hardware_mut, initial_switch_family, is_process_target,
+    material_options, normalize_processes, process_default_thickness, process_mut, profile_family,
+    resize_closure_insert, stabilizer_target_exists,
 };
 use validation::{
     ProfileTargetKind, mount_collection_mut, set_dimension, valid_profile_polygons,
