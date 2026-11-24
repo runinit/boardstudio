@@ -242,39 +242,121 @@ pub(super) fn apply_change(
     Ok(())
 }
 
-pub(super) fn skip_process_normalization(change: &MechanicalChange) -> bool {
-    matches!(
-        change,
+/// What one mechanical change does to derived state.
+///
+/// Process normalization and generated-closure projection classify the same
+/// variants along different axes: most settings edits normalize the layer
+/// processes without moving generated holes, while geometry edits move holes
+/// without touching processes. One table answers both so the two
+/// classifications cannot drift apart.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) struct ChangeEffects {
+    /// Whether the change normalizes the layer processes afterwards.
+    pub(super) normalizes_processes: bool,
+    /// Whether the change can create, move or remove generated clearance geometry.
+    pub(super) requires_projection: bool,
+}
+
+/// Classifies one mechanical change for process normalization and projection.
+///
+/// Only the clearance dimension changes a generated closure-hole diameter, so
+/// it is the one `SetDimension` field that projects; battery, opening and
+/// closure-hardware dimensions never do. The pair lifecycle always projects:
+/// linking, unlinking and the per-feature localize/omit/rejoin actions move
+/// mounts, closure mounts, openings and gasket supports into and out of each
+/// half's ordinary configuration, so the generated holes the projection
+/// derives can appear, disappear or move.
+pub(super) fn change_effects(change: &MechanicalChange) -> ChangeEffects {
+    // Geometry that projects but never normalizes: openings, mount
+    // repositioning, gasket placement and reset.
+    const PROJECTION_ONLY: ChangeEffects = ChangeEffects {
+        normalizes_processes: false,
+        requires_projection: true,
+    };
+    // Pure settings that normalize without moving generated holes.
+    const NORMALIZE_ONLY: ChangeEffects = ChangeEffects {
+        normalizes_processes: true,
+        requires_projection: false,
+    };
+    // Geometry that does both: mounts, closure mounts, profiles and the pair
+    // lifecycle (whose normalization arm is unreachable but kept normalizing).
+    const BOTH: ChangeEffects = ChangeEffects {
+        normalizes_processes: true,
+        requires_projection: true,
+    };
+    // Pure settings that do neither: battery, closure hardware, critical fits,
+    // hardware items and stabilizers.
+    const NEITHER: ChangeEffects = ChangeEffects {
+        normalizes_processes: false,
+        requires_projection: false,
+    };
+    match change {
+        MechanicalChange::AddOpening
+        | MechanicalChange::RemoveOpening { .. }
+        | MechanicalChange::AddOpeningVertex { .. }
+        | MechanicalChange::RemoveOpeningVertex { .. }
+        | MechanicalChange::SetOpeningDimension { .. }
+        | MechanicalChange::SetMountPosition { .. }
+        | MechanicalChange::SetGasketSupportPlacement { .. }
+        | MechanicalChange::ResetGasketPlacement => PROJECTION_ONLY,
+        MechanicalChange::SetMethod(_)
+        | MechanicalChange::SetMount(_)
+        | MechanicalChange::SetBottomStyle(_)
+        | MechanicalChange::SetMiddleFrame(_)
+        | MechanicalChange::SetIntegratedPlateFrame(_)
+        | MechanicalChange::SetGasketSupportDimension { .. }
+        | MechanicalChange::SetGasketSupportUnlinked { .. }
+        | MechanicalChange::AddProcessOverride { .. }
+        | MechanicalChange::RemoveProcessOverride { .. }
+        | MechanicalChange::SetProcessMethod { .. }
+        | MechanicalChange::SetProcessMaterial { .. }
+        | MechanicalChange::SetProcessThickness { .. } => NORMALIZE_ONLY,
+        MechanicalChange::Enable
+        | MechanicalChange::Disable
+        | MechanicalChange::InitializeClosures
+        | MechanicalChange::AddMount { .. }
+        | MechanicalChange::AddSuggestedClosureMounts(_)
+        | MechanicalChange::SetMountCollection { .. }
+        | MechanicalChange::AdoptClosurePositions(_)
+        | MechanicalChange::SetMountDimension { .. }
+        | MechanicalChange::SetMountKind { .. }
+        | MechanicalChange::RemoveMount { .. }
+        | MechanicalChange::AssignSwitchProfile { .. }
+        | MechanicalChange::AssignStabilizerProfile { .. }
+        | MechanicalChange::AssignImportedGeometryProfile { .. }
+        | MechanicalChange::UpdateProfile(_)
+        | MechanicalChange::RemoveProfile { .. }
+        | MechanicalChange::SetSwitchFamily { .. }
+        | MechanicalChange::LinkMirrorPair { .. }
+        | MechanicalChange::UnlinkMirrorPair { .. }
+        | MechanicalChange::RemovePhysicalInstance
+        | MechanicalChange::MakeFeatureLocal { .. }
+        | MechanicalChange::OmitFeatureMember { .. }
+        | MechanicalChange::RejoinFeatureMember { .. } => BOTH,
         MechanicalChange::SetBatteryEnabled(_)
-            | MechanicalChange::SetClosureInsertPreset(_)
-            | MechanicalChange::SetClosureDrive(_)
-            | MechanicalChange::SetClosureInstallation(_)
-            | MechanicalChange::SetClosureFixedLength(_)
-            | MechanicalChange::SetClosureThread(_)
-            | MechanicalChange::SetClosureScrewLengths(_)
-            | MechanicalChange::SetClosureHeadProfile(_)
-            | MechanicalChange::SetClosureLengthDatum(_)
-            | MechanicalChange::AddCriticalFit { .. }
-            | MechanicalChange::RemoveCriticalFit { .. }
-            | MechanicalChange::SetCriticalFitText { .. }
-            | MechanicalChange::SetCriticalFitPart { .. }
-            | MechanicalChange::SetCriticalFitPoint { .. }
-            | MechanicalChange::AddHardware { .. }
-            | MechanicalChange::RemoveHardware { .. }
-            | MechanicalChange::SetHardwareMount { .. }
-            | MechanicalChange::SetHardwareText { .. }
-            | MechanicalChange::SetHardwareDimension { .. }
-            | MechanicalChange::AddOpening
-            | MechanicalChange::RemoveOpening { .. }
-            | MechanicalChange::AddOpeningVertex { .. }
-            | MechanicalChange::RemoveOpeningVertex { .. }
-            | MechanicalChange::SetOpeningDimension { .. }
-            | MechanicalChange::SetStabilizerKind(_)
-            | MechanicalChange::SetMountPosition { .. }
-            | MechanicalChange::SetGasketSupportPlacement { .. }
-            | MechanicalChange::ResetGasketPlacement
-            | MechanicalChange::SetDimension {
-                field: MechanicalDimension::BatteryWidth
+        | MechanicalChange::SetClosureInsertPreset(_)
+        | MechanicalChange::SetClosureDrive(_)
+        | MechanicalChange::SetClosureInstallation(_)
+        | MechanicalChange::SetClosureFixedLength(_)
+        | MechanicalChange::SetClosureThread(_)
+        | MechanicalChange::SetClosureScrewLengths(_)
+        | MechanicalChange::SetClosureHeadProfile(_)
+        | MechanicalChange::SetClosureLengthDatum(_)
+        | MechanicalChange::AddCriticalFit { .. }
+        | MechanicalChange::RemoveCriticalFit { .. }
+        | MechanicalChange::SetCriticalFitText { .. }
+        | MechanicalChange::SetCriticalFitPart { .. }
+        | MechanicalChange::SetCriticalFitPoint { .. }
+        | MechanicalChange::AddHardware { .. }
+        | MechanicalChange::RemoveHardware { .. }
+        | MechanicalChange::SetHardwareMount { .. }
+        | MechanicalChange::SetHardwareText { .. }
+        | MechanicalChange::SetHardwareDimension { .. }
+        | MechanicalChange::SetStabilizerKind(_) => NEITHER,
+        MechanicalChange::SetDimension { field, .. } => {
+            let skip = matches!(
+                field,
+                MechanicalDimension::BatteryWidth
                     | MechanicalDimension::OpeningBottomZ
                     | MechanicalDimension::OpeningHeight
                     | MechanicalDimension::OpeningPointX
@@ -303,8 +385,17 @@ pub(super) fn skip_process_normalization(change: &MechanicalChange) -> bool {
                     | MechanicalDimension::ClosureSurround
                     | MechanicalDimension::ClosureSeatLeadDepth
                     | MechanicalDimension::ClosureSeatLeadDiameter
-                    | MechanicalDimension::ClosureBearingThickness,
-                ..
+                    | MechanicalDimension::ClosureBearingThickness
+            );
+            ChangeEffects {
+                normalizes_processes: !skip,
+                // Only the clearance changes a generated closure-hole diameter.
+                requires_projection: matches!(field, MechanicalDimension::Clearance),
             }
-    )
+        }
+    }
+}
+
+pub(super) fn skip_process_normalization(change: &MechanicalChange) -> bool {
+    !change_effects(change).normalizes_processes
 }

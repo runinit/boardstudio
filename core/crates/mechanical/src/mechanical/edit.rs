@@ -13,7 +13,7 @@
 //! that needs no initialization is a no-op that reports nothing.
 use crate::model::*;
 
-use super::change::{MechanicalChange, MechanicalDimension, MechanicalEdit, MechanicalTarget};
+use super::change::{MechanicalChange, MechanicalEdit, MechanicalTarget};
 use super::inputs::effective_inputs;
 
 mod changes;
@@ -273,47 +273,10 @@ fn apply_staged(
 /// configuration, so the generated holes derived from those features can appear,
 /// disappear or move. Projection therefore always runs for them and the caller
 /// must supply the mounting-hole template.
+///
+/// See [`changes::change_effects`] for the shared classification table.
 pub fn requires_projection(change: &MechanicalChange) -> bool {
-    match change {
-        MechanicalChange::Enable
-        | MechanicalChange::Disable
-        | MechanicalChange::InitializeClosures => true,
-        MechanicalChange::AddOpening
-        | MechanicalChange::RemoveOpening { .. }
-        | MechanicalChange::AddOpeningVertex { .. }
-        | MechanicalChange::RemoveOpeningVertex { .. }
-        | MechanicalChange::SetOpeningDimension { .. }
-        | MechanicalChange::AddMount { .. }
-        | MechanicalChange::AddSuggestedClosureMounts(_)
-        | MechanicalChange::SetMountCollection { .. }
-        | MechanicalChange::AdoptClosurePositions(_)
-        | MechanicalChange::SetMountDimension { .. }
-        | MechanicalChange::SetMountPosition { .. }
-        | MechanicalChange::SetMountKind { .. }
-        | MechanicalChange::RemoveMount { .. }
-        | MechanicalChange::SetGasketSupportPlacement { .. }
-        | MechanicalChange::ResetGasketPlacement
-        | MechanicalChange::AssignSwitchProfile { .. }
-        | MechanicalChange::AssignStabilizerProfile { .. }
-        | MechanicalChange::AssignImportedGeometryProfile { .. }
-        | MechanicalChange::UpdateProfile(_)
-        | MechanicalChange::RemoveProfile { .. }
-        | MechanicalChange::SetSwitchFamily { .. } => true,
-        // Linking, unlinking, member removal and the feature lifecycle rewrite each
-        // half's ordinary mounts/openings/supports, so generated closure clearance
-        // can change shape even though no settings field was edited.
-        MechanicalChange::LinkMirrorPair { .. }
-        | MechanicalChange::UnlinkMirrorPair { .. }
-        | MechanicalChange::RemovePhysicalInstance
-        | MechanicalChange::MakeFeatureLocal { .. }
-        | MechanicalChange::OmitFeatureMember { .. }
-        | MechanicalChange::RejoinFeatureMember { .. } => true,
-        MechanicalChange::SetDimension { field, .. } => {
-            // Only the clearance changes a generated closure-hole diameter.
-            matches!(field, MechanicalDimension::Clearance)
-        }
-        _ => false,
-    }
+    changes::change_effects(change).requires_projection
 }
 
 /// Whether a mechanical change can alter the inputs the outline composer reads.
