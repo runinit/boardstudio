@@ -1,27 +1,20 @@
 //! Case scene admission, selection, display preferences, and edit gestures.
 
-pub(crate) mod controls;
+mod gesture;
+use gesture::{CaseDrag, handle_case_gesture, retire_drag};
 
-use crate::case_handles::{
-    gasket_handles, mechanical_mounts, mount_constraints, mount_handles, project_handles,
-};
+use crate::case_bodies::CaseBodyEdit;
 use crate::case_preview::NativePreviewSnapshot;
 use crate::mechanical_settings::{
-    self, MechanicalSettingsPatchExt, gasket_anchor, gasket_group, is_gasket_layer,
-    submit_settings_patch,
+    self, MechanicalSettingsPatchExt, is_gasket_layer, submit_settings_patch,
 };
 use crate::runtime::{CadScene, Runtime};
 use crate::shared_viewer::{
-    CaseDisplay, CaseMountTarget, CaseViewerSource, HandleGesturePhase, ScopedDisplayChange,
-    ScopedViewerSignal, ViewerFocusRequest, ViewerHandle, ViewerHandleTarget, ViewerIdentity,
-    ViewerSignalKind, Viewport3D, ViewportSource,
+    CaseDisplay, CaseViewerSource, ScopedDisplayChange, ScopedViewerSignal, ViewerFocusRequest,
+    ViewerHandle, ViewerIdentity, ViewerSignalKind, Viewport3D, ViewportSource,
 };
 use crate::{InstanceSelection, ResolvedAppearance, selection::SelectionAdapter};
-use crate::{case_bodies::CaseBodyEdit, viewport_camera::Drag};
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_model::model::{
-    MechanicalGasketAnchor, MechanicalGasketSupport, MechanicalGasketTrack, Mount, ProjectDoc, Vec2,
-};
 use boardstudio_web_host::cad_jobs::captured_case_document;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertDescription, AlertVariant},
@@ -30,9 +23,7 @@ use boardstudio_web_ui_shared::ui::{
     item::{Item, ItemSize},
 };
 use dioxus::prelude::*;
-use mechanical_settings::{
-    MechanicalMountCollection as Collection, MechanicalSettingsProps as Settings,
-};
+use mechanical_settings::MechanicalSettingsProps as Settings;
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
 #[derive(Clone, PartialEq)]
@@ -90,25 +81,6 @@ impl CaseSelection {
         }));
     }
 
-    fn viewer_focus_request(self, scene: &CadScene) -> Option<ViewerFocusRequest> {
-        let layer = self.layer.read();
-        let id = layer
-            .as_ref()
-            .filter(|selected| {
-                selected.focus == Some((scene.token, scene.snapshot.document.revision))
-                    && selected.scope == scene.scope
-                    && is_layer(scene, &selected.id)
-            })
-            .map(|selected| selected.id.clone())?;
-        Some(ViewerFocusRequest {
-            scope: scene.scope.clone(),
-            snapshot_token: scene.token,
-            revision: scene.snapshot.document.revision,
-            navigation_id: 0,
-            target_ids: vec![id],
-        })
-    }
-
     pub fn clear_layer_for_scope(mut self, scope: &Scope) {
         if self
             .layer
@@ -121,18 +93,18 @@ impl CaseSelection {
     }
 
     pub fn display_value(self, scope: &Scope) -> CaseDisplay {
-        let key = display_key(scope);
+        let key = crate::case_display::display_storage_key(scope);
         self.display
             .read()
             .get(&key)
             .cloned()
-            .unwrap_or_else(|| read_display(&key))
+            .unwrap_or_else(|| crate::case_display::load_display(&key))
     }
 
     pub fn save_display(mut self, scope: &Scope, display: CaseDisplay) {
-        let key = display_key(scope);
+        let key = crate::case_display::display_storage_key(scope);
         self.display.write().insert(key.clone(), display.clone());
-        persist_display(&key, &display);
+        crate::case_display::store_display(&key, &display);
     }
 }
 
@@ -176,65 +148,55 @@ fn use_case_keycaps(
                 .map(|scene| scene.prepared.clone()),
         });
     let mut retry = use_signal(|| 0_u64);
-    use_drop({
+    let resolved = use_memo(use_reactive((&source, &retry()), {
         let runtime = runtime.clone();
-        move || runtime.cancel_keycaps_cad_preview()
-    });
-    let mut read_source = use_reactive((&source,), |(source,)| source);
-    let result = use_resource(move || {
-        let request = (read_source(), retry());
-        let runtime = runtime.clone();
-        async move {
-            runtime.cancel_keycaps_cad_preview();
-            let outcome = async {
-                let Some(source) = request.0.as_ref() else {
-                    return Ok((None, Vec::new()));
-                };
-                let fit = runtime.resolve_case_keycaps_preview(
+        move |(source, _retry)| {
+            source.as_ref().map(|source| {
+                runtime.resolve_case_keycaps_preview(
                     source.scope.clone(),
                     source.token,
                     source.revision,
-                )?;
-                let preview = if fit.specs.is_empty()
-                    || fit.findings.iter().any(|finding| {
-                        finding.severity == boardstudio_model::model::Severity::Error
-                    }) {
-                    None
-                } else {
-                    Some(
-                        runtime
-                            .request_keycaps_cad_preview(crate::runtime::KeycapsPreviewInput {
-                                scope: source.scope.clone(),
-                                token: source.token,
-                                revision: source.revision,
-                                specs: fit.specs,
-                            })
-                            .await?,
-                    )
-                };
-                Ok::<_, String>((preview, fit.findings))
-            }
-            .await;
-            (request, outcome)
+                )
+            })
         }
-    });
-    let shown = result.read();
-    let current = shown
-        .as_ref()
-        .filter(|((owner, attempt), _)| owner == &source && *attempt == retry());
-    let (preview, findings, error) = match current.map(|(_, result)| result) {
-        Some(Ok((preview, findings))) => (preview.clone(), findings.as_slice(), None),
-        Some(Err(error)) => (None, &[][..], Some(error)),
-        None => (None, &[][..], None),
+    }));
+    let resolved = resolved.read();
+    let (findings, input, resolve_error) = match resolved.as_ref() {
+        Some(Ok(fit)) => {
+            let blocked = fit.specs.is_empty()
+                || fit
+                    .findings
+                    .iter()
+                    .any(|finding| finding.severity == boardstudio_model::model::Severity::Error);
+            let input = if blocked {
+                None
+            } else {
+                source
+                    .as_ref()
+                    .map(|source| crate::runtime::KeycapsPreviewInput {
+                        scope: source.scope.clone(),
+                        token: source.token,
+                        revision: source.revision,
+                        specs: fit.specs.clone(),
+                    })
+            };
+            (fit.findings.as_slice(), input, None)
+        }
+        Some(Err(error)) => (&[][..], None, Some(error.clone())),
+        None => (&[][..], None, None),
     };
+    let keycaps =
+        boardstudio_web_ui_shared::viewport_3d::sources::use_keycaps_cad_preview(runtime, input);
+    let keycaps_retry = keycaps.retry;
+    let error = resolve_error.or(keycaps.error);
     let feedback = rsx! {
-        if source.is_some() && current.is_none() { p { role: "status", "Generating keycap CAD…" } }
+        if source.is_some() && keycaps.pending { p { role: "status", "Generating keycap CAD…" } }
         if let Some(error) = error {
             Alert { variant: AlertVariant::Destructive,
                 AlertDescription { "Keycap preview failed: {error}" }
                 Button { variant: ButtonVariant::Secondary, button_type: "button",
                     class: "max-[960px]:min-h-11 [@media(pointer:coarse)]:min-h-11",
-                    onclick: move |_| retry += 1, "Retry keycaps" }
+                    onclick: move |_| { retry += 1; keycaps_retry.call(()); }, "Retry keycaps" }
             }
         }
         if !findings.is_empty() {
@@ -246,9 +208,8 @@ fn use_case_keycaps(
             }
         }
     };
-    (preview, feedback)
+    (keycaps.preview, feedback)
 }
-
 #[derive(Clone, PartialEq)]
 pub(crate) enum CaseViewportSource {
     Scene {
@@ -305,17 +266,7 @@ pub(crate) fn CaseViewport(
         crate::case_selection::selected_part_summary(&runtime.model(), selected.as_ref())
             .map(|summary| summary.title)
     };
-    let key = display_key(scope);
-    let initial_display = use_hook({
-        let key = key.clone();
-        move || read_display(&key)
-    });
-    let display = selection
-        .display
-        .read()
-        .get(&key)
-        .cloned()
-        .unwrap_or(initial_display);
+    let display = selection.display_value(scope);
     let selected_layer = scene.as_ref().map_or_else(
         || "pcb".to_owned(),
         |scene| {
@@ -332,18 +283,41 @@ pub(crate) fn CaseViewport(
                 .unwrap_or_default()
         },
     );
-    let focus_request = scene
-        .as_ref()
-        .and_then(|scene| selection.viewer_focus_request(scene));
+    let focus_request = scene.as_ref().and_then(|scene| {
+        let layer = selection.layer.read();
+        let id = layer
+            .as_ref()
+            .filter(|selected| {
+                selected.focus == Some((scene.token, scene.snapshot.document.revision))
+                    && selected.scope == scene.scope
+                    && is_layer(scene, &selected.id)
+            })
+            .map(|selected| selected.id.clone())?;
+        Some(ViewerFocusRequest {
+            scope: scene.scope.clone(),
+            snapshot_token: scene.token,
+            revision: scene.snapshot.document.revision,
+            navigation_id: 0,
+            target_ids: vec![id],
+        })
+    });
     let handles = scene.as_ref().map_or_else(Vec::new, |scene| {
-        editable_handles(
+        let settings = mechanical_settings.as_ref().filter(|settings| {
+            settings.editable
+                && settings.identity.scope == scene.scope
+                && settings.identity.snapshot_token == scene.token
+                && settings.identity.revision == scene.snapshot.document.revision
+        });
+        crate::case_handles::project_handles(
             scene,
-            mechanical_settings.as_ref(),
+            settings.is_some(),
+            settings.and_then(|settings| settings.configuration.as_deref()),
             (selection.body_edit_portal.editable)(),
         )
     });
     let gesture = use_hook(|| Rc::new(RefCell::new(CaseDrag::default())));
     let mut handle_preview = use_signal(|| None::<Vec<ViewerHandle>>);
+    let edit_mode = use_signal(|| None::<usize>);
     let mut gesture_field = use_signal(|| None::<String>);
     let mut gesture_message = use_signal(|| None::<String>);
     use_effect(use_reactive(
@@ -380,7 +354,22 @@ pub(crate) fn CaseViewport(
         let preview = preview.clone();
         let runtime = runtime.clone();
         Rc::new(move |identity: &ViewerIdentity| match scene.as_ref() {
-            Some(scene) => source_is_current(&runtime, instance_selection, scene, identity),
+            Some(scene) => {
+                let model = runtime.model();
+                instance_selection.is_current(&model)
+                    && runtime.scope().as_ref() == Some(&identity.scope)
+                    && identity.scope == scene.scope
+                    && identity.snapshot_token == scene.token
+                    && identity.revision == scene.snapshot.document.revision
+                    && model.accepted.as_ref().is_some_and(|accepted| {
+                        accepted.token == identity.snapshot_token
+                            && accepted.document.revision == identity.revision
+                    })
+                    && runtime
+                        .cad_scene()
+                        .as_ref()
+                        .is_some_and(|current| Rc::ptr_eq(current, scene))
+            }
             None => preview.as_ref().is_some_and(|preview| {
                 identity.scope == preview.owner.scope
                     && identity.snapshot_token == preview.owner.snapshot_token
@@ -441,19 +430,17 @@ pub(crate) fn CaseViewport(
                         handle_id,
                         point,
                     } => handle_case_gesture(
-                        CaseGestureContext {
-                            scene,
-                            identity: &event.identity,
-                            settings: settings.as_ref(),
-                            handles: &handles,
-                            gesture: &gesture,
-                            preview: &mut handle_preview,
-                            feedback_field: &mut gesture_field,
-                            message: &mut gesture_message,
-                            selection,
-                            runtime: &runtime,
-                            live_preview,
-                        },
+                        scene,
+                        &event.identity,
+                        settings.as_ref(),
+                        &handles,
+                        &gesture,
+                        &mut handle_preview,
+                        &mut gesture_field,
+                        &mut gesture_message,
+                        selection,
+                        &runtime,
+                        live_preview,
                         phase,
                         &handle_id,
                         point,
@@ -472,22 +459,45 @@ pub(crate) fn CaseViewport(
             .case_gesture_preview_scene(scene)
             .unwrap_or_else(|| scene.clone())
     });
+    let toolbar_extra = case_edit_extra(
+        &selected_layer,
+        mechanical_settings.as_ref(),
+        edit_mode(),
+        runtime.clone(),
+        scene.clone(),
+    );
     let gesture_message = runtime.case_gesture_preview_message().or_else(|| {
-        direct_gesture_message(
-            gesture_field(),
-            gesture_message(),
-            mechanical_settings.as_ref(),
-        )
+        let Some(field_id) = gesture_field() else {
+            return gesture_message();
+        };
+        let feedback = mechanical_settings
+            .as_ref()?
+            .feedback
+            .iter()
+            .rev()
+            .find(|entry| entry.field_id == field_id)?;
+        match feedback.state {
+            mechanical_settings::MechanicalSettingsFeedbackState::Landed => None,
+            mechanical_settings::MechanicalSettingsFeedbackState::Failed => Some(
+                feedback
+                    .message
+                    .clone()
+                    .unwrap_or_else(|| "Position could not be saved.".into()),
+            ),
+        }
     });
     rsx! {
         Viewport3D {
             source: ViewportSource::Case(CaseViewerSource {
                 scene: displayed_scene,
                 preview: preview.clone(),
-                mechanical_settings,
+                toolbar_extra,
+                edit_labels: vec!["Edit gaskets", "Edit mounts"],
+                edit_mode: Some(edit_mode),
                 handle_source: scene.clone(),
-                handles,
-                handle_preview: handle_preview(),
+                handles: handles.iter().map(crate::case_handles::viewport_handle).collect(),
+                handle_preview: handle_preview()
+                    .map(|preview| preview.iter().map(crate::case_handles::viewport_handle).collect()),
                 gesture_message,
                 selected_reference,
             }),
@@ -548,61 +558,6 @@ fn select_native_preview_model(
     true
 }
 
-// A disposable gesture preview inherits handles only from the current accepted scene.
-pub(super) fn gesture_source_is_current(
-    runtime: &Runtime,
-    accepted: &Rc<CadScene>,
-    displayed: &Rc<CadScene>,
-) -> bool {
-    runtime
-        .cad_scene()
-        .is_some_and(|current| Rc::ptr_eq(&current, accepted))
-        && (Rc::ptr_eq(displayed, accepted)
-            || runtime
-                .case_gesture_preview_scene(accepted)
-                .is_some_and(|preview| Rc::ptr_eq(displayed, &preview)))
-}
-
-fn source_is_current(
-    runtime: &Runtime,
-    instance: InstanceSelection,
-    expected: &Rc<CadScene>,
-    identity: &ViewerIdentity,
-) -> bool {
-    let model = runtime.model();
-    instance.is_current(&model)
-        && runtime.scope().as_ref() == Some(&identity.scope)
-        && identity.scope == expected.scope
-        && identity.snapshot_token == expected.token
-        && identity.revision == expected.snapshot.document.revision
-        && model.accepted.as_ref().is_some_and(|accepted| {
-            accepted.token == identity.snapshot_token
-                && accepted.document.revision == identity.revision
-        })
-        && runtime
-            .cad_scene()
-            .as_ref()
-            .is_some_and(|current| Rc::ptr_eq(current, expected))
-}
-
-pub(super) fn selectable_layers(scene: Option<&CadScene>) -> Vec<String> {
-    let mut layers = vec!["pcb".to_owned()];
-    let Some(scene) = scene else { return layers };
-    if let Some(assembly) = &scene.mechanical {
-        layers.extend(assembly.stack.iter().map(|layer| layer.id.clone()));
-        layers.extend(gasket_group(&assembly.gasket_supports).map(str::to_owned));
-    }
-    layers.extend(
-        scene
-            .result
-            .bodies
-            .iter()
-            .filter(|body| body.id.starts_with("gasket:"))
-            .map(|body| body.id.clone()),
-    );
-    layers
-}
-
 fn is_layer(scene: &CadScene, id: &str) -> bool {
     id == "pcb"
         || scene.result.bodies.iter().any(|body| body.id == id)
@@ -613,490 +568,84 @@ fn is_layer(scene: &CadScene, id: &str) -> bool {
         })
 }
 
-fn read_display(key: &str) -> CaseDisplay {
-    let value = web_sys::window()
-        .and_then(|window| window.local_storage().ok().flatten())
-        .and_then(|storage| storage.get_item(key).ok().flatten())
-        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok());
-    let field = |key| value.as_ref().and_then(|value| value.get(key));
-    CaseDisplay {
-        hidden: field("hidden")
-            .and_then(serde_json::Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|id| id.as_str().map(str::to_owned))
-            .collect(),
-        colors: field("colors")
-            .and_then(serde_json::Value::as_object)
-            .into_iter()
-            .flatten()
-            .filter_map(|(id, color)| Some((id.clone(), color.as_str()?.to_owned())))
-            .collect(),
-    }
-}
-
-fn display_key(scope: &Scope) -> String {
-    format!(
-        "boardstudio:case-display:{}:{}",
-        scope.document_id,
-        scope.instance_id.as_deref().unwrap_or(&scope.board_id),
-    )
-}
-
-fn persist_display(key: &str, display: &CaseDisplay) {
-    if let Some(storage) =
-        web_sys::window().and_then(|window| window.local_storage().ok().flatten())
-    {
-        let encoded = serde_json::json!({ "hidden": display.hidden, "colors": display.colors });
-        let _ = storage.set_item(key, &encoded.to_string());
-    }
-}
-
-use crate::case_gesture_math::{
-    MountMoveConstraints, move_case_mount, move_gasket_support, supports_equal_positions,
-};
-
-enum CaseGestureDraft {
-    Gasket {
-        support_id: String,
-        before: Vec<MechanicalGasketSupport>,
-        pending: Vec<MechanicalGasketSupport>,
-        tracks: Vec<MechanicalGasketTrack>,
-    },
-    Mount {
-        target: CaseMountTarget,
-        mount_id: String,
-        before: Vec<Mount>,
-        pending: Vec<Mount>,
-        constraints: MountMoveConstraints,
-    },
-}
-
-impl CaseGestureDraft {
-    fn move_to(&mut self, point: Vec2) -> bool {
-        match self {
-            Self::Gasket {
-                support_id,
-                before,
-                pending,
-                tracks,
-            } => {
-                if let Some(next) = move_gasket_support(point, support_id, before, tracks) {
-                    *pending = next;
-                    return true;
-                }
-            }
-            Self::Mount {
-                mount_id,
-                before,
-                pending,
-                constraints,
-                ..
-            } => {
-                if let Some(next) = move_case_mount(point, mount_id, before, constraints) {
-                    *pending = next;
-                    return true;
-                }
-            }
-        }
-        false
-    }
-}
-
-fn editable_handles(
-    scene: &CadScene,
-    settings: Option<&mechanical_settings::MechanicalSettingsProps>,
-    authored_mounts_editable: bool,
-) -> Vec<ViewerHandle> {
-    let settings = settings.filter(|settings| {
-        settings.editable
-            && settings.identity.scope == scene.scope
-            && settings.identity.snapshot_token == scene.token
-            && settings.identity.revision == scene.snapshot.document.revision
-    });
-    project_handles(
-        scene,
-        settings.is_some(),
-        settings.and_then(|settings| settings.configuration.as_deref()),
-        authored_mounts_editable,
-    )
-}
-
-type CaseDrag = Drag<CaseGestureDraft, crate::case_gesture_preview::CaseGesturePreviewOwner>;
-
-fn retire_drag(runtime: &Runtime, gesture: &RefCell<CaseDrag>) -> Option<CaseGestureDraft> {
-    let (draft, preview) = gesture.borrow_mut().retire();
-    if let Some(preview) = preview {
-        runtime.cancel_case_gesture_preview(&preview);
-    }
-    draft
-}
-
-struct CaseGestureContext<'a> {
-    pub(super) scene: &'a CadScene,
-    pub(super) identity: &'a ViewerIdentity,
-    pub(super) settings: Option<&'a mechanical_settings::MechanicalSettingsProps>,
-    pub(super) handles: &'a [ViewerHandle],
-    pub(super) gesture: &'a RefCell<CaseDrag>,
-    pub(super) preview: &'a mut Signal<Option<Vec<ViewerHandle>>>,
-    pub(super) feedback_field: &'a mut Signal<Option<String>>,
-    pub(super) message: &'a mut Signal<Option<String>>,
-    pub(super) selection: CaseSelection,
-    pub(super) runtime: &'a Rc<Runtime>,
-    pub(super) live_preview: bool,
-}
-
-fn handle_case_gesture(
-    context: CaseGestureContext<'_>,
-    phase: HandleGesturePhase,
-    handle_id: &str,
-    point: Option<[f32; 3]>,
-) {
-    let CaseGestureContext {
-        scene,
-        identity,
-        settings,
-        handles,
-        gesture,
-        preview,
-        feedback_field,
-        message,
-        selection,
-        runtime,
-        live_preview,
-    } = context;
-    let identity_current = scene.exact
-        && scene.scope == identity.scope
-        && scene.token == identity.snapshot_token
-        && scene.prepared.revision == scene.snapshot.document.revision;
-    let settings = settings.filter(|settings| {
-        settings.editable
-            && settings.identity.scope == identity.scope
-            && settings.identity.snapshot_token == identity.snapshot_token
-            && settings.identity.revision == scene.snapshot.document.revision
-            && identity_current
-    });
-    match phase {
-        HandleGesturePhase::Start if identity_current => {
-            let Some(handle) = handles.iter().find(|handle| handle.id == handle_id) else {
-                return;
-            };
-            let Some(draft) = start_drag(scene, settings, selection, &handle.target) else {
-                return;
-            };
-            gesture.borrow_mut().draft = Some(draft);
-            feedback_field.set(None);
-            message.set(Some(if handle_id.starts_with("gasket-handle:") {
-                "Drag the gasket support; release to save its position.".to_owned()
-            } else {
-                "Drag the mount; release to save its case position.".to_owned()
-            }));
-        }
-        HandleGesturePhase::Move if identity_current => {
-            let Some(point) = point.map(world_xy) else {
-                return;
-            };
-            let (handle_overlay, guidance, provisional) = {
-                let mut gesture = gesture.borrow_mut();
-                let Some(draft) = gesture.draft.as_mut() else {
-                    return;
-                };
-                let valid = draft.move_to(point);
-                let (overlay, guidance) = match draft {
-                    CaseGestureDraft::Gasket {
-                        support_id,
-                        pending,
-                        ..
-                    } => (
-                        gasket_handles(handles, pending, (!valid).then_some(support_id.as_str())),
-                        if valid {
-                            "Release to place; fit is checked after placement."
-                        } else {
-                            "No valid gasket perimeter position here."
-                        },
-                    ),
-                    CaseGestureDraft::Mount {
-                        target,
-                        mount_id,
-                        pending,
-                        ..
-                    } => (
-                        mount_handles(
-                            handles,
-                            target,
-                            pending,
-                            (!valid).then_some(mount_id.as_str()),
-                        ),
-                        if valid {
-                            "Release to save mount position."
-                        } else {
-                            "Placement blocked by the case edge, openings, or another mount."
-                        },
-                    ),
-                };
-                let provisional = (valid && live_preview)
-                    .then(|| case_gesture_preview_document(scene, draft))
-                    .flatten();
-                (overlay, guidance, provisional)
-            };
-            preview.set(Some(handle_overlay));
-            message.set(Some(guidance.into()));
-            if let Some(document) = provisional
-                && let Some(owner) = runtime.update_case_gesture_preview(
-                    scene.scope.clone(),
-                    scene.token,
-                    scene.snapshot.document.revision,
-                    document,
-                )
-            {
-                gesture.borrow_mut().preview = Some(owner);
-            }
-        }
-        HandleGesturePhase::End => {
-            let current = retire_drag(runtime, gesture);
-            preview.set(None);
-            if !identity_current {
-                message.set(None);
-                return;
-            }
-            let Some(mut current) = current else { return };
-            if point.is_some_and(|point| !current.move_to(world_xy(point))) {
-                message.set(Some("Blocked move was not saved.".into()));
-                return;
-            }
-            let mut body_edit = None;
-            let patch = match current {
-                CaseGestureDraft::Gasket {
-                    support_id,
-                    before,
-                    pending,
-                    ..
-                } => {
-                    if supports_equal_positions(&before, &pending) {
-                        None
-                    } else {
-                        let anchors = changed_anchors(&before, &pending).collect::<Vec<_>>();
-                        (!anchors.is_empty()).then_some(
-                            mechanical_settings::MechanicalSettingsPatch::SetGasketSupportPlacement {
-                                support_id,
-                                anchors,
-                            },
-                        )
-                    }
-                }
-                CaseGestureDraft::Mount {
-                    target,
-                    mount_id,
-                    before,
-                    pending,
-                    ..
-                } => pending
-                    .iter()
-                    .find(|mount| mount.id == mount_id)
-                    .zip(before.iter().find(|mount| mount.id == mount_id))
-                    .filter(|(next, old)| {
-                        (next.at.x - old.at.x).abs() > 1e-7 || (next.at.y - old.at.y).abs() > 1e-7
-                    })
-                    .and_then(|(mount, _)| match target {
-                        CaseMountTarget::Mechanical(collection) => Some(
-                            mechanical_settings::MechanicalSettingsPatch::SetMountPosition {
-                                collection,
-                                mount_id,
-                                at: mount.at,
-                            },
-                        ),
-                        CaseMountTarget::Authored { body_id } => {
-                            body_edit = Some(CaseBodyEdit::SetMountPosition {
-                                body_id,
-                                mount_id,
-                                at: mount.at,
-                            });
-                            None
-                        }
-                    }),
-            };
-            if let Some(patch) = patch {
-                let field_id = patch.field_id();
-                if settings.is_some_and(|settings| submit_settings_patch(settings, patch)) {
-                    feedback_field.set(Some(field_id));
-                    message.set(Some("Saving position…".into()));
-                } else {
-                    message.set(Some("Position could not be submitted.".into()));
-                }
-            } else if let Some(edit) = body_edit {
-                if let Some(dispatch) = selection.body_edit_portal.dispatch.read().clone() {
-                    dispatch(
-                        edit,
-                        identity.scope.clone(),
-                        identity.snapshot_token,
-                        scene.snapshot.document.revision,
-                    );
-                    message.set(Some("Saving body mount position…".into()));
-                } else {
-                    message.set(Some("The Case body edit owner is unavailable.".into()));
-                }
-            } else {
-                message.set(None);
-            }
-        }
-        HandleGesturePhase::Cancel => {
-            retire_drag(runtime, gesture);
-            preview.set(None);
-            feedback_field.set(None);
-            message.set(Some("Move cancelled.".into()));
-        }
-        _ => {}
-    }
-}
-
-fn start_drag(
-    scene: &CadScene,
+/// Case's `toolbar_extra` for `<Viewport3D />`: the unlink action for the
+/// selected gasket support, shown while the gasket edit mode is active.
+fn case_edit_extra(
+    selected_layer: &str,
     settings: Option<&Settings>,
-    selection: CaseSelection,
-    handle: &ViewerHandleTarget,
-) -> Option<CaseGestureDraft> {
-    let (body, mount_id, mounts, target) = match handle {
-        ViewerHandleTarget::Gasket { support_id } => {
-            settings?;
-            let assembly = scene.mechanical.as_ref()?;
-            let before = &assembly.gasket_supports;
-            before.iter().find(|support| support.id == *support_id)?;
-            selection.select_layer(scene.scope.clone(), format!("gasket:{support_id}:lower"));
-            return Some(CaseGestureDraft::Gasket {
-                support_id: support_id.clone(),
-                before: before.clone(),
-                pending: before.clone(),
-                tracks: assembly.gasket_tracks.clone(),
+    edit_mode: Option<usize>,
+    runtime: Rc<Runtime>,
+    scene: Option<Rc<CadScene>>,
+) -> Option<Element> {
+    if edit_mode != Some(0) {
+        return None;
+    }
+    let selected_support = settings.and_then(|settings| {
+        let id = mechanical_settings::gasket_support_id(selected_layer)?;
+        settings
+            .gasket_supports
+            .iter()
+            .find(|support| !support.is_previous && support.id == id)
+    });
+    let unlink = selected_support.zip(settings).map(|(support, settings)| {
+        let settings = settings.clone();
+        let anchors = settings
+            .gasket_supports
+            .iter()
+            .filter(|candidate| {
+                candidate.id == support.id
+                    || candidate.pair_id.as_deref() == Some(support.id.as_str())
+            })
+            .map(mechanical_settings::MechanicalGasketSupportRow::saved_anchor)
+            .collect();
+        let patch = mechanical_settings::MechanicalSettingsPatch::SetGasketSupportUnlinked {
+            support_id: support.id.clone(),
+            pair_id: support.pair_id.clone(),
+            anchors,
+        };
+        let field_id = patch.field_id();
+        let feedback = settings
+            .feedback
+            .iter()
+            .rev()
+            .find(|feedback| feedback.field_id == field_id)
+            .filter(|feedback| {
+                feedback.state == mechanical_settings::MechanicalSettingsFeedbackState::Failed
+            })
+            .map(|feedback| {
+                feedback
+                    .message
+                    .clone()
+                    .unwrap_or_else(|| "The support could not be unlinked.".into())
             });
+        let unlinked = support.unlinked;
+        let disabled = !settings.editable || unlinked;
+        let on_click = move |_| {
+            let current = runtime.scope().as_ref() == Some(&settings.identity.scope)
+                && runtime.model().accepted.as_ref().is_some_and(|accepted| {
+                    accepted.token == settings.identity.snapshot_token
+                        && accepted.document.revision == settings.identity.revision
+                })
+                && scene.as_ref().is_some_and(|scene| {
+                    runtime
+                        .cad_scene()
+                        .is_some_and(|current| Rc::ptr_eq(&current, scene))
+                });
+            if current {
+                submit_settings_patch(&settings, patch.clone());
+            }
+        };
+        rsx! {
+            Button { variant: ButtonVariant::Secondary, button_type: "button",
+                class: "max-[960px]:min-h-11 [@media(pointer:coarse)]:min-h-11",
+                disabled, onclick: on_click, "Unlink selected support"
+            }
+            if let Some(message) = feedback { p { role: "alert", "{message}" } }
+            if unlinked { p { "This gasket is unlinked from its pair." } }
         }
-        ViewerHandleTarget::Mount { owner, mount_id } => {
-            let (body, mounts) = match owner {
-                CaseMountTarget::Mechanical(collection) => {
-                    let (body, mounts) =
-                        mechanical_mounts(settings?.configuration.as_deref()?, *collection);
-                    (body, mounts.to_vec())
-                }
-                CaseMountTarget::Authored { body_id } => {
-                    if !(selection.body_edit_portal.editable)() {
-                        return None;
-                    }
-                    let document = captured_case_document(&scene.snapshot, &scene.scope).ok()?;
-                    let body = document.case_bodies.into_iter().find(|body| {
-                        body.id == *body_id && body.board_id == scene.scope.board_id
-                    })?;
-                    (body_id.as_str(), body.mounts?)
-                }
-            };
-            (body, mount_id, mounts, owner.clone())
-        }
-    };
-    mounts.iter().find(|mount| mount.id == *mount_id)?;
-    Some(CaseGestureDraft::Mount {
-        target,
-        mount_id: mount_id.clone(),
-        pending: mounts.clone(),
-        before: mounts,
-        constraints: mount_constraints(scene, body)?,
+    });
+    Some(match unlink {
+        Some(unlink) => unlink,
+        None => rsx! { p { "Select a gasket in Objects to unlink its mirrored support pair." } },
     })
-}
-
-fn direct_gesture_message(
-    field_id: Option<String>,
-    transient: Option<String>,
-    settings: Option<&mechanical_settings::MechanicalSettingsProps>,
-) -> Option<String> {
-    let Some(field_id) = field_id else {
-        return transient;
-    };
-    let feedback = settings?
-        .feedback
-        .iter()
-        .rev()
-        .find(|entry| entry.field_id == field_id)?;
-    match feedback.state {
-        mechanical_settings::MechanicalSettingsFeedbackState::Landed => None,
-        mechanical_settings::MechanicalSettingsFeedbackState::Failed => Some(
-            feedback
-                .message
-                .clone()
-                .unwrap_or_else(|| "Position could not be saved.".into()),
-        ),
-    }
-}
-
-fn world_xy(point: [f32; 3]) -> Vec2 {
-    Vec2 {
-        x: f64::from(point[0]),
-        y: f64::from(point[1]),
-    }
-}
-
-fn changed_anchors<'a>(
-    before: &'a [MechanicalGasketSupport],
-    pending: &'a [MechanicalGasketSupport],
-) -> impl Iterator<Item = MechanicalGasketAnchor> + 'a {
-    pending
-        .iter()
-        .filter(|support| {
-            before
-                .iter()
-                .find(|old| old.id == support.id)
-                .is_none_or(|old| (old.anchor - support.anchor).abs() > 1e-7)
-        })
-        .map(gasket_anchor)
-}
-
-fn case_gesture_preview_document(scene: &CadScene, draft: &CaseGestureDraft) -> Option<ProjectDoc> {
-    let effective = captured_case_document(&scene.snapshot, &scene.scope).ok()?;
-    let mut document = (*scene.snapshot.document).clone();
-    let mut configuration = effective.mechanical;
-    match draft {
-        CaseGestureDraft::Gasket {
-            before, pending, ..
-        } => {
-            let supports = &mut configuration.as_mut()?.gasket_layout.as_mut()?.supports;
-            for anchor in changed_anchors(before, pending) {
-                if let Some(existing) = supports
-                    .iter_mut()
-                    .find(|existing| existing.id == anchor.id)
-                {
-                    *existing = anchor;
-                } else {
-                    supports.push(anchor);
-                }
-            }
-        }
-        CaseGestureDraft::Mount {
-            target, pending, ..
-        } => match target {
-            CaseMountTarget::Mechanical(Collection::Suspension) => {
-                configuration.as_mut()?.mounts = pending.clone();
-            }
-            CaseMountTarget::Mechanical(Collection::Closure) => {
-                configuration.as_mut()?.closure_mounts = Some(pending.clone());
-            }
-            CaseMountTarget::Authored { body_id } => {
-                let body = document
-                    .case_bodies
-                    .iter_mut()
-                    .find(|body| body.id == *body_id && body.board_id == scene.scope.board_id)?;
-                body.mounts = Some(pending.clone());
-                return Some(document);
-            }
-        },
-    }
-    // The projection reapplies shared defaults and retains instance-local placements.
-    let target = if let Some(instance_id) = scene.scope.instance_id.as_deref() {
-        &mut document
-            .hardware
-            .as_mut()?
-            .instances
-            .iter_mut()
-            .find(|instance| instance.id == instance_id)?
-            .mechanical
-    } else {
-        &mut document.mechanical
-    };
-    *target = Some(configuration?);
-    Some(document)
 }

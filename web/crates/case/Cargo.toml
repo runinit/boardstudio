@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 publish = false
-description = "BoardStudio Case workspace features: case viewer and bodies, mechanical settings, closure clearance and the shared 3D viewer."
+description = "BoardStudio Case workspace features: case viewer and bodies, mechanical settings and closure clearance."
 
 [dependencies]
 boardstudio-application = { path = "../../../application" }

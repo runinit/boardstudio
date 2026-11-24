@@ -1,9 +1,8 @@
+use super::controls::{CameraAction, ViewerChrome};
 use super::interaction::{
     PointerOwner, ViewportInteraction, cancel_handle_capture, cancel_superseded_pointer,
 };
 use super::*;
-use crate::case_handles::active_case_handles;
-use crate::case_viewport::controls::{CameraAction, ViewerChrome};
 use boardstudio_web_host::renderer_host::{RendererStatus, renderer_module};
 
 #[derive(Props, Clone, PartialEq)]
@@ -17,7 +16,8 @@ pub(super) struct ViewportCanvas {
     pub on_signal: EventHandler<ScopedViewerSignal>,
     pub on_display_change: EventHandler<ScopedDisplayChange>,
     pub handle_projection: Option<CaseHandleProjection>,
-    pub handle_preview: Option<Vec<ViewerHandle>>,
+    pub edit_mode: Option<Signal<Option<usize>>>,
+    pub handle_preview: Option<Vec<ViewportHandle>>,
     pub focus_request: Option<ViewerFocusRequest>,
 }
 
@@ -30,7 +30,8 @@ pub(super) fn MountedCanvas(props: ViewportCanvas) -> Element {
         move || owner.active.set(true)
     });
 
-    let edit_mode = use_signal(|| None::<usize>);
+    let local_edit_mode = use_signal(|| None::<usize>);
+    let edit_mode = props.edit_mode.unwrap_or(local_edit_mode);
     let mut status = use_signal(|| "Starting 3D preview…".to_owned());
     let transient = use_signal(TransientView::default);
     let mounted = use_signal(|| false);
@@ -47,11 +48,14 @@ pub(super) fn MountedCanvas(props: ViewportCanvas) -> Element {
         identity: props.projection.identity.clone(),
         source: props.current_source.clone(),
         applied,
-        handles: active_case_handles(
-            &props.overlay.handles,
-            props.handle_preview.as_deref(),
-            edit_mode(),
-        ),
+        handles: props
+            .handle_preview
+            .as_deref()
+            .unwrap_or(&props.overlay.handles)
+            .iter()
+            .filter(|handle| edit_mode() == Some(handle.edit_group))
+            .cloned()
+            .collect(),
         handle_projection: props.handle_projection.clone(),
         on_signal: props.on_signal,
         status,
@@ -89,12 +93,6 @@ pub(super) fn MountedCanvas(props: ViewportCanvas) -> Element {
             status.set(error);
         }
     });
-    let accepts_case_edit = {
-        let interaction = interaction.clone();
-        move |scope: Scope| {
-            (interaction.source.0)() && interaction.current() && scope == interaction.identity.scope
-        }
-    };
     rsx! {
         ViewerChrome {
             overlay: props.overlay,
@@ -105,7 +103,6 @@ pub(super) fn MountedCanvas(props: ViewportCanvas) -> Element {
             camera,
             select_layer,
             change_display,
-            accepts_case_edit: Callback::new(accepts_case_edit),
                 canvas {
                     style: "width:100%;height:100%;display:block",
                     tabindex: "0", role: "img",
@@ -130,7 +127,7 @@ fn use_renderer_mount(
     mut mounted: Signal<bool>,
     submitted: Rc<Cell<u64>>,
 ) -> impl Fn(MountedEvent) + 'static {
-    let runtime = use_context::<Rc<crate::runtime::Runtime>>();
+    let runtime = use_context::<Rc<Runtime>>();
     let mut status = interaction.status;
     let on_signal = interaction.on_signal;
     let latest = || (projection.clone(), interaction.source.clone());
@@ -324,8 +321,13 @@ fn use_renderer_updates(
                 let Some(host) = interaction.host.borrow().clone() else {
                     return;
                 };
-                let request =
-                    request.filter(|request| focus_request_matches(request, &projection.identity));
+                let identity = &projection.identity;
+                let request = request.filter(|request| {
+                    request.scope == identity.scope
+                        && request.snapshot_token == identity.snapshot_token
+                        && request.revision == identity.revision
+                        && !request.target_ids.is_empty()
+                });
                 let ids = request
                     .as_ref()
                     .map_or(&[][..], |request| request.target_ids.as_slice());

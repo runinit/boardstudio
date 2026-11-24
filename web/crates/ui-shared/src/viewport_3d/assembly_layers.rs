@@ -3,13 +3,13 @@
 //! The caller supplies the currently accepted projection. This module owns
 //! only viewer display preferences; it does not request previews or models.
 
-use super::case_assembly_projection::case_display_selection_id;
-pub use super::case_assembly_projection::{
+use super::assembly_projection::case_display_selection_id;
+pub use super::assembly_projection::{
     CaseAssemblyLayer, CaseComponentLayer, LayerAvailability, assembly_layers_with_stack,
     physical_component_layers, standard_assembly_layers,
 };
-use super::case_display::CaseDisplay;
-use boardstudio_web_ui_shared::ui::{
+use crate::case_display::CaseDisplay;
+use crate::ui::{
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
     icons::ChevronDown,
     toggle_group::{ToggleGroup, ToggleItem},
@@ -21,7 +21,6 @@ use wasm_bindgen::JsCast;
 
 #[component]
 pub fn CaseAssemblyLayers(
-    #[props(default)] initially_open: bool,
     assembly: Vec<CaseAssemblyLayer>,
     components: Vec<CaseComponentLayer>,
     selectable_layers: Vec<String>,
@@ -30,7 +29,7 @@ pub fn CaseAssemblyLayers(
     display: CaseDisplay,
     on_display_change: EventHandler<CaseDisplay>,
 ) -> Element {
-    let mut open = use_signal(|| initially_open);
+    let mut open = use_signal(|| false);
     let display_for_toggle = display.clone();
     let toggle = move |id: String| {
         let mut next = display_for_toggle.clone();
@@ -45,7 +44,13 @@ pub fn CaseAssemblyLayers(
         if event.data().key().to_string() == "Escape" && open() {
             event.prevent_default();
             open.set(false);
-            focus_layers_trigger();
+            if let Some(trigger) = web_sys::window()
+                .and_then(|window| window.document())
+                .and_then(|document| document.get_element_by_id("m1-case-assembly-layers-trigger"))
+                .and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok())
+            {
+                let _ = trigger.focus();
+            }
         }
     };
     rsx! {
@@ -240,14 +245,4 @@ fn LayerEye(visible: bool) -> Element {
         circle { cx: "10", cy: "10", r: "2.5" }
         if !visible { path { d: "m3 17 14-14" } }
     } }
-}
-
-fn focus_layers_trigger() {
-    if let Some(trigger) = web_sys::window()
-        .and_then(|window| window.document())
-        .and_then(|document| document.get_element_by_id("m1-case-assembly-layers-trigger"))
-        .and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok())
-    {
-        let _ = trigger.focus();
-    }
 }
