@@ -1,5 +1,4 @@
 //! Read-only, source-backed 2D preview for the selected Parts definition.
-use super::super::shared_viewer::ViewportSource;
 use super::{GeneratorPreviewDraft, GeneratorPreviewStatus};
 use crate::footprint_graphics::Shape;
 use crate::presentation::footprint_graphics::{self, GraphicElement};
@@ -13,6 +12,7 @@ use boardstudio_web_ui_shared::ui::{
     spinner::Spinner,
     toggle_group::{ToggleGroup, ToggleItem},
 };
+use boardstudio_web_ui_shared::viewport_3d::ViewportSource;
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -390,36 +390,36 @@ fn PartsSampleViewer(
 ) -> Element {
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let theme = use_context::<super::super::ResolvedAppearance>().0;
-    let mut display = use_signal(super::super::case_display::CaseDisplay::default);
-    let on_signal = {
+    let mut display = use_signal(boardstudio_web_ui_shared::case_display::CaseDisplay::default);
+    let is_current: Rc<dyn Fn(&boardstudio_web_ui_shared::viewport_3d::ViewerIdentity) -> bool> = {
         let runtime = runtime.clone();
         let preview = preview.clone();
-        move |event: super::super::shared_viewer::ScopedViewerSignal| {
-            if !event.is_current()
-                || !runtime.parts_preview_snapshot_is_current(&preview)
-                || event.identity.scope != preview.owner.scope
-                || event.identity.snapshot_token != preview.owner.snapshot_token
-            {
+        Rc::new(move |identity| {
+            runtime.parts_preview_snapshot_is_current(&preview)
+                && identity.scope == preview.owner.scope
+                && identity.snapshot_token == preview.owner.snapshot_token
+        })
+    };
+    let on_signal = {
+        let runtime = runtime.clone();
+        let is_current = is_current.clone();
+        move |event: boardstudio_web_ui_shared::viewport_3d::ScopedViewerSignal| {
+            if !event.is_current() || !is_current(&event.identity) {
                 return;
             }
-            if let super::super::shared_viewer::ViewerSignalKind::Failed(message) = event.kind {
+            if let boardstudio_web_ui_shared::viewport_3d::ViewerSignalKind::Failed(message) =
+                event.kind
+            {
                 runtime.report(message);
             }
         }
     };
-    let on_display_change = {
-        let runtime = runtime.clone();
-        let preview = preview.clone();
-        move |event: super::super::shared_viewer::ScopedDisplayChange| {
-            if event.is_current()
-                && runtime.parts_preview_snapshot_is_current(&preview)
-                && event.identity.scope == preview.owner.scope
-                && event.identity.snapshot_token == preview.owner.snapshot_token
-            {
+    let on_display_change =
+        move |event: boardstudio_web_ui_shared::viewport_3d::ScopedDisplayChange| {
+            if event.is_current() && is_current(&event.identity) {
                 display.set(event.display);
             }
-        }
-    };
+        };
     rsx! {
         section { class: "flex flex-1 flex-col min-w-0 min-h-0 [&>p]:my-2 [&>p]:mx-3 [&>div:has(canvas)]:relative [&>div:has(canvas)]:flex-1 [&>div:has(canvas)]:min-h-0 [&>div:has(canvas)]:overflow-hidden [&_div:has(>canvas)]:relative [&_div:has(>canvas)]:flex [&_div:has(>canvas)]:flex-1 [&_div:has(>canvas)]:min-w-0 [&_div:has(>canvas)]:min-h-[160px] [&_canvas]:flex-1 [&_canvas]:w-full [&_canvas]:min-w-0 [&_canvas]:min-h-0 [&_canvas]:h-full", "aria-label": "3D footprint model preview",
             if preview.preview.models.is_empty() {
@@ -430,7 +430,7 @@ fn PartsSampleViewer(
                     Alert { variant: AlertVariant::Destructive, "{failure.reference}: {failure.reason}" }
                 }
             }
-            super::super::shared_viewer::Viewport3D {
+            boardstudio_web_ui_shared::viewport_3d::Viewport3D {
                 source: ViewportSource::Parts(preview.clone(), Some(view_controls)),
                 display: display(),
                 resolved_theme: theme().to_owned(),

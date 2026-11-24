@@ -1,12 +1,10 @@
 //! Owner-checked Layout action for linking copies of existing unpaired matrices.
-use super::matrix_preparation::PendingSettlement;
 use crate::mirror_existing_half::prepare_existing_half;
 use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_model::model::{EditOperation, PartKind, ProjectDoc, Vec2};
-use boardstudio_web_runtime::operation_outcomes::Settlement;
 use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::inspector_fields::{NumericField, SelectField};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
@@ -24,9 +22,6 @@ pub struct ExistingHalfOption {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExistingHalfOwner {
-    editor_instance_id: u64,
-    open_id: u64,
-    scope_generation: u64,
     scope: Scope,
     snapshot_token: SnapshotToken,
     revision: u64,
@@ -102,16 +97,8 @@ pub fn use_existing_half(
     workspace: Signal<Workspace>,
     scope_generation: Signal<u64>,
 ) -> ExistingHalfMount {
-    let editor_instance_id = use_hook({
-        let runtime = runtime.clone();
-        move || runtime.operation().0
-    });
-    let open_id = use_signal(|| 0_u64);
     let open = use_signal(|| None::<ExistingHalfOwner>);
     let error = use_signal(|| None::<String>);
-    // The committed mirror is observed through its ticket; the waiting entry is the
-    // pending state. Availability derives from it, so no separate disabled flag is kept.
-    let waiting = use_signal(|| None::<PendingSettlement<ExistingHalfOwner>>);
 
     use_effect(use_reactive(
         (&version(), &workspace(), &scope_generation()),
@@ -119,22 +106,13 @@ pub fn use_existing_half(
             let runtime = runtime.clone();
             let mut open = open;
             let mut error = error;
-            let mut waiting = waiting;
-            move |(_, current_workspace, current_generation)| {
-                settle_pending(
-                    &runtime,
-                    (current_workspace, current_generation, editor_instance_id),
-                    &mut waiting,
-                    &mut open,
-                    &mut error,
-                );
-                if waiting.read().is_none()
-                    && open.read().as_ref().is_some_and(|owner| {
-                        current_workspace != Workspace::Layout
-                            || owner.scope_generation != current_generation
-                            || runtime.scope().as_ref() != Some(&owner.scope)
-                    })
-                {
+            move |(_, current_workspace, _)| {
+                // Commits land synchronously, so the open entry only needs
+                // reactive cleanup when its scope leaves the Layout workspace.
+                if open.read().as_ref().is_some_and(|owner| {
+                    current_workspace != Workspace::Layout
+                        || runtime.scope().as_ref() != Some(&owner.scope)
+                }) {
                     open.set(None);
                     error.set(None);
                 }
@@ -147,17 +125,13 @@ pub fn use_existing_half(
         .as_ref()
         .map(|(snapshot, scope)| eligible_options(&snapshot.document, &scope.board_id))
         .unwrap_or_default();
-    let can_open = !options.is_empty() && waiting.read().is_none();
+    let can_open = !options.is_empty();
 
     let on_open = use_callback({
         let runtime = runtime.clone();
         let mut open = open;
-        let mut open_id = open_id;
         let mut error = error;
         move |_| {
-            if waiting.read().is_some() {
-                return;
-            }
             let Some((snapshot, scope)) = existing_half_source(&runtime, workspace()) else {
                 error.set(Some(
                     "Open a saved, editable board in Layout before mirroring a half.".into(),
@@ -169,17 +143,9 @@ pub fn use_existing_half(
                 error.set(Some("There are no unpaired layouts on this board.".into()));
                 return;
             }
-            let Some(next_open_id) = open_id().checked_add(1) else {
-                error.set(Some("Could not create a new mirror setup.".into()));
-                return;
-            };
-            open_id.set(next_open_id);
             error.set(None);
             let default_axis_x = default_axis_x(&snapshot, &scope.board_id);
             open.set(Some(ExistingHalfOwner {
-                editor_instance_id,
-                open_id: next_open_id,
-                scope_generation: scope_generation(),
                 scope,
                 snapshot_token: snapshot.token,
                 revision: snapshot.document.revision,
@@ -193,7 +159,7 @@ pub fn use_existing_half(
         let mut open = open;
         let mut error = error;
         move |owner: ExistingHalfOwner| {
-            if waiting.read().is_none() && open.read().as_ref() == Some(&owner) {
+            if open.read().as_ref() == Some(&owner) {
                 open.set(None);
                 error.set(None);
                 super::focus_add_object();
@@ -203,23 +169,14 @@ pub fn use_existing_half(
 
     let on_create = use_callback({
         let runtime = runtime.clone();
-        let mut waiting = waiting;
+        let mut open = open;
         let mut error = error;
         move |request: ExistingHalfCreateRequest| {
-            if waiting.read().is_some()
-                || open.read().as_ref() != Some(&request.owner)
-                || request.owner.editor_instance_id != editor_instance_id
-            {
+            if open.read().as_ref() != Some(&request.owner) {
                 return;
             }
             let current_workspace = workspace();
-            let current_generation = scope_generation();
-            if !owner_is_current(
-                &runtime,
-                &request.owner,
-                current_workspace,
-                current_generation,
-            ) {
+            if !owner_is_current(&runtime, &request.owner, current_workspace) {
                 error.set(Some(
                     "The accepted board changed. Cancel this setup and reopen it before mirroring."
                         .into(),
@@ -286,33 +243,50 @@ pub fn use_existing_half(
                 error.set(Some(message));
                 return;
             }
-            let ticket = runtime.resolve_edit(
+            // The edit commits synchronously; handle its outcome inline and close
+            // the setup at once instead of tracking a pending settlement.
+            let owner = request.owner.clone();
+            match runtime.commit(
                 "layout-mirror-existing-half",
-                Some("mirror".into()),
                 mirror_existing_half_resolver(
                     scope.board_id.clone(),
                     selected,
                     request.axis_x,
                     id_pool,
                 ),
-            );
-            waiting.set(Some(PendingSettlement {
-                ticket,
-                owner: request.owner,
-            }));
-            error.set(None);
+            ) {
+                Ok(_) => {
+                    open.set(None);
+                    error.set(None);
+                    let model = runtime.model();
+                    if current_workspace == Workspace::Layout
+                        && runtime.scope().as_ref() == Some(&owner.scope)
+                        && model.active_board_id == owner.scope.board_id
+                        && model.active_instance_id == owner.scope.instance_id
+                    {
+                        runtime.submit(Event::SetCamera {
+                            operation_id: runtime.operation(),
+                            center: Vec2::default(),
+                            zoom: 1.0,
+                        });
+                    }
+                }
+                Err(message) => {
+                    if open.read().as_ref() == Some(&owner) {
+                        error.set(Some(message));
+                    }
+                }
+            }
         }
     });
 
     let projection = open.read().as_ref().map(|owner| {
-        let is_pending = waiting.read().is_some();
-        let editable =
-            !is_pending && owner_is_current(&runtime, owner, workspace(), scope_generation());
+        let editable = owner_is_current(&runtime, owner, workspace());
         ExistingHalfProjection {
             owner: owner.clone(),
             editable,
-            can_cancel: !is_pending,
-            error: (!is_pending).then(&*error).flatten().or_else(|| {
+            can_cancel: true,
+            error: error.read().clone().or_else(|| {
                 (!editable).then(|| {
                     "The accepted board changed. Cancel this setup and reopen it before mirroring."
                         .into()
@@ -436,16 +410,8 @@ fn existing_half_source(
     Some((snapshot.clone(), scope))
 }
 
-fn owner_is_current(
-    runtime: &Runtime,
-    owner: &ExistingHalfOwner,
-    workspace: Workspace,
-    scope_generation: u64,
-) -> bool {
-    if workspace != Workspace::Layout
-        || owner.scope_generation != scope_generation
-        || runtime.scope().as_ref() != Some(&owner.scope)
-    {
+fn owner_is_current(runtime: &Runtime, owner: &ExistingHalfOwner, workspace: Workspace) -> bool {
+    if workspace != Workspace::Layout || runtime.scope().as_ref() != Some(&owner.scope) {
         return false;
     }
     let model = runtime.model();
@@ -466,51 +432,6 @@ fn owner_is_current(
         )
         && model.display_preview.is_none()
         && model.gesture.is_none()
-}
-
-fn settle_pending(
-    runtime: &Rc<Runtime>,
-    (workspace, scope_generation, editor_instance_id): (Workspace, u64, u64),
-    waiting: &mut Signal<Option<PendingSettlement<ExistingHalfOwner>>>,
-    open: &mut Signal<Option<ExistingHalfOwner>>,
-    error: &mut Signal<Option<String>>,
-) {
-    let Some((owner, settlement)) = PendingSettlement::finish(waiting, |owner| {
-        owner.editor_instance_id == editor_instance_id
-            && workspace == Workspace::Layout
-            && scope_generation == owner.scope_generation
-    }) else {
-        return;
-    };
-    let model = runtime.model();
-    match settlement {
-        Settlement::Retired => {
-            if open.read().as_ref() == Some(&owner) {
-                open.set(None);
-                error.set(None);
-            }
-        }
-        Settlement::Landed { .. } => {
-            let current_owner = workspace == Workspace::Layout
-                && scope_generation == owner.scope_generation
-                && model.active_board_id == owner.scope.board_id
-                && model.active_instance_id == owner.scope.instance_id;
-            open.set(None);
-            error.set(None);
-            if current_owner {
-                runtime.submit(Event::SetCamera {
-                    operation_id: runtime.operation(),
-                    center: Vec2::default(),
-                    zoom: 1.0,
-                });
-            }
-        }
-        Settlement::Failed { message } => {
-            if open.read().as_ref() == Some(&owner) {
-                error.set(Some(message));
-            }
-        }
-    }
 }
 
 #[derive(Props, Clone, PartialEq)]

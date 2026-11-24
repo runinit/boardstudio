@@ -52,8 +52,9 @@ Existing component placements are not automatically migrated to the new presets.
 
 The Dioxus [Parts preview](../../web/crates/parts/src/parts/preview.rs) owns sample
 request freshness, generation leases and local visibility.
-[SharedViewer](../../web/crates/case/src/shared_viewer.rs) projects Parts, Layout
-and Case sources for the renderer and handles renderer lifecycle events.
+[Viewport3D](../../web/crates/ui-shared/src/viewport_3d/host.rs) projects Parts,
+Layout, Keycaps and Case sources for the renderer and handles renderer lifecycle
+events.
 [Runtime](../../web/crates/runtime/src/runtime.rs) delivers scoped worker results; accepted
 document edits remain in Session/Core. Export model packaging is a separate
 operation.

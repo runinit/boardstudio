@@ -1,6 +1,5 @@
 //! Private routing for the six independently owned workspace surfaces.
-use super::workbench::editor_session::camera;
-use super::workbench::editor_session::commands::camera_commands;
+use super::editor::camera::{self, camera_commands};
 use super::*;
 use boardstudio_web_ui_model::editor::EditorContext;
 

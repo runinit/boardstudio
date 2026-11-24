@@ -84,6 +84,49 @@ pub fn is_inspector_visible(display: &CaseDisplay, id: &str) -> bool {
         .any(|alias| display.hidden.contains(alias))
 }
 
+/// Browser-storage key for one board instance's display preferences.
+#[cfg(target_arch = "wasm32")]
+pub fn display_storage_key(scope: &boardstudio_application::Scope) -> String {
+    format!(
+        "boardstudio:case-display:{}:{}",
+        scope.document_id,
+        scope.instance_id.as_deref().unwrap_or(&scope.board_id),
+    )
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn load_display(key: &str) -> CaseDisplay {
+    let value = web_sys::window()
+        .and_then(|window| window.local_storage().ok().flatten())
+        .and_then(|storage| storage.get_item(key).ok().flatten())
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok());
+    let field = |key| value.as_ref().and_then(|value| value.get(key));
+    CaseDisplay {
+        hidden: field("hidden")
+            .and_then(serde_json::Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|id| id.as_str().map(str::to_owned))
+            .collect(),
+        colors: field("colors")
+            .and_then(serde_json::Value::as_object)
+            .into_iter()
+            .flatten()
+            .filter_map(|(id, color)| Some((id.clone(), color.as_str()?.to_owned())))
+            .collect(),
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn store_display(key: &str, display: &CaseDisplay) {
+    if let Some(storage) =
+        web_sys::window().and_then(|window| window.local_storage().ok().flatten())
+    {
+        let encoded = serde_json::json!({ "hidden": display.hidden, "colors": display.colors });
+        let _ = storage.set_item(key, &encoded.to_string());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

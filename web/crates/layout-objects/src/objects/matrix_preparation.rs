@@ -1,33 +1,14 @@
-//! Shared admission, definition preparation, and ticket settlement for matrix creation.
+//! Shared admission and definition preparation for matrix creation.
 use crate::matrix_setup_operation::{MatrixSetupRequest, PreparedMatrix, prepare_matrix};
 #[cfg(target_arch = "wasm32")]
 use crate::parts;
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Durability, Lifecycle, ReadModel, Scope};
-use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
 use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 use std::cell::RefCell;
-
-#[derive(Clone)]
-pub(super) struct PendingSettlement<Owner> {
-    pub(super) ticket: EditOutcome,
-    pub(super) owner: Owner,
-}
-
-impl<Owner: Clone + 'static> PendingSettlement<Owner> {
-    pub(super) fn finish(
-        waiting: &mut Signal<Option<Self>>,
-        owner_is_live: impl FnOnce(&Owner) -> bool,
-    ) -> Option<(Owner, Settlement)> {
-        let pending = waiting.read().clone()?;
-        let settlement = pending.ticket.settlement(owner_is_live(&pending.owner));
-        waiting.set(None);
-        Some((pending.owner, settlement))
-    }
-}
 
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]

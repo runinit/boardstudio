@@ -357,6 +357,59 @@ class BuildWebTests(unittest.TestCase):
             with self.assertRaises(ValueError, msg=patch_fields):
                 BUILD.validate_offline_manifest(valid | patch_fields)
 
+    def test_first_paint_head_matches_the_runtime_theme_contract(self):
+        head = BUILD.FIRST_PAINT_THEME_HEAD
+        self.assertIn("<!--boardstudio:first-paint-theme-->", head)
+        for token in ("boardstudio:v2:appearance", "boardstudio:v2:theme",
+                      "boardstudio:v2:workbench-theme", "prefers-color-scheme: dark",
+                      'setAttribute("data-appearance"', 'setAttribute("data-theme"',
+                      "colorScheme", "try{", "}catch(e){}",
+                      "html{background:#E9EEF2}",
+                      'html[data-appearance="dark"]{background:#181B21}',
+                      'html[data-theme="shadcn"]{background:oklch(0.965 0 0)}',
+                      'html[data-theme="shadcn"][data-appearance="dark"]{background:oklch(0.15 0 0)}'):
+            self.assertIn(token, head)
+        # Never set inline `d.style.background`: live theme switching overrides via CSS rules.
+        self.assertNotIn("style.background", head)
+        # The script resolves appearance first, falls back to the legacy theme
+        # key, then to the media query; the workbench theme defaults to original.
+        script = head.split("<script>")[1]
+        self.assertIn("if(a===null)", script)
+        self.assertLess(script.index("boardstudio:v2:appearance"),
+                        script.index("prefers-color-scheme"))
+        index = BUILD.index_html("/boardstudio/")
+        self.assertIn(head, index)
+        self.assertLess(index.index("boardstudio:first-paint-theme"), index.index('<div id="main">'))
+
+    def test_inject_first_paint_head_targets_stylesheets_and_stays_idempotent(self):
+        dx_html = ("<!DOCTYPE html><html><head>"
+                   '<meta charset="UTF-8"><link rel="stylesheet" href="assets/tailwind.css">'
+                   "</head><body><div id=\"main\"></div></body></html>")
+        once = BUILD.inject_first_paint_head(dx_html)
+        self.assertEqual(once.count("boardstudio:first-paint-theme"), 1)
+        self.assertLess(once.index("boardstudio:first-paint-theme"), once.index('rel="stylesheet"'))
+        self.assertEqual(BUILD.inject_first_paint_head(once), once)
+        self.assertEqual(BUILD.inject_first_paint_head(BUILD.index_html("/")), BUILD.index_html("/"))
+        self.assertEqual(BUILD.inject_first_paint_head("<p>no head</p>"), "<p>no head</p>")
+
+    def test_package_route_injects_first_paint_head_into_release_html(self):
+        root = self.root
+        public = self.write("public/index.html",
+                            ("<!DOCTYPE html><html><head><title>BoardStudio</title>"
+                             '<link rel="stylesheet" href="assets/app.css">'
+                             "</head><body></body></html>").encode()).parent
+        with patch.object(BUILD, "ROOT", root), patch.object(BUILD, "WEB", root / "web"), \
+             patch.object(BUILD, "OFFLINE_WORKER", root / "worker"), \
+             patch.object(BUILD, "_stage_provider_entries"), \
+             patch.object(BUILD, "embed_offline_worker"):
+            for _ in range(2):
+                BUILD.package_route(root / "output", public, "subpath")
+        for site in ("site-subpath/boardstudio",):
+            packaged = (root / "output" / site / "index.html").read_text()
+            self.assertEqual(packaged.count("boardstudio:first-paint-theme"), 1)
+            self.assertLess(packaged.index("boardstudio:first-paint-theme"),
+                            packaged.index('rel="stylesheet"'))
+
     def test_routes_option_rejects_unknown_routes(self):
         with self.assertRaises(SystemExit):
             BUILD.main(["--routes", "elsewhere"])

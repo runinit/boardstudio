@@ -25,3 +25,5 @@ pub mod keycaps_fit;
 pub mod keycaps_navigation;
 #[cfg(any(target_arch = "wasm32", test))]
 pub mod keycaps_settings;
+#[cfg(target_arch = "wasm32")]
+pub mod keycaps_viewer;

@@ -1,14 +1,8 @@
-use crate::MechanicalSettingsProps;
-use crate::case_assembly_layers::{CaseAssemblyLayer, CaseAssemblyLayers, CaseComponentLayer};
-use crate::mechanical_settings::{self, MechanicalSettingsPatchExt};
-use crate::shared_viewer::{
-    AssemblyView, CaseDisplay, RenderMode, TransientView, ViewerCanvasContext, ViewerHandle,
-    ViewerHandleTarget,
+use super::{
+    AssemblyView, CaseDisplay, RenderMode, TransientView, ViewerCanvasContext, ViewportHandle,
 };
-use boardstudio_application::Scope;
-use boardstudio_web_host::renderer_host::RendererPageHost;
-use boardstudio_web_ui_shared::inspector_fields::{SelectField, ToggleField};
-use boardstudio_web_ui_shared::ui::{
+use crate::inspector_fields::{SelectField, ToggleField};
+use crate::ui::{
     button::{Button as UiButton, ButtonSize as UiButtonSize, ButtonVariant as UiButtonVariant},
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
     field::Field,
@@ -19,6 +13,10 @@ use boardstudio_web_ui_shared::ui::{
     toggle_group::{ToggleGroup, ToggleItem},
     tooltip::{Tooltip, TooltipContent, TooltipTrigger},
 };
+use crate::viewport_3d::assembly_layers::{
+    CaseAssemblyLayer, CaseAssemblyLayers, CaseComponentLayer,
+};
+use boardstudio_web_host::renderer_host::RendererPageHost;
 use dioxus::prelude::*;
 
 #[derive(Clone, PartialEq)]
@@ -30,9 +28,10 @@ pub(crate) struct ViewerOverlayConfig {
     pub(crate) selected_layer: String,
     pub(crate) selected_reference: Option<String>,
     pub(crate) display: CaseDisplay,
-    pub(crate) mechanical_settings: Option<MechanicalSettingsProps>,
+    pub(crate) toolbar_extra: Option<Element>,
+    pub(crate) edit_labels: Vec<&'static str>,
     pub(crate) toolbar_leading: Option<Element>,
-    pub(crate) handles: Vec<ViewerHandle>,
+    pub(crate) handles: Vec<ViewportHandle>,
     pub(crate) gesture_message: Option<String>,
 }
 
@@ -41,22 +40,41 @@ pub(crate) fn ViewerChrome(
     overlay: ViewerOverlayConfig,
     context: ViewerCanvasContext,
     mut transient: Signal<TransientView>,
-    edit_mode: Signal<Option<usize>>,
+    mut edit_mode: Signal<Option<usize>>,
     status: Signal<String>,
     camera: EventHandler<CameraAction>,
     select_layer: EventHandler<String>,
     change_display: EventHandler<CaseDisplay>,
-    accepts_case_edit: Callback<Scope, bool>,
     children: Element,
 ) -> Element {
-    let case_edit_controls = edit_controls(
-        &overlay.selected_layer,
-        overlay.mechanical_settings.as_ref(),
-        &overlay.handles,
-        edit_mode,
-        camera,
-        accepts_case_edit,
-    );
+    let edit_groups = overlay
+        .edit_labels
+        .iter()
+        .enumerate()
+        .filter(|(group, _)| {
+            overlay
+                .handles
+                .iter()
+                .any(|handle| handle.edit_group == *group)
+        })
+        .map(|(group, _)| group)
+        .collect::<Vec<_>>();
+    let case_edit_controls = rsx! {
+        if !edit_groups.is_empty() {
+            ToggleGroup {
+                aria_label: "Edit mode",
+                pressed: Some(edit_mode().into_iter().collect()),
+                on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                    let next = next.into_iter().min();
+                    if next != edit_mode() {
+                        edit_mode.set(next);
+                        if next.is_some() { camera.call(CAMERA_VIEWS[0].2); }
+                    }
+                },
+                for group in edit_groups { {icon_toggle(group, overlay.edit_labels[group])} }
+            }
+        }
+    };
     let show_assembly_controls = overlay.layers.iter().any(|(id, _)| id != "pcb");
     let inline = context == ViewerCanvasContext::Case;
 
@@ -124,9 +142,8 @@ pub(crate) fn ViewerChrome(
         }
     };
     let assembly_adjustments = assembly_adjustments(transient, inline);
-    let docked_layers = boardstudio_web_ui_shared::layer_dock::use_docked_layers(rsx! {
+    let docked_layers = crate::layer_dock::use_docked_layers(rsx! {
         CaseAssemblyLayers {
-            initially_open: false,
             assembly: overlay.assembly_layers,
             components: overlay.component_layers,
             selectable_layers: overlay.selectable_layers,
@@ -157,6 +174,7 @@ pub(crate) fn ViewerChrome(
                     if show_assembly_controls { {assembly_view.clone()} }
                 }
                 {case_edit_controls}
+                {overlay.toolbar_extra}
                 if !inline {
                     {compact_view_controls(context, camera, show_hidden, display_mode, assembly_view, assembly_adjustments.clone())}
                 }
@@ -177,100 +195,6 @@ pub(crate) fn ViewerChrome(
                 }
             }
             {docked_layers}
-        }
-    }
-}
-
-fn edit_controls(
-    selected_layer: &str,
-    mechanical_settings: Option<&MechanicalSettingsProps>,
-    handles: &[ViewerHandle],
-    mut edit_mode: Signal<Option<usize>>,
-    camera: EventHandler<CameraAction>,
-    accepts_edit: Callback<Scope, bool>,
-) -> Element {
-    let selected_support = mechanical_settings.and_then(|settings| {
-        let id = mechanical_settings::gasket_support_id(selected_layer)?;
-        settings
-            .gasket_supports
-            .iter()
-            .find(|support| !support.is_previous && support.id == id)
-    });
-    let can_edit_gaskets = handles
-        .iter()
-        .any(|handle| matches!(handle.target, ViewerHandleTarget::Gasket { .. }));
-    let can_edit_mounts = handles
-        .iter()
-        .any(|handle| !matches!(handle.target, ViewerHandleTarget::Gasket { .. }));
-    let unlink = selected_support
-        .zip(mechanical_settings)
-        .map(|(support, settings)| {
-            let settings = settings.clone();
-            let anchors = settings
-                .gasket_supports
-                .iter()
-                .filter(|candidate| {
-                    candidate.id == support.id
-                        || candidate.pair_id.as_deref() == Some(support.id.as_str())
-                })
-                .map(mechanical_settings::MechanicalGasketSupportRow::saved_anchor)
-                .collect();
-            let patch = mechanical_settings::MechanicalSettingsPatch::SetGasketSupportUnlinked {
-                support_id: support.id.clone(),
-                pair_id: support.pair_id.clone(),
-                anchors,
-            };
-            let field_id = patch.field_id();
-            let feedback = settings
-                .feedback
-                .iter()
-                .rev()
-                .find(|feedback| feedback.field_id == field_id)
-                .filter(|feedback| {
-                    feedback.state == mechanical_settings::MechanicalSettingsFeedbackState::Failed
-                })
-                .map(|feedback| {
-                    feedback
-                        .message
-                        .clone()
-                        .unwrap_or_else(|| "The support could not be unlinked.".into())
-                });
-            let unlinked = support.unlinked;
-            let disabled = !settings.editable || unlinked;
-            let on_click = move |_| {
-                if accepts_edit.call(settings.identity.scope.clone()) {
-                    mechanical_settings::submit_settings_patch(&settings, patch.clone());
-                }
-            };
-            rsx! {
-                UiButton { variant: UiButtonVariant::Secondary, button_type: "button",
-                    class: "max-[960px]:min-h-11 [@media(pointer:coarse)]:min-h-11",
-                    disabled, onclick: on_click, "Unlink selected support"
-                }
-                if let Some(message) = feedback { p { role: "alert", "{message}" } }
-                if unlinked { p { "This gasket is unlinked from its pair." } }
-            }
-        });
-    rsx! {
-        if can_edit_gaskets || can_edit_mounts {
-            ToggleGroup {
-                aria_label: "Edit mode",
-                pressed: Some(edit_mode().into_iter().collect()),
-                on_pressed_change: move |next: std::collections::HashSet<usize>| {
-                    let next = next.into_iter().min();
-                    if next != edit_mode() {
-                        edit_mode.set(next);
-                        if next.is_some() { camera.call(CAMERA_VIEWS[0].2); }
-                    }
-                },
-                if can_edit_gaskets { {icon_toggle(0, "Edit gaskets")} }
-                if can_edit_mounts { {icon_toggle(1, "Edit mounts")} }
-            }
-        }
-        if edit_mode() == Some(0) {
-            if let Some(unlink) = unlink { {unlink} } else {
-                p { "Select a gasket in Objects to unlink its mirrored support pair." }
-            }
         }
     }
 }

@@ -37,6 +37,31 @@ fn accepted_if_current(
         .then_some(accepted)
 }
 
+/// The live accepted snapshot for a placement prepared against `source`,
+/// reporting the standard reopen message when the project moved on.
+fn accepted_for(
+    runtime: &Rc<crate::runtime::Runtime>,
+    scope: &Scope,
+    source: &AcceptedSnapshot,
+    mut feedback: Signal<Option<String>>,
+    verb: &str,
+) -> Option<AcceptedSnapshot> {
+    let Some(accepted) = runtime.model().accepted else {
+        feedback.set(Some("The accepted project is unavailable.".into()));
+        return None;
+    };
+    if runtime.scope().as_ref() != Some(scope)
+        || accepted.document.id != source.document.id
+        || accepted.session_epoch != source.session_epoch
+    {
+        feedback.set(Some(format!(
+            "The project changed while this assembly draft was open. Reopen it before {verb}."
+        )));
+        return None;
+    }
+    Some(accepted)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn begin_place_assembly_on_board(
     runtime: Rc<crate::runtime::Runtime>,
@@ -81,25 +106,13 @@ pub(super) fn begin_place_assembly_on_board(
         x: origin_x,
         y: origin_y,
     };
-    let model = runtime.model();
-    let Some(accepted) = model.accepted.as_ref() else {
-        feedback.set(Some("The accepted project is unavailable.".into()));
+    let Some(accepted) = accepted_for(&runtime, &scope, &source, feedback, "placing") else {
         return;
     };
-    if runtime.scope().as_ref() != Some(&scope)
-        || accepted.document.id != source.document.id
-        || accepted.session_epoch != source.session_epoch
-    {
-        feedback.set(Some(
-            "The project changed while this assembly draft was open. Reopen it before placing."
-                .into(),
-        ));
-        return;
-    }
 
     let operation_id = runtime.operation();
     let placement_id = format!("assembly-{}-{}", draft.value.id, operation_id.0);
-    let (mut definitions, parts) = match assembly_placement(
+    let (mut definitions, parts) = match super::recipes::assembly_placement(
         &accepted.document,
         &draft.value,
         &definitions,
@@ -148,16 +161,27 @@ pub(super) fn begin_place_assembly_on_board(
             return;
         }
 
-        if runtime.model().accepted.is_none() {
-            feedback.set(Some("The accepted project is unavailable.".into()));
-            return;
-        }
         if accepted_if_current(&runtime, workspace, &scope, &project_id, session_epoch).is_none() {
             feedback.set(Some(
                 "The project, a component definition, or board scope changed while the assembly was being prepared. Reopen the editor and try again.".into(),
             ));
             return;
         }
+        // The commit is synchronous: the placed parts are exactly the board
+        // parts added between this read and the accepted result.
+        let placed_before: std::collections::BTreeSet<String> = runtime
+            .model()
+            .accepted
+            .as_ref()
+            .and_then(|accepted| {
+                accepted
+                    .document
+                    .boards
+                    .iter()
+                    .find(|board| board.id == scope.board_id)
+            })
+            .map(|board| board.part_ids.iter().cloned().collect())
+            .unwrap_or_default();
         match runtime.commit(
             "parts-assembly-place",
             assembly_place_resolver(
@@ -169,8 +193,16 @@ pub(super) fn begin_place_assembly_on_board(
             ),
         ) {
             Ok(accepted) => {
-                let part_ids =
-                    placed_parts_for_submission(&accepted.document, &scope.board_id, &placement_id);
+                let part_ids: Vec<String> = accepted
+                    .document
+                    .boards
+                    .iter()
+                    .find(|board| board.id == scope.board_id)
+                    .into_iter()
+                    .flat_map(|board| board.part_ids.iter())
+                    .filter(|part_id| !placed_before.contains(*part_id))
+                    .cloned()
+                    .collect();
                 if let Some(first) = part_ids.first() {
                     let model = runtime.model();
                     selected_context.set(
@@ -233,21 +265,9 @@ pub(super) fn begin_apply_assembly_to_matrix(
         return;
     };
     let matrix_id = matrix_id.clone();
-    let model = runtime.model();
-    let Some(accepted) = model.accepted.as_ref() else {
-        feedback.set(Some("The accepted project is unavailable.".into()));
+    let Some(accepted) = accepted_for(&runtime, &scope, &source, feedback, "applying") else {
         return;
     };
-    if runtime.scope().as_ref() != Some(&scope)
-        || accepted.document.id != source.document.id
-        || accepted.session_epoch != source.session_epoch
-    {
-        feedback.set(Some(
-            "The project changed while this assembly draft was open. Reopen it before applying."
-                .into(),
-        ));
-        return;
-    }
     let Some(matrix) = accepted
         .document
         .matrices
@@ -262,7 +282,6 @@ pub(super) fn begin_apply_assembly_to_matrix(
         feedback.set(Some("Select a matrix on the active board.".into()));
         return;
     }
-    let accepted = accepted.clone();
     let session_epoch = scope.session_epoch;
     let document_id = scope.document_id.clone();
     let operation_id = runtime.operation();

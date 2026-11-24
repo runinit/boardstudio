@@ -1,4 +1,5 @@
 pub(super) mod editor_session;
+pub(super) use editor_session::Editor;
 
 use super::*;
 use boardstudio_web_ui_model::Workspace;

@@ -287,6 +287,7 @@ pub(super) fn KeycapsWorkspace() -> Element {
     let current_scope = &frame.owner.scope;
     let fit = use_clearance_assessment(editor, model, current_scope.as_ref());
     let navigation = use_context::<KeycapsWorkspaceState>();
+    let focused_finding = navigation.focused_finding();
     let case_selection = use_context::<shared_viewer::CaseSelection>();
     let on_finding = on_keycaps_finding_handler(OnKeycapsFindingInput {
         runtime: runtime.clone(),
@@ -411,17 +412,29 @@ pub(super) fn KeycapsWorkspace() -> Element {
             fit_navigate: on_finding,
         }),
         toolbar,
-        canvas: frame.design_canvas(
-            fit.state,
-            canvas(CanvasInput {
-                view: keycaps_view,
-                contours,
-                view_box,
-                selected_ids: model.selected_part_ids.iter().cloned().collect(),
-                handlers,
-                on_select_key,
-            }),
-        ),
+        canvas: if (frame.status.layout.assembly_3d())() {
+            // Keycaps 3D mounts the shared <Viewport3D /> host through the
+            // Keycaps crate viewer, with the focused finding wired to its
+            // camera focus (the generic design-canvas 3D path drops it).
+            rsx! {
+                boardstudio_web_keycaps::keycaps_viewer::KeycapsAssemblyViewer {
+                    keycaps_fit: fit.state.clone(),
+                    focused_finding: focused_finding(),
+                }
+            }
+        } else {
+            frame.design_canvas(
+                fit.state,
+                canvas(CanvasInput {
+                    view: keycaps_view,
+                    contours,
+                    view_box,
+                    selected_ids: model.selected_part_ids.iter().cloned().collect(),
+                    handlers,
+                    on_select_key,
+                }),
+            )
+        },
         status,
         layers: rsx! {},
     };

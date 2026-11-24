@@ -1,5 +1,5 @@
 use super::*;
-use crate::viewport_camera::{crossed_drag_threshold, wheel_zoom};
+use crate::viewport_3d::camera::{crossed_drag_threshold, wheel_zoom};
 
 pub(super) struct ViewportInteraction {
     pub host: Rc<RefCell<Option<Rc<RendererPageHost>>>>,
@@ -9,7 +9,7 @@ pub(super) struct ViewportInteraction {
     pub identity: ViewerIdentity,
     pub source: SourceGuard,
     pub applied: Rc<RefCell<Option<ViewerIdentity>>>,
-    pub handles: Vec<ViewerHandle>,
+    pub handles: Vec<ViewportHandle>,
     pub handle_projection: Option<CaseHandleProjection>,
     pub on_signal: EventHandler<ScopedViewerSignal>,
     pub status: Signal<String>,

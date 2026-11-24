@@ -1,5 +1,5 @@
 //! PCB-owned workspace surface composition.
-use super::workbench::editor_session::selection_handlers;
+use super::editor::selection_handlers;
 mod interaction;
 use super::pcb_scene::{PcbPartHit, PcbPartPointerDown, PcbScene};
 use super::workspace_composition::{CanvasEventHandlers, SharedObjectsInput};
@@ -8,7 +8,7 @@ use super::workspace_composition::{
 };
 use super::*;
 use boardstudio_application::{AcceptedSnapshot, Scope};
-use boardstudio_web_ui_model::editor::{EditGuard, EditorContext};
+use boardstudio_web_ui_model::editor::EditorContext;
 use boardstudio_web_ui_shared::inspector_fields::InspectorSection;
 use boardstudio_web_ui_shared::ui::toggle_group::{ToggleGroup, ToggleItem};
 use dioxus::prelude::*;
@@ -186,49 +186,8 @@ pub(super) fn PcbWorkspace() -> Element {
         snapshot,
         render_generation,
     );
-    let guard = EditGuard {
-        editor,
-        workspace: Workspace::Pcb,
-    };
     let wiring = use_context::<pcb_wiring::SharedPcbWiring>();
-    let resolution_signal = wiring.resolution_signal;
     let resolution = wiring.current_resolution(&runtime, true);
-    let part_net_actions = pcb_wiring::use_pcb_part_net_edits(guard);
-    let part_input_actions = pcb_wiring::use_part_input_edits(guard);
-    let firmware = pcb_wiring::use_firmware_position_edits(guard, resolution_signal);
-    let firmware_feedback = firmware.feedback;
-    let firmware_editable = firmware.editable;
-    let firmware_on_edit = firmware.on_edit;
-    let pcb_wiring_mode_actions = pcb_wiring::use_board_wiring_mode_edits(
-        guard,
-        pcb_wiring_source.clone(),
-        resolution_signal,
-    );
-    let pcb_wiring_pin_actions =
-        pcb_wiring::use_pcb_wiring_pin_edits(guard, pcb_wiring_source.clone(), resolution_signal);
-    let pcb_wiring_protected_remap_actions = pcb_wiring::use_protected_remap_review(
-        runtime.clone(),
-        version,
-        workspace,
-        scope_generation,
-        {
-            let runtime = runtime.clone();
-            Rc::new(move || instance_selection.is_current(&runtime.model()))
-        },
-        pcb_wiring_source.clone(),
-    );
-    let pcb_wiring_apply_actions = pcb_wiring::use_board_wiring_apply(
-        runtime.clone(),
-        version,
-        workspace,
-        scope_generation,
-        {
-            let runtime = runtime.clone();
-            Rc::new(move || instance_selection.is_current(&runtime.model()))
-        },
-        pcb_wiring_source.clone(),
-        resolution_signal,
-    );
     let pcb_wiring_edit_board = on_pcb_wiring_edit_board_handler(
         runtime.clone(),
         adapter.clone(),
@@ -262,34 +221,12 @@ pub(super) fn PcbWorkspace() -> Element {
             on_place_component: part_placement.on_place_component,
         })
     } else if let Some(source) = pcb_wiring_source {
-        let firmware_position_projection =
-            pcb_wiring::firmware_position_projection(&source, render_generation, &resolution);
-        let firmware_feedback = firmware_feedback.filter(|feedback| {
-            feedback.target.is_visible(
-                &source.ui_scope,
-                render_generation,
-                &firmware_position_projection,
-            )
-        });
-        let firmware_controls = rsx! {
-            firmware_positions::FirmwareKeymapPanel {
-                projection: firmware_position_projection.clone(),
-                feedback: firmware_feedback.clone(),
-                editable: firmware_editable,
-                on_change: firmware_on_edit,
-            }
-        };
         rsx! {
             PcbInspector { selected: source.active_part_id.is_some(),
                 pcb_wiring::PcbWiringInspector {
                     board_overview: true, source, resolution,
-                    firmware_positions: firmware_position_projection,
-                    firmware_feedback, firmware_controls, part_net_actions, part_input_actions,
-                    on_firmware_edit: firmware_on_edit, on_resolve: EventHandler::new(move |()| wiring.on_resolve.call(())),
                     on_choose_controller: part_placement.on_choose_controller,
-                    on_edit_board_wiring: pcb_wiring_edit_board, mode_actions: pcb_wiring_mode_actions,
-                    pin_actions: pcb_wiring_pin_actions, apply_actions: pcb_wiring_apply_actions,
-                    protected_remap_actions: pcb_wiring_protected_remap_actions,
+                    on_edit_board_wiring: pcb_wiring_edit_board,
                 }
             }
         }

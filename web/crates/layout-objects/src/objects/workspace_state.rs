@@ -36,8 +36,7 @@ pub struct MatrixTransformInspectorOwner {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MirroredPairOwner {
-    pub editor_instance_id: u64,
-    pub open_id: u64,
+    // Read by mirrored_pair.rs to guard selection and overlay reconciliation across scope changes.
     pub scope_generation: u64,
     pub scope: Scope,
     pub board_id: String,
