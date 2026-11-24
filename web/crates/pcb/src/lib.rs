@@ -86,15 +86,13 @@ mod pcb_board_reference {
     mod matching;
 }
 
-// Native controller tests use the runtime stub supplied by the dev-dependency.
+// Native tests use the runtime stub supplied by the dev-dependency and cover
+// only the pure wiring-domain modules; the declarative inspector is wasm-only.
 #[cfg(all(not(target_arch = "wasm32"), test))]
 pub(crate) mod pcb_wiring {
     pub(crate) use boardstudio_web_ui_model::wiring::{
         PcbWiringResolution, PcbWiringSource, WiringPlanIdentity,
     };
-
-    #[path = "part_net_identity.rs"]
-    mod part_net_identity;
 
     #[path = "mode.rs"]
     mod mode;
@@ -108,12 +106,6 @@ pub(crate) mod pcb_wiring {
     #[path = "part_input_projection.rs"]
     mod part_input_projection;
 
-    #[path = "apply.rs"]
-    mod apply;
-
     #[path = "pins.rs"]
     mod pins;
-
-    #[path = "remap.rs"]
-    mod remap;
 }

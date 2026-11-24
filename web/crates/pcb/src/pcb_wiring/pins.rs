@@ -1,15 +1,10 @@
-//! Accepted selected-board assignment pin and lock edits.
-#[cfg(target_arch = "wasm32")]
-use super::PcbWiringResolution;
+//! Accepted selected-board assignment pin rows and lock edits.
 use super::PcbWiringSource;
-use super::mode::BoardWiringModeIdentity;
-#[cfg(target_arch = "wasm32")]
-use super::mode::use_board_wiring_edit;
 use boardstudio_application::EditResolver;
 use boardstudio_core_mechanical::electrical::{ElectricalMode, ElectricalPlan};
 use boardstudio_model::model::ProjectDoc;
-#[cfg(target_arch = "wasm32")]
-use boardstudio_web_ui_model::editor::EditGuard;
+use boardstudio_web_ui_shared::inspector_fields::{InspectorSection, SelectField, TOUCH_CLS};
+use boardstudio_web_ui_shared::ui::toggle_group::{ToggleGroup, ToggleItem};
 use dioxus::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -43,75 +38,30 @@ pub(super) fn group_assignments(assignments: &[PcbWiringPinAssignment]) -> PcbWi
     groups
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PcbWiringPinEditRequest {
-    pub identity: BoardWiringModeIdentity,
-    pub assignment_id: String,
-    /// The selected value is written into the existing Core lock map. `None` removes it.
-    pub pin: Option<String>,
-}
-
-#[derive(Clone, PartialEq)]
-pub struct PcbWiringPinActions {
-    pub identity: Option<BoardWiringModeIdentity>,
-    pub editable: bool,
-    /// The current board target's inline failure; landing and retirement are silent.
-    pub(crate) failure: Option<String>,
-    pub on_change: EventHandler<PcbWiringPinEditRequest>,
-}
-
-#[cfg(target_arch = "wasm32")]
-pub fn use_pcb_wiring_pin_edits(
-    guard: EditGuard,
-    source: Option<PcbWiringSource>,
-    resolution: Signal<PcbWiringResolution>,
-) -> PcbWiringPinActions {
-    let (identity, editable, failure, on_change) = use_board_wiring_edit(
-        guard,
-        &source,
-        resolution,
-        "pcb-wiring-pins",
-        |snapshot, plan, request: PcbWiringPinEditRequest| {
-            pin_edit_is_available(
-                &snapshot.document,
-                plan,
-                &request.identity.plan.scope.board_id,
-                &request.assignment_id,
-                request.pin.as_deref(),
-            )
-            .then(|| pins_resolver(request))
-        },
-        |request: &PcbWiringPinEditRequest| request.identity.clone(),
-    );
-    PcbWiringPinActions {
-        identity,
-        editable,
-        failure,
-        on_change,
-    }
-}
-
-fn pins_resolver(request: PcbWiringPinEditRequest) -> EditResolver {
+/// Write the selected value into the existing Core lock map; `pin: None` removes it.
+pub(super) fn pins_resolver(
+    board_id: String,
+    assignment_id: String,
+    pin: Option<String>,
+) -> EditResolver {
     super::mode::replace_document_resolver("pcb-wiring-pins", move |accepted, replacement| {
-        let board_id = &request.identity.plan.scope.board_id;
-        if !replacement.boards.iter().any(|board| &board.id == board_id) {
+        if !replacement.boards.iter().any(|board| board.id == board_id) {
             return Err("The board was deleted.".into());
         }
-        let plan = super::mode::resolve_preview_plan(&accepted.document, board_id);
+        let plan = super::mode::resolve_preview_plan(&accepted.document, &board_id);
         if !pin_edit_is_available(
             &accepted.document,
             &plan,
-            board_id,
-            &request.assignment_id,
-            request.pin.as_deref(),
+            &board_id,
+            &assignment_id,
+            pin.as_deref(),
         ) {
             // Clearing a lock that no longer exists is already the desired state:
             // leave the document untouched and the resolver resolves Unchanged.
-            let lock_gone = request.pin.is_none()
+            let lock_gone = pin.is_none()
                 && !accepted.document.hardware.as_ref().is_some_and(|hardware| {
                     hardware.boards.iter().any(|board| {
-                        &board.board_id == board_id
-                            && board.locks.contains_key(&request.assignment_id)
+                        board.board_id == board_id && board.locks.contains_key(&assignment_id)
                     })
                 });
             return if lock_gone {
@@ -122,9 +72,9 @@ fn pins_resolver(request: PcbWiringPinEditRequest) -> EditResolver {
         }
         if let Some(proposal) = propose_pin_lock(
             &accepted.document,
-            board_id,
-            &request.assignment_id,
-            request.pin.as_deref(),
+            &board_id,
+            &assignment_id,
+            pin.as_deref(),
         ) {
             *replacement = proposal;
         }
@@ -302,6 +252,67 @@ pub fn propose_pin_lock(
         }
     }
     Some(proposal)
+}
+
+/// One bordered assignment group; empty groups render nothing.
+pub(super) fn assignment_group(
+    title: &str,
+    rows: &[&PcbWiringPinAssignment],
+    plan: &ElectricalPlan,
+    on_pin: EventHandler<(String, Option<String>)>,
+) -> Element {
+    if rows.is_empty() {
+        return rsx! {};
+    }
+    rsx! {
+        div { class: "m-0 p-0 border-t border-border", InspectorSection { default_open: false, title: format!("{title} ({})", rows.len()),
+            for row in rows.iter() {
+                {assignment_row(row, plan, on_pin)}
+            }
+        } }
+    }
+}
+
+pub(super) fn assignment_row(
+    row: &PcbWiringPinAssignment,
+    plan: &ElectricalPlan,
+    on_pin: EventHandler<(String, Option<String>)>,
+) -> Element {
+    let assignment_id = row.id.clone();
+    let choices = pin_choices(row, plan);
+    let lock_label = if row.locked { "Unlock" } else { "Lock" };
+    rsx! {
+        div { class: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-2.5 gap-y-[3px] py-2 border-b border-border text-xs [&_strong]:[overflow-wrap:anywhere] [&_small]:col-span-full [&_small]:text-muted-foreground !grid-cols-[minmax(0,1fr)_minmax(84px,auto)_auto] !items-center !gap-x-2 [&>div]:min-w-0 [&>div_small]:block", key: "{row.id}",
+            div {
+                strong { "{row.label}" }
+                if let Some(detail) = row.detail.as_deref() {
+                    small { "{detail}" }
+                }
+            }
+            SelectField::<String> {
+                label: format!("Pin for {}", row.label), aria_label: format!("Pin for {}", row.label),
+                value: row.value.clone().unwrap_or_default(), disabled: row.locked,
+                options: std::iter::once((String::new(), "Unresolved".into())).chain(choices.into_iter().map(|pin| (pin.clone(), pin))).collect(),
+                on_commit: {
+                    let assignment_id = assignment_id.clone();
+                    move |value: String| on_pin.call((assignment_id.clone(), Some(value)))
+                },
+            }
+            ToggleGroup { aria_label: format!("Pin lock for {}", row.label), horizontal: true,
+                pressed: Some(if row.locked { [0usize].into_iter().collect() } else { std::collections::HashSet::new() }),
+                on_pressed_change: {
+                    let current_pin = row.value.clone();
+                    let locked = row.locked;
+                    move |_: std::collections::HashSet<usize>| {
+                        if locked || current_pin.is_some() {
+                            on_pin.call((assignment_id.clone(), if locked { None } else { current_pin.clone() }));
+                        }
+                    }
+                },
+                ToggleItem { index: 0usize, aria_label: "{lock_label} {row.label}", class: TOUCH_CLS, "{lock_label}" }
+            }
+        }
+    }
 }
 
 fn peripheral_label(id: &str) -> String {
