@@ -3,14 +3,11 @@
 use super::super::change::{MechanicalChange, MechanicalEdit, MechanicalTarget};
 use super::super::features;
 use super::super::inputs::effective_inputs;
+use super::paired::{persist_paired_feature_edit, project_changed, validate_supplied_template};
 use super::{
-    closure_list_absent, default_configuration, find_feature_value,
-    identity_reservation_of, initialize_target_closures, instance_configuration_mut,
-    merge_identity_floor, owner_id, pair_at, paired_index, remove_feature,
-    reserved_identity_floor,
-};
-use super::paired::{
-    persist_paired_feature_edit, project_changed, validate_supplied_template,
+    closure_list_absent, default_configuration, find_feature_value, identity_reservation_of,
+    initialize_target_closures, instance_configuration_mut, merge_identity_floor, owner_id,
+    pair_at, paired_index, remove_feature, reserved_identity_floor,
 };
 use crate::model::*;
 

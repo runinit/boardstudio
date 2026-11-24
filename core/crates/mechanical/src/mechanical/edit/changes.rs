@@ -188,9 +188,7 @@ pub(super) fn apply_change(
         MechanicalChange::SetGasketSupportDimension { .. }
         | MechanicalChange::SetGasketSupportPlacement { .. }
         | MechanicalChange::SetGasketSupportUnlinked { .. }
-        | MechanicalChange::ResetGasketPlacement => {
-            gaskets::apply(configuration, change, changed)?
-        }
+        | MechanicalChange::ResetGasketPlacement => gaskets::apply(configuration, change, changed)?,
         MechanicalChange::AssignSwitchProfile { .. }
         | MechanicalChange::AssignStabilizerProfile { .. }
         | MechanicalChange::AssignImportedGeometryProfile { .. }
@@ -199,7 +197,6 @@ pub(super) fn apply_change(
         | MechanicalChange::SetSwitchFamily { .. } => {
             profiles::apply(configuration, change, document, board_id, changed)?
         }
-
     }
 
     let family =

@@ -3,8 +3,8 @@
 use super::super::change::{MechanicalChange, MechanicalEdit, MechanicalTarget};
 use super::super::features;
 use super::super::inputs::effective_inputs;
-use super::validation::upsert_item;
 use super::paired::project_changed;
+use super::validation::upsert_item;
 use crate::model::*;
 
 /// Applies one per-feature lifecycle action and projects the result.

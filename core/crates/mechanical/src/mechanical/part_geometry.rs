@@ -15,6 +15,34 @@ pub(super) struct PartGeometry {
     pub(super) bottom_foam_clearances: Vec<Contour>,
 }
 
+/// Reports one finding for the part under review: the code names the part, and
+/// the part carries the report. Every per-part finding in this module shares
+/// this shape; only the code suffix, severity and message vary per site.
+fn part_issue(
+    issue: &mut dyn FnMut(&str, Severity, &str, Vec<String>),
+    part: &Part,
+    code: &str,
+    severity: Severity,
+    message: &str,
+) {
+    issue(
+        &format!("{code}:{}", part.id),
+        severity,
+        message,
+        vec![part.id.clone()],
+    );
+}
+
+/// Reports one battery finding against the battery owner.
+fn battery_issue(
+    issue: &mut dyn FnMut(&str, Severity, &str, Vec<String>),
+    code: &str,
+    severity: Severity,
+    message: &str,
+) {
+    issue(code, severity, message, vec!["battery".into()]);
+}
+
 pub(super) fn collect_part_geometry(
     document: &ProjectDoc,
     config: &MechanicalConfiguration,
@@ -44,11 +72,8 @@ pub(super) fn collect_part_geometry(
             || !part.pose.at.y.is_finite()
             || !part.pose.rotation.is_finite()
         {
-            issue(
-                &format!("pose:{}", part.id),
-                Severity::Error,
+            part_issue(issue, part, "pose", Severity::Error,
                 "Mechanical part pose must be finite.",
-                vec![part.id.clone()],
             );
             continue;
         }
@@ -87,35 +112,25 @@ pub(super) fn collect_part_geometry(
                         config.clearance,
                         document.revision,
                     ) {
-                        Ok(()) => issue(
-                            &format!("foam-approximation:{}", part.id),
-                            Severity::Warning,
+                        Ok(()) => part_issue(
+                            issue, part, "foam-approximation", Severity::Warning,
                             &format!(
                                 "Foam clearance uses the {source} as a conservative footprint approximation because no explicit mechanical clearance is assigned; a 3D model is not required."
                             ),
-                            vec![part.id.clone()],
                         ),
-                        Err(message) => issue(
-                            &format!("foam-approximation:{}", part.id),
-                            Severity::Error,
+                        Err(message) => part_issue(
+                            issue, part, "foam-approximation", Severity::Error,
                             &message,
-                            vec![part.id.clone()],
                         ),
                     }
                 } else {
-                    issue(
-                        &format!("foam-bounds:{}", part.id),
-                        Severity::Warning,
+                    part_issue(issue, part, "foam-bounds", Severity::Warning,
                         "No courtyard, closed pad bounds, or keycap dimensions are available for a foam clearance; no component model was used to guess one.",
-                        vec![part.id.clone()],
                     );
                 }
             } else {
-                issue(
-                    &format!("foam-bounds:{}", part.id),
-                    Severity::Warning,
+                part_issue(issue, part, "foam-bounds", Severity::Warning,
                     "The footprint definition is missing, so no outline-based foam clearance could be generated.",
-                    vec![part.id.clone()],
                 );
             }
         }
@@ -157,22 +172,16 @@ pub(super) fn collect_part_geometry(
         if (profile.cutouts.is_empty() && (is_switch || !has_access))
             || profile.source.trim().is_empty()
         {
-            issue(
-                &format!("profile-empty:{}", part.id),
-                Severity::Error,
+            part_issue(issue, part, "profile-empty", Severity::Error,
                 "Mechanical profile requires cutout geometry and source provenance.",
-                vec![part.id.clone()],
             );
         }
         if !profile.plate_to_pcb.is_finite()
             || ((is_switch || !profile.cutouts.is_empty())
                 && (profile.plate_to_pcb - config.plate_to_pcb).abs() > 0.001)
         {
-            issue(
-                &format!("engagement:{}", part.id),
-                Severity::Error,
+            part_issue(issue, part, "engagement", Severity::Error,
                 "Selected mechanical profiles have incompatible plate-to-PCB engagement distances.",
-                vec![part.id.clone()],
             );
         }
         if let Some(range) = profile.supported_thickness {
@@ -183,19 +192,13 @@ pub(super) fn collect_part_geometry(
                 || config.plate_thickness < range.x
                 || config.plate_thickness > range.y
             {
-                issue(
-                    &format!("thickness:{}", part.id),
-                    Severity::Error,
+                part_issue(issue, part, "thickness", Severity::Error,
                     "Plate thickness is outside this profile's supported range.",
-                    vec![part.id.clone()],
                 );
             }
         } else {
-            issue(
-                &format!("qualification:{}", part.id),
-                Severity::Warning,
+            part_issue(issue, part, "qualification", Severity::Warning,
                 "Profile plate thickness compatibility has not been qualified.",
-                vec![part.id.clone()],
             );
         }
         let mut polygons = profile.cutouts.clone();
@@ -213,30 +216,23 @@ pub(super) fn collect_part_geometry(
                         || !custom.plate_to_pcb.is_finite()
                         || (custom.plate_to_pcb - config.plate_to_pcb).abs() > 0.001
                     {
-                        issue(
-                            &format!("plate-stabilizer:{}", part.id),
-                            Severity::Error,
+                        part_issue(issue, part, "plate-stabilizer", Severity::Error,
                             "Custom plate-mount profile requires source geometry and matching engagement.",
-                            vec![part.id.clone()],
                         );
                     } else {
                         let (sin, cos) = stabilizer.rotation.unwrap_or(0.0).to_radians().sin_cos();
-                        polygons.extend(custom.cutouts.iter().map(|polygon| {
-                            crate::geometry2d::rotate_polygon(polygon, sin, cos)
-                        }));
-                        issue(
-                            &format!("custom-stabilizer:{}", part.id),
-                            Severity::Warning,
+                        polygons.extend(
+                            custom.cutouts.iter().map(|polygon| {
+                                crate::geometry2d::rotate_polygon(polygon, sin, cos)
+                            }),
+                        );
+                        part_issue(issue, part, "custom-stabilizer", Severity::Warning,
                             "Custom plate-mount geometry requires supplier review; compatibility has not been qualified.",
-                            vec![part.id.clone()],
                         );
                     }
                 } else {
-                    issue(
-                        &format!("plate-stabilizer:{}", part.id),
-                        Severity::Error,
+                    part_issue(issue, part, "plate-stabilizer", Severity::Error,
                         "Plate-mount stabilizer requires an explicit custom profile; PCB-mount geometry cannot substitute.",
-                        vec![part.id.clone()],
                     );
                 }
             } else if stabilizer.kind == MechanicalStabilizerKind::PcbMount {
@@ -254,8 +250,7 @@ pub(super) fn collect_part_geometry(
                                 stabilizer.rotation.unwrap_or(0.0).to_radians().sin_cos();
                             pcb_holes.extend(stab.pcb_holes.unwrap_or_default().into_iter().map(
                                 |mut hole| {
-                                    hole.at =
-                                        crate::geometry2d::rotate_point(hole.at, sin, cos);
+                                    hole.at = crate::geometry2d::rotate_point(hole.at, sin, cos);
                                     hole
                                 },
                             ));
@@ -263,38 +258,24 @@ pub(super) fn collect_part_geometry(
                                 crate::geometry2d::rotate_polygon(&polygon, sin, cos)
                             }));
                         }
-                        Err(message) => issue(
-                            &format!("stabilizer-source:{}", part.id),
-                            Severity::Error,
-                            &message,
-                            vec![part.id.clone()],
-                        ),
+                        Err(message) => part_issue(issue, part, "stabilizer-source", Severity::Error, &message),
                     }
                 } else {
-                    issue(
-                        &format!("stabilizer-size:{}", part.id),
-                        Severity::Error,
+                    part_issue(issue, part, "stabilizer-size", Severity::Error,
                         "No qualified stabilizer profile exists for this key size.",
-                        vec![part.id.clone()],
                     );
                 }
             }
         } else if part.keycap.is_some_and(|size| size.x.max(size.y) >= 37.0) {
-            issue(
-                &format!("stabilizer-proposal:{}", part.id),
-                Severity::Warning,
+            part_issue(issue, part, "stabilizer-proposal", Severity::Warning,
                 "Wide keycap needs a stabilizer decision: confirm key units and PCB-mount orientation; no cutout was guessed.",
-                vec![part.id.clone()],
             );
         }
         if let Some(source) = &profile.source_geometry {
             let hash = sha256_hex(source.text.as_bytes());
             if hash != source.sha256 {
-                issue(
-                    &format!("source-hash:{}", part.id),
-                    Severity::Error,
+                part_issue(issue, part, "source-hash", Severity::Error,
                     "Mechanical source hash does not match retained source text.",
-                    vec![part.id.clone()],
                 );
             }
         }
@@ -304,11 +285,8 @@ pub(super) fn collect_part_geometry(
                 || !hole.at.x.is_finite()
                 || !hole.at.y.is_finite()
             {
-                issue(
-                    &format!("pcb-hole:{}", part.id),
-                    Severity::Error,
+                part_issue(issue, part, "pcb-hole", Severity::Error,
                     "PCB hole references require finite positions and positive diameters.",
-                    vec![part.id.clone()],
                 );
                 continue;
             }
@@ -374,11 +352,8 @@ pub(super) fn collect_part_geometry(
                 || !volume.height.is_finite()
                 || volume.height <= 0.0
             {
-                issue(
-                    &format!("clearance-volume:{}", part.id),
-                    Severity::Error,
+                part_issue(issue, part, "clearance-volume", Severity::Error,
                     "Clearance volumes need finite polygons/Z and positive height.",
-                    vec![part.id.clone()],
                 );
             } else {
                 let volume_bottom = transformed.z;
@@ -396,12 +371,7 @@ pub(super) fn collect_part_geometry(
                         document.revision,
                     ) {
                         Ok(()) => {}
-                        Err(message) => issue(
-                            &format!("clearance-volume:{}", part.id),
-                            Severity::Error,
-                            &message,
-                            vec![part.id.clone()],
-                        ),
+                        Err(message) => part_issue(issue, part, "clearance-volume", Severity::Error, &message),
                     }
                 }
                 if config.bottom_foam_thickness > 0.0
@@ -416,12 +386,7 @@ pub(super) fn collect_part_geometry(
                         document.revision,
                     ) {
                         Ok(()) => {}
-                        Err(message) => issue(
-                            &format!("clearance-volume:{}", part.id),
-                            Severity::Error,
-                            &message,
-                            vec![part.id.clone()],
-                        ),
+                        Err(message) => part_issue(issue, part, "clearance-volume", Severity::Error, &message),
                     }
                 }
                 component_volumes.push((part.id.clone(), transformed));
@@ -436,11 +401,8 @@ pub(super) fn collect_part_geometry(
         }
         for polygon in profile.clearances.iter().flatten() {
             if !crate::geometry2d::is_finite_polygon(polygon) {
-                issue(
-                    &format!("clearance:{}", part.id),
-                    Severity::Error,
+                part_issue(issue, part, "clearance", Severity::Error,
                     "Profile clearance geometry must be finite polygons.",
-                    vec![part.id.clone()],
                 );
             } else {
                 let target = if part.side == Side::Back {
@@ -451,28 +413,17 @@ pub(super) fn collect_part_geometry(
                 if let Err(message) =
                     add_foam_clearance(target, part, polygon, config.clearance, document.revision)
                 {
-                    issue(
-                        &format!("clearance:{}", part.id),
-                        Severity::Error,
-                        &message,
-                        vec![part.id.clone()],
-                    );
+                    part_issue(issue, part, "clearance", Severity::Error, &message);
                 }
-                issue(
-                    &format!("access:{}", part.id),
-                    Severity::Warning,
+                part_issue(issue, part, "access", Severity::Warning,
                     "Explicit component clearance is excluded from foam on the component side; case wall access still requires review.",
-                    vec![part.id.clone()],
                 );
             }
         }
         for polygon in &polygons {
             if !crate::geometry2d::is_finite_polygon(polygon) {
-                issue(
-                    &format!("polygon:{}", part.id),
-                    Severity::Error,
+                part_issue(issue, part, "polygon", Severity::Error,
                     "Mechanical profile has an invalid polygon.",
-                    vec![part.id.clone()],
                 );
                 continue;
             }
@@ -520,12 +471,9 @@ pub(super) fn resolve_battery_space(
             .iter()
             .any(|v| !v.is_finite() || *v <= 0.0)
         {
-            issue(
-                "battery-size",
-                Severity::Error,
-                "Battery dimensions must be positive finite millimetres.",
-                vec!["battery".into()],
-            );
+            battery_issue(
+                issue, "battery-size", Severity::Error,
+                "Battery dimensions must be positive finite millimetres.",);
             return None;
         }
         let margin = config.clearance;
@@ -560,12 +508,9 @@ pub(super) fn resolve_battery_space(
             || envelope.iter().any(|p| !inside_outline(*p, contours))
             || !inside_outline(battery.cable_exit, contours)
         {
-            issue(
-                "battery-containment",
-                Severity::Error,
-                "Battery envelope or cable exit lies outside the assembly outline.",
-                vec!["battery".into()],
-            );
+            battery_issue(
+                issue, "battery-containment", Severity::Error,
+                "Battery envelope or cable exit lies outside the assembly outline.",);
         }
         for mount in config
             .mounts
@@ -586,12 +531,9 @@ pub(super) fn resolve_battery_space(
         }
         let cable_width = battery.cable_width.unwrap_or(2.0);
         if !cable_width.is_finite() || cable_width <= 0.0 {
-            issue(
-                "battery-cable-width",
-                Severity::Error,
-                "Battery cable clearance width must be positive finite millimetres.",
-                vec!["battery".into()],
-            );
+            battery_issue(
+                issue, "battery-cable-width", Severity::Error,
+                "Battery cable clearance width must be positive finite millimetres.",);
         } else {
             let clearance = cable_width / 2.0 + config.clearance;
             let mut access_points = envelope;
@@ -608,12 +550,9 @@ pub(super) fn resolve_battery_space(
             }
             let access = convex_envelope(access_points);
             if access.iter().any(|point| !inside_outline(*point, contours)) {
-                issue(
-                    "battery-cable-containment",
-                    Severity::Error,
-                    "Battery cable clearance envelope crosses the assembly outline.",
-                    vec!["battery".into()],
-                );
+                battery_issue(
+                    issue, "battery-cable-containment", Severity::Error,
+                    "Battery cable clearance envelope crosses the assembly outline.",);
             }
             bottom_foam_contours.push(Contour {
                 points: access,
@@ -630,12 +569,9 @@ pub(super) fn resolve_battery_space(
                 vec!["battery".into(), "bottom-foam".into()],
             );
         }
-        issue(
-            "battery-fit",
-            Severity::Warning,
-            "Battery envelope and cable exit require mechanical fit review; retention features are not generated.",
-            vec!["battery".into()],
-        );
+        battery_issue(
+            issue, "battery-fit", Severity::Warning,
+            "Battery envelope and cable exit require mechanical fit review; retention features are not generated.",);
     }
     Some(BatterySpace {
         height: battery_height,
