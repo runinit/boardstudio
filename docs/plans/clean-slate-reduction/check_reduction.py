@@ -106,8 +106,11 @@ def _category(ref: str, path: str, line_no: int) -> str:
     return "other"
 
 
-def compute_deltas(base: str, head: str) -> dict[str, tuple[int, int, int]]:
+def compute_diff_stats(
+    base: str, head: str
+) -> tuple[dict[str, tuple[int, int, int]], Counter[str], Counter[str]]:
     counts: Counter[tuple[str, str]] = Counter()
+    file_add, file_del = Counter(), Counter()
     diff = git("diff", "--no-renames", "--no-color", "--unified=0", base, head)
     old = new = ""
     i = j = 0
@@ -123,16 +126,26 @@ def compute_deltas(base: str, head: str) -> dict[str, tuple[int, int, int]]:
         elif line.startswith(("--- ", "+++ ")):
             continue
         elif line.startswith("-"):
-            counts[_category(base, old, i), "-"] += 1
+            cat = _category(base, old, i)
+            counts[cat, "-"] += 1
+            if cat == "prod_rust":
+                file_del[old] += 1
             i += 1
         elif line.startswith("+"):
-            counts[_category(head, new, j), "+"] += 1
+            cat = _category(head, new, j)
+            counts[cat, "+"] += 1
+            if cat == "prod_rust":
+                file_add[new] += 1
             j += 1
     out: dict[str, tuple[int, int, int]] = {}
     for cat in ("prod_rust", "test_rust", "scripts", "other"):
         added, deleted = counts[cat, "+"], counts[cat, "-"]
         out[cat] = (added, deleted, added - deleted)
-    return out
+    return out, file_add, file_del
+
+
+def compute_deltas(base: str, head: str) -> dict[str, tuple[int, int, int]]:
+    return compute_diff_stats(base, head)[0]
 
 
 def main() -> int:
@@ -163,6 +176,9 @@ def main() -> int:
     )
     parser.add_argument("--must-delete", action="append", default=[], help="Tracked path/prefix that must have 0 files.")
     parser.add_argument("--forbid-symbol", action="append", default=[], help="Symbol that must not appear in *.rs.")
+    parser.add_argument("--max-file-lines", action="append", default=[], help="Fail if PATH exceeds N lines (PATH=N).")
+    parser.add_argument("--max-pattern", action="append", default=[], help="Fail if non-test/non-comment REGEX matches >N under PATH_PREFIX (PATH:REGEX=N).")
+    parser.add_argument("--max-relocation-ratio", type=float, default=None, help="Fail if relocated fraction of --must-delete prod LOC exceeds ratio.")
     args = parser.parse_args()
 
     def _limit_and_target(max_val: int, explicit_target: int | None, allow_advisory: bool) -> tuple[int, int | None]:
@@ -174,7 +190,7 @@ def main() -> int:
             limit = min(0, max_val) if target is None else 0
         return limit, target
 
-    deltas = compute_deltas(args.base, args.head)
+    deltas, file_add, file_del = compute_diff_stats(args.base, args.head)
     labels = {
         "prod_rust": ("Production Rust", *_limit_and_target(args.max_prod_delta, args.target_prod_delta, True)),
         "test_rust": ("Test Rust", *_limit_and_target(args.max_test_delta, args.target_test_delta, True)),
@@ -200,13 +216,56 @@ def main() -> int:
         if not ok:
             failures.append(f"{label} net delta {net:+d} exceeds limit {limit:+d}")
 
+    growing = sorted(
+        ((file_add[p] - file_del[p], p) for p in set(file_add) | set(file_del) if file_add[p] - file_del[p] >= 100),
+        reverse=True,
+    )
+    if growing:
+        print("Top growing prod files: " + ", ".join(f"{p} ({net:+d})" for net, p in growing[:3]))
+
+    if args.must_delete:
+        del_norms = [p.rstrip("/") for p in args.must_delete]
+        matched = {p for p in file_del if any(p == n or p.startswith(n + "/") for n in del_norms)}
+        manifest_del = sum(file_del[p] for p in matched)
+        if manifest_del > 0:
+            net_prod = deltas["prod_rust"][2]
+            ratio = max(0.0, (manifest_del + net_prod) / manifest_del)
+            print(f"Relocation Audit: manifest deleted {manifest_del} prod LOC, net prod {net_prod:+d} (relocation ratio {ratio:.0%})")
+            if args.max_relocation_ratio is not None and ratio > args.max_relocation_ratio:
+                msg = f"Relocation ratio {ratio:.0%} exceeds limit {args.max_relocation_ratio:.0%}"
+                failures.append(msg)
+                print(f"RELOCATION FAIL: {msg}")
+
     tracked = git("ls-tree", "-r", "--name-only", args.head).splitlines()
+    tracked_set = set(tracked)
     for prefix in args.must_delete:
         norm = prefix.rstrip("/")
         remaining = [p for p in tracked if p == norm or p.startswith(norm + "/")]
         if remaining:
             failures.append(f"Mandatory deletion still present ({len(remaining)} files): {prefix} -> {remaining[:3]}")
             print(f"MUST-DELETE FAIL: {prefix} still has {len(remaining)} tracked file(s): {remaining[:3]}")
+
+    for spec in args.max_file_lines:
+        path, limit_s = spec.rsplit("=", 1)
+        limit = int(limit_s)
+        if path in tracked_set:
+            count = len(git("show", f"{args.head}:{path}").splitlines())
+            if count > limit:
+                failures.append(f"{path} has {count} lines (limit {limit})")
+                print(f"MAX-FILE-LINES FAIL: {path} has {count} lines (limit {limit})")
+
+    for spec in args.max_pattern:
+        left, limit_s = spec.rsplit("=", 1)
+        prefix, pattern = left.split(":", 1)
+        limit, rx, norm = int(limit_s), re.compile(pattern), prefix.rstrip("/")
+        hits = 0
+        for p in tracked:
+            if p.endswith(".rs") and (p == norm or p.startswith(norm + "/")):
+                stripped = _strip_rust_comments_and_strings(git("show", f"{args.head}:{p}")).splitlines()
+                hits += sum(len(rx.findall(line)) for ln, line in enumerate(stripped, 1) if _category(args.head, p, ln) == "prod_rust")
+        if hits > limit:
+            failures.append(f"Pattern '{pattern}' under {prefix} matched {hits} time(s) (limit {limit})")
+            print(f"MAX-PATTERN FAIL: '{pattern}' matched {hits} time(s) under {prefix} (limit {limit})")
 
     for sym in args.forbid_symbol:
         res = subprocess.run(["git", "grep", "-l", sym, args.head, "--", "*.rs"], capture_output=True, text=True)

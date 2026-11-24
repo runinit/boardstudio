@@ -9,11 +9,12 @@ This document defines the **hard operating rules** for every orchestrator, imple
 ### Law 1 — Hard Anti-Bloat Gate + Advisory LOC Reduction Targets
 Every track measures repository-wide deltas (`git diff <base> HEAD`) using [check_reduction.py](check_reduction.py), distinguishing **Hard Anti-Bloat Floors** from **Advisory Reduction Targets**:
 - **Hard Gate (pass/fail):**
-  - **Net Production Rust LOC** MUST satisfy the anti-bloat floor (`<= 0`, strictly negative on substantive refactoring tracks, never growing via wrappers).
+  - **Net Production Rust LOC** MUST satisfy the anti-bloat floor (`<= 0`, strictly negative on substantive refactoring tracks, never growing via wrappers or copy-paste folds).
   - **Net Test Rust LOC** MUST NOT bloat (`<= 0`).
   - **Net Scripts LOC** MUST be `<= 0` (and in Track 5, scripts collapse cleanly to single-browser verification).
   - **Net Other LOC** (`.evidence/`, markdown inventories, JSON fixtures) MUST be `<= +200`.
-  - All `--must-delete` and `--forbid-symbol` checks MUST pass with 0 violations.
+  - All `--must-delete`, `--forbid-symbol`, `--max-file-lines`, `--max-pattern`, and `--max-relocation-ratio` checks MUST pass with 0 violations.
+- **A Fold Is Not a Simplification:** Deleting a controller/hook/adapter file and pasting its body into a sibling file (or renaming e.g. `owner.rs` -> `session.rs`, `adapter.rs` -> `edit.rs`) is a **hard rejection**, even if unrelated deletions make `--max-prod-delta 0` pass. Track lanes must enforce per-file line ceilings, zero obsolete pattern ceilings, and relocation ratio audits.
 - **Advisory Reduction Targets (`--target-prod-delta`, `--target-test-delta`, or `--advisory-loc`):**
   - Per-track numeric targets (e.g., `-31,000`, `-12,500`, `-7,500`) are **stretch benchmarks** to measure whether legacy plumbing/controller/prop-bag boilerplate was genuinely removed — **never hard exit-1 blockers to be chased by amputating features or domain test invariants**.
 
@@ -22,6 +23,7 @@ Every track measures repository-wide deltas (`git diff <base> HEAD`) using [chec
 ### Law 2 — Delete First; Never Wrap, Layer, or Keep Dual Paths
 When replacing a subsystem, widget, controller, or format:
 - **Delete the superseded implementation in the SAME commit/track.**
+- **Preserve User Features, Delete Obsolete Async-Worker Ceremony:** `Runtime::commit(...)` is synchronous and returns `Result<AcceptedSnapshot, String>` immediately. On synchronous edit paths, pre-Track-2 async ticket/settlement/staleness machinery (`PendingSettlement`, `OperationTicket`, `Settlement::*`, `waiting` polling `use_effect`s, `committing: Signal<bool>`, `editor_instance_id` / `captured_generation` / `scope_generation` / `request_id` / `open_id` sync-edit guards, `ProjectionIdentity` + `use_memo` mirrors of `Runtime::model()`, and multi-field `*Input` / `ActionState` / `*Owner` closure prop-bags) MUST be deleted cleanly rather than preserved. Reserve a minimal counter/token strictly for genuinely asynchronous I/O (`DefinitionLoader`, worker jobs, IndexedDB).
 - **FORBIDDEN:** "temporary adapters", "legacy fallback paths", "format-7 compatibility layers", "staged conversion UI", "original-file recovery stores", "dual-mode feature flags", or "keeping old files until a later wave".
 - BoardStudio is **pre-release (not live)**. There are **zero** production user files to migrate. Update in-repo example/fixture files in place and reject older schema versions with a 1-line error.
 
@@ -108,6 +110,9 @@ Exit codes:
 5. **Domain Test Integrity:** Did any production file grow by wrapping an old file instead of replacing it, AND did meaningful pure-Rust domain/invariant tests survive (not deleted solely to pad Test LOC)?
 6. Were zero one-off trial/benchmark scripts or giant `.evidence/` markdown files added?
 7. Did `cargo fmt --all --check` and the required `scripts/check.py` gates pass?
+8. **No Copy-Paste Folds:** Did `--max-file-lines`, `--max-relocation-ratio`, and `git diff --stat` confirm deleted files were genuinely simplified rather than pasted into neighboring files or renamed (`owner.rs` -> `session.rs`)?
+9. **Zero Async Ceremony on Sync Edits:** Were `PendingSettlement`, polling `use_effect`s, `ProjectionIdentity` mirrors, and sync-edit generation/request-ID/prop-bag boilerplate deleted from `Runtime::commit` paths?
+10. **Ceiling & Signal Discipline:** Do touched UI files stay within their target LOC ceilings without piling `>5` scattered `use_signal`s instead of one cohesive state struct/enum?
 
 ---
 

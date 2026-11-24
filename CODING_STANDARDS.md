@@ -21,6 +21,18 @@ file holds the judgement calls that no check can make.
 - **Delete on cutover—never leave dual paths.** When replacing a subsystem (e.g., sync edits
   replacing queued tickets, derived symmetry replacing post-hoc reconciliation), delete the retired
   path in the same change or immediate follow-up rather than keeping both alive.
+- **A fold is not a simplification.** Merging files verbatim or renaming a controller into its view
+  removes zero complexity; simplify by deleting redundant state layers, prop-bags, and obsolete
+  indirection.
+- **Synchronous `Runtime::commit` needs no async settlement ceremony.** Handle
+  `Result<AcceptedSnapshot, String>` inline at the call site; do not keep `PendingSettlement`,
+  polling `use_effect`s, `committing` flags, generation/request-ID guards, or `ProjectionIdentity`
+  memo mirrors for synchronous edits. Reserve a minimal counter/token strictly for genuinely async
+  I/O (`DefinitionLoader`, worker jobs, storage).
+- **Keep UI event adapters thin and one-way.** Normalize DOM events into pure `CanvasInteraction`
+  events without cloning large `*Input` prop-bags or duplicating state in parallel `RefCell`s;
+  dependencies flow downward (`workspace -> editor/canvas_adapter`, never
+  `workspace -> workbench/editor_session`).
 
 ## Cargo & build performance
 
