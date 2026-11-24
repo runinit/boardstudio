@@ -3,6 +3,7 @@
 use super::super::change::{MechanicalChange, MechanicalEdit, MechanicalTarget};
 use super::super::features;
 use super::super::inputs::{effective_document, effective_inputs};
+use super::feature_lifecycle::physical_hardware;
 use super::{
     AUTO_CLOSURE_PREFIX, GENERATED_DEFINITION_PREFIX, GENERATED_PART_PREFIX,
     MechanicalIdentityLedger, apply_change, instance_configuration_mut, pair_index, pair_owner_ids,
@@ -341,6 +342,36 @@ fn generated_item_ids<T: PartialEq>(
     }
 }
 
+/// Records the owners whose generated membership changed between two lists.
+///
+/// A board or layout reports when its generated part set differs, so a
+/// projected hole moving between owners is attributed to both sides.
+fn generated_membership_changed<T>(
+    before: &[T],
+    after: &[T],
+    id: impl Fn(&T) -> &str,
+    part_ids: impl Fn(&T) -> Option<&Vec<String>>,
+    ids: &mut std::collections::BTreeSet<String>,
+) {
+    let generated_set = |part_ids: Option<&Vec<String>>| {
+        part_ids
+            .into_iter()
+            .flatten()
+            .filter(|id| id.starts_with(GENERATED_PART_PREFIX))
+            .cloned()
+            .collect::<std::collections::BTreeSet<_>>()
+    };
+    for item in after {
+        let before_ids = before
+            .iter()
+            .find(|entry| id(entry) == id(item))
+            .and_then(|entry| part_ids(entry));
+        if generated_set(before_ids) != generated_set(part_ids(item)) {
+            ids.insert(id(item).into());
+        }
+    }
+}
+
 /// The generated part ids, generated definition ids and membership owners that
 /// differ between two documents.
 pub(super) fn generated_change_ids(before: &ProjectDoc, after: &ProjectDoc) -> Vec<String> {
@@ -359,34 +390,20 @@ pub(super) fn generated_change_ids(before: &ProjectDoc, after: &ProjectDoc) -> V
         |definition| &definition.id,
         &mut ids,
     );
-    let generated_set = |part_ids: Option<&Vec<String>>| {
-        part_ids
-            .into_iter()
-            .flatten()
-            .filter(|id| id.starts_with(GENERATED_PART_PREFIX))
-            .cloned()
-            .collect::<std::collections::BTreeSet<_>>()
-    };
-    for board in &after.boards {
-        let before_ids = before
-            .boards
-            .iter()
-            .find(|entry| entry.id == board.id)
-            .map(|entry| &entry.part_ids);
-        if generated_set(before_ids) != generated_set(Some(&board.part_ids)) {
-            ids.insert(board.id.clone());
-        }
-    }
-    for layout in &after.layouts {
-        let before_ids = before
-            .layouts
-            .iter()
-            .find(|entry| entry.id == layout.id)
-            .map(|entry| &entry.part_ids);
-        if generated_set(before_ids) != generated_set(Some(&layout.part_ids)) {
-            ids.insert(layout.id.clone());
-        }
-    }
+    generated_membership_changed(
+        &before.boards,
+        &after.boards,
+        |board| &board.id,
+        |board| Some(&board.part_ids),
+        &mut ids,
+    );
+    generated_membership_changed(
+        &before.layouts,
+        &after.layouts,
+        |layout| &layout.id,
+        |layout| Some(&layout.part_ids),
+        &mut ids,
+    );
     ids.into_iter().collect()
 }
 
@@ -403,10 +420,7 @@ pub fn resolve_target<'a>(
     match target {
         MechanicalTarget::Board { board_id } => Ok((board_id.clone(), None)),
         MechanicalTarget::Instance { instance_id } => {
-            let hardware = doc
-                .hardware
-                .as_ref()
-                .ok_or("Physical instances are unavailable")?;
+            let hardware = physical_hardware(doc)?;
             let instance = hardware
                 .instances
                 .iter()

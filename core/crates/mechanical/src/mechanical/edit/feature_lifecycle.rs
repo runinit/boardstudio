@@ -75,10 +75,7 @@ pub(super) fn locate_pair_feature(
     instance_id: &str,
     feature_id: &str,
 ) -> Result<PairFeatureLocation, String> {
-    let hardware = doc
-        .hardware
-        .as_ref()
-        .ok_or("Physical instances are unavailable")?;
+    let hardware = physical_hardware(doc)?;
     let pair_index = hardware
         .pairs
         .iter()
@@ -545,15 +542,28 @@ pub fn remove_feature(
     }
 }
 
+/// The document's physical halves, or an error when there are none.
+pub(super) fn physical_hardware(doc: &ProjectDoc) -> Result<&HardwareConfiguration, String> {
+    doc.hardware
+        .as_ref()
+        .ok_or_else(|| "Physical instances are unavailable".into())
+}
+
+/// The document's physical halves mutably, or an error when there are none.
+pub(super) fn physical_hardware_mut(
+    doc: &mut ProjectDoc,
+) -> Result<&mut HardwareConfiguration, String> {
+    doc.hardware
+        .as_mut()
+        .ok_or_else(|| "Physical instances are unavailable".into())
+}
+
 /// The mutable stored configuration of one physical instance.
 pub(super) fn instance_configuration_mut<'a>(
     doc: &'a mut ProjectDoc,
     instance_id: &str,
 ) -> Result<&'a mut MechanicalConfiguration, String> {
-    let hardware = doc
-        .hardware
-        .as_mut()
-        .ok_or("Physical instances are unavailable")?;
+    let hardware = physical_hardware_mut(doc)?;
     let instance = hardware
         .instances
         .iter_mut()

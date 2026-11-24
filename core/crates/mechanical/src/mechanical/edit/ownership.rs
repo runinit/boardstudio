@@ -4,7 +4,9 @@ use super::super::change::{MechanicalChange, MechanicalEdit, MechanicalTarget};
 use super::super::features;
 use super::super::inputs::effective_inputs;
 use super::closures::{project_changed, validate_supplied_template};
-use super::feature_lifecycle::{feature_ids, pair_mut_at};
+use super::feature_lifecycle::{
+    feature_ids, pair_mut_at, physical_hardware, physical_hardware_mut,
+};
 use super::{
     closure_list_absent, default_configuration, find_feature_value, identity_reservation_of,
     initialize_target_closures, instance_configuration_mut, merge_identity_floor, owner_id,
@@ -32,10 +34,7 @@ pub(super) fn persist(
             Ok(())
         }
         MechanicalTarget::Instance { instance_id } => {
-            let hardware = doc
-                .hardware
-                .as_mut()
-                .ok_or("Physical instances are unavailable")?;
+            let hardware = physical_hardware_mut(doc)?;
             let instance = hardware
                 .instances
                 .iter_mut()
@@ -332,10 +331,7 @@ pub(super) fn disable(
     match target {
         MechanicalTarget::Board { .. } => doc.mechanical = None,
         MechanicalTarget::Instance { instance_id } => {
-            let hardware = doc
-                .hardware
-                .as_mut()
-                .ok_or("Physical instances are unavailable")?;
+            let hardware = physical_hardware_mut(doc)?;
             let instance = hardware
                 .instances
                 .iter_mut()
@@ -421,10 +417,7 @@ pub(super) fn link_mirror_pair(
     else {
         return Err("The link operation was dispatched with another change.".into());
     };
-    let hardware = doc
-        .hardware
-        .as_ref()
-        .ok_or("Physical instances are unavailable")?;
+    let hardware = physical_hardware(doc)?;
     if hardware.pairs.iter().any(|pair| pair.id == *pair_id) {
         return Err(format!(
             "A mechanical pair named {pair_id:?} already exists."
@@ -565,10 +558,7 @@ pub(super) fn link_mirror_pair(
         }
     }
 
-    let hardware = doc
-        .hardware
-        .as_mut()
-        .ok_or("Physical instances are unavailable")?;
+    let hardware = physical_hardware_mut(doc)?;
     for (index, member) in members.iter().enumerate() {
         let instance = hardware
             .instances
@@ -638,10 +628,7 @@ pub(super) fn remove_physical_instance(
     )?;
     let pair_id = pair_at(doc, pair_index)?.id.clone();
     {
-        let hardware = doc
-            .hardware
-            .as_mut()
-            .ok_or("Physical instances are unavailable")?;
+        let hardware = physical_hardware_mut(doc)?;
         hardware.pairs.remove(pair_index);
         let entry = hardware
             .instances
@@ -667,10 +654,7 @@ pub(super) fn pair_membership(
     doc: &ProjectDoc,
     instance_id: &str,
 ) -> Result<(usize, String), String> {
-    let hardware = doc
-        .hardware
-        .as_ref()
-        .ok_or("Physical instances are unavailable")?;
+    let hardware = physical_hardware(doc)?;
     let Some(index) = hardware
         .pairs
         .iter()
@@ -739,10 +723,7 @@ pub fn reconcile_physical_topology(
             changed.push(survivor_id);
         }
     }
-    let hardware = doc
-        .hardware
-        .as_mut()
-        .ok_or("Physical instances are unavailable")?;
+    let hardware = physical_hardware_mut(doc)?;
     let paired: std::collections::BTreeSet<String> = hardware
         .pairs
         .iter()
@@ -784,10 +765,7 @@ pub(super) fn materialize_survivor(
     )
     .ok()
     .map(|inputs| inputs.configuration);
-    let hardware = doc
-        .hardware
-        .as_mut()
-        .ok_or("Physical instances are unavailable")?;
+    let hardware = physical_hardware_mut(doc)?;
     let Some(instance) = hardware
         .instances
         .iter_mut()
@@ -871,10 +849,7 @@ pub(super) fn dissolve_pair_ownership(
         let mut configuration = effective_inputs(doc, &[], &target)?.configuration;
         merge_identity_floor(&mut configuration, reserved_identity_floor(doc, &target))?;
         persist(doc, &target, configuration)?;
-        let hardware = doc
-            .hardware
-            .as_mut()
-            .ok_or("Physical instances are unavailable")?;
+        let hardware = physical_hardware_mut(doc)?;
         let instance = hardware
             .instances
             .iter_mut()
