@@ -34,6 +34,43 @@ PLAIN_PAGE_DX_VERSION = "0.7.10"
 PAGE_CARGO = ["cargo", "build", "--locked", "--target", "wasm32-unknown-unknown", "--profile", "wasm-check",
               "-p", "boardstudio-web", "--bin", "boardstudio-web", "--no-default-features",
               "--features", "page", "--message-format=json"]
+# Synchronous pre-paint theme bootstrap (P2.3). Mirrors the runtime contract in
+# web/crates/ui-shared/src/panels.rs (appearance falls back to the legacy
+# `boardstudio:v2:theme` key; theme defaults to `original`) and
+# web/src/presentation/workbench.rs (`data-appearance`/`data-theme` on
+# <html>; Original is the value before either attribute is set). The inline
+# background matches the resolved Theme x Appearance matrix so first paint
+# never flashes the wrong desk; the stylesheet confirms it once CSS loads.
+FIRST_PAINT_THEME_HEAD = (
+    "<!--boardstudio:first-paint-theme-->"
+    "<script>"
+    "try{var d=document.documentElement,a=null,t=null;"
+    'try{a=localStorage.getItem("boardstudio:v2:appearance")'
+    '||localStorage.getItem("boardstudio:v2:theme");'
+    't=localStorage.getItem("boardstudio:v2:workbench-theme")}catch(e){}'
+    'if(a!=="light"&&a!=="dark"){a=(window.matchMedia'
+    '&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light"}'
+    'if(t!=="original"&&t!=="shadcn"){t="original"}'
+    'd.setAttribute("data-appearance",a);d.setAttribute("data-theme",t);'
+    'd.style.colorScheme=a;'
+    'd.style.background={"original":{"light":"#E9EEF2","dark":"#181B21"},'
+    '"shadcn":{"light":"oklch(0.965 0 0)","dark":"oklch(0.18 0 0)"}}[t][a]'
+    "}catch(e){}"
+    "</script>"
+    '<style>html{background:#E9EEF2}html[data-appearance="dark"]{background:#181B21}</style>'
+)
+
+
+def inject_first_paint_head(html: str) -> str:
+    """Insert FIRST_PAINT_THEME_HEAD before the first stylesheet link (idempotent)."""
+    if "boardstudio:first-paint-theme" in html:
+        return html
+    head = re.search(r"<head[^>]*>", html)
+    if not head:
+        return html
+    link = re.search(r'<link[^>]*rel="stylesheet"[^>]*>', html[head.end():])
+    at = head.end() + link.start() if link else head.end()
+    return html[:at] + FIRST_PAINT_THEME_HEAD + html[at:]
 # Dioxus web auto-init, as `dx build` appends it to the wasm-bindgen `--target web` module.
 DX_FOOTER = """export {{ wasm as __wasm }}
 globalThis.__wasm_split_main_initSync = initSync;
@@ -269,7 +306,7 @@ def index_html(base_path: str) -> str:
     # Dioxus resolves assets under `/<root>/assets/`; an empty root would give `//assets/`.
     meta = f'\n        <meta name="DIOXUS_ASSET_ROOT" content="{asset_root}">' if asset_root else ""
     return (
-        "<!DOCTYPE html>\n<html>\n    <head>\n        <title>BoardStudio</title>\n"
+        "<!DOCTYPE html>\n<html>\n    <head>" + FIRST_PAINT_THEME_HEAD + "\n        <title>BoardStudio</title>\n"
         '        <meta content="text/html;charset=utf-8" http-equiv="Content-Type">\n'
         '        <meta name="viewport" content="width=device-width, initial-scale=1">\n'
         f'        <meta charset="UTF-8">{meta}\n    </head>\n    <body>\n        <div id="main"></div>\n'
@@ -364,6 +401,12 @@ def package_route(output: Path, public: Path, route: str, *, fast=False) -> None
     shutil.copytree(public, site)
     _stage_provider_entries(site / "assets", ROOT, include_site_assets=True)
     embed_offline_worker(site)
+    # The release `dx build` page is dx-generated HTML: resolve the theme before
+    # first paint just like the plain page (idempotent; plain pages already
+    # carry the bootstrap from index_html).
+    index = site / "index.html"
+    if index.is_file():
+        index.write_text(inject_first_paint_head(index.read_text()))
     if fast:
         stamp.write_text(json.dumps({"inputs": current, "site": snapshot([site])}))
 

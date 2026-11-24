@@ -155,6 +155,7 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
         [PY, "scripts/check-adr-index.py"],
         [PY, "-B", "scripts/test-check-old-css.py"],
         [PY, "scripts/check-old-css.py"],
+        [PY, "scripts/check-theme-contrast.py"],
         # A static check of the page's browser-test modules; it needs no browser or built site.
         [PY, "scripts/check-wasm-tests.py"],
     ]),
