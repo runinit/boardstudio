@@ -85,7 +85,8 @@ pub fn use_layout_findings_state(
                 pending.set(None);
                 return;
             };
-            let target_board = crate::presentation::keycaps_fit::target_board_id(&request.target);
+            let target_board =
+                boardstudio_web_ui_model::finding_navigation::target_board_id(&request.target);
             if scope.board_id != target_board {
                 if scope.board_id != request.source.scope.board_id {
                     pending.set(None);
@@ -144,19 +145,20 @@ pub fn layout_finding_is_live(
     let Some(snapshot) = model.accepted.as_ref() else {
         return false;
     };
-    if !crate::presentation::keycaps_fit::presented_findings(
+    if !boardstudio_web_ui_model::finding_navigation::presented_findings(
         &snapshot.scene.findings,
         &snapshot.document,
     )
     .iter()
     .any(|finding| finding == &request.finding)
-        || crate::presentation::keycaps_fit::finding_navigation_target(
+        || boardstudio_web_ui_model::finding_navigation::finding_navigation_target(
             &request.finding,
             &snapshot.document,
         )
         .as_ref()
             != Some(&request.target)
-        || crate::presentation::keycaps_fit::target_board_id(&request.target) != destination_board
+        || boardstudio_web_ui_model::finding_navigation::target_board_id(&request.target)
+            != destination_board
     {
         return false;
     }

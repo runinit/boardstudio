@@ -22,7 +22,7 @@ pub use overlays::{OutlineDraftCanvasOverlay, OutlinePointCanvasOverlay, Outline
 #[cfg(target_arch = "wasm32")]
 #[allow(unused_imports)]
 // Child presentation modules import these shared layout modules through `super::*`.
-pub(crate) use crate::{coordinates, keycaps_fit, objects, selection};
+pub(crate) use crate::{coordinates, objects, selection};
 
 #[cfg(target_arch = "wasm32")]
 use crate::{
@@ -417,9 +417,11 @@ pub fn focus_outline_gap(
     board_id: &str,
     gap_id: &str,
 ) {
-    let Some(bounds) =
-        crate::keycaps_fit::layout_canvas_bounds(&snapshot.document, &snapshot.scene, board_id)
-    else {
+    let Some(bounds) = boardstudio_web_ui_model::finding_navigation::layout_canvas_bounds(
+        &snapshot.document,
+        &snapshot.scene,
+        board_id,
+    ) else {
         return;
     };
     let size = web_sys::window().and_then(|w| w.document())

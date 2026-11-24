@@ -1,5 +1,5 @@
 //! Keycaps-owned workspace surface composition.
-use super::keycaps_fit::{FindingNavigationRequest, KeycapsFitInspector, KeycapsFitState};
+use super::keycaps_fit::KeycapsFitInspector;
 use super::keycaps_scene::{KeycapsCanvas, KeycapsKeyList, KeycapsView};
 use super::keycaps_settings::{
     KeycapsBoardSettingsEditor, KeycapsMatrixSettingsEditor, KeycapsSettingsActions,
@@ -16,6 +16,10 @@ use super::{keycaps_finding_marker, keycaps_navigation};
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::Contour;
 use boardstudio_web_ui_model::Workspace;
+use boardstudio_web_ui_model::finding_navigation::{
+    FindingNavigationRequest, FindingNavigationTarget, KeycapsFitSource, KeycapsFitState,
+    layout_camera_basis,
+};
 use boardstudio_web_ui_shared::inspector_fields::InspectorSection;
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
@@ -263,7 +267,7 @@ pub(super) fn use_clearance_assessment(
                         && scene.token == snapshot.token
                         && scene.prepared.revision == snapshot.document.revision
                 });
-                keycaps_fit::KeycapsFitSource {
+                KeycapsFitSource {
                     scope: scope.clone(),
                     token: snapshot.token,
                     revision: snapshot.document.revision,
@@ -454,7 +458,7 @@ pub(super) struct OnKeycapsFindingInput {
     pub case_selection_for_owner: shared_viewer::CaseSelection,
     pub navigation_alive: Rc<Cell<bool>>,
     pub inspector_settings: Signal<PanelSettings>,
-    pub fit_state: Option<keycaps_fit::KeycapsFitState>,
+    pub fit_state: Option<KeycapsFitState>,
     pub keycaps_state: keycaps_workspace::KeycapsWorkspaceState,
     pub source_surface: Rc<RefCell<Option<SvgElement>>>,
     pub select_tree: EventHandler<objects::TreeSelectRequest>,
@@ -463,7 +467,7 @@ pub(super) struct OnKeycapsFindingInput {
 
 pub(super) fn on_keycaps_finding_handler(
     input: OnKeycapsFindingInput,
-) -> EventHandler<keycaps_fit::FindingNavigationRequest> {
+) -> EventHandler<FindingNavigationRequest> {
     let OnKeycapsFindingInput {
         runtime,
         adapter,
@@ -482,7 +486,7 @@ pub(super) fn on_keycaps_finding_handler(
         select_tree,
         case_selection,
     } = input;
-    EventHandler::new(move |request: keycaps_fit::FindingNavigationRequest| {
+    EventHandler::new(move |request: FindingNavigationRequest| {
         let owner = keycaps_navigation::OwnerIdentity {
             scope: &scope,
             generation,
@@ -518,7 +522,7 @@ pub(super) fn on_keycaps_finding_handler(
                 live_mechanical_layers: live_mechanical_layers.as_deref(),
             },
             |target| match target {
-                keycaps_fit::FindingNavigationTarget::Part { part_id, .. } => {
+                FindingNavigationTarget::Part { part_id, .. } => {
                     objects::component_context_for_finding_part(&model, part_id)
                 }
                 _ => None,
@@ -532,7 +536,7 @@ pub(super) fn on_keycaps_finding_handler(
         let source_basis = if workspace() == Workspace::Keycaps {
             source_surface.borrow().as_ref().and_then(|surface| {
                 let rect = surface.get_bounding_client_rect();
-                keycaps_fit::layout_camera_basis(
+                layout_camera_basis(
                     &snapshot.document,
                     &snapshot.scene,
                     &request.source.scope.board_id,

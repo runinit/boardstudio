@@ -1,9 +1,10 @@
 //! Layout's findings page and guarded navigation request.
-pub use super::keycaps_fit::target_has_live_layout_destination;
-use super::keycaps_fit::{self, FindingNavigationTarget};
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_model::model::{Finding, ProjectDoc, Severity};
 use boardstudio_web_ui_model::Workspace;
+use boardstudio_web_ui_model::finding_navigation;
+use boardstudio_web_ui_model::finding_navigation::FindingNavigationTarget;
+pub use boardstudio_web_ui_model::finding_navigation::target_has_live_layout_destination;
 use boardstudio_web_ui_shared::ui::{
     badge::{Badge, BadgeVariant},
     button::{Button, ButtonSize, ButtonVariant},
@@ -65,7 +66,7 @@ pub fn LayoutFindingsInspector(
         return rsx! {};
     }
 
-    let groups = keycaps_fit::grouped_findings(&findings, &document);
+    let groups = finding_navigation::grouped_findings(&findings, &document);
     rsx! {
         section {
             class: "grid min-w-0 gap-2.5 px-4 pt-3 pb-4 text-foreground",
@@ -92,7 +93,7 @@ pub fn LayoutFindingsInspector(
             }
             div { class: "flex items-baseline justify-between gap-2",
                 h2 { class: "m-0 text-[16px]! font-[650]", id: "m1-layout-findings-heading", tabindex: "-1", "Layout findings" }
-                Badge { variant: BadgeVariant::Secondary, "{keycaps_fit::presented_findings(&findings, &document).len()}" }
+                Badge { variant: BadgeVariant::Secondary, "{finding_navigation::presented_findings(&findings, &document).len()}" }
             }
             if groups.is_empty() {
                 Empty { class: "p-4", EmptyDescription { "No active findings for this board." } }
@@ -133,7 +134,7 @@ fn LayoutFinding(
     };
     let preview_electrical_notice = finding.id.starts_with("preview:electrical:");
     let target = (!preview_electrical_notice)
-        .then(|| keycaps_fit::finding_navigation_target(&finding, &document))
+        .then(|| finding_navigation::finding_navigation_target(&finding, &document))
         .flatten()
         .filter(|target| target_has_live_layout_destination(target, &document));
     let action_label = target.as_ref().map(|target| match target {

@@ -339,7 +339,7 @@ fn propose_topology(
         });
     let mechanical = match mechanical {
         Some(configuration) => configuration,
-        None => boardstudio_web_host::case_settings::initial_settings(accepted, board_id)?,
+        None => crate::case_settings::initial_settings(accepted, board_id)?,
     };
 
     let mut hardware = old_hardware.cloned().unwrap_or_default();

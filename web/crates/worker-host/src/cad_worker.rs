@@ -686,7 +686,7 @@ fn fail_all(state: &Rc<RefCell<ClientState>>, error: CadWorkerError) {
 // queue, and validation helpers the migrated browser tests drive.
 // The re-exported items live in the private `dispatch`/`protocol` modules, so
 // they stay crate-internal unless the page suite reaches them through here.
-#[cfg(feature = "test-support")]
+#[cfg(any(test, feature = "test-support"))]
 pub mod test_hooks {
     pub use super::dispatch::{run_request, yield_to_worker};
     pub use super::protocol::{

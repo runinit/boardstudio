@@ -17,6 +17,11 @@ SPEC.loader.exec_module(DEV)
 
 
 class DevWebTests(unittest.TestCase):
+    def test_required_assets_include_the_staged_catalogues(self):
+        required = {path.relative_to(DEV.ROOT).as_posix() for path in DEV.REQUIRED}
+        self.assertIn("web/assets/modules-index.json", required)
+        self.assertIn("web/assets/imported-parts.min.json", required)
+
     def test_dioxus_proxies_assets_to_the_live_source_directory(self):
         config = tomllib.loads((DEV.WEB / "Dioxus.toml").read_text())
         self.assertIn("src", config["web"]["watcher"]["watch_path"])

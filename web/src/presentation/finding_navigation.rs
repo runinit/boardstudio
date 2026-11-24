@@ -1,5 +1,6 @@
 use super::*;
 use boardstudio_web_ui_model::Workspace;
+use boardstudio_web_ui_model::finding_navigation;
 
 pub(crate) fn layout_findings_for_display(
     accepted: &[LayoutFinding],
@@ -18,9 +19,9 @@ pub(crate) fn layout_findings_for_display(
 
 pub(crate) fn layout_finding_context(
     model: &ReadModel,
-    target: &keycaps_fit::FindingNavigationTarget,
+    target: &finding_navigation::FindingNavigationTarget,
 ) -> Option<objects::TreeContext> {
-    use keycaps_fit::FindingNavigationTarget as T;
+    use finding_navigation::FindingNavigationTarget as T;
     match target {
         T::Part { part_id, .. } => objects::component_context_for_finding_part(model, part_id),
         T::Matrix { matrix_id, .. } => Some(objects::TreeContext::Matrix {
@@ -118,8 +119,13 @@ pub(crate) fn perform_layout_finding_navigation(
         let r = surface.get_bounding_client_rect();
         let sz = (r.width(), r.height());
         if let (Some(base), Some(tb)) = (
-            keycaps_fit::layout_camera_basis(&snap.document, &snap.scene, &scope.board_id, sz),
-            keycaps_fit::finding_navigation_bounds(
+            finding_navigation::layout_camera_basis(
+                &snap.document,
+                &snap.scene,
+                &scope.board_id,
+                sz,
+            ),
+            finding_navigation::finding_navigation_bounds(
                 &snap.document,
                 &snap.scene,
                 &req.finding.id,

@@ -1,6 +1,7 @@
 use super::super::*;
 use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_model::editor::EditorContext;
+use boardstudio_web_ui_model::finding_navigation;
 
 pub(in crate::presentation) struct SceneBoundsInput<'a> {
     pub enabled: bool,
@@ -76,7 +77,7 @@ pub(in crate::presentation) fn use_scene_bounds(input: SceneBoundsInput<'_>) -> 
         |(source, enabled)| {
             enabled
                 .then(|| {
-                    keycaps_fit::layout_canvas_bounds(
+                    finding_navigation::layout_canvas_bounds(
                         &source.document,
                         &source.scene,
                         &source.board_id,
@@ -99,7 +100,11 @@ pub(in crate::presentation) fn use_scene_bounds(input: SceneBoundsInput<'_>) -> 
             if source == accepted_source {
                 accepted_bounds
             } else {
-                keycaps_fit::layout_canvas_bounds(&source.document, &source.scene, &source.board_id)
+                finding_navigation::layout_canvas_bounds(
+                    &source.document,
+                    &source.scene,
+                    &source.board_id,
+                )
             }
         },
     ))();
@@ -119,7 +124,7 @@ pub(in crate::presentation) fn use_scene_bounds(input: SceneBoundsInput<'_>) -> 
                 (rect.width(), rect.height())
             })
             .unwrap_or((1.0, 1.0));
-        keycaps_fit::aspect_bounds(bounds, surface)
+        finding_navigation::aspect_bounds(bounds, surface)
     } else {
         let (min_x, max_x, min_y, max_y) = bounds;
         (min_x - 20.0, max_x + 20.0, min_y - 20.0, max_y + 20.0)
@@ -131,8 +136,8 @@ pub(in crate::presentation) fn use_scene_bounds(input: SceneBoundsInput<'_>) -> 
     let keymap_scale_ratio = if active_workspace == Workspace::Keymap && !layout_assembly_3d() {
         displayed_layout_bounds
             .map(|reference| {
-                let reference = keycaps_fit::aspect_bounds(reference, keymap_surface);
-                let current = keycaps_fit::aspect_bounds(
+                let reference = finding_navigation::aspect_bounds(reference, keymap_surface);
+                let current = finding_navigation::aspect_bounds(
                     (
                         min_x,
                         min_x + (max_x - min_x).max(50.0),
@@ -230,7 +235,7 @@ pub(in crate::presentation) fn footer_bounds(input: FooterBoundsInput<'_>) -> Fo
     let footer_selection_bounds = if active_workspace == Workspace::Keymap {
         selection_bounds
     } else {
-        keycaps_fit::selected_part_bounds(&document, &scene, &board_id, &footer_selected_ids)
+        finding_navigation::selected_part_bounds(&document, &scene, &board_id, &footer_selected_ids)
     };
     let footer_selection_available = footer_selection_bounds.is_some();
     FooterBounds {

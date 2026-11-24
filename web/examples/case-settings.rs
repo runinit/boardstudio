@@ -7,7 +7,7 @@ fn main() {
         .read_to_string(&mut input)
         .expect("document input");
     let document = serde_json::from_str(&input).expect("valid project document");
-    let settings = boardstudio_web_host::case_settings::initial_settings(&document, &board)
+    let settings = boardstudio_web_catalogue::case_settings::initial_settings(&document, &board)
         .expect("reference settings");
     println!(
         "{}",
