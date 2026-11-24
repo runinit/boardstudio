@@ -22,9 +22,7 @@ file holds the judgement calls that no check can make.
 - **Delete on cutover—never leave dual paths.** When replacing a subsystem (e.g., sync edits
   replacing queued tickets, derived symmetry replacing post-hoc reconciliation), delete the retired
   path in the same change or immediate follow-up rather than keeping both alive.
-- **A fold is not a simplification.** Merging files verbatim or renaming a controller into its view
-  removes zero complexity; simplify by deleting redundant state layers, prop-bags, and obsolete
-  indirection.
+- **A fold is not a simplification—always prefer real simplification, refactoring, and deduplication.** Merging files verbatim or renaming a controller into its view removes zero complexity; actively deduplicate shared logic, collapse redundant state layers/prop-bags/indirection, and leave touched subsystems simpler than you found them.
 - **Synchronous `Runtime::commit` needs no async settlement ceremony.** Handle
   `Result<AcceptedSnapshot, String>` inline at the call site; do not keep `PendingSettlement`,
   polling `use_effect`s, `committing` flags, generation/request-ID guards, or `ProjectionIdentity`
@@ -43,7 +41,7 @@ file holds the judgement calls that no check can make.
   (`service_worker.rs`, `cad_worker.rs`) and self-releasing `Closure::once_into_js` are exempt.
 - **Shared 3D viewport lives below workspaces.** `<Viewport3D />` and shared camera/scene helpers
   live in `web/crates/ui-shared/src/viewport_3d/`. Workspace crates (`case`, `parts`, `layout`,
-  `pcb`, `keycaps`) must not depend sideways on `case`.
+  `pcb`, `workspaces`) must not depend sideways on `case`.
 - **Keep pre-paint theme and WCAG AA contrast in sync.** Any palette edit in `web/tailwind.css`
   must pass `scripts/check-theme-contrast.py` across all four Theme × Appearance combinations and
   keep `FIRST_PAINT_THEME_HEAD` (`--canvas`) aligned in `scripts/build-web.py`.
@@ -52,7 +50,7 @@ file holds the judgement calls that no check can make.
 
 - **Avoid redundant generic/component monomorphizations in release WASM.** Prefer concrete helpers
   and non-generic inner views over deeply parameterized Dioxus components so release `.wasm` stays
-  lean alongside `strip = "debuginfo"` and `lto = "thin"`.
+  lean alongside `strip = "debuginfo"`, `lto = "fat"`, and `panic = "abort"`.
 
 - **Keep WASM dependency features unified.** Never add a private `web-sys` feature list (use
   `web-sys = { workspace = true }`). Before changing features or dependencies in `web/`,
