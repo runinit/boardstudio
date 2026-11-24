@@ -5,8 +5,8 @@
 //! Edits to the upstream file:
 //! - every root element carries a `data-slot` (theme contract section 9)
 
+use crate::ui::class_merge::merge_classes;
 use dioxus::prelude::*;
-use tw_merge::tw_merge;
 
 #[allow(dead_code)]
 #[derive(Default, Clone, PartialEq, Eq)]
@@ -25,7 +25,7 @@ pub fn Separator(
         SeparatorOrientation::Horizontal => "w-full h-[1px]",
         SeparatorOrientation::Vertical => "h-full w-[1px]",
     };
-    let merged_class = tw_merge!(
+    let merged_class = merge_classes!(
         "shrink-0 bg-border",
         orientation_class,
         class.as_deref().unwrap_or("")

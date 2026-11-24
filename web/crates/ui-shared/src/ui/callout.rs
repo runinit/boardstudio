@@ -6,8 +6,8 @@
 //! - built-in borders removed, cards style (theme contract section 8); focus rings kept, including the `dark:` ones
 //! - every root element carries a `data-slot` (theme contract section 9)
 
+use crate::ui::class_merge::merge_classes;
 use dioxus::prelude::*;
-use tw_merge::tw_merge;
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub enum CalloutVariant {
@@ -30,7 +30,7 @@ pub fn Callout(
         CalloutVariant::Warning => "bg-warning-light text-foreground dark:bg-warning-dark/20",
     };
 
-    let merged = tw_merge!(
+    let merged = merge_classes!(
         "relative w-full rounded-xl px-4 py-3 text-sm md:-mx-1 [&_code]:bg-black/5 [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 dark:[&_code]:bg-white/10",
         variant_class,
         class.as_deref().unwrap_or("")

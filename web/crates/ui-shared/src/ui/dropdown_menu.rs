@@ -7,7 +7,7 @@
 //! Edits to the upstream file:
 //! - upstream's own state, inline `<script>` and document listeners are replaced by the primitive;
 //! - rust-ui classes go on the primitive's parts through `merge_attributes`, so a caller's `class` is
-//!   appended, not `tw_merge`d;
+//!   appended, not `merge_classes`d;
 //! - every part carries a `data-slot` (theme contract section 9);
 //! - built-in trigger and floating-content borders removed, cards style (theme contract section 8); focus rings kept;
 //! - control height reads the shared theme-independent metric;
@@ -15,6 +15,7 @@
 //! - checkbox/radio items use `role` and `aria_checked` on Item; selection stays caller-owned;
 //! - submenus and links are outside the action-menu mapping.
 
+use crate::ui::class_merge::merge_classes;
 use dioxus::prelude::*;
 use dioxus_primitives::dropdown_menu::{
     DropdownMenuContentProps, DropdownMenuItemProps, DropdownMenuProps, DropdownMenuTriggerProps,
@@ -363,7 +364,7 @@ pub fn DropdownMenuLabel(
     #[props(into, optional)] class: Option<String>,
     children: Element,
 ) -> Element {
-    let merged = tw_merge::tw_merge!(
+    let merged = merge_classes!(
         "px-2 py-1.5 text-sm font-medium data-inset:pl-8 mb-1",
         class.as_deref().unwrap_or("")
     );
@@ -375,12 +376,12 @@ pub fn DropdownMenuGroup(
     #[props(into, optional)] class: Option<String>,
     children: Element,
 ) -> Element {
-    let merged = tw_merge::tw_merge!("group", class.as_deref().unwrap_or(""));
+    let merged = merge_classes!("group", class.as_deref().unwrap_or(""));
     rsx! { div { "data-slot": "dropdown-menu-group", role: "group", class: "{merged}", {children} } }
 }
 
 #[component]
 pub fn DropdownMenuSeparator(#[props(into, optional)] class: Option<String>) -> Element {
-    let merged = tw_merge::tw_merge!("-mx-1 my-1 h-px bg-border", class.as_deref().unwrap_or(""));
+    let merged = merge_classes!("-mx-1 my-1 h-px bg-border", class.as_deref().unwrap_or(""));
     rsx! { div { "data-slot": "dropdown-menu-separator", role: "separator", class: "{merged}" } }
 }

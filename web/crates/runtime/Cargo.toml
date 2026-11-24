@@ -29,6 +29,7 @@ futures-channel = "=0.3.34"
 web-sys = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+boardstudio_core = { path = "../../../core", features = ["wire-json"] }
 futures-channel = "=0.3.34"
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]

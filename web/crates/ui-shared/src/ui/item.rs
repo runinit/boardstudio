@@ -6,8 +6,8 @@
 //! - built-in borders removed, cards style (theme contract section 8); focus rings kept
 //! - every root element carries a `data-slot` (theme contract section 9)
 
+use crate::ui::class_merge::merge_classes;
 use dioxus::prelude::*;
-use tw_merge::tw_merge;
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub enum ItemVariant {
@@ -79,7 +79,7 @@ pub fn Item(
     #[props(into, optional)] href: Option<String>,
     children: Element,
 ) -> Element {
-    let c = tw_merge!(
+    let c = merge_classes!(
         ITEM_BASE,
         variant.class(),
         size.class(),
@@ -99,7 +99,7 @@ pub fn ItemMedia(
     #[props(default = ItemMediaVariant::Default)] variant: ItemMediaVariant,
     children: Element,
 ) -> Element {
-    let c = tw_merge!(
+    let c = merge_classes!(
         ITEM_MEDIA_BASE,
         variant.class(),
         class.as_deref().unwrap_or("")
@@ -109,7 +109,7 @@ pub fn ItemMedia(
 
 #[component]
 pub fn ItemGroup(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
-    let c = tw_merge!(
+    let c = merge_classes!(
         "group/item-group flex flex-col",
         class.as_deref().unwrap_or("")
     );
@@ -118,7 +118,7 @@ pub fn ItemGroup(#[props(into, optional)] class: Option<String>, children: Eleme
 
 #[component]
 pub fn ItemContent(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
-    let c = tw_merge!(
+    let c = merge_classes!(
         "flex flex-1 flex-col gap-1 [&+[data-slot=item-content]]:flex-none",
         class.as_deref().unwrap_or("")
     );
@@ -127,7 +127,7 @@ pub fn ItemContent(#[props(into, optional)] class: Option<String>, children: Ele
 
 #[component]
 pub fn ItemTitle(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
-    let c = tw_merge!(
+    let c = merge_classes!(
         "flex w-fit items-center gap-2 text-sm leading-snug font-medium",
         class.as_deref().unwrap_or("")
     );
@@ -139,7 +139,7 @@ pub fn ItemDescription(
     #[props(into, optional)] class: Option<String>,
     children: Element,
 ) -> Element {
-    let c = tw_merge!(
+    let c = merge_classes!(
         "text-muted-foreground line-clamp-2 text-sm leading-normal font-normal text-balance [&>a:hover]:text-primary [&>a]:underline [&>a]:underline-offset-4",
         class.as_deref().unwrap_or("")
     );
@@ -148,13 +148,13 @@ pub fn ItemDescription(
 
 #[component]
 pub fn ItemActions(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
-    let c = tw_merge!("flex items-center gap-2", class.as_deref().unwrap_or(""));
+    let c = merge_classes!("flex items-center gap-2", class.as_deref().unwrap_or(""));
     rsx! { div { "data-slot": "item-actions", "data-name": "ItemActions", class: "{c}", {children} } }
 }
 
 #[component]
 pub fn ItemHeader(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
-    let c = tw_merge!(
+    let c = merge_classes!(
         "flex basis-full items-center justify-between gap-2",
         class.as_deref().unwrap_or("")
     );
@@ -163,7 +163,7 @@ pub fn ItemHeader(#[props(into, optional)] class: Option<String>, children: Elem
 
 #[component]
 pub fn ItemFooter(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
-    let c = tw_merge!(
+    let c = merge_classes!(
         "flex basis-full items-center justify-between gap-2",
         class.as_deref().unwrap_or("")
     );
@@ -172,9 +172,9 @@ pub fn ItemFooter(#[props(into, optional)] class: Option<String>, children: Elem
 
 #[component]
 pub fn ItemSeparator(#[props(into, optional)] class: Option<String>) -> Element {
-    // Mirrors leptos `<Separator attr:data-name="ItemSeparator" class=tw_merge!("my-0", class) />`.
+    // Mirrors leptos `<Separator attr:data-name="ItemSeparator" class=merge_classes!("my-0", class) />`.
     // Separator base string inlined so `data-name` and `role` stay on the rendered node.
-    let c = tw_merge!(
+    let c = merge_classes!(
         "shrink-0 bg-border w-full h-[1px] my-0",
         class.as_deref().unwrap_or("")
     );

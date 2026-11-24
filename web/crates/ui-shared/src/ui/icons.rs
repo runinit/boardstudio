@@ -2,14 +2,14 @@
 //! `20aef31db93fe4d9f398dbb15b120d99c48eef95` (ISC; see `web/assets/licenses/lucide-LICENSE.txt`).
 //! Check, ChevronDown, and Loader are derived from Feather and retain its MIT notice there.
 
+use crate::ui::class_merge::merge_classes;
 use dioxus::prelude::*;
-use tw_merge::tw_merge;
 
 macro_rules! icon {
     ($name:ident, $($path:literal),+ $(,)?) => {
         #[component]
         pub fn $name(#[props(into, optional)] class: Option<String>) -> Element {
-            let class = tw_merge!("size-4", class.as_deref().unwrap_or(""));
+            let class = merge_classes!("size-4", class.as_deref().unwrap_or(""));
             rsx! {
                 svg {
                     "data-slot": "icon",

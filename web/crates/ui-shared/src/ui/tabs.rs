@@ -6,7 +6,7 @@
 //! crate's styled preview component. Edits to the upstream file:
 //! - upstream's own state, inline `<script>` and document listeners are replaced by the primitive;
 //! - rust-ui classes go on the primitive's parts through `merge_attributes`, so a caller's `class` is
-//!   appended, not `tw_merge`d;
+//!   appended, not `merge_classes`d;
 //! - every part carries a `data-slot` (theme contract section 9);
 //! - orientation classes key on the primitive's lower-case `data-orientation` and `data-state=active`;
 //! -   the primitive's `horizontal` defaults to false, so a row of tabs passes `horizontal: true`;

@@ -8,11 +8,12 @@ mod source;
 pub use boardstudio_core_kicad_source::mechanical_extract;
 use boardstudio_core_kicad_source::{footprint_geometry, parsed_board, preview, sexpr};
 
-use crate::model::{
-    ArtifactDiagnostic, ArtifactDiagnosticKind, ArtifactReply, ArtifactRequest, CompiledFootprint,
-    FootprintCompileJob, PartDefinition, Vec2,
-};
+#[cfg(feature = "wire-json")]
+use crate::model::{ArtifactDiagnostic, ArtifactDiagnosticKind};
 pub use crate::model::{ArtifactError, ArtifactErrorCode};
+use crate::model::{
+    ArtifactReply, ArtifactRequest, CompiledFootprint, FootprintCompileJob, PartDefinition, Vec2,
+};
 
 fn read_board_source(
     source: &str,
@@ -44,6 +45,9 @@ fn read_board_source(
 }
 
 /// Handle a stateless artifact operation without touching CoreEngine history or the document.
+///
+/// JSON entry point for native tests only; production callers use the typed [`handle`].
+#[cfg(feature = "wire-json")]
 pub fn request(json: &str) -> String {
     let reply = match boardstudio_model::wire::decode_artifact_request(json) {
         Ok(request) => handle(request),
