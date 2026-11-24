@@ -20,8 +20,11 @@ pub(super) struct PartGeometry {
 /// Every per-part finding names the same part, so the call sites name only
 /// the code suffix, severity and message. Sites with bespoke codes use
 /// [`PartReporter::report_raw`].
+/// A finding reporter for one part under review.
+type IssueFn<'a> = dyn FnMut(&str, Severity, &str, Vec<String>) + 'a;
+
 struct PartReporter<'a> {
-    issue: &'a mut dyn FnMut(&str, Severity, &str, Vec<String>),
+    issue: &'a mut IssueFn<'a>,
     part: &'a Part,
 }
 

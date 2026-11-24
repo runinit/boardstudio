@@ -124,13 +124,13 @@ pub(super) fn apply_change(
     let previous = configuration.clone();
     // Each domain owns its variants; exactly one handles the change. Anything
     // else is a lifecycle change, which the staged apply routes elsewhere.
-    if construction::try_apply(configuration, change, document, board_id, changed)?.is_some() {
-    } else if mounts::try_apply(configuration, change, document, identity_floor, changed)?.is_some()
-    {
-    } else if openings::try_apply(configuration, change, identity_floor, changed)?.is_some() {
-    } else if gaskets::try_apply(configuration, change, changed)?.is_some() {
-    } else if profiles::try_apply(configuration, change, document, board_id, changed)?.is_some() {
-    } else {
+    let handled = construction::try_apply(configuration, change, document, board_id, changed)?
+        .is_some()
+        || mounts::try_apply(configuration, change, document, identity_floor, changed)?.is_some()
+        || openings::try_apply(configuration, change, identity_floor, changed)?.is_some()
+        || gaskets::try_apply(configuration, change, changed)?.is_some()
+        || profiles::try_apply(configuration, change, document, board_id, changed)?.is_some();
+    if !handled {
         return Err("This change is handled by the mechanical edit lifecycle.".into());
     }
 

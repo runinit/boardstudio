@@ -353,9 +353,9 @@ fn generated_membership_changed<T>(
     part_ids: impl Fn(&T) -> Option<&Vec<String>>,
     ids: &mut std::collections::BTreeSet<String>,
 ) {
-    let generated_set = |part_ids: Option<&Vec<String>>| {
-        part_ids
-            .into_iter()
+    let part_ids = &part_ids;
+    let generated_set = |ids: Option<&Vec<String>>| {
+        ids.into_iter()
             .flatten()
             .filter(|id| id.starts_with(GENERATED_PART_PREFIX))
             .cloned()
@@ -365,7 +365,7 @@ fn generated_membership_changed<T>(
         let before_ids = before
             .iter()
             .find(|entry| id(entry) == id(item))
-            .and_then(|entry| part_ids(entry));
+            .and_then(part_ids);
         if generated_set(before_ids) != generated_set(part_ids(item)) {
             ids.insert(id(item).into());
         }
