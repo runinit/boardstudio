@@ -273,7 +273,7 @@ fn apply_staged(
 /// disappear or move. Projection therefore always runs for them and the caller
 /// must supply the mounting-hole template.
 ///
-/// See [`changes::change_effects`] for the shared classification table.
+/// See `changes::change_effects` for the shared classification table.
 pub fn requires_projection(change: &MechanicalChange) -> bool {
     changes::change_effects(change).1
 }

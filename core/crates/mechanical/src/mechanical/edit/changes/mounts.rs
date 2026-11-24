@@ -1,7 +1,6 @@
 //! Mounts, closure mounts and hardware, and critical-fit changes.
 use super::*;
 
-/// Applies one change in this domain, or `None` when another domain owns it.
 fn mount_mut<'a>(
     configuration: &'a mut MechanicalConfiguration,
     collection: MechanicalMountCollection,
@@ -14,6 +13,7 @@ fn mount_mut<'a>(
     )
 }
 
+/// Applies one change in this domain, or `None` when another domain owns it.
 pub(super) fn try_apply(
     configuration: &mut MechanicalConfiguration,
     change: &MechanicalChange,

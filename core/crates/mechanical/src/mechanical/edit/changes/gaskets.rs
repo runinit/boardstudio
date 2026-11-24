@@ -1,7 +1,6 @@
 //! Gasket support placement and reset changes.
 use super::*;
 
-/// Applies one change in this domain, or `None` when another domain owns it.
 fn upsert_gasket_anchors(
     configuration: &mut MechanicalConfiguration,
     support_id: &str,
@@ -24,6 +23,8 @@ fn upsert_gasket_anchors(
     changed.push(support_id.to_owned());
     Ok(())
 }
+
+/// Applies one change in this domain, or `None` when another domain owns it.
 pub(super) fn try_apply(
     configuration: &mut MechanicalConfiguration,
     change: &MechanicalChange,

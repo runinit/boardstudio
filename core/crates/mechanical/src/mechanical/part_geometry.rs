@@ -15,14 +15,14 @@ pub(super) struct PartGeometry {
     pub(super) bottom_foam_clearances: Vec<Contour>,
 }
 
+/// A finding reporter for one part under review.
+type IssueFn<'a> = dyn FnMut(&str, Severity, &str, Vec<String>) + 'a;
+
 /// Reports findings for the part under review.
 ///
 /// Every per-part finding names the same part, so the call sites name only
 /// the code suffix, severity and message. Sites with bespoke codes use
 /// [`PartReporter::report_raw`].
-/// A finding reporter for one part under review.
-type IssueFn<'a> = dyn FnMut(&str, Severity, &str, Vec<String>) + 'a;
-
 struct PartReporter<'a> {
     issue: &'a mut IssueFn<'a>,
     part: &'a Part,
@@ -112,14 +112,15 @@ pub(super) fn collect_part_geometry(
                         config.clearance,
                         document.revision,
                     ) {
-                        Ok(()) => reporter.report(
-                            "foam-approximation",
-                            Severity::Warning,
-                            &format!(
+                        Ok(()) => {
+                            let message = format!(
                                 "Foam clearance uses the {source} as a conservative footprint approximation because no explicit mechanical clearance is assigned; a 3D model is not required."
-                            ),
-                            ),
-                        Err(message) => reporter.report("foam-approximation", Severity::Error, &message),
+                            );
+                            reporter.report("foam-approximation", Severity::Warning, &message);
+                        }
+                        Err(message) => {
+                            reporter.report("foam-approximation", Severity::Error, &message);
+                        }
                     }
                 } else {
                     reporter.report(

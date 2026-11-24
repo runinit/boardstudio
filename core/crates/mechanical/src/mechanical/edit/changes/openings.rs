@@ -1,7 +1,6 @@
 //! Access-opening and opening-vertex changes.
 use super::*;
 
-/// Applies one change in this domain, or `None` when another domain owns it.
 fn opening_mut<'a>(
     openings: &'a mut [MechanicalOpening],
     id: &str,
@@ -9,6 +8,7 @@ fn opening_mut<'a>(
     find_item_mut(openings, |opening| opening.id == id, OPENING_UNAVAILABLE)
 }
 
+/// Applies one change in this domain, or `None` when another domain owns it.
 pub(super) fn try_apply(
     configuration: &mut MechanicalConfiguration,
     change: &MechanicalChange,

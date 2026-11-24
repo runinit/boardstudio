@@ -121,7 +121,7 @@ pub(super) fn persist_paired_feature_edit(
         MechanicalFeatureKind::GasketSupport,
     ] {
         let existing = feature_ids(before, kind);
-        let added: Vec<String> = feature_ids(after, kind)
+        let added: std::collections::BTreeSet<String> = feature_ids(after, kind)
             .into_iter()
             .filter(|id| !existing.contains(id))
             .collect();
