@@ -10,8 +10,9 @@ description = "Browser host services for the BoardStudio page: storage, CAD work
 # The page's host services (storage, renderer host, CAD job capture).
 page = ["boardstudio-web-worker-host/cad", "dep:boardstudio-application", "dep:boardstudio-core-kernel", "dep:boardstudio-core-mechanical", "dep:boardstudio-model", "dep:serde_json"]
 test-harness = ["boardstudio-web-worker-host?/test-harness"]
-# Test-only storage hooks the page's own tests drive (raw record fixtures).
-test-support = []
+# Test-only hooks the page suite drives; forwards so run-wasm-tests.py's
+# `--features page,boardstudio-web-host/test-support` enables both crates.
+test-support = ["boardstudio-web-worker-host?/test-support"]
 
 [dependencies]
 boardstudio-web-worker-host = { path = "../worker-host", optional = true }
@@ -30,12 +31,6 @@ js-sys = "=0.3.106"
 serde-wasm-bindgen = "=0.6.5"
 futures-channel = "=0.3.34"
 web-sys = { workspace = true }
-
-[dev-dependencies]
-boardstudio_core = { path = "../../../core", features = ["wire-json"] }
-
-[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
-wasm-bindgen-test = "=0.3.79"
 
 [lints]
 workspace = true

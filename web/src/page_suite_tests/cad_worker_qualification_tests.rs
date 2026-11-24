@@ -1,12 +1,27 @@
 //! Controlled provider ownership/transport tests. This double authenticates no geometry.
-use super::*;
-use crate::cad_jobs::*;
+use boardstudio_core::hash::sha256_hex;
+use boardstudio_core::model::{PreparedCaseAssemblyIR, PreparedCaseIR};
+use boardstudio_web_host::cad_jobs::{
+    CadCollisionMeshPair, CadCollisionOperand, CadCollisionQuery, CadGeneratedAnalysis,
+    CadGeneratedAnalysisRequest, CadOperation, CadSnapshotIdentity, CadStepAccuracy,
+    CadStepImportOptions, MAX_COLLISION_QUERY_BYTES, generated_geometry_identity,
+};
+use boardstudio_web_host::cad_qualification as qualification;
+use boardstudio_web_host::cad_worker::test_hooks::{
+    CadEnvelope, WireRequest, WorkerQueue, decode_result, post_owned_result, result_transfers,
+    run_request, strict_metadata, strict_step_accuracy, validate_analysis_buffers,
+};
+use js_sys::{Array, Float64Array, Function, Object, Promise, Reflect, Uint32Array};
+use std::{cell::RefCell, rc::Rc};
+use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 use wasm_bindgen_test::wasm_bindgen_test;
+use web_sys::DedicatedWorkerGlobalScope;
 
 fn fixture() -> serde_json::Value {
-    serde_json::from_str(include_str!(
-        "../../../../cad/wasm/tests/fixtures/generated-analysis-contract.json"
-    ))
+    serde_json::from_str(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../cad/wasm/tests/fixtures/generated-analysis-contract.json"
+    )))
     .unwrap()
 }
 
@@ -113,8 +128,7 @@ pub(super) fn controlled_provider(unqualified: bool) -> JsValue {
 }
 
 fn preparation(id: &str) -> WireRequest {
-    let body: boardstudio_model::model::PreparedCaseIR =
-        serde_json::from_value(fixture()["preparedBody"].clone()).unwrap();
+    let body: PreparedCaseIR = serde_json::from_value(fixture()["preparedBody"].clone()).unwrap();
     WireRequest {
         header: CadEnvelope {
             request_id: id.into(),
@@ -134,7 +148,7 @@ fn preparation(id: &str) -> WireRequest {
             geometry_identity: generated_geometry_identity(&body).unwrap(),
             target_deflection_mm: None,
         }),
-        prepared: Some(boardstudio_model::model::PreparedCaseAssemblyIR {
+        prepared: Some(PreparedCaseAssemblyIR {
             revision: body.revision,
             bodies: vec![body],
         }),

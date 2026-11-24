@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 """Hermetic checks of the release gate's wiring and failure propagation."""
 
-import contextlib
 import importlib
-import json
 import os
-from pathlib import Path
 import subprocess
-import tempfile
 import threading
 import unittest
 from unittest.mock import patch
@@ -17,17 +13,11 @@ import check
 
 class CheckTests(unittest.TestCase):
     def test_browser_targets_and_wasm_lint_are_independent(self):
-        self.assertEqual(check.browser_crates(), ("host", "worker-host"))
-        self.assertEqual(check.browser(), [
-            check.DRAG_SMOKE, check.CAD_BROWSER, *check.PROVIDER_CHECKS,
-            check.BROWSER_CRATE_BUILD, check.crate_launch("host"),
-            check.crate_launch("worker-host"), check.PAGE_SUITE,
-        ])
-        self.assertEqual(check.STEPS["browser-wasm"][1], check.browser()[-4:-1])
-        self.assertEqual(check.STEPS["browser-packaged"][1],
+        self.assertEqual(check.browser(),
                          [check.DRAG_SMOKE, check.CAD_BROWSER, *check.PROVIDER_CHECKS, check.PAGE_SUITE])
-        self.assertEqual(self.option_values(check.BROWSER_CRATE_BUILD, "-p"),
-                         ["boardstudio-web-host", "boardstudio-web-worker-host"])
+        self.assertEqual(check.BROWSER_PREBUILDS, [check.PAGE_TEST_BUILD])
+        self.assertNotIn("browser-packaged", check.STEPS)
+        self.assertNotIn("browser-wasm", check.STEPS)
         runner = importlib.import_module("run-wasm-tests")
         self.assertEqual(self.option_values(runner.PAGE_BUILD, "-p"), ["boardstudio-web"])
         packages = {"boardstudio-web"} | {
@@ -59,69 +49,56 @@ class CheckTests(unittest.TestCase):
                 barrier.wait()
             elif command == check.PAGE_TEST_BUILD:
                 lane_envs["page"] = environment.copy()
+                barrier.wait()
                 outputs.append((command, "/tmp/page.wasm\n"))
             return 0, 0
 
-        def crates(command, environment, cwd, state):
-            lane_envs["crates"] = environment.copy()
-            barrier.wait()
-            state["crates"] = {"host": Path("/tmp/host.wasm")}
-            return True
-
         with patch.object(check, "check_jobs", return_value=2), \
              patch.object(check, "test_css_command", return_value=["tailwind"]), \
-             patch.object(check, "run_serial", side_effect=serial), \
-             patch.object(check, "build_crate_tests", side_effect=crates):
+             patch.object(check, "run_serial", side_effect=serial):
             _, passed = check.run_commands("build", check.STEPS["build"][1], env, state=state)
             self.assertTrue(passed)
             self.assertEqual(css_calls, [["tailwind"]])
             self.assertEqual(lane_envs["web"][check.TEST_CSS_READY], "1")
             self.assertEqual(lane_envs["web"][check.IN_OVERLAP_ENV], "1")
             self.assertEqual(lane_envs["page"][check.TEST_CSS_READY], "1")
-            self.assertEqual(lane_envs["crates"][check.TEST_CSS_READY], "1")
             _, second = check.run_commands("build", check.STEPS["build"][1], {}, state=state)
             self.assertTrue(second)
             self.assertEqual(len(css_calls), 1)
         self.assertEqual(state["page"], "/tmp/page.wasm")
-        self.assertEqual(state["crates"], {"host": Path("/tmp/host.wasm")})
         self.assertEqual(env[check.TEST_CSS_READY], "1")
 
-    def test_packaged_plan_uses_page_prebuild_only(self):
+    def test_drag_smoke_plan_skips_page_prebuild_without_browser(self):
         with patch.object(check.browser_tools, "locate_chrome"), \
              patch.object(check.browser_tools, "locate_chromedriver"), \
              patch.object(check, "run_plan") as execute:
-            check.run(["browser-packaged"])
+            check.run(["drag-smoke"])
         plan = dict(execute.call_args.args[0])
-        self.assertIn(check.PAGE_TEST_BUILD, plan["build"])
-        self.assertNotIn(check.BROWSER_CRATE_BUILD, plan["build"])
+        self.assertIn("drag-smoke", plan)
+        self.assertNotIn(check.PAGE_TEST_BUILD, plan["build"])
 
-    def test_keep_going_skips_failed_build_consumers(self):
-        with patch.object(check, "build_crate_tests", return_value=False), \
-             patch.object(check, "check_jobs", return_value=1), \
-             patch.object(check, "run_serial", return_value=(0, 0)) as launch:
+    def test_keep_going_runs_every_browser_launch_after_a_failure(self):
+        calls = iter([(0, 1)] + [(0, 0)] * 5)
+
+        def launch(command, env, directory):
+            return next(calls)
+
+        with patch.object(check, "check_jobs", return_value=1), \
+             patch.object(check, "run_serial", side_effect=launch) as launched:
             _, passed = check.run_browser(check.browser(), {}, check.ROOT, {}, True)
         self.assertFalse(passed)
-        self.assertEqual([call.args[0] for call in launch.call_args_list],
+        self.assertEqual([call.args[0] for call in launched.call_args_list],
                          [check.DRAG_SMOKE, check.CAD_BROWSER, *check.PROVIDER_CHECKS, check.PAGE_SUITE])
 
     def test_run_browser_lane_schedules(self):
-        runner = importlib.import_module("run-wasm-tests")
-
         def run_lanes(commands, jobs):
             recorded = []
-
-            def fake_build(_cmd, _env, _cwd, state):
-                state["crates"] = {"host": Path("/tmp/host.wasm"), "worker-host": Path("/tmp/worker-host.wasm")}
-                return True
 
             def fake_parallel(lanes, _env):
                 recorded.append(lanes)
                 return 0, True
 
-            with patch.object(check, "build_crate_tests", side_effect=fake_build), \
-                 patch.object(check, "check_jobs", return_value=jobs), \
-                 patch.object(runner, "desktop_webdriver_config",
-                              side_effect=lambda env, _dir: contextlib.nullcontext(dict(env))), \
+            with patch.object(check, "check_jobs", return_value=jobs), \
                  patch.object(check, "run_parallel", side_effect=fake_parallel):
                 _, passed = check.run_browser(commands, {}, check.ROOT, {"page": "/tmp/page.wasm"}, False)
                 self.assertTrue(passed)
@@ -132,18 +109,15 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(len(full6), 4)
         self.assertEqual(full6[0][0][0], [*check.DRAG_SMOKE, "--suite", "drag"])
         self.assertEqual(full6[1][0][0], [*check.DRAG_SMOKE, "--suite", "collision"])
-        self.assertEqual(len(full6[2]), 1 + len(check.PROVIDER_CHECKS) + 2)
+        self.assertEqual(len(full6[2]), 1 + len(check.PROVIDER_CHECKS))
+        self.assertEqual(full6[2][0][0], check.CAD_BROWSER)
         self.assertEqual(full6[3][0][0], [*check.PAGE_SUITE, "--test-binary", "/tmp/page.wasm"])
         self.assertEqual(full6[3][0][2]["BOARDSTUDIO_CHECK_JOBS"], "2")
 
-        pkg4 = run_lanes(check.STEPS["browser-packaged"][1], 4)
-        self.assertEqual(len(pkg4), 4)
-        self.assertEqual(pkg4[2][0][0], check.CAD_BROWSER)
-        self.assertEqual(len(pkg4[2]), 1 + len(check.PROVIDER_CHECKS))
-        self.assertEqual(pkg4[3][0][2]["BOARDSTUDIO_CHECK_JOBS"], "1")
-
-        wasm4 = run_lanes(check.STEPS["browser-wasm"][1], 4)
-        self.assertEqual(len(wasm4), 2)
+        page3 = run_lanes([check.PAGE_SUITE], 3)
+        self.assertEqual(len(page3), 1)
+        self.assertEqual(page3[0][0][0], [*check.PAGE_SUITE, "--test-binary", "/tmp/page.wasm"])
+        self.assertEqual(page3[0][0][2]["BOARDSTUDIO_CHECK_JOBS"], "2")
 
         full2 = run_lanes(check.browser(), 2)
         self.assertEqual(len(full2), 3)
@@ -255,21 +229,6 @@ class CheckTests(unittest.TestCase):
                                 env=env, text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("invalid BOARDSTUDIO_BUILD_LOCK_FD", result.stderr)
-
-    def test_crate_artifacts_are_bound_to_manifests(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            binary = root / "host.wasm"
-            binary.touch()
-            message = json.dumps({
-                "reason": "compiler-artifact", "manifest_path": str(root / "web/crates/host/Cargo.toml"),
-                "target": {"kind": ["lib"], "name": "boardstudio_web_host"},
-                "profile": {"test": True}, "executable": str(binary),
-            })
-            self.assertEqual(check.crate_test_artifacts(message, root, ["host"]), {"host": binary})
-            with self.assertRaisesRegex(ValueError, "missing"):
-                check.crate_test_artifacts(message, root, ["worker-host"])
-
 
 if __name__ == "__main__":
     unittest.main()

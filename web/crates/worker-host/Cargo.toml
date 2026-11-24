@@ -9,6 +9,8 @@ description = "Browser worker host services shared by the BoardStudio workers an
 [features]
 cad = ["dep:boardstudio-core-kernel", "dep:boardstudio-model", "dep:serde_json"]
 test-harness = []
+# Test-only hooks the page suite drives through boardstudio-web-host's test-support.
+test-support = []
 
 [dependencies]
 boardstudio-core-kernel = { path = "../../../core/crates/kernel", optional = true }
@@ -24,9 +26,6 @@ js-sys = "=0.3.106"
 serde-wasm-bindgen = "=0.6.5"
 futures-channel = "=0.3.34"
 web-sys = { workspace = true }
-
-[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
-wasm-bindgen-test = "=0.3.79"
 
 [lints]
 workspace = true

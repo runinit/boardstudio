@@ -441,7 +441,7 @@ fn completed_reply(
     })
 }
 
-pub(crate) enum CadReplyError {
+pub enum CadReplyError {
     WrongEnvelope,
     WrongRevision,
     Cancelled,
@@ -449,7 +449,7 @@ pub(crate) enum CadReplyError {
     MissingResult,
 }
 
-pub(crate) fn validate_completed_reply(
+pub fn validate_completed_reply(
     reply: CadReply,
     request_id: &str,
     job_id: &str,
@@ -491,7 +491,7 @@ pub(crate) fn valid_mesh_parts(positions: &[f32], normals: &[f32], stride: usize
             .all(|value| value.is_finite())
 }
 
-pub(crate) fn valid_body_meshes<'a>(
+pub fn valid_body_meshes<'a>(
     bodies: &[CadBodyMesh],
     expected_ids: impl ExactSizeIterator<Item = &'a str>,
     stride: usize,

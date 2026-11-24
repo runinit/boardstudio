@@ -41,7 +41,7 @@ const MAX_STEP_BYTES: usize = 32 * 1024 * 1024;
 const KEYCAPS_PREVIEW_BATCH_SIZE: usize = 8;
 // Keep batching within cad/wasm's whole-request keycap limit.
 const MAX_KEYCAPS_PER_REQUEST: usize = 4096;
-const KEYCAP_STEP_UNSUPPORTED: &str =
+pub const KEYCAP_STEP_UNSUPPORTED: &str =
     "Keycap STEP export is unsupported; build_keycaps returns preview meshes only";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -53,41 +53,43 @@ impl fmt::Display for CadWorkerError {
 }
 impl std::error::Error for CadWorkerError {}
 
+// Wire envelope types are `pub` so the page suite can drive them through the
+// `test-support`-only `test_hooks` seam below; they stay internal to the worker.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct CadEnvelope {
-    request_id: String,
-    job_id: String,
-    identity: CadSnapshotIdentity,
-    operation: CadOperation,
+pub struct CadEnvelope {
+    pub request_id: String,
+    pub job_id: String,
+    pub identity: CadSnapshotIdentity,
+    pub operation: CadOperation,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct WireReply {
+pub struct WireReply {
     #[serde(flatten)]
-    header: CadEnvelope,
-    outcome: CadReplyOutcome,
+    pub header: CadEnvelope,
+    pub outcome: CadReplyOutcome,
     #[serde(default)]
-    error: Option<String>,
+    pub error: Option<String>,
 }
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct WireRequest<P = PreparedCaseAssemblyIR> {
+pub struct WireRequest<P = PreparedCaseAssemblyIR> {
     #[serde(flatten)]
-    header: CadEnvelope,
-    prepared: Option<P>,
-    source_sha256: Option<String>,
-    step_import_options: Option<CadStepImportOptions>,
-    collision_query: Option<CadCollisionQuery>,
-    generated_analysis_request: Option<crate::cad_jobs::CadGeneratedAnalysisRequest>,
-    keycaps: Option<KeycapsInput>,
+    pub header: CadEnvelope,
+    pub prepared: Option<P>,
+    pub source_sha256: Option<String>,
+    pub step_import_options: Option<CadStepImportOptions>,
+    pub collision_query: Option<CadCollisionQuery>,
+    pub generated_analysis_request: Option<crate::cad_jobs::CadGeneratedAnalysisRequest>,
+    pub keycaps: Option<KeycapsInput>,
     #[serde(skip)]
-    collision_meshes: Option<CadCollisionMeshPair>,
+    pub collision_meshes: Option<CadCollisionMeshPair>,
     #[serde(skip)]
-    input_bytes: Vec<u8>,
-    packaged_step: bool,
+    pub input_bytes: Vec<u8>,
+    pub packaged_step: bool,
 }
 
 #[derive(Deserialize)]
@@ -136,7 +138,7 @@ impl From<FlatWireRequest> for WireRequest {
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct KeycapsInput {
+pub struct KeycapsInput {
     revision: u64,
     specs: Vec<KeycapSpec>,
 }
@@ -716,8 +718,23 @@ fn fail_all(state: &Rc<RefCell<ClientState>>, error: CadWorkerError) {
     }
 }
 
-#[cfg(all(test, target_arch = "wasm32"))]
-mod keycaps_worker_tests;
+// Test seam for the page suite's CAD worker tests: re-exports the wire envelope,
+// queue, and validation helpers the migrated browser tests drive.
+// The re-exported items live in the private `dispatch`/`protocol` modules, so
+// they stay crate-internal unless the page suite reaches them through here.
+#[cfg(feature = "test-support")]
+pub mod test_hooks {
+    pub use super::dispatch::{run_request, yield_to_worker};
+    pub use super::protocol::{
+        decode_result, strict_metadata, strict_step_accuracy, validate_analysis_buffers,
+        validate_generated_payload_fields,
+    };
+    pub use super::{
+        CadEnvelope, KEYCAP_STEP_UNSUPPORTED, OwnedAnalysis, WireReply, WireRequest, WorkerQueue,
+        js_message, keycap_operation_error, post_owned_result, receive_worker_message,
+        result_transfers, worker_message,
+    };
+}
 
 fn js_error(error: JsValue) -> CadWorkerError {
     CadWorkerError(js_message_or(error, "JavaScript CAD worker failure"))
@@ -778,18 +795,18 @@ async fn initialize_cad_module(url: &str) -> Result<JsValue, String> {
     Ok(module)
 }
 
-struct WorkerQueue {
+pub struct WorkerQueue {
     load_baked_step: Option<Function>,
-    pending: VecDeque<(WireRequest, Vec<u8>)>,
-    cancelled: BTreeSet<String>,
-    active: bool,
-    active_job: Option<String>,
-    active_request: Option<String>,
-    generation: String,
-    evidence: BTreeMap<String, Rc<OwnedAnalysis>>,
+    pub pending: VecDeque<(WireRequest, Vec<u8>)>,
+    pub cancelled: BTreeSet<String>,
+    pub active: bool,
+    pub active_job: Option<String>,
+    pub active_request: Option<String>,
+    pub generation: String,
+    pub evidence: BTreeMap<String, Rc<OwnedAnalysis>>,
     evidence_recency: VecDeque<String>,
-    retained_bytes: usize,
-    latest_snapshot: Option<CadSnapshotIdentity>,
+    pub retained_bytes: usize,
+    pub latest_snapshot: Option<CadSnapshotIdentity>,
 }
 
 impl Default for WorkerQueue {
@@ -826,9 +843,9 @@ impl Drop for ProviderHandle {
     }
 }
 
-struct OwnedAnalysis {
+pub struct OwnedAnalysis {
     handle: ProviderHandle,
-    reference: AnalysisRef,
+    pub reference: AnalysisRef,
     descriptor: AnalysisMesh,
     source: SourceQualification,
     scope: CadSnapshotIdentity,
@@ -848,7 +865,7 @@ fn same_scope(a: &CadSnapshotIdentity, b: &CadSnapshotIdentity) -> bool {
 }
 
 impl WorkerQueue {
-    fn cancel_job(&mut self, job: &str) {
+    pub fn cancel_job(&mut self, job: &str) {
         if self.active_job.as_deref() == Some(job)
             || self
                 .pending
@@ -867,7 +884,7 @@ impl WorkerQueue {
             self.remove_evidence(&key);
         }
     }
-    fn remove_evidence(&mut self, identity: &str) {
+    pub fn remove_evidence(&mut self, identity: &str) {
         if let Some(entry) = self.evidence.remove(identity) {
             self.retained_bytes -= entry.retained_bytes.unwrap_or(0);
         }
@@ -911,7 +928,7 @@ impl WorkerQueue {
         Ok(())
     }
 
-    fn lookup(
+    pub fn lookup(
         &mut self,
         operand: &crate::cad_jobs::CadCollisionOperand,
         scope: &CadSnapshotIdentity,
@@ -948,7 +965,7 @@ impl WorkerQueue {
     }
 }
 
-fn receive_worker_message(
+pub fn receive_worker_message(
     queue: &Rc<RefCell<WorkerQueue>>,
     scope: &DedicatedWorkerGlobalScope,
     module: &Rc<JsValue>,
@@ -1072,7 +1089,7 @@ fn receive_worker_message(
     Ok(())
 }
 
-fn keycap_operation_error(operation: &CadOperation, has_keycaps: bool) -> Option<&'static str> {
+pub fn keycap_operation_error(operation: &CadOperation, has_keycaps: bool) -> Option<&'static str> {
     if !has_keycaps {
         return (operation == &CadOperation::PrintKeycaps)
             .then_some("Printable keycaps require keycap input");
@@ -1185,7 +1202,7 @@ fn post_result(
     post_reply(scope, wire, Some(result), transfers)
 }
 
-fn post_owned_result(
+pub fn post_owned_result(
     queue: &Rc<RefCell<WorkerQueue>>,
     scope: &DedicatedWorkerGlobalScope,
     wire: WireReply,
@@ -1230,7 +1247,7 @@ fn post_reply(
     }
 }
 
-fn result_transfers(operation: &CadOperation, result: &JsValue) -> Result<Array, JsValue> {
+pub fn result_transfers(operation: &CadOperation, result: &JsValue) -> Result<Array, JsValue> {
     let transfers = Array::new();
     match operation {
         CadOperation::AnalyzeGeneratedBody => {
@@ -1309,23 +1326,16 @@ fn add_buffer_transfer(transfers: &Array, value: &JsValue) -> Result<(), JsValue
     Ok(())
 }
 
-fn worker_message(kind: &str, message: &str) -> JsValue {
+pub fn worker_message(kind: &str, message: &str) -> JsValue {
     let value = Object::new();
     let _ = Reflect::set(&value, &"kind".into(), &JsValue::from_str(kind));
     let _ = Reflect::set(&value, &"frame".into(), &JsValue::from_str(message));
     value.into()
 }
-fn js_message(value: JsValue) -> String {
+pub fn js_message(value: JsValue) -> String {
     js_message_or(value, "JavaScript CAD provider failed")
 }
 
 fn js_message_or(value: JsValue, fallback: &str) -> String {
     value.as_string().unwrap_or_else(|| fallback.into())
 }
-
-#[cfg(test)]
-mod generated_analysis_tests;
-
-#[cfg(test)]
-#[path = "cad_worker_qualification_tests.rs"]
-mod qualification_tests;
