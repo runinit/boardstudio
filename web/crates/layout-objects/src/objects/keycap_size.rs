@@ -50,7 +50,7 @@ pub fn use_key_size(
     scope_generation: Signal<u64>,
 ) -> KeySizeMount {
     let _ = version();
-    let _ = scope_generation();
+    let current_generation = scope_generation();
     let mut error = use_signal(|| None::<String>);
     let selected = selected_context.read().clone();
     let current_workspace = workspace();
@@ -58,6 +58,7 @@ pub fn use_key_size(
         .map_or((None, false), |(p, e)| (Some(p), e));
     let error_scope = (
         current_workspace,
+        current_generation,
         selected.map(|s| (s.scope, s.context)),
         projection.as_ref().map(|p| p.selected_ids.clone()),
     );

@@ -71,7 +71,7 @@ pub fn use_canvas_align(
     let toast = use_toast();
     let _ = (version(), scope_generation());
     let selected = selected_context.read().clone();
-    let cur_ref = selected_reference.peek().clone();
+    let cur_ref = selected_reference.read().clone();
     let projection = project(
         &runtime,
         selected.as_ref(),

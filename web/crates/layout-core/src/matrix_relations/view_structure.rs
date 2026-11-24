@@ -61,6 +61,7 @@ impl View<'_> {
             })
     }
 
+    /// Mirrors the sync gate: a matrix stays linked unless covered by a Local or Omitted exception.
     pub(super) fn matrix_linked(&self, matrix_id: &str) -> bool {
         !matches!(
             self.exception(MirroredItemKind::Matrix, matrix_id),
