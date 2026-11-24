@@ -388,7 +388,7 @@ pub(crate) fn apply_with_ledger(
                     .parts
                     .iter_mut()
                     .find(|part| &part.id == id)
-                    .expect("validated");
+                    .ok_or_else(|| format!("Key {id} is missing"))?;
                 part.keycap = Some(*size);
                 changed.insert(id.clone());
             }
@@ -397,7 +397,7 @@ pub(crate) fn apply_with_ledger(
                     .parts
                     .iter_mut()
                     .find(|part| part.id == position.id)
-                    .expect("validated");
+                    .ok_or_else(|| format!("Key {} is missing", position.id))?;
                 part.pose.at = position.at;
                 changed.insert(position.id.clone());
             }
@@ -406,7 +406,7 @@ pub(crate) fn apply_with_ledger(
                     .matrices
                     .iter_mut()
                     .find(|matrix| matrix.id == cell.matrix_id)
-                    .expect("validated");
+                    .ok_or_else(|| format!("Unknown matrix {}", cell.matrix_id))?;
                 if let Some(existing) = matrix
                     .cells
                     .iter_mut()

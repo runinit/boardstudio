@@ -285,7 +285,13 @@ fn artifact_import_protocol_preserves_authoritative_source_in_document_json() {
     assert!(authored.definitions[0].kicad_source.is_none());
 
     let mut engine = boardstudio_core::CoreEngine::new();
-    engine.request(&serde_json::to_string(&fixture::open(document.clone())).unwrap());
+    engine.request(
+        &serde_json::to_string(&CoreRequest::Open {
+            id: "open".into(),
+            document: document.clone(),
+        })
+        .unwrap(),
+    );
     let mut replacement = document.clone();
     replacement.name = "Replaced".into();
     let command = EditCommand {

@@ -37,6 +37,33 @@ pub(super) fn apply_feature_lifecycle(
     Ok(changed)
 }
 
+/// The linked pair at `index`, or an error when the document has no hardware.
+///
+/// Pair edits resolve their index through [`locate_pair_feature`] or the topology
+/// helpers before touching hardware, so a missing pair is a rejected edit rather
+/// than a panic.
+pub(super) fn pair_at(doc: &ProjectDoc, index: usize) -> Result<&MechanicalMirrorPair, String> {
+    doc.hardware
+        .as_ref()
+        .ok_or("Physical instances are unavailable")?
+        .pairs
+        .get(index)
+        .ok_or_else(|| "The mechanical pair is unavailable".into())
+}
+
+/// The mutable linked pair at `index`, or an error when the document has no hardware.
+pub(super) fn pair_mut_at(
+    doc: &mut ProjectDoc,
+    index: usize,
+) -> Result<&mut MechanicalMirrorPair, String> {
+    doc.hardware
+        .as_mut()
+        .ok_or("Physical instances are unavailable")?
+        .pairs
+        .get_mut(index)
+        .ok_or_else(|| "The mechanical pair is unavailable".into())
+}
+
 /// Where a linked feature lives and the state of one half.
 pub(super) struct PairFeatureLocation {
     pub(super) pair_index: usize,
@@ -104,7 +131,7 @@ pub(super) fn make_feature_local(
         MechanicalFeatureState::Linked => {}
     }
     let (kind, visible) = {
-        let pair = doc.hardware.as_ref().unwrap().pairs[location.pair_index].clone();
+        let pair = pair_at(doc, location.pair_index)?.clone();
         let feature = &pair.features[location.feature_index];
         (
             feature.kind,
@@ -117,12 +144,12 @@ pub(super) fn make_feature_local(
     }
     transfer_authorship(doc, &location, instance_id)?;
     features::make_local(
-        &mut doc.hardware.as_mut().unwrap().pairs[location.pair_index],
+        pair_mut_at(doc, location.pair_index)?,
         instance_id,
         feature_id,
     )?;
     let mut changed = vec![feature_id.to_string(), instance_id.to_string()];
-    changed.extend(pair_owner_ids(doc, location.pair_index));
+    changed.extend(pair_owner_ids(doc, location.pair_index)?);
     Ok(changed)
 }
 
@@ -141,9 +168,7 @@ pub(super) fn omit_feature_member(
     if location.state == MechanicalFeatureState::Omitted {
         return Ok(Vec::new());
     }
-    let kind = doc.hardware.as_ref().unwrap().pairs[location.pair_index].features
-        [location.feature_index]
-        .kind;
+    let kind = pair_at(doc, location.pair_index)?.features[location.feature_index].kind;
     remove_feature(
         instance_configuration_mut(doc, instance_id)?,
         kind,
@@ -151,12 +176,12 @@ pub(super) fn omit_feature_member(
     );
     transfer_authorship(doc, &location, instance_id)?;
     features::omit_member(
-        &mut doc.hardware.as_mut().unwrap().pairs[location.pair_index],
+        pair_mut_at(doc, location.pair_index)?,
         instance_id,
         feature_id,
     )?;
     let mut changed = vec![feature_id.to_string(), instance_id.to_string()];
-    changed.extend(pair_owner_ids(doc, location.pair_index));
+    changed.extend(pair_owner_ids(doc, location.pair_index)?);
     Ok(changed)
 }
 
@@ -170,7 +195,7 @@ pub(super) fn transfer_authorship(
     location: &PairFeatureLocation,
     instance_id: &str,
 ) -> Result<(), String> {
-    let pair = doc.hardware.as_ref().unwrap().pairs[location.pair_index].clone();
+    let pair = pair_at(doc, location.pair_index)?.clone();
     let feature = &pair.features[location.feature_index];
     if feature.author != instance_id {
         return Ok(());
@@ -184,7 +209,7 @@ pub(super) fn transfer_authorship(
     let other_visible = feature_visible_value(&pair, feature, &other)?.ok_or_else(|| {
         format!("Physical instance {other:?} has no linked geometry to author the feature.")
     })?;
-    let pair = &mut doc.hardware.as_mut().unwrap().pairs[location.pair_index];
+    let pair = pair_mut_at(doc, location.pair_index)?;
     let feature = &mut pair.features[location.feature_index];
     feature.value = other_visible;
     feature.author = other;
@@ -207,7 +232,7 @@ pub(super) fn rejoin_feature_member(
     if location.state == MechanicalFeatureState::Linked {
         return Ok(Vec::new());
     }
-    let pair = doc.hardware.as_ref().unwrap().pairs[location.pair_index].clone();
+    let pair = pair_at(doc, location.pair_index)?.clone();
     if !pair
         .members
         .iter()
@@ -260,14 +285,14 @@ pub(super) fn rejoin_feature_member(
         })?,
     };
     {
-        let pair = &mut doc.hardware.as_mut().unwrap().pairs[location.pair_index];
+        let pair = pair_mut_at(doc, location.pair_index)?;
         let feature = &mut pair.features[location.feature_index];
         feature.value = source_value;
         feature.author = source_instance_id.to_string();
         features::rejoin_member(pair, instance_id, feature_id)?;
     }
     let derived = {
-        let pair = &doc.hardware.as_ref().unwrap().pairs[location.pair_index];
+        let pair = pair_at(doc, location.pair_index)?;
         let feature = &pair.features[location.feature_index];
         if let Some(derived) = features::counterpart(pair, feature, source_instance_id)? {
             Some(derived)
@@ -307,7 +332,7 @@ pub(super) fn rejoin_feature_member(
     // The pair owns the rejoined feature again, so the half's local copy must go:
     // a `Linked` member stores no geometry of its own.
     let member_feature_id = {
-        let pair = &doc.hardware.as_ref().unwrap().pairs[location.pair_index];
+        let pair = pair_at(doc, location.pair_index)?;
         feature_member_id(&pair.features[location.feature_index], instance_id)
             .map(str::to_string)
             .ok_or_else(|| {
@@ -323,7 +348,7 @@ pub(super) fn rejoin_feature_member(
         instance_id.to_string(),
         source_instance_id.to_string(),
     ];
-    changed.extend(pair_owner_ids(doc, location.pair_index));
+    changed.extend(pair_owner_ids(doc, location.pair_index)?);
     Ok(changed)
 }
 
@@ -369,11 +394,11 @@ pub(super) fn feature_visible_value(
 }
 
 /// The pair and both member instances a pair-record change touched.
-pub(super) fn pair_owner_ids(doc: &ProjectDoc, pair_index: usize) -> Vec<String> {
-    let pair = &doc.hardware.as_ref().unwrap().pairs[pair_index];
+pub(super) fn pair_owner_ids(doc: &ProjectDoc, pair_index: usize) -> Result<Vec<String>, String> {
+    let pair = pair_at(doc, pair_index)?;
     let mut ids = vec![pair.id.clone()];
     ids.extend(pair.members.iter().cloned());
-    ids
+    Ok(ids)
 }
 
 /// The durable ids one configuration carries for a feature kind.
@@ -381,12 +406,12 @@ pub(super) fn feature_ids(
     configuration: &MechanicalConfiguration,
     kind: MechanicalFeatureKind,
 ) -> std::collections::BTreeSet<String> {
-    let ids = match kind {
+    match kind {
         MechanicalFeatureKind::Mount => configuration
             .mounts
             .iter()
             .map(|mount| mount.id.clone())
-            .collect::<Vec<_>>(),
+            .collect(),
         MechanicalFeatureKind::ClosureMount => configuration
             .closure_mounts
             .iter()
@@ -405,8 +430,7 @@ pub(super) fn feature_ids(
             .flat_map(|layout| layout.supports.iter())
             .map(|anchor| anchor.id.clone())
             .collect(),
-    };
-    ids.into_iter().collect()
+    }
 }
 
 pub(super) fn find_feature_value(

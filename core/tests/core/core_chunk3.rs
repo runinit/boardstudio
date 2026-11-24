@@ -41,10 +41,7 @@ fn pcb_readiness_checks_pads_outlines_and_thickness() {
         traces: vec![],
         vias: vec![],
     });
-    let (bad, _) = scene(engine.handle(CoreRequest::Open {
-        id: "bad".into(),
-        document: doc.clone(),
-    }));
+    let (bad, _) = scene(engine.open(doc.clone()));
     assert!(!bad.readiness.pcb);
     assert!(bad.findings.iter().any(|f| f.id == "board:board:thickness"));
     assert!(
@@ -60,10 +57,7 @@ fn pcb_readiness_checks_pads_outlines_and_thickness() {
     doc.boards[0].outline_ids = vec!["edge".into()];
     doc.boards[0].thickness = 1.6;
     doc.nets[0].pins[0].pad_id = "pad1".into();
-    let (good, _) = scene(engine.handle(CoreRequest::Open {
-        id: "good".into(),
-        document: doc,
-    }));
+    let (good, _) = scene(engine.open(doc));
     assert!(good.readiness.pcb);
 }
 
@@ -85,7 +79,7 @@ fn empty_board_subset_blocks_pcb() {
         outline_ids: vec!["cut".into()],
         ..fixture::board("board", "Board")
     });
-    let (scene, _) = scene(engine.handle(fixture::open(doc)));
+    let (scene, _) = scene(engine.open(doc));
     assert!(!scene.contours.is_empty());
     assert!(scene.board_contours[0].contours.is_empty());
     assert!(!scene.readiness.pcb);
@@ -124,7 +118,7 @@ fn authored_case_geometry_ignores_missing_material_metadata() {
         gasket: None,
     });
     let mut engine = CoreEngine::new();
-    let (scene, document) = scene(engine.handle(fixture::open(doc)));
+    let (scene, document) = scene(engine.open(doc));
     assert!(!scene.board_readiness[0].case_ready);
     assert!(
         scene
@@ -136,18 +130,15 @@ fn authored_case_geometry_ignores_missing_material_metadata() {
         &document, &scene, "left"
     ));
 
-    let reply = engine.handle(CoreRequest::PrepareCase {
-        id: "prepare".into(),
-        ir: CaseAssemblyIR {
+    let reply = CoreEngine::prepare_case(&CaseAssemblyIR {
+        revision: document.revision,
+        bodies: vec![CaseIR {
             revision: document.revision,
-            bodies: vec![CaseIR {
-                revision: document.revision,
-                body: document.case_bodies[0].clone(),
-                contours: scene.board_contours[0].contours.clone(),
-            }],
-        },
+            body: document.case_bodies[0].clone(),
+            contours: scene.board_contours[0].contours.clone(),
+        }],
     });
-    assert!(matches!(reply, CoreReply::CasePrepared { .. }));
+    assert!(reply.is_ok());
 }
 
 #[test]
@@ -182,7 +173,7 @@ fn add_part_accepts_legacy_payload_without_optional_placement_fields() {
 #[test]
 fn new_matrix_rejects_out_of_bounds_edits() {
     let mut engine = CoreEngine::new();
-    engine.handle(fixture::open(matrix_doc()));
+    engine.open(matrix_doc()).unwrap();
     let mut value = matrix(1, 1);
     {
         let values = vec![Vec2::default(); 2];
@@ -197,7 +188,7 @@ fn new_matrix_rejects_out_of_bounds_edits() {
         }
     }
     assert!(
-        matches!(engine.handle(edit(0, EditPhase::Commit, EditOperation::SetMatrix { matrix: value.clone(), definitions: None })), CoreReply::Error { message, .. } if message == "layout list exceeds axis count")
+        matches!(engine.commit_edit(edit(0, EditPhase::Commit, EditOperation::SetMatrix { matrix: value.clone(), definitions: None })), Err(message) if message == "layout list exceeds axis count")
     );
     value.row_layout.clear();
     value.cells = vec![MatrixCell {
@@ -216,7 +207,7 @@ fn new_matrix_rejects_out_of_bounds_edits() {
         assemblies: vec![],
     }];
     assert!(
-        matches!(engine.handle(edit(0, EditPhase::Commit, EditOperation::SetMatrix { matrix: value, definitions: None })), CoreReply::Error { message, .. } if message == "invalid or duplicate cell coordinate")
+        matches!(engine.commit_edit(edit(0, EditPhase::Commit, EditOperation::SetMatrix { matrix: value, definitions: None })), Err(message) if message == "invalid or duplicate cell coordinate")
     );
 }
 
@@ -236,10 +227,10 @@ fn matrix_targets_board_and_preview_is_scoped() {
         outline_ids: vec!["right-edge".into()],
         ..fixture::board("right", "Right")
     });
-    engine.handle(fixture::open(doc));
+    engine.open(doc).unwrap();
     let mut target = matrix(1, 2);
     target.board_id = Some("right".into());
-    let preview = preview(engine.handle(edit(
+    let preview = preview(engine.apply_edit(edit(
         0,
         EditPhase::Preview,
         fixture::set_matrix(target.clone()),
@@ -248,15 +239,8 @@ fn matrix_targets_board_and_preview_is_scoped() {
     assert!(preview.board_contours[0].contours.is_empty());
     assert!(preview.board_readiness[1].pcb);
     assert!(!preview.board_readiness[0].pcb);
-    assert!(
-        scene(engine.handle(CoreRequest::Snapshot {
-            id: "snapshot".into()
-        }))
-        .1
-        .parts
-        .is_empty()
-    );
-    let (_, placed) = scene(engine.handle(edit(
+    assert!(scene(engine.snapshot()).1.parts.is_empty());
+    let (_, placed) = scene(engine.commit_edit(edit(
         0,
         EditPhase::Commit,
         fixture::set_matrix(target.clone()),
@@ -270,43 +254,37 @@ fn matrix_targets_board_and_preview_is_scoped() {
     let mut edit_matrix = target;
     edit_matrix.board_id = None;
     let (_, updated) =
-        scene(engine.handle(edit(1, EditPhase::Commit, fixture::set_matrix(edit_matrix))));
+        scene(engine.commit_edit(edit(1, EditPhase::Commit, fixture::set_matrix(edit_matrix))));
     assert_eq!(updated.matrices[0].board_id.as_deref(), Some("right"));
     assert_eq!(updated.boards[1].part_ids.len(), 2);
     let mut invalid = matrix(1, 1);
     invalid.board_id = Some("missing".into());
-    assert!(matches!(
-        engine.handle(edit(
-            2,
-            EditPhase::Commit,
-            EditOperation::SetMatrix {
-                matrix: invalid,
-                definitions: None,
-            }
-        )),
-        CoreReply::Error { .. }
-    ));
+    assert!(
+        engine
+            .commit_edit(edit(
+                2,
+                EditPhase::Commit,
+                EditOperation::SetMatrix {
+                    matrix: invalid,
+                    definitions: None,
+                }
+            ))
+            .is_err()
+    );
 }
 
 #[test]
 fn matrix_generates_stable_parts_and_one_undo_step() {
     let mut engine = CoreEngine::new();
-    engine.handle(fixture::open(matrix_doc()));
-    let preview = preview(engine.handle(edit(
+    engine.open(matrix_doc()).unwrap();
+    let preview = preview(engine.apply_edit(edit(
         0,
         EditPhase::Preview,
         fixture::set_matrix(matrix(2, 2)),
     )));
     assert_eq!(preview.transforms.len(), 4);
-    assert!(
-        scene(engine.handle(CoreRequest::Snapshot {
-            id: "snapshot".into()
-        }))
-        .1
-        .parts
-        .is_empty()
-    );
-    let (committed_scene, doc) = scene(engine.handle(edit(
+    assert!(scene(engine.snapshot()).1.parts.is_empty());
+    let (committed_scene, doc) = scene(engine.commit_edit(edit(
         0,
         EditPhase::Commit,
         fixture::set_matrix(matrix(2, 2)),
@@ -327,7 +305,7 @@ fn matrix_generates_stable_parts_and_one_undo_step() {
     };
     assert_eq!(part_ids.len(), 4);
     assert!(committed_scene.readiness.outline);
-    let (undone, doc) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    let (undone, doc) = scene(engine.undo());
     assert_eq!(undone.revision, 2);
     assert!(doc.parts.is_empty());
 }
@@ -339,8 +317,8 @@ fn replacing_matrix_switch_remaps_existing_terminal_nets_and_undoes() {
         "id": id, "number": (i + 1).to_string(), "at": {"x": i, "y": 0}, "size": {"x": 1, "y": 1}, "shape": "circle"
     })).unwrap()).collect();
     let mut engine = CoreEngine::new();
-    engine.handle(fixture::open(doc));
-    let (_, mut placed) = scene(engine.handle(edit(
+    engine.open(doc).unwrap();
+    let (_, mut placed) = scene(engine.commit_edit(edit(
         0,
         EditPhase::Commit,
         fixture::set_matrix(matrix(1, 1)),
@@ -364,10 +342,7 @@ fn replacing_matrix_switch_remaps_existing_terminal_nets_and_undoes() {
         }],
     });
     placed.boards[0].net_ids.push("external-column".into());
-    engine.handle(CoreRequest::Open {
-        id: "reopen".into(),
-        document: placed.clone(),
-    });
+    engine.open(placed.clone()).unwrap();
     let mut replacement = placed.definitions[0].clone();
     replacement.id = "new-switch".into();
     replacement.pads[0].id = "new-row".into();
@@ -386,18 +361,19 @@ fn replacing_matrix_switch_remaps_existing_terminal_nets_and_undoes() {
     incoming.definition_id = replacement.id.clone();
     let mut conflicting = replacement.clone();
     conflicting.matrix_terminals.as_mut().unwrap().column = "from".into();
-    assert!(matches!(
-        engine.handle(edit(
-            placed.revision,
-            EditPhase::Commit,
-            EditOperation::SetMatrix {
-                matrix: incoming.clone(),
-                definitions: Some(vec![conflicting])
-            }
-        )),
-        CoreReply::Error { .. }
-    ));
-    let (_, changed) = scene(engine.handle(edit(
+    assert!(
+        engine
+            .commit_edit(edit(
+                placed.revision,
+                EditPhase::Commit,
+                EditOperation::SetMatrix {
+                    matrix: incoming.clone(),
+                    definitions: Some(vec![conflicting])
+                }
+            ))
+            .is_err()
+    );
+    let (_, changed) = scene(engine.commit_edit(edit(
         placed.revision,
         EditPhase::Commit,
         EditOperation::SetMatrix {
@@ -417,7 +393,7 @@ fn replacing_matrix_switch_remaps_existing_terminal_nets_and_undoes() {
             pad_id: "new-row".into()
         }]
     );
-    let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    let (_, undone) = scene(engine.undo());
     assert_eq!(undone.nets, placed.nets);
     assert_eq!(undone.parts, placed.parts);
 }
@@ -425,8 +401,8 @@ fn replacing_matrix_switch_remaps_existing_terminal_nets_and_undoes() {
 #[test]
 fn grouped_matrix_cell_actions_are_atomic_across_unlinked_matrices() {
     let mut engine = CoreEngine::new();
-    engine.handle(fixture::open(matrix_doc()));
-    let (_, doc) = scene(engine.handle(edit(
+    engine.open(matrix_doc()).unwrap();
+    let (_, doc) = scene(engine.commit_edit(edit(
         0,
         EditPhase::Commit,
         fixture::set_matrix(matrix(1, 2)),
@@ -434,14 +410,14 @@ fn grouped_matrix_cell_actions_are_atomic_across_unlinked_matrices() {
     let mut other = matrix(1, 2);
     other.id = "other".into();
     other.origin.x = 60.0;
-    let (_, before) = scene(engine.handle(edit(
+    let (_, before) = scene(engine.commit_edit(edit(
         doc.revision,
         EditPhase::Commit,
         fixture::set_matrix(other),
     )));
     let operation = serde_json::from_value(serde_json::json!({"kind":"set-matrix-cells-enabled", "cells":{"main":[[0,0]],"other":[[0,1]]}, "enabled":false})).expect("Core must support grouped matrix enable changes atomically");
     let (geometry, disabled) =
-        scene(engine.handle(edit(before.revision, EditPhase::Commit, operation)));
+        scene(engine.commit_edit(edit(before.revision, EditPhase::Commit, operation)));
     assert!(
         geometry
             .matrix_scenes
@@ -455,7 +431,8 @@ fn grouped_matrix_cell_actions_are_atomic_across_unlinked_matrices() {
             .all(|matrix| matrix.part_ids.len() == 1)
     );
     let operation = serde_json::from_value(serde_json::json!({"kind":"set-matrix-cells-enabled", "cells":{"main":[[0,0]],"other":[[0,1]]}, "enabled":true})).unwrap();
-    let (_, enabled) = scene(engine.handle(edit(disabled.revision, EditPhase::Commit, operation)));
+    let (_, enabled) =
+        scene(engine.commit_edit(edit(disabled.revision, EditPhase::Commit, operation)));
     assert!(
         enabled
             .matrices
@@ -464,23 +441,20 @@ fn grouped_matrix_cell_actions_are_atomic_across_unlinked_matrices() {
     );
     let operation = serde_json::from_value(serde_json::json!({"kind":"remove-selected-matrix-cells", "cells":{"main":[[0,0]],"other":[[0,1]]}})).expect("Core must delete a grouped selection atomically");
     let (geometry, deleted) =
-        scene(engine.handle(edit(enabled.revision, EditPhase::Commit, operation)));
+        scene(engine.commit_edit(edit(enabled.revision, EditPhase::Commit, operation)));
     assert!(
         geometry
             .matrix_scenes
             .iter()
             .all(|matrix| matrix.cells.len() == 1)
     );
-    let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    let (_, undone) = scene(engine.undo());
     assert_eq!(undone.matrices, enabled.matrices);
     assert_eq!(undone.parts, enabled.parts);
-    let (_, redone) = scene(engine.handle(CoreRequest::Redo { id: "redo".into() }));
+    let (_, redone) = scene(engine.redo());
     assert_eq!(redone.matrices, deleted.matrices);
     let document = serde_json::from_value(serde_json::to_value(&deleted).unwrap()).unwrap();
-    let (geometry, _) = scene(engine.handle(CoreRequest::Open {
-        id: "reopen".into(),
-        document,
-    }));
+    let (geometry, _) = scene(engine.open(document));
     assert!(
         geometry
             .matrix_scenes
@@ -495,9 +469,9 @@ fn undo_retains_only_the_latest_hundred_commits() {
     let mut seed = ProjectDoc::empty("bounded-history", "0");
     seed.parts
         .push(fixture::part("part-0", "catalog:unused", "P0"));
-    let (_, mut document) = scene(engine.handle(fixture::open(seed)));
+    let (_, mut document) = scene(engine.open(seed));
     for index in 1..=101 {
-        (_, document) = scene(engine.handle(edit(
+        (_, document) = scene(engine.commit_edit(edit(
             document.revision,
             EditPhase::Commit,
             EditOperation::MoveParts {
@@ -512,23 +486,16 @@ fn undo_retains_only_the_latest_hundred_commits() {
         )));
     }
     for _ in 0..100 {
-        (_, document) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+        (_, document) = scene(engine.undo());
     }
     assert_eq!(document.parts[0].pose.at.x, 1.0);
-    assert!(matches!(
-        engine.handle(CoreRequest::Undo {
-            id: "too-old".into()
-        }),
-        CoreReply::Error { .. }
-    ));
+    assert!(engine.undo().is_err());
     for _ in 0..100 {
-        (_, document) = scene(engine.handle(CoreRequest::Redo { id: "redo".into() }));
+        (_, document) = scene(engine.redo());
     }
     assert_eq!(document.parts[0].pose.at.x, 101.0);
-    (_, document) = scene(engine.handle(CoreRequest::Undo {
-        id: "branch".into(),
-    }));
-    scene(engine.handle(edit(
+    (_, document) = scene(engine.undo());
+    scene(engine.commit_edit(edit(
         document.revision,
         EditPhase::Commit,
         EditOperation::MoveParts {
@@ -538,18 +505,7 @@ fn undo_retains_only_the_latest_hundred_commits() {
             }],
         },
     )));
-    assert!(matches!(
-        engine.handle(CoreRequest::Redo {
-            id: "no-redo".into()
-        }),
-        CoreReply::Error { .. }
-    ));
-    scene(engine.handle(CoreRequest::Open {
-        id: "fresh".into(),
-        document: ProjectDoc::empty("fresh", "Fresh"),
-    }));
-    assert!(matches!(
-        engine.handle(CoreRequest::Undo { id: "empty".into() }),
-        CoreReply::Error { .. }
-    ));
+    assert!(engine.redo().is_err());
+    scene(engine.open(ProjectDoc::empty("fresh", "Fresh")));
+    assert!(engine.undo().is_err());
 }

@@ -40,8 +40,14 @@ fn open_preserves_generator_and_copper() {
         net_id: None,
     });
     let mut engine = CoreEngine::new();
-    let json = serde_json::to_string(&fixture::open(doc)).unwrap();
-    let (_, reopened) = scene(serde_json::from_str(&engine.request(&json)).unwrap());
+    let json =
+        serde_json::to_string(&serde_json::json!({"kind": "open", "id": "open", "document": doc}))
+            .unwrap();
+    let reply: CoreReply = serde_json::from_str(&engine.request(&json)).unwrap();
+    let CoreReply::Scene { document, .. } = reply else {
+        panic!("expected scene: {reply:?}")
+    };
+    let reopened = *document;
     assert_eq!(
         reopened.definitions[0].generator.as_ref().unwrap().source,
         "builtin:mx-switch"
@@ -77,9 +83,9 @@ fn added_part_joins_board_and_envelope_then_removes_cleanly() {
         outline_ids: vec!["env".into()],
         ..fixture::board("board", "Board")
     });
-    engine.handle(fixture::open(doc));
+    engine.open(doc).unwrap();
     let part = fixture::part("k1", "switch", "SW1");
-    let (added, doc) = scene(engine.handle(edit(
+    let (added, doc) = scene(engine.commit_edit(edit(
         0,
         EditPhase::Commit,
         EditOperation::AddPart {
@@ -95,7 +101,7 @@ fn added_part_joins_board_and_envelope_then_removes_cleanly() {
         panic!("expected envelope")
     };
     assert_eq!(part_ids, &vec!["k1"]);
-    let (_, removed) = scene(engine.handle(edit(
+    let (_, removed) = scene(engine.commit_edit(edit(
         1,
         EditPhase::Commit,
         EditOperation::RemoveParts {
@@ -169,7 +175,7 @@ fn invalid_definition_geometry_blocks_own_board() {
         rotation: None,
         net_id: None,
     });
-    let (scene, _) = scene(engine.handle(fixture::open(doc)));
+    let (scene, _) = scene(engine.open(doc));
     assert!(scene.board_readiness[0].pcb);
     assert!(!scene.board_readiness[1].pcb);
     for suffix in [
@@ -216,7 +222,7 @@ fn case_readiness_uses_its_board() {
         pcb_source: None,
         gasket: None,
     });
-    let (valid_scene, doc) = scene(engine.handle(fixture::open(doc)));
+    let (valid_scene, doc) = scene(engine.open(doc));
     assert!(!valid_scene.readiness.pcb);
     assert!(valid_scene.board_readiness[0].pcb);
     assert!(!valid_scene.board_readiness[1].pcb);
@@ -252,10 +258,7 @@ fn case_readiness_uses_its_board() {
     ));
     let mut invalid = doc;
     invalid.case_bodies[0].thickness = -1.0;
-    let (invalid_scene, invalid) = scene(engine.handle(CoreRequest::Open {
-        id: "invalid".into(),
-        document: invalid,
-    }));
+    let (invalid_scene, invalid) = scene(engine.open(invalid));
     assert!(!invalid_scene.board_readiness[0].case_ready);
     assert!(invalid_scene.board_readiness[0].pcb);
     assert!(!boardstudio_core::authored_case_geometry_ready(
@@ -303,10 +306,7 @@ fn case_mounts_walls_and_gasket_are_validated() {
             depth: 3.0,
         }),
     });
-    let (bad, _) = scene(engine.handle(CoreRequest::Open {
-        id: "bad".into(),
-        document: doc.clone(),
-    }));
+    let (bad, _) = scene(engine.open(doc.clone()));
     assert!(bad.readiness.pcb);
     assert!(!bad.readiness.case_ready);
     for id in [
@@ -321,10 +321,7 @@ fn case_mounts_walls_and_gasket_are_validated() {
     doc.case_bodies[0].mounts.as_mut().unwrap()[0].boss_diameter = Some(5.0);
     doc.case_bodies[0].mounts.as_mut().unwrap()[0].height = Some(4.0);
     doc.case_bodies[0].gasket.as_mut().unwrap().depth = 1.0;
-    let (good, document) = scene(engine.handle(CoreRequest::Open {
-        id: "good".into(),
-        document: doc,
-    }));
+    let (good, document) = scene(engine.open(doc));
     assert!(good.readiness.case_ready);
     let wire = serde_json::to_value(&document).unwrap();
     assert_eq!(wire["caseBodies"][0]["wallHeight"], 8.0);
@@ -334,8 +331,8 @@ fn case_mounts_walls_and_gasket_are_validated() {
 #[test]
 fn matrix_duplicate_allocates_new_member_ids() {
     let mut engine = CoreEngine::new();
-    engine.handle(fixture::open(matrix_doc()));
-    let (_, original) = scene(engine.handle(edit(
+    engine.open(matrix_doc()).unwrap();
+    let (_, original) = scene(engine.commit_edit(edit(
         0,
         EditPhase::Commit,
         fixture::set_matrix(matrix(1, 1)),
@@ -343,7 +340,8 @@ fn matrix_duplicate_allocates_new_member_ids() {
     let mut duplicate = original.matrices[0].clone();
     duplicate.id = "copy".into();
     duplicate.origin.x = 30.0;
-    let (_, doc) = scene(engine.handle(edit(1, EditPhase::Commit, fixture::set_matrix(duplicate))));
+    let (_, doc) =
+        scene(engine.commit_edit(edit(1, EditPhase::Commit, fixture::set_matrix(duplicate))));
     assert_eq!(doc.matrices[0].part_ids, vec!["matrix/main/r0c0"]);
     assert_eq!(doc.matrices[1].part_ids, vec!["matrix/copy/r0c0"]);
     assert_ne!(doc.parts[0].reference, doc.parts[1].reference);
@@ -352,8 +350,8 @@ fn matrix_duplicate_allocates_new_member_ids() {
 #[test]
 fn matrix_shrink_prunes_net_pins_and_stale_members() {
     let mut engine = CoreEngine::new();
-    engine.handle(fixture::open(matrix_doc()));
-    let (_, mut doc) = scene(engine.handle(edit(
+    engine.open(matrix_doc()).unwrap();
+    let (_, mut doc) = scene(engine.commit_edit(edit(
         0,
         EditPhase::Commit,
         fixture::set_matrix(matrix(1, 2)),
@@ -373,12 +371,9 @@ fn matrix_shrink_prunes_net_pins_and_stale_members() {
         offset: Vec2 { x: 19.0, y: 0.0 },
         rotation: 0.0,
     });
-    let (_, doc) = scene(engine.handle(CoreRequest::Open {
-        id: "with-net".into(),
-        document: doc,
-    }));
+    let (_, doc) = scene(engine.open(doc));
     assert_eq!(doc.nets[0].pins.len(), 1);
-    let (_, shrunk) = scene(engine.handle(edit(
+    let (_, shrunk) = scene(engine.commit_edit(edit(
         1,
         EditPhase::Commit,
         fixture::set_matrix(matrix(1, 1)),
@@ -406,10 +401,10 @@ fn matrix_accepts_stable_ergogen_catalogue_ids() {
         "generator": {"source": "ceoloide/switch_mx", "version": "bundled-1", "parameters": {}}
     })).unwrap();
     let mut engine = CoreEngine::new();
-    engine.handle(fixture::open(matrix_doc()));
+    engine.open(matrix_doc()).unwrap();
     let mut incoming = matrix(1, 1);
     incoming.definition_id = definition.id.clone();
-    let reply = engine.handle(edit(
+    let reply = engine.commit_edit(edit(
         0,
         EditPhase::Commit,
         EditOperation::SetMatrix {
@@ -427,7 +422,7 @@ fn matrix_accepts_stable_ergogen_catalogue_ids() {
 #[test]
 fn matrix_custom_splay_origin_survives_export_and_resize() {
     let mut engine = CoreEngine::new();
-    engine.handle(fixture::open(matrix_doc()));
+    engine.open(matrix_doc()).unwrap();
     let mut value = matrix(2, 3);
     value.pitch = Vec2 { x: 20.0, y: 20.0 };
     {
@@ -459,7 +454,8 @@ fn matrix_custom_splay_origin_survives_export_and_resize() {
             record.splay_origin = value;
         }
     }
-    let (_, doc) = scene(engine.handle(edit(0, EditPhase::Commit, fixture::set_matrix(value))));
+    let (_, doc) =
+        scene(engine.commit_edit(edit(0, EditPhase::Commit, fixture::set_matrix(value))));
     let key = doc
         .parts
         .iter()
@@ -475,7 +471,8 @@ fn matrix_custom_splay_origin_survives_export_and_resize() {
     );
     let mut value = reopened.matrices[0].clone();
     value.columns = 1;
-    let (_, shrunk) = scene(engine.handle(edit(1, EditPhase::Commit, fixture::set_matrix(value))));
+    let (_, shrunk) =
+        scene(engine.commit_edit(edit(1, EditPhase::Commit, fixture::set_matrix(value))));
     assert_eq!(
         shrunk.matrices[0]
             .column_layout
@@ -484,7 +481,7 @@ fn matrix_custom_splay_origin_survives_export_and_resize() {
             .collect::<Vec<_>>(),
         vec![Vec2::default()]
     );
-    let (_, restored) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    let (_, restored) = scene(engine.undo());
     assert_eq!(
         restored.matrices[0]
             .column_layout
@@ -502,8 +499,8 @@ fn matrix_custom_splay_origin_survives_export_and_resize() {
 #[test]
 fn deleting_matrix_row_preserves_surviving_part_and_binding_identity() {
     let mut engine = CoreEngine::new();
-    engine.handle(fixture::open(matrix_doc()));
-    let (_, mut doc) = scene(engine.handle(edit(
+    engine.open(matrix_doc()).unwrap();
+    let (_, mut doc) = scene(engine.commit_edit(edit(
         0,
         EditPhase::Commit,
         fixture::set_matrix(matrix(3, 1)),
@@ -522,15 +519,12 @@ fn deleting_matrix_row_preserves_surviving_part_and_binding_identity() {
             keycode: "A".into(),
         },
     );
-    engine.handle(CoreRequest::Open {
-        id: "reopen".into(),
-        document: doc,
-    });
+    engine.open(doc).unwrap();
     let operation = serde_json::from_value(
         serde_json::json!({"kind":"remove-matrix-row","matrixId":"main","row":1}),
     )
     .expect("Core must remove a row rather than only shrink the last row");
-    let (_, doc) = scene(engine.handle(edit(1, EditPhase::Commit, operation)));
+    let (_, doc) = scene(engine.commit_edit(edit(1, EditPhase::Commit, operation)));
     assert_eq!(doc.matrices[0].rows, 2);
     let survivor = doc
         .parts

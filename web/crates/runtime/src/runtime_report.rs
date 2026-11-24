@@ -1,3 +1,4 @@
+use boardstudio_application::{Durability, Effect, TerminalOutcome};
 use std::cell::RefCell;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -70,6 +71,64 @@ pub(crate) fn take_notifications(
 ) -> Vec<RuntimeNotification> {
     std::mem::take(&mut *notifications.borrow_mut())
 }
+
+// Status text for a persist completion: newly saved or newly failed
+// durability, else any settled persistence failure. `Runtime::complete` and
+// the native persist test share this so both stay in lockstep.
+pub(crate) fn persist_report(
+    previous: &Durability,
+    next: &Durability,
+    snapshot_changed: bool,
+    effects: &[Effect],
+) -> Option<RuntimeReport> {
+    match next {
+        Durability::Saved { .. } if snapshot_changed || next != previous => {
+            Some(RuntimeReport::status("Saved locally.").transient())
+        }
+        Durability::Failed { reason, .. } if next != previous => {
+            Some(RuntimeReport::status(reason))
+        }
+        _ => effects.iter().find_map(|effect| match effect {
+            Effect::Settled {
+                outcome: TerminalOutcome::PersistenceFailed(reason),
+                ..
+            } => Some(RuntimeReport::status(reason)),
+            _ => None,
+        }),
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PersistDispatch {
+    DurabilityOnly,
+    Quiet,
+    Refresh,
+}
+
+/// Shared subscriber dispatch decision after a persist completion.
+pub(crate) fn persist_dispatch(
+    same_lifecycle: bool,
+    snapshot_changed: bool,
+    same_scope: bool,
+    durability_changed: bool,
+    has_report: bool,
+) -> PersistDispatch {
+    if same_lifecycle && !snapshot_changed && same_scope {
+        if durability_changed {
+            PersistDispatch::DurabilityOnly
+        } else if !has_report {
+            PersistDispatch::Quiet
+        } else {
+            PersistDispatch::Refresh
+        }
+    } else {
+        PersistDispatch::Refresh
+    }
+}
+
+#[cfg(test)]
+#[path = "runtime/persist_notification_tests.rs"]
+mod persist_notification_tests;
 
 #[cfg(test)]
 mod tests {

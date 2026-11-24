@@ -9,5 +9,9 @@ description = "BoardStudio Core canonical mirror projection."
 [dependencies]
 boardstudio-model = { path = "../model" }
 
+[dev-dependencies]
+# float_roundtrip matches the page runtime so format-8 JSON round-trips bit-exactly.
+serde_json = { version = "1", features = ["float_roundtrip"] }
+
 [lints]
 workspace = true

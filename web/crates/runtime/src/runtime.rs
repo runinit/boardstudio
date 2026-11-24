@@ -373,6 +373,10 @@ struct TestRuntimeState {
 }
 
 #[cfg(any(test, feature = "test-support"))]
+#[cfg_attr(
+    feature = "test-support",
+    allow(clippy::unwrap_used, clippy::expect_used)
+)]
 impl Runtime {
     pub fn set_case_gesture_preview_executor_test(
         &self,
@@ -720,8 +724,7 @@ impl Runtime {
     }
     pub fn operation(&self) -> OperationId {
         let id = self.next_operation.get();
-        self.next_operation
-            .set(id.checked_add(1).expect("operation identity exhausted"));
+        self.next_operation.set(id.saturating_add(1));
         OperationId(id)
     }
     pub fn scope(&self) -> Option<boardstudio_application::Scope> {
@@ -1053,5 +1056,9 @@ fn deliver(bytes: &[u8], filename: &str, media_type: Option<&str>) -> Result<(),
 }
 
 #[cfg(any(test, feature = "test-support"))]
+#[cfg_attr(
+    feature = "test-support",
+    allow(clippy::unwrap_used, clippy::expect_used)
+)]
 #[path = "test_hooks.rs"]
 pub mod test_hooks;

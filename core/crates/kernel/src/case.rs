@@ -102,7 +102,9 @@ fn prepare_body(ir: &CaseIR) -> Result<PreparedCaseIR, String> {
         let mut cavities = Vec::new();
         let mut gaskets = Vec::new();
         if !matches!(&ir.body.kind, CaseKind::Plate) {
-            let wall = ir.body.wall_thickness.expect("validated wall thickness");
+            let wall = ir.body.wall_thickness.ok_or_else(|| {
+                format!("Case body '{}' is missing its wall thickness", ir.body.id)
+            })?;
             cavities = offset_single(&outer, -wall, &ir.body.id)?;
             if let Some(gasket) = &ir.body.gasket {
                 let groove_outer = offset_single(&outer, -gasket.inset, &ir.body.id)?;
@@ -447,7 +449,8 @@ fn offset_shapes(
     id: &str,
 ) -> Result<Vec<Vec<Vec<IntPoint<i64>>>>, String> {
     let distance = scaled_distance(distance, id, "offset")?;
-    let style = outline_style(distance);
+    let style = outline_style(distance)
+        .ok_or_else(|| format!("Case body '{id}' miter offset is unavailable"))?;
     let result = paths
         .outline(&style)
         .map_err(|error| format!("Case body '{id}' contour offset failed: {error}"))?;
@@ -531,7 +534,8 @@ fn offset_single(path: &[Vec2], distance: f64, id: &str) -> Result<Vec<Vec<Vec2>
         })
         .collect::<Vec<_>>();
     let distance = scaled_distance(distance, id, "derived offset")?;
-    let style = outline_style(distance);
+    let style = outline_style(distance)
+        .ok_or_else(|| format!("Case body '{id}' miter offset is unavailable"))?;
     let shapes = scaled
         .outline(&style)
         .map_err(|error| format!("Case body '{id}' derived contour offset failed: {error}"))?;
@@ -562,13 +566,13 @@ fn scaled_distance(distance: f64, id: &str, label: &str) -> Result<i64, String> 
     Ok((distance * SCALE).round() as i64)
 }
 
-fn outline_style(offset: i64) -> IntOutlineStyle<i64> {
-    let miter = Angle::from_radians(MITER_LIMIT).expect("miter limit is a valid angle");
-    let min_turn = Angle::from_radians(MITER_MIN_TURN).expect("minimum turn is a valid angle");
-    IntOutlineStyle::new(offset)
-        .math(MathMode::Float)
-        .line_join(IntLineJoin::Miter(miter))
-        .miter_min_turn(min_turn)
+fn outline_style(offset: i64) -> Option<IntOutlineStyle<i64>> {
+    Some(
+        IntOutlineStyle::new(offset)
+            .math(MathMode::Float)
+            .line_join(IntLineJoin::Miter(Angle::from_radians(MITER_LIMIT)?))
+            .miter_min_turn(Angle::from_radians(MITER_MIN_TURN)?),
+    )
 }
 
 fn from_path(path: &[IntPoint<i64>]) -> Vec<Vec2> {

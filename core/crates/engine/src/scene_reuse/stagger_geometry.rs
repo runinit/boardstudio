@@ -36,12 +36,9 @@ fn first_column_stagger_preserves_rotated_precision_and_gap_wire() {
         changed.push("matrix".into());
         changed.sort();
         for value in [1.000_499_9, 1.000_500_1, -6.872_500_1, 29.124_499_9] {
-            let mut request = edit(0, stagger(0, value));
-            let CoreRequest::Edit { command, .. } = &mut request else {
-                unreachable!()
-            };
-            command.phase = EditPhase::Preview;
-            let CoreReply::Preview { scene, .. } = compare(&mut engine, &mut cold, request) else {
+            let Ok(EditOutcome::Preview(scene)) =
+                compare(&mut engine, &mut cold, preview_op(0, stagger(0, value)))
+            else {
                 panic!("expected a stagger preview");
             };
             assert_eq!(scene.changed_ids, changed);
@@ -62,19 +59,12 @@ fn first_column_stagger_preserves_rotated_precision_and_gap_wire() {
 
 #[test]
 fn stagger_reuses_only_matching_settled_preview_geometry_and_validation() {
-    for document in [fixture(), stagger_profile_document(true)] {
+    for document in [fixture(), stagger_document(Some(12))] {
         let (mut engine, mut cold) = open_preview_fixture(document);
         let accepted = engine.document.clone();
         let matrix = &accepted.matrices[0];
         let column = matrix.columns - 1;
-        let preview = |revision, column, value| {
-            let mut request = edit(revision, stagger(column, value));
-            let CoreRequest::Edit { command, .. } = &mut request else {
-                unreachable!()
-            };
-            command.phase = EditPhase::Preview;
-            request
-        };
+        let preview = |revision, column, value| preview_op(revision, stagger(column, value));
         let mut runs = engine.stagger_outline_projections.get();
         for (start, value, projected) in [
             (column, 1.25, true),
@@ -84,7 +74,7 @@ fn stagger_reuses_only_matching_settled_preview_geometry_and_validation() {
             (column / 2, -3.375, true),
             (column, 4.0, true),
         ] {
-            let CoreReply::Preview { scene, .. } =
+            let Ok(EditOutcome::Preview(scene)) =
                 compare(&mut engine, &mut cold, preview(0, start, value))
             else {
                 panic!("expected a stagger preview");
@@ -141,33 +131,20 @@ fn stagger_reuses_only_matching_settled_preview_geometry_and_validation() {
             panic!("expected a generated perimeter");
         };
         *margin += 1.0;
-        compare(
-            &mut engine,
-            &mut cold,
-            CoreRequest::Open {
-                id: "reopen".into(),
-                document: reopened,
-            },
-        );
+        let _ = compare(&mut engine, &mut cold, open_req(reopened));
         assert!(engine.stagger_preview.is_none());
         assert!(matches!(
             compare(&mut engine, &mut cold, preview(0, column, 4.0)),
-            CoreReply::Preview { .. }
+            Ok(EditOutcome::Preview(_))
         ));
         runs += 1;
         assert_eq!(engine.stagger_outline_projections.get(), runs);
         // A read between Preview and Commit may refresh the receipt but does
         // not change the current projection's inputs.
-        compare(
-            &mut engine,
-            &mut cold,
-            CoreRequest::Snapshot {
-                id: "snapshot".into(),
-            },
-        );
+        let _ = compare(&mut engine, &mut cold, ReuseOp::Snapshot);
         assert!(matches!(
             compare(&mut engine, &mut cold, edit(0, stagger(column, 4.0))),
-            CoreReply::Scene { scene, .. } if scene.revision == 1
+            Ok(EditOutcome::Committed(CommittedScene { scene, .. })) if scene.revision == 1
         ));
         assert_eq!(engine.stagger_outline_projections.get(), runs);
         assert!(engine.stagger_preview.is_none());
@@ -175,29 +152,19 @@ fn stagger_reuses_only_matching_settled_preview_geometry_and_validation() {
 
         assert!(matches!(
             compare(&mut engine, &mut cold, preview(1, column, 3.0)),
-            CoreReply::Preview { .. }
+            Ok(EditOutcome::Preview(_))
         ));
         assert!(engine.stagger_preview.is_some());
-        assert!(matches!(
-            compare(&mut engine, &mut cold, preview(0, column, 8.0)),
-            CoreReply::Error { revision: 1, .. }
-        ));
-        compare(
-            &mut engine,
-            &mut cold,
-            CoreRequest::Undo { id: "undo".into() },
-        );
+        assert!(compare(&mut engine, &mut cold, preview(0, column, 8.0)).is_err());
+        assert_eq!(engine.document.revision, 1);
+        let _ = compare(&mut engine, &mut cold, ReuseOp::Undo);
         assert!(engine.stagger_preview.is_none());
         assert!(matches!(
             compare(&mut engine, &mut cold, preview(2, column, 3.0)),
-            CoreReply::Preview { .. }
+            Ok(EditOutcome::Preview(_))
         ));
         assert!(engine.stagger_preview.is_some());
-        compare(
-            &mut engine,
-            &mut cold,
-            CoreRequest::Redo { id: "redo".into() },
-        );
+        let _ = compare(&mut engine, &mut cold, ReuseOp::Redo);
         assert!(engine.stagger_preview.is_none());
     }
 }

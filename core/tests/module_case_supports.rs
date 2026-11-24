@@ -1,5 +1,6 @@
 use crate::support::fixture::request;
 use crate::support::query;
+use crate::support::session::resolve_case;
 use boardstudio_core::CoreEngine;
 use serde_json::{Value, json};
 
@@ -10,9 +11,7 @@ fn document(supports: Value, above: bool) -> (Value, Value) {
         "id":"module-1","definitionId":"reference","hostBoardId":"host","hostFace":if above {"front"} else {"back"},"facingFace":"front",
         "at":{"x":0,"y":0},"rotation":0,"gap":3,"attachment":"case","mountSupports":supports
     }]);
-    doc["mechanical"] = json!({"boardId":"host","method":"printed","mount":"rigid","integratedPlateFrame":false,"bottomStyle":"shell",
-        "plateThickness":1.5,"plateFoamThickness":0,"pcbThickness":1.6,"bottomFoamThickness":0,"batteryHeight":0,"bottomThickness":2,
-        "plateToPcb":if above {0.5} else {3.5},"wallThickness":2,"clearance":0.2,"profiles":[],"mounts":[]});
+    doc["mechanical"] = query::rigid_mechanical("host", if above { 0.5 } else { 3.5 });
     let contours = json!([{"hole":false,"points":[{"x":-40,"y":-40},{"x":40,"y":-40},{"x":40,"y":40},{"x":-40,"y":40}]}]);
     (doc, contours)
 }
@@ -23,11 +22,7 @@ fn explicit_module_support_becomes_a_preparable_case_boss() {
         json!([{"mountId":"mh1","outerDiameter":6,"holeDiameter":2.2,"z":-1.8,"height":1}]),
         false,
     );
-    let resolved = request(
-        &mut CoreEngine::new(),
-        json!({"id":"case","kind":"resolve-mechanical","document":doc,"contours":contours}),
-    );
-    assert_eq!(resolved["kind"], "mechanical-resolved", "{resolved}");
+    let resolved = resolve_case(&mut CoreEngine::new(), "case", &doc, contours);
     let assembly = &resolved["assembly"];
     assert_eq!(
         assembly["generationBlocked"], false,
@@ -79,11 +74,7 @@ fn above_module_support_bridges_to_case_plate_and_prepares() {
         json!([{"mountId":"mh1","outerDiameter":6,"holeDiameter":2.2,"z":0.8,"height":1}]),
         true,
     );
-    let resolved = request(
-        &mut CoreEngine::new(),
-        json!({"id":"case","kind":"resolve-mechanical","document":doc,"contours":contours}),
-    );
-    assert_eq!(resolved["kind"], "mechanical-resolved", "{resolved}");
+    let resolved = resolve_case(&mut CoreEngine::new(), "case", &doc, contours);
     let assembly = &resolved["assembly"];
     assert_eq!(
         assembly["generationBlocked"], false,
@@ -118,11 +109,7 @@ fn above_module_support_bridges_to_case_plate_and_prepares() {
 #[test]
 fn case_attached_module_with_mounts_cannot_export_without_designer_supports() {
     let (doc, contours) = document(json!([]), false);
-    let resolved = request(
-        &mut CoreEngine::new(),
-        json!({"id":"case","kind":"resolve-mechanical","document":doc,"contours":contours}),
-    );
-    assert_eq!(resolved["kind"], "mechanical-resolved", "{resolved}");
+    let resolved = resolve_case(&mut CoreEngine::new(), "case", &doc, contours);
     let findings = resolved["assembly"]["diagnostics"].as_array().unwrap();
     assert!(
         findings
@@ -155,11 +142,7 @@ fn annular_support_must_have_uninterrupted_case_material_at_its_anchor_face() {
         .push(json!({"hole":true,"points":[
             {"x":1.8,"y":-0.2},{"x":2.3,"y":-0.2},{"x":2.3,"y":0.2},{"x":1.8,"y":0.2}
         ]}));
-    let resolved = request(
-        &mut CoreEngine::new(),
-        json!({"id":"case","kind":"resolve-mechanical","document":doc,"contours":contours}),
-    );
-    assert_eq!(resolved["kind"], "mechanical-resolved", "{resolved}");
+    let resolved = resolve_case(&mut CoreEngine::new(), "case", &doc, contours);
     let findings = resolved["assembly"]["diagnostics"].as_array().unwrap();
     assert!(
         findings

@@ -228,8 +228,8 @@ fn invalid_changes_error() {
             },
         },
     ] {
-        let reply = engine.handle(fixture::commit("bad", "bad", doc.revision, operation));
-        assert!(matches!(reply, CoreReply::Error { .. }), "{reply:?}");
+        let reply = engine.commit_edit(fixture::commit("bad", "bad", doc.revision, operation));
+        assert!(reply.is_err(), "{reply:?}");
         assert_eq!(snapshot(&mut engine), before);
     }
 
@@ -243,23 +243,23 @@ fn invalid_changes_error() {
 fn preview_and_undo() {
     let (mut engine, _, doc) = fixture(1, 3);
     let operation = stagger(0, 2.0);
-    let preview = match engine.handle(fixture::edit(
+    let preview = match engine.apply_edit(fixture::edit(
         "preview",
         "preview",
         doc.revision,
         EditPhase::Preview,
         operation.clone(),
     )) {
-        CoreReply::Preview { scene, .. } => scene,
+        Ok(EditOutcome::Preview(scene)) => scene,
         other => panic!("expected preview: {other:?}"),
     };
     assert_eq!(snapshot(&mut engine).matrices, doc.matrices);
     let (committed, after) = commit_edit(&mut engine, &doc, operation);
     assert_eq!(after.matrices[0].column_layout[0].stagger, 2.0);
     assert_eq!(preview.matrix_scenes, committed.matrix_scenes);
-    let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    let (_, undone) = scene(engine.undo());
     assert_eq!(undone.matrices, doc.matrices);
-    let (_, redone) = scene(engine.handle(CoreRequest::Redo { id: "redo".into() }));
+    let (_, redone) = scene(engine.redo());
     assert_eq!(redone.matrices, after.matrices);
 }
 

@@ -497,7 +497,9 @@ pub fn add_local_matrix_exception(doc: &mut ProjectDoc, mirror_id: &str) -> Resu
             layout.matrix_ids.iter().any(|id| id == mirror_id) && layout.mirror_link.is_some()
         })
         .ok_or_else(|| format!("Matrix {mirror_id} is not a linked mirror member"))?;
-    let link = layout.mirror_link.as_mut().expect("linked mirror");
+    let Some(link) = layout.mirror_link.as_mut() else {
+        return Err(format!("Matrix {mirror_id} is not a linked mirror member"));
+    };
     if link.exceptions.iter().any(|exception| {
         exception.kind == MirroredItemKind::Matrix && exception.mirror_id == mirror_id
     }) {

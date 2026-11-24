@@ -192,7 +192,11 @@ pub fn embed(
             });
         }
     }
-    let board = doc.boards.iter_mut().find(|b| b.id == board_id).unwrap();
+    let board = doc
+        .boards
+        .iter_mut()
+        .find(|b| b.id == board_id)
+        .ok_or_else(|| format!("Circuit board {board_id} is unavailable"))?;
     board.part_ids.extend(part_ids.values().cloned());
     for net in net_ids.values() {
         if !board.net_ids.contains(net) {

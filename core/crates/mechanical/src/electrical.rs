@@ -97,7 +97,7 @@ fn add_net(nets: &mut BTreeMap<String, Net>, prefix: &str, suffix: &str, pins: V
         .extend(pins);
 }
 fn signature<T: Serialize>(value: &T) -> String {
-    sha256_hex(&serde_json::to_vec(value).expect("electrical input serializes"))
+    sha256_hex(&serde_json::to_vec(value).unwrap_or_default())
 }
 
 struct MatrixKey<'a> {
@@ -896,7 +896,7 @@ pub fn resolve(mut request: ElectricalPlanRequest) -> ElectricalPlan {
         (1..=count.max(1))
             .map(|rows| (rows, count.div_ceil(rows)))
             .min_by_key(|(rows, cols)| (rows + cols, rows.abs_diff(*cols), *rows))
-            .unwrap()
+            .unwrap_or((1, count.max(1)))
     };
     let mut locks = config
         .map(|config| config.locks.clone())
@@ -1184,22 +1184,19 @@ pub fn materialize_reviewed(
     }
     document.nets.extend(plan.nets.clone());
     // Keep generated silkscreen in sync with the applied terminal nets.
-    let board_parts = document
+    let board_index = document
         .boards
         .iter()
-        .find(|board| board.id == *board_id)
-        .unwrap()
+        .position(|board| board.id == *board_id)
+        .ok_or("PCB design is missing")?;
+    let board_parts = document.boards[board_index]
         .part_ids
         .iter()
         .cloned()
         .collect::<BTreeSet<_>>();
     sync_terminal_parameters_for_parts(document, &board_parts);
 
-    document
-        .boards
-        .iter_mut()
-        .find(|board| board.id == *board_id)
-        .unwrap()
+    document.boards[board_index]
         .net_ids
         .extend(plan.nets.iter().map(|net| net.id.clone()));
     let hardware = document.hardware.get_or_insert_with(Default::default);

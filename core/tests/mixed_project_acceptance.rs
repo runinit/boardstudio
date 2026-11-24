@@ -1,6 +1,8 @@
 //! Public acceptance flow for one mixed host/module project.
 //! Module envelope values below are explicit test fixtures, not upstream hardware claims.
 use crate::support::fixture::{self, request};
+use crate::support::query;
+use crate::support::session::resolve_case;
 use boardstudio_core::{CoreEngine, artifact_request};
 use serde_json::{Value, json};
 
@@ -48,9 +50,7 @@ fn base_document() -> Value {
         "pitch":{"x":19.05,"y":19.05},"origin":{"x":0,"y":0},"definitionId":"host-switch","partIds":[],
         "cells":[{"row":0,"column":0,"enabled":true},{"row":0,"column":1,"enabled":true}]
     }]);
-    document["mechanical"] = json!({"boardId":"host","method":"printed","mount":"rigid","integratedPlateFrame":false,"bottomStyle":"shell",
-        "plateThickness":1.5,"plateFoamThickness":0,"pcbThickness":1.6,"bottomFoamThickness":0,"batteryHeight":0,"bottomThickness":2,
-        "plateToPcb":3.5,"wallThickness":2,"clearance":0.2,"profiles":[],"mounts":[]});
+    document["mechanical"] = query::rigid_mechanical("host", 3.5);
 
     // Explicit synthetic design fixtures exercise the transform and case paths without
     // qualifying the pinned VIK splitter assembly, whose upstream envelope remains unknown.
@@ -162,11 +162,7 @@ fn mixed_host_project_keeps_module_ownership_and_public_export_gates_together() 
     );
 
     let contours = json!([{"hole":false,"points":[{"x":-55,"y":-40},{"x":55,"y":-40},{"x":55,"y":40},{"x":-55,"y":40}]}]);
-    let mechanical = request(
-        &mut engine,
-        json!({"id":"case","kind":"resolve-mechanical","document":document,"contours":contours}),
-    );
-    assert_eq!(mechanical["kind"], "mechanical-resolved", "{mechanical}");
+    let mechanical = resolve_case(&mut engine, "case", document, contours.clone());
     assert_eq!(mechanical["assembly"]["generationBlocked"], true);
     assert!(
         mechanical["assembly"]["diagnostics"]

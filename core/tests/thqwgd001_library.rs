@@ -1,3 +1,5 @@
+use crate::support::query;
+use crate::support::session::resolve_case;
 use boardstudio_core::artifact;
 use serde_json::{Value, json};
 
@@ -13,6 +15,14 @@ fn catalogue_definition(id: &str) -> Value {
         .clone()
 }
 
+/// Drive one artifact request and parse its JSON reply.
+fn artifact_call(id: &str, kind: &str, request: Value) -> Value {
+    serde_json::from_str(&artifact::request(
+        &json!({"id":id,"kind":kind,"request":request}).to_string(),
+    ))
+    .unwrap()
+}
+
 #[test]
 fn unqualified_thqwgd001_cannot_be_exported_as_a_fabrication_ready_footprint() {
     let definition = catalogue_definition("thqwgd001:c-4pin-reversible");
@@ -20,14 +30,16 @@ fn unqualified_thqwgd001_cannot_be_exported_as_a_fabrication_ready_footprint() {
     document
         .definitions
         .push(serde_json::from_value(definition).unwrap());
-    let reply: Value = serde_json::from_str(&artifact::request(&json!({
-        "id":"unqualified", "kind":"export-pcb", "request":{
+    let reply: Value = artifact_call(
+        "unqualified",
+        "export-pcb",
+        json!({
             "snapshotToken":"committed", "expectedRevision":0,
             "document":document,
             "target":{"kind":"standalone-footprints","definitionIds":["thqwgd001:c-4pin-reversible"]},
             "contours":[],"modelPaths":{}
-        }
-    }).to_string())).unwrap();
+        }),
+    );
     assert_eq!(
         reply["kind"], "error",
         "Published files do not establish reversible hardware qualification"
@@ -93,18 +105,16 @@ fn routed_and_drilled_helpers_keep_distinct_public_export_gates() {
         document
             .definitions
             .push(serde_json::from_value(definition).unwrap());
-        let reply: Value = serde_json::from_str(&artifact::request(
-            &json!({
-                "id":id, "kind":"export-pcb", "request":{
-                    "snapshotToken":"helper-gate", "expectedRevision":0,
-                    "document":document,
-                    "target":{"kind":"standalone-footprints","definitionIds":[id]},
-                    "contours":[], "modelPaths":{}
-                }
-            })
-            .to_string(),
-        ))
-        .unwrap();
+        let reply: Value = artifact_call(
+            id,
+            "export-pcb",
+            json!({
+                "snapshotToken":"helper-gate", "expectedRevision":0,
+                "document":document,
+                "target":{"kind":"standalone-footprints","definitionIds":[id]},
+                "contours":[], "modelPaths":{}
+            }),
+        );
         assert_eq!(reply["kind"], "error", "{id}: {reply}");
         assert!(
             reply["error"]["message"]
@@ -148,12 +158,9 @@ fn single_project(
 }
 
 fn hardware_fit_findings(document: boardstudio_core::model::ProjectDoc) -> Vec<String> {
-    use boardstudio_core::{CoreEngine, model::*};
-    let reply = CoreEngine::new().handle(CoreRequest::Open {
-        id: "fit-geometry".into(),
-        document,
-    });
-    let CoreReply::Scene { scene, .. } = reply else {
+    use boardstudio_core::{CommittedScene, CoreEngine};
+    let reply = CoreEngine::new().open(document);
+    let Ok(CommittedScene { scene, .. }) = reply else {
         panic!("{reply:?}")
     };
     scene
@@ -164,17 +171,16 @@ fn hardware_fit_findings(document: boardstudio_core::model::ProjectDoc) -> Vec<S
         .collect()
 }
 
-fn exported_preview(id: &str, side: &str) -> Value {
+/// Export one board through the KiCad pipeline and return its `.kicad_pcb` text.
+fn export_board(
+    document: boardstudio_core::model::ProjectDoc,
+    points: [(f64, f64); 4],
+    model: (String, String),
+    token: &str,
+) -> String {
     use boardstudio_core::model::*;
-    let mut document = single_project(id, side, (11.0, 13.0), 37.0);
-    for definition in &mut document.definitions {
-        definition.hardware_profile.as_mut().unwrap().gates.clear();
-    }
-    let model_id = document.definitions[0].models.as_ref().unwrap()[0]
-        .asset_id
-        .clone();
     let plan = artifact::kicad::prepare_export(PrepareExportRequest {
-        snapshot_token: "source-datum".into(),
+        snapshot_token: token.into(),
         expected_revision: 0,
         document,
         target: ExportTarget::Board {
@@ -182,14 +188,9 @@ fn exported_preview(id: &str, side: &str) -> Value {
         },
         contours: vec![Contour {
             hole: false,
-            points: vec![
-                Vec2 { x: -30., y: -30. },
-                Vec2 { x: 40., y: -30. },
-                Vec2 { x: 40., y: 45. },
-                Vec2 { x: -30., y: 45. },
-            ],
+            points: points.into_iter().map(|(x, y)| Vec2 { x, y }).collect(),
         }],
-        model_paths: std::collections::BTreeMap::from([(model_id, "models/thq.stp".into())]),
+        model_paths: std::collections::BTreeMap::from([model]),
     })
     .unwrap();
     let output = artifact::kicad::finish_export(FinishExportRequest {
@@ -197,12 +198,29 @@ fn exported_preview(id: &str, side: &str) -> Value {
         results: vec![],
     })
     .unwrap();
-    let board = &output
+    output
         .files
         .iter()
         .find(|file| file.filename.ends_with(".kicad_pcb"))
         .unwrap()
-        .content;
+        .content
+        .clone()
+}
+
+fn exported_preview(id: &str, side: &str) -> Value {
+    let mut document = single_project(id, side, (11.0, 13.0), 37.0);
+    for definition in &mut document.definitions {
+        definition.hardware_profile.as_mut().unwrap().gates.clear();
+    }
+    let model_id = document.definitions[0].models.as_ref().unwrap()[0]
+        .asset_id
+        .clone();
+    let board = export_board(
+        document,
+        [(-30., -30.), (40., -30.), (40., 45.), (-30., 45.)],
+        (model_id, "models/thq.stp".into()),
+        "source-datum",
+    );
     serde_json::from_str(&artifact::request(
         &json!({"id":"preview-thq","kind":"preview-board","revision":1,"source":board}).to_string(),
     ))
@@ -226,12 +244,9 @@ fn paired_project(
 
 #[test]
 fn nominal_model_bounds_locate_a_collision_even_at_mx_pitch() {
-    use boardstudio_core::{CoreEngine, model::*};
-    let reply = CoreEngine::new().handle(CoreRequest::Open {
-        id: "fit".into(),
-        document: placed_project(19.05),
-    });
-    let CoreReply::Scene { scene, .. } = reply else {
+    use boardstudio_core::{CommittedScene, CoreEngine};
+    let reply = CoreEngine::new().open(placed_project(19.05));
+    let Ok(CommittedScene { scene, .. }) = reply else {
         panic!("{reply:?}")
     };
     let finding = scene
@@ -254,11 +269,8 @@ fn nominal_model_bounds_locate_a_collision_even_at_mx_pitch() {
     let width = xs.iter().copied().fold(f64::NEG_INFINITY, f64::max)
         - xs.iter().copied().fold(f64::INFINITY, f64::min);
     assert!((width - 0.369158001).abs() < 0.0001);
-    let reply = CoreEngine::new().handle(CoreRequest::Open {
-        id: "clear".into(),
-        document: placed_project(25.0),
-    });
-    let CoreReply::Scene { scene, .. } = reply else {
+    let reply = CoreEngine::new().open(placed_project(25.0));
+    let Ok(CommittedScene { scene, .. }) = reply else {
         panic!("{reply:?}")
     };
     assert!(
@@ -401,7 +413,6 @@ fn switched_variants_preserve_published_repeated_contacts_through_electrical_pla
 
 #[test]
 fn reviewed_geometry_fixture_exports_portable_models_and_selected_slot_helpers() {
-    use boardstudio_core::model::*;
     for helper in ["thqwgd001:slitc", "thqwgd001:slitc-drill"] {
         let mut document = placed_project(25.0);
         document.parts.truncate(1);
@@ -418,39 +429,12 @@ fn reviewed_geometry_fixture_exports_portable_models_and_selected_slot_helpers()
         let asset_id = document.definitions[0].models.as_ref().unwrap()[0]
             .asset_id
             .clone();
-        let plan = artifact::kicad::prepare_export(PrepareExportRequest {
-            snapshot_token: "geometry-only".into(),
-            expected_revision: 0,
+        let board = export_board(
             document,
-            target: ExportTarget::Board {
-                board_id: "board".into(),
-            },
-            contours: vec![Contour {
-                hole: false,
-                points: vec![
-                    Vec2 { x: -25., y: -25. },
-                    Vec2 { x: 25., y: -25. },
-                    Vec2 { x: 25., y: 25. },
-                    Vec2 { x: -25., y: 25. },
-                ],
-            }],
-            model_paths: std::collections::BTreeMap::from([(
-                asset_id,
-                "models/encoder.stp".into(),
-            )]),
-        })
-        .unwrap();
-        let output = artifact::kicad::finish_export(FinishExportRequest {
-            plan,
-            results: vec![],
-        })
-        .unwrap();
-        let board = &output
-            .files
-            .iter()
-            .find(|f| f.filename.ends_with(".kicad_pcb"))
-            .unwrap()
-            .content;
+            [(-25., -25.), (25., -25.), (25., 25.), (-25., 25.)],
+            (asset_id, "models/encoder.stp".into()),
+            "geometry-only",
+        );
         assert!(board.contains("${KIPRJMOD}/models/encoder.stp"));
         assert!(!board.contains("/Users/hayashi/"));
         assert!(board.contains("B.Mask") && board.contains("F.Mask"));
@@ -514,10 +498,7 @@ fn nominal_preview_keeps_unqualified_models_visible_without_enabling_fabrication
         .asset_id
         .clone();
     let request = json!({"snapshotToken":"nominal","expectedRevision":0,"document":document,"target":{"kind":"board","boardId":"board"},"contours":[{"hole":false,"points":[{"x":-30,"y":-30},{"x":55,"y":-30},{"x":55,"y":30},{"x":-30,"y":30}]}],"modelPaths":{asset_id:"models/encoder.stp"}});
-    let preview: Value = serde_json::from_str(&artifact::request(
-        &json!({"id":"preview","kind":"preview-pcb","request":request}).to_string(),
-    ))
-    .unwrap();
+    let preview: Value = artifact_call("preview", "preview-pcb", request.clone());
     assert_eq!(preview["kind"], "preview-board", "{preview}");
     assert_eq!(preview["result"]["models"].as_array().unwrap().len(), 2);
     assert!(
@@ -527,10 +508,7 @@ fn nominal_preview_keeps_unqualified_models_visible_without_enabling_fabrication
             .iter()
             .all(|m| m["path"] == "${KIPRJMOD}/models/encoder.stp")
     );
-    let exported: Value = serde_json::from_str(&artifact::request(
-        &json!({"id":"cannot-bypass","kind":"export-pcb","request":request}).to_string(),
-    ))
-    .unwrap();
+    let exported: Value = artifact_call("cannot-bypass", "export-pcb", request);
     assert_eq!(
         exported["kind"], "error",
         "Preview preparation must not bypass export qualification"
@@ -545,9 +523,9 @@ fn case_preparation_uses_the_footprint_surface_datum_and_retains_qualification_g
         document["parts"].as_array_mut().unwrap().truncate(1);
         document["parts"][0]["side"] = json!(side);
         document["boards"][0]["partIds"] = json!(["a"]);
-        document["mechanical"] = json!({"boardId":"board","method":"printed","mount":"rigid","integratedPlateFrame":false,"bottomStyle":"shell","plateThickness":1.5,"plateFoamThickness":0,"pcbThickness":1.6,"bottomFoamThickness":0,"batteryHeight":0,"bottomThickness":2,"plateToPcb":3.5,"wallThickness":2,"clearance":0.2,"profiles":[],"mounts":[]});
-        let reply:Value=serde_json::from_str(&CoreEngine::new().request(&json!({"id":"case","kind":"resolve-mechanical","document":document,"contours":[{"hole":false,"points":[{"x":-30,"y":-30},{"x":30,"y":-30},{"x":30,"y":30},{"x":-30,"y":30}]}]}).to_string())).unwrap();
-        assert_eq!(reply["kind"], "mechanical-resolved", "{reply}");
+        document["mechanical"] = query::rigid_mechanical("board", 3.5);
+        let contours = json!([{"hole":false,"points":[{"x":-30,"y":-30},{"x":30,"y":-30},{"x":30,"y":30},{"x":-30,"y":30}]}]);
+        let reply = resolve_case(&mut CoreEngine::new(), "case", &document, contours);
         assert_eq!(reply["assembly"]["generationBlocked"], true);
         let findings = reply["assembly"]["diagnostics"].as_array().unwrap();
         assert!(

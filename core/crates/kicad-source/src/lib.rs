@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 //! KiCad source parsing for BoardStudio Core: s-expression access, board and footprint
 //! preview projection, and exact mechanical geometry extraction.
 

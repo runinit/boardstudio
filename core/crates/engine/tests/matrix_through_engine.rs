@@ -4,10 +4,8 @@
 //! depend on the engine (a dev-dependency cycle would hold its test binary back until the whole
 //! engine graph is built).
 
-use boardstudio_core_engine::CoreEngine;
-use boardstudio_core_engine::model::{
-    CoreReply, CoreRequest, MatrixCompanionMode, Pose2, ProjectDoc, Vec2,
-};
+use boardstudio_core_engine::model::{MatrixCompanionMode, Pose2, ProjectDoc, Vec2};
+use boardstudio_core_engine::{CommittedScene, CoreEngine};
 use boardstudio_core_kernel::matrix::{layout, set_matrix};
 use serde_json::json;
 
@@ -77,11 +75,8 @@ fn following_companion_preserves_materialized_pose_exactly_on_refresh_and_reopen
     );
     let saved = serde_json::to_string(&doc).unwrap();
     let mut engine = CoreEngine::new();
-    let reply = engine.handle(CoreRequest::Open {
-        id: "reopen".into(),
-        document: serde_json::from_str(&saved).unwrap(),
-    });
-    let CoreReply::Scene { document, .. } = reply else {
+    let reply = engine.open(serde_json::from_str(&saved).unwrap());
+    let Ok(CommittedScene { document, .. }) = reply else {
         panic!("expected reopened scene: {reply:?}");
     };
     assert_eq!(

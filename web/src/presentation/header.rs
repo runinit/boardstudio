@@ -1,6 +1,7 @@
 //! Header presentation only. Session, history and workspace ownership stay with App.
 use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::{
+    DomEventListener,
     project_menu::ThemePicker,
     ui::{
         button::{Button, ButtonVariant},
@@ -11,7 +12,6 @@ use boardstudio_web_ui_shared::{
 };
 use dioxus::prelude::*;
 use std::rc::Rc;
-use wasm_bindgen::{JsCast, closure::Closure};
 
 #[component]
 fn HeaderSaveStatus(on_retry_save: EventHandler<()>) -> Element {
@@ -76,21 +76,11 @@ pub(super) fn Header(
         web_sys::window().and_then(|w| w.match_media("(max-width: 1250px)").ok().flatten())
     });
     let mut compact = use_signal(|| query.as_ref().is_some_and(|q| q.matches()));
-    let listener = use_hook(move || {
-        query.map(|q| {
+    let _viewport_guard = use_hook(move || {
+        Rc::new(query.as_ref().and_then(|q| {
             let obs = q.clone();
-            let cb = Closure::wrap(
-                Box::new(move |_: web_sys::Event| compact.set(obs.matches())) as Box<dyn FnMut(_)>,
-            );
-            let _ = q.add_event_listener_with_callback("change", cb.as_ref().unchecked_ref());
-            Rc::new((q, cb))
-        })
-    });
-    use_drop(move || {
-        if let Some(l) = listener {
-            let _ =
-                l.0.remove_event_listener_with_callback("change", l.1.as_ref().unchecked_ref());
-        }
+            DomEventListener::listen(q, "change", false, move |_| compact.set(obs.matches()))
+        }))
     });
     let mut mobile_open = use_signal(|| false);
     use_effect(move || {

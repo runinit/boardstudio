@@ -3,7 +3,7 @@
 //! graph helpers alone.
 use crate::support::fixture::{self, key_part, part_pose as pose_of, scene_and_document as scene};
 use crate::support::session::{commit_edit, open_engine};
-use boardstudio_core::{CoreEngine, model::*};
+use boardstudio_core::{CommittedScene, CoreEngine, EditOutcome, model::*};
 
 #[path = "matrix_anchors/anchor_chunk0.rs"]
 mod anchor_chunk0;
@@ -13,21 +13,21 @@ mod anchor_chunk1;
 mod anchor_chunk2;
 
 fn preview(engine: &mut CoreEngine, doc: &ProjectDoc, operation: EditOperation) -> SceneDelta {
-    match engine.handle(fixture::edit(
+    match engine.apply_edit(fixture::edit(
         "preview",
         "preview",
         doc.revision,
         EditPhase::Preview,
         operation,
     )) {
-        CoreReply::Preview { scene, .. } => scene,
+        Ok(EditOutcome::Preview(scene)) => scene,
         other => panic!("expected preview: {other:?}"),
     }
 }
 
 fn error(engine: &mut CoreEngine, doc: &ProjectDoc, operation: EditOperation) -> String {
-    match engine.handle(fixture::commit("edit", "edit", doc.revision, operation)) {
-        CoreReply::Error { message, .. } => message,
+    match engine.commit_edit(fixture::commit("edit", "edit", doc.revision, operation)) {
+        Err(message) => message,
         other => panic!("expected error: {other:?}"),
     }
 }
@@ -164,21 +164,21 @@ fn anchor_of(doc: &ProjectDoc, id: &str) -> Option<MatrixAnchor> {
 }
 
 fn undone(engine: &mut CoreEngine) -> ProjectDoc {
-    match engine.handle(CoreRequest::Undo { id: "undo".into() }) {
-        CoreReply::Scene { document, .. } => *document,
+    match engine.undo() {
+        Ok(CommittedScene { document, .. }) => document,
         other => panic!("expected scene: {other:?}"),
     }
 }
 
 fn redone(engine: &mut CoreEngine) -> ProjectDoc {
-    match engine.handle(CoreRequest::Redo { id: "redo".into() }) {
-        CoreReply::Scene { document, .. } => *document,
+    match engine.redo() {
+        Ok(CommittedScene { document, .. }) => document,
         other => panic!("expected scene: {other:?}"),
     }
 }
 
 fn snapshot(engine: &mut CoreEngine) -> ProjectDoc {
-    scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() })).1
+    scene(engine.snapshot()).1
 }
 
 fn add_thumb(engine: &mut CoreEngine, doc: &ProjectDoc) -> ProjectDoc {

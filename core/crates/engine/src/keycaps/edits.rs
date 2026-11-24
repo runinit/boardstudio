@@ -20,17 +20,15 @@ pub(crate) fn apply_edit(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec
             let index = hardware
                 .boards
                 .iter()
-                .position(|board| board.board_id == *board_id);
-            let board = match index {
-                Some(index) => &mut hardware.boards[index],
-                None => {
+                .position(|board| board.board_id == *board_id)
+                .unwrap_or_else(|| {
                     hardware.boards.push(ElectricalBoardConfiguration {
                         board_id: board_id.clone(),
                         ..Default::default()
                     });
-                    hardware.boards.last_mut().unwrap()
-                }
-            };
+                    hardware.boards.len() - 1
+                });
+            let board = &mut hardware.boards[index];
             board.key_bindings.insert(key_id.clone(), binding.clone());
             if let Some(map) = &mut doc.keymap {
                 let value = if let Some(code) = binding

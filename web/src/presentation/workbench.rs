@@ -332,30 +332,20 @@ pub(crate) fn use_workbench_appearance() -> Signal<bool> {
         if p == "system" { sys_app() } else { p }
     });
     use_context_provider(|| ResolvedAppearance(resolved));
-    let media_listener = use_hook(|| {
-        Rc::new(RefCell::new(
-            None::<(web_sys::MediaQueryList, Closure<dyn FnMut(web_sys::Event)>)>,
-        ))
-    });
-    use_effect({
-        let ml = media_listener.clone();
-        move || {
-            if let Some(q) = web_sys::window()
+    let _appearance_guard = use_hook(|| {
+        Rc::new(
+            web_sys::window()
                 .and_then(|w| w.match_media("(prefers-color-scheme: dark)").ok().flatten())
-            {
-                let obs = q.clone();
-                let cb = Closure::wrap(Box::new(move |_: web_sys::Event| {
-                    sys_app.set(if obs.matches() { "dark" } else { "light" })
-                }) as Box<dyn FnMut(_)>);
-                let _ = q.add_event_listener_with_callback("change", cb.as_ref().unchecked_ref());
-                *ml.borrow_mut() = Some((q, cb));
-            }
-        }
-    });
-    use_drop(move || {
-        if let Some((q, cb)) = media_listener.borrow_mut().take() {
-            let _ = q.remove_event_listener_with_callback("change", cb.as_ref().unchecked_ref());
-        }
+                .and_then(|q| {
+                    let obs = q.clone();
+                    boardstudio_web_ui_shared::DomEventListener::listen(
+                        &q,
+                        "change",
+                        false,
+                        move |_| sys_app.set(if obs.matches() { "dark" } else { "light" }),
+                    )
+                }),
+        )
     });
     use_effect(use_reactive((&resolved(), &theme()), move |(eff, th)| {
         if let Some(root) = web_sys::window()

@@ -294,8 +294,9 @@ pub(super) fn repair(
             .map(|(gap, _)| gap.id.clone())
             .collect();
         let keep = !protected_ids.is_empty();
-        let a = path[0];
-        let b = *path.last().unwrap();
+        let Some((a, b)) = path.first().zip(path.last()) else {
+            continue;
+        };
         gaps.push(OutlineGap {
             id,
             feature_id: feature.into(),

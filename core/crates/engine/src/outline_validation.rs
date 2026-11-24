@@ -550,7 +550,7 @@ pub(crate) fn validate(
                     if substantial.len() > 1 {
                         let mut regions = vec![];
                         for pair in substantial.windows(2) {
-                            let (a, b) = pair[0][0]
+                            let Some((a, b)) = pair[0][0]
                                 .iter()
                                 .flat_map(|a| pair[1][0].iter().map(move |b| (*a, *b)))
                                 .min_by(|(a, b), (c, d)| {
@@ -558,7 +558,9 @@ pub(crate) fn validate(
                                         .hypot(a[1] - b[1])
                                         .total_cmp(&(c[0] - d[0]).hypot(c[1] - d[1]))
                                 })
-                                .unwrap();
+                            else {
+                                continue;
+                            };
                             let length = (b[0] - a[0]).hypot(b[1] - a[1]).max(0.001);
                             let normal = [
                                 -(b[1] - a[1]) / length * repair.minimum_connection_width,

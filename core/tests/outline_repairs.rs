@@ -1,13 +1,10 @@
 use crate::support::fixture::{self, outline_document as synthetic_document};
 use crate::support::query;
-use boardstudio_core::{CoreEngine, model::*};
+use boardstudio_core::{CommittedScene, CoreEngine, EditOutcome, model::*};
 
 fn open(document: ProjectDoc) -> SceneDelta {
-    match CoreEngine::new().handle(CoreRequest::Open {
-        id: "outline-regression".into(),
-        document,
-    }) {
-        CoreReply::Scene { scene, .. } => scene,
+    match CoreEngine::new().open(document) {
+        Ok(CommittedScene { scene, .. }) => scene,
         reply => panic!("{reply:?}"),
     }
 }
@@ -243,11 +240,11 @@ fn changing_a_recess_identity_keeps_its_original_protection_removable() {
 fn removing_a_protected_gap_source_retains_last_valid_geometry() {
     let mut engine = CoreEngine::new();
     let (document, _, source) = protected_gap_document();
-    let CoreReply::Scene {
+    let Ok(CommittedScene {
         scene: before,
         document,
         ..
-    } = engine.handle(fixture::open(document))
+    }) = engine.open(document)
     else {
         panic!("open")
     };
@@ -257,21 +254,18 @@ fn removing_a_protected_gap_source_retains_last_valid_geometry() {
             .first()
             .is_some_and(|state| state.generated_last_valid.is_some())
     );
-    let reply = engine.handle(CoreRequest::Edit {
-        id: "remove".into(),
-        command: EditCommand {
-            base_revision: before.revision,
-            transaction_id: "remove".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![source.clone()],
-            operation: EditOperation::RemoveParts { ids: vec![source] },
-        },
+    let reply = engine.apply_edit(EditCommand {
+        base_revision: before.revision,
+        transaction_id: "remove".into(),
+        phase: EditPhase::Commit,
+        target_ids: vec![source.clone()],
+        operation: EditOperation::RemoveParts { ids: vec![source] },
     });
-    let CoreReply::Scene {
+    let Ok(EditOutcome::Committed(CommittedScene {
         scene: after,
         document,
         ..
-    } = reply
+    })) = reply
     else {
         panic!("remove")
     };
@@ -284,7 +278,7 @@ fn removing_a_protected_gap_source_retains_last_valid_geometry() {
             .any(|finding| finding.id.contains(":keep-gap:"))
     );
     assert!(!after.finding_markers.is_empty());
-    let reopened = open(*document);
+    let reopened = open(document);
     assert_eq!(after.board_contours, reopened.board_contours);
     assert!(!reopened.board_readiness[0].outline);
 }

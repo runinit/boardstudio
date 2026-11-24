@@ -190,13 +190,13 @@ fn removing_a_paired_member_materializes_the_survivor_and_clears_the_pair() {
 #[test]
 fn a_topology_replacement_never_leaves_a_dangling_pair() {
     use boardstudio_core::CoreEngine;
-    use boardstudio_core::model::{CoreReply, EditOperation};
+    use boardstudio_core::model::EditOperation;
 
     let document = linked_pair_document();
 
     let mut engine = CoreEngine::new();
-    let accepted = match engine.handle(fixture::open(document)) {
-        CoreReply::Scene { document, .. } => *document,
+    let accepted = match engine.open(document) {
+        Ok(CommittedScene { document, .. }) => document,
         other => panic!("expected scene: {other:?}"),
     };
 
@@ -214,7 +214,7 @@ fn a_topology_replacement_never_leaves_a_dangling_pair() {
         "the incoming document still lists the pair"
     );
 
-    let replaced = match engine.handle(fixture::commit(
+    let replaced = match engine.commit_edit(fixture::commit(
         "replace",
         "replace",
         accepted.revision,
@@ -222,7 +222,7 @@ fn a_topology_replacement_never_leaves_a_dangling_pair() {
             document: Box::new(replacement),
         },
     )) {
-        CoreReply::Scene { document, .. } => *document,
+        Ok(CommittedScene { document, .. }) => document,
         other => panic!("expected scene: {other:?}"),
     };
 
@@ -247,7 +247,7 @@ fn a_topology_replacement_never_leaves_a_dangling_pair() {
 #[test]
 fn a_valid_asymmetric_clash_is_retained_with_a_located_finding() {
     use boardstudio_core::CoreEngine;
-    use boardstudio_core::model::{CoreReply, Scope};
+    use boardstudio_core::model::Scope;
 
     let mut document = conflicting_pair_document();
     link_pair(&mut document);
@@ -278,8 +278,8 @@ fn a_valid_asymmetric_clash_is_retained_with_a_located_finding() {
     // The accepted scene carries the same located finding, so readiness and the
     // export gates see accepted state rather than a transient assembly warning.
     let mut engine = CoreEngine::new();
-    let scene = match engine.handle(fixture::open(document.clone())) {
-        CoreReply::Scene { scene, .. } => scene,
+    let scene = match engine.open(document.clone()) {
+        Ok(CommittedScene { scene, .. }) => scene,
         other => panic!("expected scene: {other:?}"),
     };
     let located = scene
@@ -741,17 +741,17 @@ fn converting_legacy_members_materializes_the_overlay_and_keeps_the_third_baseli
 fn one_undo_restores_legacy_ownership_and_the_previous_overlay_state() {
     use boardstudio_core::CoreEngine;
     use boardstudio_core::mechanical::effective_inputs;
-    use boardstudio_core::model::{CoreRequest, EditOperation};
+    use boardstudio_core::model::EditOperation;
 
     use crate::support::fixture::document as document_of;
 
     let mut engine = CoreEngine::new();
-    let accepted = document_of(engine.handle(fixture::open(legacy_document())));
+    let accepted = document_of(engine.open(legacy_document()));
     let before_c = effective_inputs(&accepted, &[], &instance_target("c"))
         .unwrap()
         .configuration;
 
-    let converted = document_of(engine.handle(fixture::commit(
+    let converted = document_of(engine.commit_edit(fixture::commit(
         "convert",
         "convert",
         accepted.revision,
@@ -778,7 +778,7 @@ fn one_undo_restores_legacy_ownership_and_the_previous_overlay_state() {
             .is_some()
     );
 
-    let restored = document_of(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    let restored = document_of(engine.undo());
     assert_eq!(
         stored_instance(&restored, "a").construction_ownership,
         MechanicalConstructionOwnership::Legacy

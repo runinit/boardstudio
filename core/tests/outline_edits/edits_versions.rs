@@ -471,14 +471,11 @@ fn a_non_positive_connection_width_is_malformed_input() {
                 "seed": 80
             }),
         );
-        let CoreReply::Error {
-            message, revision, ..
-        } = failed
-        else {
+        let Err(message) = failed else {
             panic!("a non-positive connection width must fail ({width})");
         };
         assert!(message.contains("width"), "{message}");
-        assert_eq!(revision, opened.revision);
+        assert_eq!(document(&mut engine).revision, opened.revision);
     }
     assert_eq!(
         serde_json::to_value(document(&mut engine)).unwrap(),

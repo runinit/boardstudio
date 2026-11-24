@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 //! Document engine, edit dispatch and stateless Core operations.
 
 pub mod archive;

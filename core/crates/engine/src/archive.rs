@@ -103,9 +103,9 @@ fn dispatch(request: ArchiveRequest, buffers: &[Vec<u8>], limits: Limits) -> Arc
             let mut seen = BTreeSet::new();
             for (hash, _) in references {
                 if seen.insert(hash.clone()) {
-                    let bytes = files
-                        .remove(&format!("assets/{hash}"))
-                        .expect("verified asset exists");
+                    let bytes = files.remove(&format!("assets/{hash}")).ok_or_else(|| {
+                        format!("Archive asset {hash} is missing from the verified set")
+                    })?;
                     assets.push(ArchiveAssetBuffer {
                         sha256: hash,
                         buffer_index: outputs.len() as u32,

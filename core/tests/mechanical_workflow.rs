@@ -1,4 +1,5 @@
 use crate::support::fixture::{self, request};
+use crate::support::session::resolve_case;
 use boardstudio_core::{CoreEngine, model::ProjectDoc};
 use serde_json::{Value, json};
 
@@ -35,10 +36,7 @@ fn configuration_is_undoable_persistent_and_resolution_is_stateless() {
     let established = changed["document"]["mechanical"].clone();
     assert!(established.is_object(), "{established}");
     let saved = changed["document"].clone();
-    let resolved = request(
-        &mut engine,
-        json!({"kind":"resolve-mechanical","id":"resolve","document":saved,"contours":contours()}),
-    );
+    let resolved = resolve_case(&mut engine, "resolve", &saved, contours());
     assert_eq!(resolved["assembly"]["revision"], 1);
     let snapshot = fixture::wire_snapshot(&mut engine, "snapshot");
     assert_eq!(snapshot["document"], saved);
@@ -54,17 +52,11 @@ fn configuration_is_undoable_persistent_and_resolution_is_stateless() {
 fn opening_allowance_is_explicit_shared_and_preserves_nominal_geometry() {
     let mut doc = document();
     doc["mechanical"] = configuration();
-    let nominal = request(
-        &mut CoreEngine::new(),
-        json!({"kind":"resolve-mechanical","id":"nominal","document":doc,"contours":contours()}),
-    );
+    let nominal = resolve_case(&mut CoreEngine::new(), "nominal", &doc, contours());
     let mut config = configuration();
     config["openingAllowance"] = json!(0.2);
     doc["mechanical"] = config;
-    let result = request(
-        &mut CoreEngine::new(),
-        json!({"kind":"resolve-mechanical","id":"resolve","document":doc,"contours":contours()}),
-    );
+    let result = resolve_case(&mut CoreEngine::new(), "resolve", &doc, contours());
     let assembly = &result["assembly"];
     assert_eq!(
         assembly["nominalPlateContours"],
@@ -102,10 +94,7 @@ fn negative_opening_allowance_shrinks_without_losing_nominal_dimensions() {
     let mut config = configuration();
     config["openingAllowance"] = json!(-0.2);
     doc["mechanical"] = config;
-    let result = request(
-        &mut CoreEngine::new(),
-        json!({"kind":"resolve-mechanical","id":"resolve","document":doc,"contours":contours()}),
-    );
+    let result = resolve_case(&mut CoreEngine::new(), "resolve", &doc, contours());
     let points = result["assembly"]["plateContours"][1]["points"]
         .as_array()
         .unwrap();
@@ -122,10 +111,7 @@ fn holes_outside_the_material_are_diagnostics_not_silently_dropped() {
     doc["mechanical"] = configuration();
     let mut rings = contours();
     rings.as_array_mut().unwrap().push(json!({"hole":true,"points":[{"x":90,"y":90},{"x":95,"y":90},{"x":95,"y":95},{"x":90,"y":95}]}));
-    let result = request(
-        &mut CoreEngine::new(),
-        json!({"kind":"resolve-mechanical","id":"resolve","document":doc,"contours":rings}),
-    );
+    let result = resolve_case(&mut CoreEngine::new(), "resolve", &doc, rings);
     assert!(
         result["assembly"]["diagnostics"]
             .as_array()
@@ -143,10 +129,7 @@ fn manual_mounts_must_leave_material_for_their_full_boss() {
     config["mounts"] =
         json!([{"id":"edge","at":{"x":-1,"y":5},"kind":"hole","holeDiameter":3,"bossDiameter":6}]);
     doc["mechanical"] = config;
-    let result = request(
-        &mut CoreEngine::new(),
-        json!({"kind":"resolve-mechanical","id":"resolve","document":doc,"contours":contours()}),
-    );
+    let result = resolve_case(&mut CoreEngine::new(), "resolve", &doc, contours());
     assert!(
         result["assembly"]["diagnostics"]
             .as_array()
@@ -166,10 +149,7 @@ fn hardware_and_critical_fit_specs_require_real_targets_and_valid_dimensions() {
     config["hardware"] = json!([{"id":"screw","partId":"plate","featureId":"missing","designation":"M2 screw","thread":"M2 x 0.4","length":6,"quantity":2}]);
     config["criticalFits"] = json!([{"id":"fit","partId":"missing","label":"Retention","from":{"x":0,"y":0},"to":{"x":0,"y":0},"tolerance":"+0.05/-0.00 mm"}]);
     doc["mechanical"] = config;
-    let resolved = request(
-        &mut CoreEngine::new(),
-        json!({"kind":"resolve-mechanical","id":"specs","document":doc,"contours":contours()}),
-    );
+    let resolved = resolve_case(&mut CoreEngine::new(), "specs", &doc, contours());
     let findings = resolved["assembly"]["diagnostics"].as_array().unwrap();
     assert!(
         findings
@@ -201,10 +181,7 @@ fn hardware_and_critical_fit_specs_persist_and_match_generated_parts() {
         .unwrap(),
         serde_json::from_value::<boardstudio_core::model::MechanicalConfiguration>(config).unwrap()
     );
-    let resolved = request(
-        &mut engine,
-        json!({"kind":"resolve-mechanical","id":"specs","document":opened["document"],"contours":contours()}),
-    );
+    let resolved = resolve_case(&mut engine, "specs", &opened["document"], contours());
     assert!(
         !resolved["assembly"]["diagnostics"]
             .as_array()
@@ -223,10 +200,7 @@ fn mechanical_diagnostics_keep_validation_order_before_outline_checks() {
     let mut config = configuration();
     config["plateThickness"] = json!(0.0);
     doc["mechanical"] = config;
-    let result = request(
-        &mut CoreEngine::new(),
-        json!({"kind":"resolve-mechanical","id":"order","document":doc,"contours":[]}),
-    );
+    let result = resolve_case(&mut CoreEngine::new(), "order", &doc, json!([]));
     let findings = result["assembly"]["diagnostics"].as_array().unwrap();
     assert_eq!(
         findings
@@ -248,10 +222,7 @@ fn battery_stack_and_body_preserve_declared_layer_order() {
         "cableWidth":2
     });
     doc["mechanical"] = config;
-    let result = request(
-        &mut CoreEngine::new(),
-        json!({"kind":"resolve-mechanical","id":"battery","document":doc,"contours":contours()}),
-    );
+    let result = resolve_case(&mut CoreEngine::new(), "battery", &doc, contours());
     let assembly = &result["assembly"];
     let stack = assembly["stack"].as_array().unwrap();
     let battery = stack.iter().find(|layer| layer["id"] == "battery").unwrap();
@@ -293,10 +264,7 @@ fn mount_suggestions_search_beyond_obstructed_corners() {
     for (x, y) in [(0.0, 0.0), (50.0, 0.0), (50.0, 30.0), (0.0, 30.0)] {
         boundary.push(json!({"hole":true,"points":[{"x":x,"y":y},{"x":x+10.0,"y":y},{"x":x+10.0,"y":y+10.0},{"x":x,"y":y+10.0}]}));
     }
-    let result = request(
-        &mut CoreEngine::new(),
-        json!({"kind":"resolve-mechanical","id":"mounts","document":doc,"contours":boundary}),
-    );
+    let result = resolve_case(&mut CoreEngine::new(), "mounts", &doc, boundary);
     assert_eq!(
         result["assembly"]["suggestedMounts"]
             .as_array()
@@ -312,10 +280,7 @@ fn closure_screws_have_matching_plate_holes_and_case_bosses() {
     let mut config = configuration();
     config["closureMounts"] = json!([{"id":"closure-1","at":{"x":40,"y":25},"kind":"boss","holeDiameter":2.2,"bossDiameter":6,"height":8.1}]);
     doc["mechanical"] = config;
-    let result = request(
-        &mut CoreEngine::new(),
-        json!({"kind":"resolve-mechanical","id":"closure","document":doc,"contours":contours()}),
-    );
+    let result = resolve_case(&mut CoreEngine::new(), "closure", &doc, contours());
     let bodies = result["assembly"]["case"]["bodies"].as_array().unwrap();
     let plate = bodies
         .iter()
@@ -340,10 +305,7 @@ fn mount_suggestions_do_not_drill_through_copper_pads() {
     doc["definitions"] = json!([{"id":"copper", "name":"Copper keepout", "kind":"custom", "courtyard":[], "pads":[{"id":"1","number":"1","at":{"x":30,"y":20},"size":{"x":60,"y":40},"shape":"rect"}]}]);
     doc["parts"] = json!([{"id":"copper-part","definitionId":"copper","reference":"U1","pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front"}]);
     doc["boards"][0]["partIds"] = json!(["copper-part"]);
-    let result = request(
-        &mut CoreEngine::new(),
-        json!({"kind":"resolve-mechanical","id":"mounts","document":doc,"contours":contours()}),
-    );
+    let result = resolve_case(&mut CoreEngine::new(), "mounts", &doc, contours());
     assert_eq!(
         result["assembly"]["suggestedMounts"]
             .as_array()

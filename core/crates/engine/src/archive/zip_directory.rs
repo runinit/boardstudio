@@ -14,20 +14,19 @@ fn range(bytes: &[u8], offset: usize, length: usize) -> Result<&[u8], String> {
         .get(offset..offset.checked_add(length).ok_or("ZIP offset overflow")?)
         .ok_or_else(|| "Truncated ZIP record".into())
 }
+fn array<const N: usize>(bytes: &[u8], offset: usize) -> Result<[u8; N], String> {
+    range(bytes, offset, N)?
+        .try_into()
+        .map_err(|_| "Truncated ZIP record".into())
+}
 fn word(bytes: &[u8], offset: usize) -> Result<u16, String> {
-    Ok(u16::from_le_bytes(
-        range(bytes, offset, 2)?.try_into().unwrap(),
-    ))
+    Ok(u16::from_le_bytes(array(bytes, offset)?))
 }
 fn dword(bytes: &[u8], offset: usize) -> Result<u32, String> {
-    Ok(u32::from_le_bytes(
-        range(bytes, offset, 4)?.try_into().unwrap(),
-    ))
+    Ok(u32::from_le_bytes(array(bytes, offset)?))
 }
 fn qword(bytes: &[u8], offset: usize) -> Result<u64, String> {
-    Ok(u64::from_le_bytes(
-        range(bytes, offset, 8)?.try_into().unwrap(),
-    ))
+    Ok(u64::from_le_bytes(array(bytes, offset)?))
 }
 fn index(value: u64) -> Result<usize, String> {
     usize::try_from(value).map_err(|_| "ZIP offset exceeds platform limits".into())

@@ -215,15 +215,16 @@ pub(super) fn construct_bodies(
                     points: points.clone(),
                 }));
             }
+            let frame_z = bottom_z + config.bottom_thickness;
             frame.contours = rings;
             frame.body.kind = CaseKind::Plate;
-            frame.body.z = Some(bottom_z + config.bottom_thickness);
+            frame.body.z = Some(frame_z);
             frame.body.thickness = config.plate_to_pcb - bottom_z - config.bottom_thickness;
             frame.body.wall_height = None;
             frame.body.gasket = None;
             stack.push(MechanicalStackLayer {
                 id: "middle-frame".into(),
-                z: frame.body.z.unwrap(),
+                z: frame_z,
                 thickness: frame.body.thickness,
             });
             bodies.push(frame);

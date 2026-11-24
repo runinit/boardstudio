@@ -4,6 +4,57 @@
 //!
 //! Browser-only modules are `wasm32`-only; the rest also compile natively so their
 //! unit tests run under `cargo test`.
+/// RAII DOM listener: attaches in `listen`, detaches on drop (replaces
+/// `Closure::wrap` + manual `use_drop`; mirrors `host::renderer_host::Listener`).
+#[cfg(target_arch = "wasm32")]
+pub struct DomEventListener {
+    target: web_sys::EventTarget,
+    name: &'static str,
+    callback: wasm_bindgen::closure::Closure<dyn FnMut(web_sys::Event)>,
+    capture: bool,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl DomEventListener {
+    /// Attach `handler`; `None` when the browser rejects the listener.
+    pub fn listen(
+        target: &web_sys::EventTarget,
+        name: &'static str,
+        capture: bool,
+        handler: impl FnMut(web_sys::Event) + 'static,
+    ) -> Option<Self> {
+        let callback = wasm_bindgen::closure::Closure::<dyn FnMut(web_sys::Event)>::new(handler);
+        let function = wasm_bindgen::JsCast::unchecked_ref(callback.as_ref());
+        let attached = if capture {
+            target.add_event_listener_with_callback_and_bool(name, function, true)
+        } else {
+            target.add_event_listener_with_callback(name, function)
+        };
+        attached.ok().map(|()| Self {
+            target: target.clone(),
+            name,
+            callback,
+            capture,
+        })
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl Drop for DomEventListener {
+    fn drop(&mut self) {
+        let function = wasm_bindgen::JsCast::unchecked_ref(self.callback.as_ref());
+        if self.capture {
+            let _ = self
+                .target
+                .remove_event_listener_with_callback_and_bool(self.name, function, true);
+        } else {
+            let _ = self
+                .target
+                .remove_event_listener_with_callback(self.name, function);
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct DurabilityVersion(pub dioxus::prelude::Signal<u64>);
 

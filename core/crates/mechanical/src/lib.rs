@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 //! Mechanical resolution for BoardStudio Core.
 
 pub use boardstudio_model::model;

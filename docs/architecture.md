@@ -1,128 +1,127 @@
 # Architecture
 
-BoardStudio is a static browser application with a Dioxus frontend. Durable design
-semantics and session state live in Rust. Python scripts handle build, content
-preparation and checks; the CAD provider is Rust/WASM.
+BoardStudio is an offline-capable keyboard design workbench with a Dioxus
+frontend. Durable design semantics and session state live in Rust: a
+synchronous in-process `CoreEngine` applies typed edits, while
+`application::Session` owns that engine plus preview, gesture, save and export
+bookkeeping on the main thread. Python scripts handle build, content
+preparation and checks; the CAD provider is Rust/WASM behind a dedicated
+worker. Core runs synchronously in-process with no queued edit tickets:
+presentation calls typed methods and reads accepted state.
 
 | Location | Responsibility |
 | --- | --- |
 | `core/` | Document validation, typed edits, resolved geometry, artifacts and portable archives |
-| `application/` | Accepted snapshots, ordered commands, interactions, save identities and scoped jobs |
-| `web/src/` (`boardstudio-web` bin) | The page shell (`presentation.rs`): app state, workspace containers and composition, the component inspector, Export and the Case workspace container |
-| `web/crates/runtime/` | Composition of session state and browser effects (`runtime.rs`), model delivery and presentation-independent operations; no Dioxus |
-| `web/crates/host/` | IndexedDB, Core and CAD worker clients, renderer host and offline policy |
-| `web/crates/ui-model/` | UI vocabulary shared by presentation code: tree contexts, selection, workspace and view state, canvas interaction ownership |
-| `web/crates/ui-shared/` | UI used by several workspaces: panels, canvas layers, layout camera, footprint graphics and model import |
-| `web/crates/catalogue/` | Bundled component catalogue loading, generator normalization and physical setup proposals; no Dioxus |
-| `web/crates/keycaps/`, `library/`, `keymap/`, `case/`, `parts/`, `pcb/`, `layout/` | Workspace features: keycap fit, settings and scene; the Library page; the Keymap editor; the case viewer, mechanical-settings and closure-clearance adapters over Core's mechanical operation, and the shared 3D viewer; the Parts browser, definitions, generators and assemblies; PCB wiring, routed-board references, modules and physical setup; the Layout objects tree, outlines, part placement and setup guide. Workspace containers stay in the bin |
-| `web/src/lib.rs` | Worker entry points packaged by wasm-pack (Core, CAD and offline service worker) |
+| `core/crates/engine/` | In-process `CoreEngine` (`dispatch.rs`: `open`, `apply_edit`, `commit_edit`, electrical handoff review) |
+| `core/crates/mirrored-half/` | Pure derived projector (`project_document`) plus `MirroredPair` mechanical validation and transitions |
+| `core/crates/model/` | Canonical format-8 `ProjectDoc`, document-format admission, operations and wire types |
+| `application/` | `Session`: owns the `CoreEngine`, applies `Event`s to accepted snapshots, emits host-owned `Effect`s |
+| `web/src/` (`boardstudio-web` bin) | Page shell (`presentation.rs` + `presentation/` workspaces), worker entry points (`lib.rs`: `cad-worker`, `service-worker`) |
+| `web/crates/runtime/` | `Runtime`: drives a real `Session`, runs browser effects (`runtime.rs`, `runtime/effects.rs`), model delivery, presentation-independent operations; no Dioxus |
+| `web/crates/host/` | Browser storage, CAD worker clients, renderer host; IndexedDB and persistence contracts |
+| `web/crates/worker-host/` | Packaged worker surfaces: CAD worker client/jobs, offline manifest policy, renderer host page |
+| `web/crates/layout-core/` | Unified `CanvasInteraction` pointer/keyboard state machine and canvas projection |
+| `web/crates/ui-model/` | UI vocabulary shared by presentation code: tree contexts, selection, workspace and view state |
+| `web/crates/ui-shared/` | UI used by several workspaces: panels, canvas layers, layout camera, footprint graphics, model import |
+| `web/crates/catalogue/` | Bundled component catalogue loading, generator normalization, physical setup proposals; no Dioxus |
+| `web/crates/keycaps/`, `library/`, `keymap/`, `case/`, `parts/`, `pcb/`, `layout/`, `layout-objects/` | Workspace features: keycap fit and scenes; Library; Keymap editor; Case viewer and mechanical adapters; Parts browser and generators; PCB wiring and physical setup; Layout objects tree, outlines, placement, setup guide |
+| `web/crates/test-runtime/` | Shared native fixtures and detached-task support for web tests (`new_native_runtime`, layout fixtures) |
 | `renderer/` | GPU scene rendering, picking and camera behavior |
 | `cad/` | CAD provider bindings and the pure-Rust CAD WASM kernel |
-| `contracts/` | Shared Rust boundary types |
-| `footprints/` | Built-in generators, parameters, render context, geometry, normalization and model references; Core and the page call Rust directly |
+| `contracts/rust/` | Shared boundary types (`Pose2`, `Vec2`, mechanical wire types) |
+| `footprints/` | Built-in generators, parameters, render context, geometry and normalization |
 | `ergogen/library/`, `kicad/` | Vendored model assets and attribution; PCB integration checks |
-| `catalogue/`, `content/` | Component definitions, source assets and bundled examples |
-| `core/examples/demo_projects/`, `content/layouts/` | Native bundled project preparation through public Core edits, wiring and archive APIs |
+| `catalogue/` | Component definitions, source assets and bundled examples |
 
-The document engine owns durable state. Presentation submits edits through existing
-application/runtime boundaries and displays accepted state; it does not create a
-second writable document store. Core's typed `ApplyMechanicalEdit` operation owns
-the mechanical settings rules and closure-clearance projection; the Case adapter is
-being reduced to a thin client that submits that intent and keeps drafts, catalogue
-preparation, ports and presentation. Worker replies, saves and exports retain their
-captured project, board and revision identities so stale operations cannot replace
-the current scope. Manufacturing output comes from accepted inputs, not rendered meshes.
+## Document core and session
 
-[ADR-0029's scope correction](adr/0029-constrain-geometry-scripts-and-apply-results-atomically.md#scope-correction-2026-10-20)
-excludes user-authored geometry scripting from product scope. Legacy script fields
-are accepted on load but discarded without execution.
+`ProjectDoc` is the canonical format-8 document
+(`core/crates/model/src/model/document.rs`,
+[`document_format.rs`](../core/crates/model/src/document_format.rs)):
+`format` is `"boardstudio/v2"` and `formatVersion` is `8`; anything else is
+refused at the storage/archive boundary. `MirroredPair` records the mechanical
+link between halves; `mirrored-half` validates every pair
+(`validate_pairs`: distinct boards or same-board layouts, finite mapping,
+independent ownership) and derives the editable geometry with the pure
+`project_document` projector — sources stay canonical, mirrors are computed.
+Transitions are typed too: `admit_edit` refuses linked-target edits with
+`MirrorEditRefused::LinkedTarget`, and `create_pair`, `set_exception`,
+`unlink_pair`, `create_half` move pairs between linked, local, omitted and
+removed states.
 
-Product commits submit accepted-state intents through `Event::ResolveEdit` and
-`EditTicket`. The direct Session edit event is `PreviewEdit`, which carries only a
-transaction identity, targets and operation; Session supplies the preview phase.
-Gesture commits and export-owned operations keep their strict captured-revision
-routes (see the
-[edit-settlement contract and resolver inventory](plans/edit-settlement/map.md)).
+`Session` (`application/src/session/mod.rs`) holds the `CoreEngine` by value
+and applies one `Event` at a time: `Open`, `PreviewEdit`, `ResolveEdit`
+(carrying an `EditResolver` that runs once against the accepted snapshot),
+`Undo`/`Redo`, gesture events, generation/export events and `Close`. Each
+`submit`/`complete` call returns the host-owned `Effect`s (`Persist`,
+`Settled`, pointer/frame capture, `RunGeneration`, `RunExport`, …) for the
+host to run. Durability (`NoDocument`/`Saved`/`Saving`/`Failed`) and lifecycle
+(`Empty`/`Ready`/`Closing`/`Closed`) live in the read model next to the
+accepted snapshot, scope and selection.
 
-`runtime::PendingEdits` owns the latest observation per bounded logical key,
-captured lineage and once-only terminal results. `ui-shared::PendingEditSignals`
-binds actual field drafts/failures and one-shot disabling to those outcomes. It
-preserves newer drafts, ignores bindings replaced after submission, and releases
-submitted values after terminal field/control writes. Components unbind child
-Signals on drop. Callers retain ordinary dirty projection, domain preparation and
-request metadata, observation-owner predicates, failure placement and exact Landed
-selection/navigation. Retirement is silent; settlement does not create Saved state.
+## Runtime composition
 
-The test-support Runtime drives the real Session and Core with in-memory saving,
-shared native/WASM gate semantics and a read-only event log. Panel tests exercise
-that interface rather than a second Session implementation. Native coverage does
-not validate WASM-only presentation; mounted browser tests remain required.
+`Runtime` (`web/crates/runtime/src/runtime.rs`) wraps a real `Session` with
+typed entry points the presentation calls directly: `submit(event)`,
+`commit(label, resolver)`, `operation()`, `scope()` and `model()`. Effect
+execution lives in `runtime/effects.rs`; persist completions share two pure
+decision helpers with native tests
+(`runtime_report::persist_report` and `persist_dispatch`, covered by
+`runtime/persist_notification_tests.rs`). Status and notifications split two
+ways: `subscribe` observes general refreshes while `subscribe_durability`
+observes save-only movement, so the shell can show `"Saved locally."` without
+re-rendering the workbench.
 
-The Runtime export-lease registry owns capture, source currency and export lifecycle.
-A lease retains the accepted snapshot, scope, executor epoch and worker identity.
-Active work requires Session ownership; final delivery validates the retained capture
-and current source without requiring the already-settled operation to remain active.
-An export's own accepted commit advances its lease without relaxing its strict origin
-checks. Disposable preview currency remains separate from export ownership
-([ADR-0016](adr/0016-export-ownership-is-separate-from-preview-currency.md)).
+`RuntimeReport` (`runtime_report.rs`) is the only notification vocabulary:
+`status`/`alert` reports, `transient` one-shot delivery, `publish` into the
+shell queue and `take_notifications` to drain it. The native test double
+(`runtime_test_stub.rs`, used when not on `wasm32`) drives the same real
+`Session` and Core with in-memory saves, so panel and projection tests run
+without a browser.
 
-Runtime owns collision-check execution behind one interface: captured scene, native
-preview and delivered model rows; readiness and currency; placement transforms,
-refinement, physical PCB preparation and pair traversal. A check returns one report
-only while its captured inputs and cancellation batch remain current. Case retains
-field drafts, controls, pending display, result rendering and view-lifetime
-cancellation. Tight refinement and missing-evidence recovery retain separate bounded
-attempts, and unsupported accuracy remains uncertain. Native Runtime tests
-([`runtime/collision.rs`](../web/crates/runtime/src/runtime/collision.rs),
-[`runtime_report.rs`](../web/crates/runtime/src/runtime_report.rs)) and packaged-page
-checks ([`run-drag-browser.py`](../scripts/run-drag-browser.py)) cover ownership,
-readiness, presentation, and actual provider collision behavior.
+## Canvas interaction
 
-The page is split into crates by workspace so each stays a manageable size. Lower
-crates never depend on higher ones:
+All pointer and keyboard editing flows through the unified `CanvasInteraction`
+state machine (`web/crates/layout-core/src/interaction.rs`). One struct owns
+the mode plus `space_down`/`control_down` modifiers and consumes `CanvasEvent`s
+(`PointerDown`/`PointerMove`/`PointerUp`, `Begin`/`End`, `KeyDown`/`KeyUp`,
+`Blur`, `ScopeChanged`, `WorkspaceChanged`). `CanvasMode` names every gesture
+the canvas supports — panning, marquee, part and rail drags (`DraggingParts`,
+`DraggingMatrixRail`, `DraggingPartRail`), splay and anchor picking,
+part/matrix/mirrored-pair placement and outline-handle drags — so workspaces share hit-testing, snap and preview behavior instead of
+reimplementing gestures.
 
-1. `runtime` and `host` (no Dioxus), then `catalogue` (no Dioxus);
-2. `ui-model`: shared types only, so an edit there recompiles every presentation crate;
-3. `ui-shared`: UI that several workspaces mount;
-4. workspace crates, each on the crates below it: `keycaps`, `library` and `keymap`;
-   `case`; `parts` (on `case`); `pcb` (on `parts`); `layout` (on `keycaps`, `case` and
-   `parts`);
-5. the `boardstudio-web` bin, the page shell.
+## Offline policy
 
-Only `boardstudio-web` (the page and the worker entry points) has a normal dependency on
-the document engine (`boardstudio_core`). The crates below it use `boardstudio-model`,
-`boardstudio-core-kernel` and `boardstudio-core-mechanical` directly, so the engine and
-mirrored-half compile in parallel with them. Synchronous Core work calls typed
-`boardstudio_core::CoreEngine` methods directly (in `boardstudio-web` and test builds),
-while asynchronous Core work goes through `host::CoreExecutor`, the Core worker. Tests
-that need a real engine use `boardstudio_core` as a dev-dependency or through runtime's
-`test-support` feature.
+One service worker serves every route from a validated manifest
+(`web/src/service_worker.rs`, `OfflineManifest` in
+`web/crates/worker-host/src/offline.rs`). Install caches the shell manifest
+(`shell_assets`, always including `index.html`) with a single `addAll`; fetch
+serves shell and cached assets first and only stores responses whose URL
+matches `runtime_cache_prefixes`. That split keeps the app shell available
+offline while heavy provider payloads stay on demand:
+`scripts/build-web.py` stages `assets/ergogen-models/`, `assets/cad/`,
+`assets/cad-worker/bundled-step/` and `assets/modules/` under those prefixes,
+writes a small `modules-index.json`, and ships per-module assets lazily instead
+of inside the shell bundle. Caches are version-scoped and the worker deletes
+older same-scope caches on activation.
 
-An edit inside a workspace crate recompiles that crate, the crates above it and the bin.
-Every presentation crate's `lib.rs` aliases itself as `presentation` and re-exports the
-modules its code addressed in the bin (`crate::runtime`, `super::SelectionAdapter`,
-`super::objects::TreeContext` and so on), and the bin re-exports each moved module where
-it was declared, so code keeps the paths it had before the split. Helpers that other
-crates' tests drive are behind each crate's `test-support` feature, which only
-dev-dependencies enable. `python3 scripts/check.py browser` builds the presentation crate
-lib tests together, with `boardstudio-web-host/page`, and runs the resulting WASM binaries
-in parallel with `wasm-bindgen-test-runner`. For source-level debugging, run one crate with
-`wasm-pack test --headless --chrome web/crates/<crate> --lib` and add `--features page` for `host`.
+## Build and test topology
 
-Heavy CAD and artifact work runs outside the page. Generated JavaScript initializes
-WASM modules; browser worker and service-worker entrypoints are packaged with the
-page. Root and subpath deployments must preserve asset URLs and COOP/COEP isolation
-headers. Ordinary offline caches remain part of the application.
+`python3 scripts/check.py` owns the gates. Native-first: `test` runs one
+workspace `cargo test` (lib, bins and integration targets) plus the CAD and
+KiCad provider suites, so pure controller, projection and layout tests run as
+plain `#[test]`. `typecheck` pins the page binary for `wasm32`; `lint` runs
+Clippy over the workspace and again for `wasm32` across the page, host,
+worker-host, runtime, UI and workspace crates. `browser` stays narrow:
+the drag smoke test, the CAD browser suite, provider checks, two crate test
+binaries (`host`, `worker-host`) and the packaged-page suite
+(`scripts/run-wasm-tests.py --all --depth 1`). Only crates launched there may
+use `#[wasm_bindgen_test]`; everything else proves itself natively, with
+`test-runtime` fixtures bridging the two worlds.
 
-The React frontend and its rollback path are retired. Older saved documents pass
-through ordered Core migrations to the current supported format at storage/archive
-load boundaries before opening; newer unsupported formats are refused
-([ADR-0004](adr/0004-document-format-version-and-id-rename.md)). Current projects round-trip through persistence and
-portable archives. Historical cutover work remains in Git
-at `323967ff`; there is no active migration contract or acceptance ledger.
-
-See [development commands](../README.md), [domain terminology](../GLOSSARY.md),
-[component onboarding](hardware/component-onboarding.md) and [backlog](backlog.md).
-The [documentation index](README.md) separates current references from design,
-research and archived workflows. The [Layout part-editing investigation](investigations/layout-part-editing.md)
-records an open edit-lifecycle concern without changing the ownership above.
+See [development commands](../README.md), [product purpose](../PRODUCT.md),
+[design system](../DESIGN.md), [domain terminology](../GLOSSARY.md) and
+[coding standards](../CODING_STANDARDS.md). The [documentation
+index](README.md) separates current references from design, research and
+archived workflows.

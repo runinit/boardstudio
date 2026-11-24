@@ -4,16 +4,16 @@
 //! not depend on the engine (a dev-dependency cycle would hold its test binary back until the
 //! whole engine graph is built).
 
-use boardstudio_core_engine::CoreEngine;
 use boardstudio_core_engine::mechanical::change::MechanicalFeatureCorrespondence;
 use boardstudio_core_engine::mechanical::clearance::project_owned_closure_clearance;
 use boardstudio_core_engine::mechanical::{MechanicalChange, MechanicalEdit, MechanicalTarget};
 use boardstudio_core_engine::model::{
-    Board, CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, HardwareConfiguration,
-    HardwareTopology, HardwareTransport, MechanicalConfiguration, MechanicalConstructionOwnership,
+    Board, EditCommand, EditOperation, EditPhase, HardwareConfiguration, HardwareTopology,
+    HardwareTransport, MechanicalConfiguration, MechanicalConstructionOwnership,
     MechanicalFeatureKind, Mount, MountKind, Part, PartDefinition, PhysicalBoardInstance, Pose2,
     ProjectDoc, Side, Vec2,
 };
+use boardstudio_core_engine::{CommittedScene, CoreEngine};
 use serde_json::json;
 
 /// The generated closure-clearance part prefix of `mechanical::clearance`.
@@ -138,11 +138,8 @@ fn document_with_reference(reference: &str, mount_count: usize) -> ProjectDoc {
 
 fn open_core_document(document: ProjectDoc) -> (CoreEngine, ProjectDoc) {
     let mut engine = CoreEngine::new();
-    match engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document,
-    }) {
-        CoreReply::Scene { document, .. } => (engine, *document),
+    match engine.open(document) {
+        Ok(committed) => (engine, committed.document),
         reply => panic!("core rejected accepted-document fixture: {reply:?}"),
     }
 }
@@ -154,16 +151,13 @@ fn unsafe_or_exhausted_mh_references_fail_before_any_core_edit() {
         ("MH18446744073709551616", 1),
         ("MH9007199254740990", 2),
     ] {
-        let (mut core, accepted) =
-            open_core_document(document_with_reference(reference, mount_count));
+        let (core, accepted) = open_core_document(document_with_reference(reference, mount_count));
         let error =
             project_owned_closure_clearance(accepted.clone(), &hole_template()).unwrap_err();
         assert!(error.to_ascii_lowercase().contains("reference"), "{error}");
         assert_eq!(accepted.parts[0].reference, reference);
-        match core.handle(CoreRequest::Snapshot {
-            id: "snapshot".into(),
-        }) {
-            CoreReply::Scene { document, .. } => assert_eq!(*document, accepted),
+        match core.snapshot() {
+            Ok(committed) => assert_eq!(committed.document, accepted),
             reply => panic!("core snapshot failed after rejected planner result: {reply:?}"),
         }
     }
@@ -171,7 +165,7 @@ fn unsafe_or_exhausted_mh_references_fail_before_any_core_edit() {
 
 #[test]
 fn safe_mh_reference_and_output_count_boundaries_remain_allocatable() {
-    let (mut core, accepted) = open_core_document(document_with_reference("MH9007199254740989", 2));
+    let (core, accepted) = open_core_document(document_with_reference("MH9007199254740989", 2));
     let projected = project_owned_closure_clearance(accepted.clone(), &hole_template()).unwrap();
     let generated = projected
         .parts
@@ -181,10 +175,8 @@ fn safe_mh_reference_and_output_count_boundaries_remain_allocatable() {
     assert_eq!(generated.len(), 2);
     assert_eq!(generated[0].reference, "MH9007199254740990");
     assert_eq!(generated[1].reference, "MH9007199254740991");
-    match core.handle(CoreRequest::Snapshot {
-        id: "snapshot".into(),
-    }) {
-        CoreReply::Scene { document, .. } => assert_eq!(*document, accepted),
+    match core.snapshot() {
+        Ok(committed) => assert_eq!(committed.document, accepted),
         reply => panic!("core snapshot failed after pure projection: {reply:?}"),
     }
 }
@@ -263,30 +255,23 @@ fn link_edit(target: MechanicalTarget, pair_id: &str, source: &str) -> Mechanica
 fn an_end_to_end_link_commits_and_one_undo_restores_the_document() {
     let mut engine = CoreEngine::new();
     let before = mirror_document();
-    let CoreReply::Scene { document, .. } = engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: before.clone(),
-    }) else {
+    let Ok(CommittedScene { document, .. }) = engine.open(before.clone()) else {
         panic!("open must succeed");
     };
     let revision = document.revision;
-    let CoreReply::Scene { document, .. } = engine.handle(CoreRequest::Edit {
-        id: "link".into(),
-        command: EditCommand {
-            base_revision: revision,
-            transaction_id: "link".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation: EditOperation::ApplyMechanicalEdit {
-                edit: Box::new(link_edit(board_target(), "pair-left-right", "left")),
-            },
+    let Ok(CommittedScene { document, .. }) = engine.commit_edit(EditCommand {
+        base_revision: revision,
+        transaction_id: "link".into(),
+        phase: EditPhase::Commit,
+        target_ids: vec![],
+        operation: EditOperation::ApplyMechanicalEdit {
+            edit: Box::new(link_edit(board_target(), "pair-left-right", "left")),
         },
     }) else {
         panic!("the link must commit");
     };
     assert_eq!(document.hardware.as_ref().unwrap().pairs.len(), 1);
-    let CoreReply::Scene { document, .. } = engine.handle(CoreRequest::Undo { id: "undo".into() })
-    else {
+    let Ok(CommittedScene { document, .. }) = engine.undo() else {
         panic!("undo must succeed");
     };
     assert_eq!(document.hardware, before.hardware);

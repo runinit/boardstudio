@@ -6,8 +6,8 @@ use super::super::inputs::effective_inputs;
 use super::{
     closure_list_absent, dedup_changed, default_configuration, feature_ids, find_feature_value,
     identity_reservation_of, initialize_target_closures, instance_configuration_mut,
-    merge_identity_floor, owner_id, pair_owner_ids, paired_index, project, remove_feature,
-    reserved_identity_floor, validate_mounting_hole,
+    merge_identity_floor, owner_id, pair_at, pair_mut_at, pair_owner_ids, paired_index, project,
+    remove_feature, reserved_identity_floor, validate_mounting_hole,
 };
 use crate::model::*;
 
@@ -77,7 +77,7 @@ pub(super) fn persist_edit(
                 // changes the derived geometry both halves show, so the report names the
                 // pair and both member instances.
                 let mut pair_touched = false;
-                let pair = doc.hardware.as_ref().unwrap().pairs[pair_index].clone();
+                let pair = pair_at(doc, pair_index)?.clone();
                 for feature in &pair.features {
                     let Some(member) = feature
                         .members
@@ -93,7 +93,7 @@ pub(super) fn persist_edit(
                             find_feature_value(before, feature.kind, &member.feature_id);
                         if after_value != before_value {
                             pair_touched = true;
-                            let pair = &mut doc.hardware.as_mut().unwrap().pairs[pair_index];
+                            let pair = pair_mut_at(doc, pair_index)?;
                             match after_value {
                                 Some(value) => {
                                     // The editing member's frame authors the pair's
@@ -141,7 +141,7 @@ pub(super) fn persist_edit(
                         let Some(value) = find_feature_value(&after, kind, &id) else {
                             continue;
                         };
-                        let pair = &mut doc.hardware.as_mut().unwrap().pairs[pair_index];
+                        let pair = pair_mut_at(doc, pair_index)?;
                         if pair.features.iter().any(|feature| feature.id == id) {
                             continue;
                         }
@@ -163,10 +163,10 @@ pub(super) fn persist_edit(
                 let after_shared = features::shared_construction(&after);
                 if before_shared != after_shared {
                     pair_touched = true;
-                    doc.hardware.as_mut().unwrap().pairs[pair_index].construction = after_shared;
+                    pair_mut_at(doc, pair_index)?.construction = after_shared;
                 }
                 if pair_touched {
-                    changed.extend(pair_owner_ids(doc, pair_index));
+                    changed.extend(pair_owner_ids(doc, pair_index)?);
                 }
             }
             None => {
@@ -624,7 +624,7 @@ pub(super) fn remove_physical_instance(
             instance_id: survivor_id.clone(),
         },
     )?;
-    let pair_id = doc.hardware.as_ref().unwrap().pairs[pair_index].id.clone();
+    let pair_id = pair_at(doc, pair_index)?.id.clone();
     {
         let hardware = doc
             .hardware
@@ -707,7 +707,10 @@ pub(super) fn materialize_legacy_construction(
     // The prior common construction is captured before conversion when the remaining
     // legacy members would otherwise fall back to a converted member's configuration.
     let captured_source = {
-        let hardware = doc.hardware.as_ref().unwrap();
+        let hardware = doc
+            .hardware
+            .as_ref()
+            .ok_or("Physical instances are unavailable")?;
         if hardware.shared_construction.is_some() {
             None
         } else {
@@ -716,7 +719,7 @@ pub(super) fn materialize_legacy_construction(
                 .iter()
                 .find(|instance| instance.mechanical.is_some())
                 .filter(|instance| instance_ids.contains(&instance.id))
-                .map(|instance| instance.mechanical.clone().unwrap())
+                .and_then(|instance| instance.mechanical.clone())
         }
     };
     // Resolve every selected member's effective values before anything mutates.
@@ -815,8 +818,12 @@ pub fn reconcile_physical_topology(
         .collect();
     let mut changed = Vec::new();
     for index in dangling.into_iter().rev() {
-        let pair = doc.hardware.as_ref().unwrap().pairs[index].clone();
-        doc.hardware.as_mut().unwrap().pairs.remove(index);
+        let pair = pair_at(doc, index)?.clone();
+        doc.hardware
+            .as_mut()
+            .ok_or("Physical instances are unavailable")?
+            .pairs
+            .remove(index);
         changed.push(pair.id.clone());
         let survivor = pair
             .members

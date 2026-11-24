@@ -20,6 +20,7 @@ mod mech_chunk0;
 mod mech_chunk1;
 #[path = "mechanical_integration/mech_chunk2.rs"]
 mod mech_chunk2;
+use boardstudio_core::CommittedScene;
 use boardstudio_core::mechanical::{MechanicalEditDisposition, evaluate_edit};
 use boardstudio_core::model::{
     Board, BoardContours, CaseBody, CaseKind, Contour, HardwareConfiguration, HardwareTopology,
@@ -91,14 +92,22 @@ fn mirror_instance_on(id: &str, board_id: &str, mounts: Vec<Mount>) -> PhysicalB
     )
 }
 
-/// Two physical halves on one board, each with its own local mount geometry.
-fn pair_document() -> ProjectDoc {
+/// Two physical halves on one board with per-half mount geometry.
+fn pair_document_on(left: Vec<Mount>, right: Vec<Mount>) -> ProjectDoc {
     let mut document = document();
     document.hardware = Some(hardware(vec![
-        mirror_instance("left", vec![mount("mount-1", 2.0, 3.0)]),
-        mirror_instance("right", vec![mount("mount-1", 7.0, 3.0)]),
+        mirror_instance("left", left),
+        mirror_instance("right", right),
     ]));
     document
+}
+
+/// Two physical halves on one board, each with its own local mount geometry.
+fn pair_document() -> ProjectDoc {
+    pair_document_on(
+        vec![mount("mount-1", 2.0, 3.0)],
+        vec![mount("mount-1", 7.0, 3.0)],
+    )
 }
 
 fn with_template(target: MechanicalTarget, change: MechanicalChange) -> MechanicalEdit {
@@ -244,18 +253,10 @@ fn closure_mounts(document: &ProjectDoc) -> Vec<Mount> {
 }
 
 fn pair_document_with_two_mounts() -> ProjectDoc {
-    let mut document = document();
-    document.hardware = Some(hardware(vec![
-        mirror_instance(
-            "left",
-            vec![mount("mount-1", 2.0, 3.0), mount("mount-2", 4.0, 5.0)],
-        ),
-        mirror_instance(
-            "right",
-            vec![mount("mount-1", 7.0, 3.0), mount("mount-2", 9.0, 5.0)],
-        ),
-    ]));
-    document
+    pair_document_on(
+        vec![mount("mount-1", 2.0, 3.0), mount("mount-2", 4.0, 5.0)],
+        vec![mount("mount-1", 7.0, 3.0), mount("mount-2", 9.0, 5.0)],
+    )
 }
 
 fn correspondence(
@@ -272,39 +273,47 @@ fn correspondence(
     }
 }
 
-fn link_with_correspondences(
+/// Apply one mechanical change with or without the mounting-hole template.
+fn apply_edit(
     document: &mut ProjectDoc,
-    correspondences: Vec<MechanicalFeatureCorrespondence>,
+    target: MechanicalTarget,
+    change: MechanicalChange,
+    mounting_hole: bool,
 ) -> Result<Vec<String>, String> {
     boardstudio_core::mechanical::edit::apply(
         document,
         &[],
-        &MechanicalEdit {
-            target: board_target(),
-            change: MechanicalChange::LinkMirrorPair {
-                pair_id: "pair-left-right".into(),
-                members: ["left".into(), "right".into()],
-                mapping: Pose2 {
-                    at: Vec2 { x: 0.0, y: 0.0 },
-                    rotation: 0.0,
-                },
-                construction_source: "left".into(),
-                correspondences,
+        &crate::support::session::mechanical_edit(target, change, mounting_hole),
+    )
+}
+
+fn link_with_correspondences(
+    document: &mut ProjectDoc,
+    correspondences: Vec<MechanicalFeatureCorrespondence>,
+) -> Result<Vec<String>, String> {
+    apply_edit(
+        document,
+        board_target(),
+        MechanicalChange::LinkMirrorPair {
+            pair_id: "pair-left-right".into(),
+            members: ["left".into(), "right".into()],
+            mapping: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
             },
-            mounting_hole: Some(Box::new(fixture::mounting_hole())),
+            construction_source: "left".into(),
+            correspondences,
         },
+        true,
     )
 }
 
 fn remove_member(document: &mut ProjectDoc, instance_id: &str) -> Result<Vec<String>, String> {
-    boardstudio_core::mechanical::edit::apply(
+    apply_edit(
         document,
-        &[],
-        &MechanicalEdit {
-            target: instance_target(instance_id),
-            change: MechanicalChange::RemovePhysicalInstance,
-            mounting_hole: Some(Box::new(fixture::mounting_hole())),
-        },
+        instance_target(instance_id),
+        MechanicalChange::RemovePhysicalInstance,
+        true,
     )
 }
 
@@ -340,33 +349,19 @@ fn with_board_outline(document: &mut ProjectDoc) {
 
 /// Two halves where the linked mount reflects onto the second half's local hardware.
 fn conflicting_pair_document() -> ProjectDoc {
-    let mut document = document();
+    let mut document = pair_document_on(
+        vec![mount("mount-1", 2.0, 3.0)],
+        vec![
+            mount("mount-1", 7.0, 3.0),
+            mount("mount-encoder", -2.0, 3.0),
+        ],
+    );
     with_board_outline(&mut document);
-    document.hardware = Some(hardware(vec![
-        mirror_instance("left", vec![mount("mount-1", 2.0, 3.0)]),
-        mirror_instance(
-            "right",
-            vec![
-                mount("mount-1", 7.0, 3.0),
-                mount("mount-encoder", -2.0, 3.0),
-            ],
-        ),
-    ]));
     document
 }
 
 fn add_opening(document: &mut ProjectDoc) -> String {
-    use boardstudio_core::mechanical::edit::apply;
-    apply(
-        document,
-        &[],
-        &MechanicalEdit {
-            target: board_target(),
-            change: MechanicalChange::AddOpening,
-            mounting_hole: Some(Box::new(fixture::mounting_hole())),
-        },
-    )
-    .unwrap();
+    apply_edit(document, board_target(), MechanicalChange::AddOpening, true).unwrap();
     document
         .mechanical
         .as_ref()
@@ -405,15 +400,11 @@ fn pair_document_with_openings() -> ProjectDoc {
 }
 
 fn add_instance_opening(document: &mut ProjectDoc, instance_id: &str) -> String {
-    use boardstudio_core::mechanical::edit::apply;
-    apply(
+    apply_edit(
         document,
-        &[],
-        &MechanicalEdit {
-            target: instance_target(instance_id),
-            change: MechanicalChange::AddOpening,
-            mounting_hole: Some(Box::new(fixture::mounting_hole())),
-        },
+        instance_target(instance_id),
+        MechanicalChange::AddOpening,
+        true,
     )
     .unwrap()
     .into_iter()
@@ -422,26 +413,15 @@ fn add_instance_opening(document: &mut ProjectDoc, instance_id: &str) -> String 
 }
 
 fn rect_contour(half_width: f64, half_height: f64) -> Contour {
+    let corners = [
+        (-half_width, -half_height),
+        (half_width, -half_height),
+        (half_width, half_height),
+        (-half_width, half_height),
+    ];
     Contour {
         hole: false,
-        points: vec![
-            Vec2 {
-                x: -half_width,
-                y: -half_height,
-            },
-            Vec2 {
-                x: half_width,
-                y: -half_height,
-            },
-            Vec2 {
-                x: half_width,
-                y: half_height,
-            },
-            Vec2 {
-                x: -half_width,
-                y: half_height,
-            },
-        ],
+        points: corners.into_iter().map(|(x, y)| Vec2 { x, y }).collect(),
     }
 }
 
@@ -550,30 +530,6 @@ fn author_gasket_support(
         })
 }
 
-fn anchor_of(
-    support: &boardstudio_core::model::MechanicalGasketSupport,
-) -> boardstudio_core::model::MechanicalGasketAnchor {
-    boardstudio_core::model::MechanicalGasketAnchor {
-        length: None,
-        width: None,
-        placement: Some(boardstudio_core::model::GasketPlacement::User),
-        id: support.id.clone(),
-        region_id: support.region_id.clone(),
-        outline_key: support.outline_key.clone(),
-        anchor: support.anchor,
-        unlinked: false,
-    }
-}
-
-/// One member's state for a feature, by member feature id.
-fn features_member_state(
-    pair: &boardstudio_core::model::MechanicalMirrorPair,
-    instance_id: &str,
-    feature_id: &str,
-) -> Option<boardstudio_core::model::MechanicalFeatureState> {
-    boardstudio_core::mechanical::features::member_state(pair, instance_id, feature_id)
-}
-
 /// A legacy-ownership configuration whose hardware, critical fits and profiles are
 /// distinguishable by `marker`.
 fn legacy_configuration(marker: &str, plate_thickness: f64) -> MechanicalConfiguration {
@@ -627,16 +583,13 @@ fn legacy_document() -> ProjectDoc {
 }
 
 fn convert(document: &mut ProjectDoc, ids: &[&str]) -> Result<Vec<String>, String> {
-    boardstudio_core::mechanical::edit::apply(
+    apply_edit(
         document,
-        &[],
-        &MechanicalEdit {
-            target: board_target(),
-            change: MechanicalChange::MaterializeLegacyConstruction {
-                instance_ids: ids.iter().map(|id| (*id).to_string()).collect(),
-            },
-            mounting_hole: None,
+        board_target(),
+        MechanicalChange::MaterializeLegacyConstruction {
+            instance_ids: ids.iter().map(|id| (*id).to_string()).collect(),
         },
+        false,
     )
 }
 
@@ -671,7 +624,16 @@ fn link_gasket_support(
     board: &str,
 ) -> boardstudio_core::model::MechanicalGasketSupport {
     let author = author_gasket_support(document, accepted, source, board);
-    let anchor = anchor_of(&author);
+    let anchor = boardstudio_core::model::MechanicalGasketAnchor {
+        length: None,
+        width: None,
+        placement: Some(boardstudio_core::model::GasketPlacement::User),
+        id: author.id.clone(),
+        region_id: author.region_id.clone(),
+        outline_key: author.outline_key.clone(),
+        anchor: author.anchor,
+        unlinked: false,
+    };
     for instance in document.hardware.as_mut().unwrap().instances.iter_mut() {
         instance
             .mechanical
@@ -722,16 +684,13 @@ fn set_wall_thickness(
     instance_id: &str,
     value: f64,
 ) -> Result<Vec<String>, String> {
-    boardstudio_core::mechanical::edit::apply(
+    apply_edit(
         document,
-        &[],
-        &MechanicalEdit {
-            target: instance_target(instance_id),
-            change: MechanicalChange::SetDimension {
-                field: MechanicalDimension::WallThickness,
-                value,
-            },
-            mounting_hole: None,
+        instance_target(instance_id),
+        MechanicalChange::SetDimension {
+            field: MechanicalDimension::WallThickness,
+            value,
         },
+        false,
     )
 }

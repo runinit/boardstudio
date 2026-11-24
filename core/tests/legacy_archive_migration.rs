@@ -1,5 +1,5 @@
 //! Strict archive admission and deliberately authored current-schema assets.
-use boardstudio_core::model::{ArchiveReply, CoreReply, CoreRequest, ProjectDoc};
+use boardstudio_core::model::{ArchiveReply, ProjectDoc};
 use boardstudio_core::{CoreEngine, archive, document_format, generators};
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -134,11 +134,8 @@ fn the_rebuilt_current_project_opens_and_every_generated_part_renders() {
                 .unwrap_or_else(|error| panic!("{}: {error}", part.id));
         }
     }
-    match CoreEngine::new().handle(CoreRequest::Open {
-        id: "synthetic-legacy".into(),
-        document,
-    }) {
-        CoreReply::Scene { .. } => {}
+    match CoreEngine::new().open(document) {
+        Ok(_) => {}
         other => panic!("current project must open: {other:?}"),
     }
 }
@@ -147,11 +144,8 @@ fn the_rebuilt_current_project_opens_and_every_generated_part_renders() {
 fn an_unmigrated_document_is_refused_by_open() {
     let mut document: ProjectDoc = serde_json::from_str(&unpacked()).unwrap();
     document.format_version = 7;
-    match CoreEngine::new().handle(CoreRequest::Open {
-        id: "synthetic-legacy".into(),
-        document,
-    }) {
-        CoreReply::Error { message, .. } => {
+    match CoreEngine::new().open(document) {
+        Err(message) => {
             assert!(
                 message == "Unsupported formatVersion: expected 8",
                 "{message}"

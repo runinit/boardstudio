@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 //! Shared document, request and reply types and their intrinsic operations.
 pub mod case_readiness;
 pub mod constraints;

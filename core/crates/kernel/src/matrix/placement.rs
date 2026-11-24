@@ -271,29 +271,28 @@ pub fn update(
                 }
                 _ => unreachable!("only key Shift and Bend enter this arm"),
             }
-            let cell = if let Some(index) = after
+            let index = after
                 .cells
                 .iter()
                 .position(|cell| cell.row == *row && cell.column == *column)
-            {
-                &mut after.cells[index]
-            } else {
-                after.cells.push(MatrixCell {
-                    row: *row,
-                    column: *column,
-                    enabled: true,
-                    deleted: false,
-                    shift: None,
-                    bend: None,
-                    definition_id: None,
-                    variant: None,
-                    offset: None,
-                    rotation: None,
-                    assemblies: vec![],
-                    assemblies_local: None,
+                .unwrap_or_else(|| {
+                    after.cells.push(MatrixCell {
+                        row: *row,
+                        column: *column,
+                        enabled: true,
+                        deleted: false,
+                        shift: None,
+                        bend: None,
+                        definition_id: None,
+                        variant: None,
+                        offset: None,
+                        rotation: None,
+                        assemblies: vec![],
+                        assemblies_local: None,
+                    });
+                    after.cells.len() - 1
                 });
-                after.cells.last_mut().expect("inserted key layout")
-            };
+            let cell = &mut after.cells[index];
             match change {
                 MatrixPlacementChange::KeyShift { value, .. } => cell.shift = Some(*value),
                 MatrixPlacementChange::KeyBend { value, .. } => cell.bend = Some(*value),

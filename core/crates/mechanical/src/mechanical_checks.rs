@@ -88,8 +88,8 @@ pub fn propose_mounts(config: &MechanicalConfiguration, contours: &[Contour]) ->
                     };
                     distance(a).total_cmp(&distance(b))
                 })
-                .unwrap()
-                .0
+                .map(|(index, _)| index)
+                .unwrap_or(0)
         };
         selected.push(proposals.remove(index));
     }

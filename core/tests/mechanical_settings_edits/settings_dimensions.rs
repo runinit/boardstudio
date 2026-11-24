@@ -15,24 +15,28 @@ fn dimensions_apply_and_report_the_configuration_owner() {
         vec!["board"]
     );
     assert_eq!(stored(&doc).wall_thickness, 3.0);
-    apply_change(
-        &mut doc,
-        MechanicalChange::SetDimension {
-            field: MechanicalDimension::BottomThickness,
-            value: 2.5,
-        },
-    )
-    .unwrap();
-    assert_eq!(stored(&doc).bottom_thickness, 2.5);
-    apply_change(
-        &mut doc,
-        MechanicalChange::SetDimension {
-            field: MechanicalDimension::PcbThickness,
-            value: 1.2,
-        },
-    )
-    .unwrap();
-    assert_eq!(stored(&doc).pcb_thickness, 1.2);
+    assert_eq!(
+        set(
+            &mut doc,
+            MechanicalChange::SetDimension {
+                field: MechanicalDimension::BottomThickness,
+                value: 2.5,
+            },
+        )
+        .bottom_thickness,
+        2.5
+    );
+    assert_eq!(
+        set(
+            &mut doc,
+            MechanicalChange::SetDimension {
+                field: MechanicalDimension::PcbThickness,
+                value: 1.2,
+            },
+        )
+        .pcb_thickness,
+        1.2
+    );
 }
 
 #[test]
@@ -79,7 +83,7 @@ fn malformed_dimensions_error_and_mutate_nothing() {
     );
     assert_eq!(stored(&doc), &before);
 
-    apply_change(&mut doc, MechanicalChange::AddOpening).unwrap();
+    set(&mut doc, MechanicalChange::AddOpening);
     let before = stored(&doc).clone();
     assert!(
         apply_change(
@@ -140,7 +144,7 @@ fn enabling_a_wired_battery_uses_reference_defaults_and_preserves_other_settings
     let mut doc = document();
     let before = stored(&doc).clone();
 
-    apply_change(&mut doc, MechanicalChange::SetBatteryEnabled(true)).unwrap();
+    set(&mut doc, MechanicalChange::SetBatteryEnabled(true));
 
     let after = stored(&doc);
     assert_eq!(
@@ -227,7 +231,7 @@ fn battery_dimensions_update_their_own_fields_and_reject_invalid_values() {
         (MechanicalDimension::BatteryCableExitX, 30.0),
         (MechanicalDimension::BatteryCableExitY, -5.0),
     ] {
-        apply_change(&mut doc, MechanicalChange::SetDimension { field, value }).unwrap();
+        set(&mut doc, MechanicalChange::SetDimension { field, value });
     }
     assert_eq!(
         stored(&doc).battery,
@@ -297,26 +301,23 @@ fn closure_hardware_presets_drive_installation_threads_and_lengths_apply() {
     let mut doc = document();
     doc.mechanical.as_mut().unwrap().internal_gasket = Some(default_internal_gasket());
 
-    apply_change(
-        &mut doc,
-        MechanicalChange::SetClosureDrive(ScrewDrive::Torx),
-    )
-    .unwrap();
     assert_eq!(
-        stored(&doc)
-            .internal_gasket
-            .as_ref()
-            .unwrap()
-            .hardware
-            .drive,
+        set(
+            &mut doc,
+            MechanicalChange::SetClosureDrive(ScrewDrive::Torx),
+        )
+        .internal_gasket
+        .as_ref()
+        .unwrap()
+        .hardware
+        .drive,
         ScrewDrive::Torx
     );
 
-    apply_change(
+    set(
         &mut doc,
         MechanicalChange::SetClosureInsertPreset("m2-4".into()),
-    )
-    .unwrap();
+    );
     let hardware = &stored(&doc).internal_gasket.as_ref().unwrap().hardware;
     assert_eq!(hardware.id, "custom-m2-4");
     assert_eq!(hardware.thread, "M2 × 0.4");
@@ -339,80 +340,69 @@ fn closure_hardware_presets_drive_installation_threads_and_lengths_apply() {
         .is_err()
     );
 
-    apply_change(
-        &mut doc,
-        MechanicalChange::SetClosureInstallation(InsertInstallation::Tapped),
-    )
-    .unwrap();
     assert_eq!(
-        stored(&doc)
-            .internal_gasket
-            .as_ref()
-            .unwrap()
-            .hardware
-            .installation,
+        set(
+            &mut doc,
+            MechanicalChange::SetClosureInstallation(InsertInstallation::Tapped),
+        )
+        .internal_gasket
+        .as_ref()
+        .unwrap()
+        .hardware
+        .installation,
         InsertInstallation::Tapped
     );
-    apply_change(
-        &mut doc,
-        MechanicalChange::SetClosureThread("M3 × 0.5".into()),
-    )
-    .unwrap();
     assert_eq!(
-        stored(&doc)
-            .internal_gasket
-            .as_ref()
-            .unwrap()
-            .hardware
-            .thread,
+        set(
+            &mut doc,
+            MechanicalChange::SetClosureThread("M3 × 0.5".into()),
+        )
+        .internal_gasket
+        .as_ref()
+        .unwrap()
+        .hardware
+        .thread,
         "M3 × 0.5"
     );
-    apply_change(
-        &mut doc,
-        MechanicalChange::SetClosureHeadProfile(ScrewHeadProfile::Countersunk),
-    )
-    .unwrap();
     assert_eq!(
-        stored(&doc)
-            .internal_gasket
-            .as_ref()
-            .unwrap()
-            .hardware
-            .head_profile,
+        set(
+            &mut doc,
+            MechanicalChange::SetClosureHeadProfile(ScrewHeadProfile::Countersunk),
+        )
+        .internal_gasket
+        .as_ref()
+        .unwrap()
+        .hardware
+        .head_profile,
         ScrewHeadProfile::Countersunk
     );
-    apply_change(
-        &mut doc,
-        MechanicalChange::SetClosureLengthDatum(ScrewLengthDatum::Overall),
-    )
-    .unwrap();
     assert_eq!(
-        stored(&doc)
-            .internal_gasket
-            .as_ref()
-            .unwrap()
-            .hardware
-            .length_datum,
+        set(
+            &mut doc,
+            MechanicalChange::SetClosureLengthDatum(ScrewLengthDatum::Overall),
+        )
+        .internal_gasket
+        .as_ref()
+        .unwrap()
+        .hardware
+        .length_datum,
         ScrewLengthDatum::Overall
     );
 
-    apply_change(
-        &mut doc,
-        MechanicalChange::SetClosureScrewLengths(vec![9.0, 11.0]),
-    )
-    .unwrap();
     assert_eq!(
-        stored(&doc)
-            .internal_gasket
-            .as_ref()
-            .unwrap()
-            .hardware
-            .screw_lengths,
+        set(
+            &mut doc,
+            MechanicalChange::SetClosureScrewLengths(vec![9.0, 11.0]),
+        )
+        .internal_gasket
+        .as_ref()
+        .unwrap()
+        .hardware
+        .screw_lengths,
         vec![9.0, 11.0]
     );
-    apply_change(&mut doc, MechanicalChange::SetClosureFixedLength(Some(9.0))).unwrap();
     assert_eq!(
-        stored(&doc)
+        set(&mut doc, MechanicalChange::SetClosureFixedLength(Some(9.0)))
             .internal_gasket
             .as_ref()
             .unwrap()
@@ -420,18 +410,16 @@ fn closure_hardware_presets_drive_installation_threads_and_lengths_apply() {
             .fixed_length,
         Some(9.0)
     );
-    apply_change(
-        &mut doc,
-        MechanicalChange::SetClosureScrewLengths(vec![10.0, 12.0]),
-    )
-    .unwrap();
     assert_eq!(
-        stored(&doc)
-            .internal_gasket
-            .as_ref()
-            .unwrap()
-            .hardware
-            .fixed_length,
+        set(
+            &mut doc,
+            MechanicalChange::SetClosureScrewLengths(vec![10.0, 12.0]),
+        )
+        .internal_gasket
+        .as_ref()
+        .unwrap()
+        .hardware
+        .fixed_length,
         None,
         "a length no longer offered clears the fixed choice"
     );
@@ -465,29 +453,37 @@ fn critical_fits_and_hardware_apply_and_report_their_own_ids() {
     assert_eq!(fit.to, Vec2 { x: 10.0, y: 0.0 });
     assert_eq!(fit.tolerance, "±0.2 mm");
 
-    apply_change(
-        &mut doc,
-        MechanicalChange::SetCriticalFitText {
-            fit_id: "case-critical-fit-1".into(),
-            field: MechanicalCriticalFitTextField::Label,
-            value: "Width".into(),
-        },
-    )
-    .unwrap();
     assert_eq!(
-        stored(&doc).critical_fits.as_ref().unwrap()[0].label,
+        set(
+            &mut doc,
+            MechanicalChange::SetCriticalFitText {
+                fit_id: "case-critical-fit-1".into(),
+                field: MechanicalCriticalFitTextField::Label,
+                value: "Width".into(),
+            },
+        )
+        .critical_fits
+        .as_ref()
+        .unwrap()[0]
+            .label,
         "Width"
     );
-    apply_change(
-        &mut doc,
-        MechanicalChange::SetCriticalFitPoint {
-            fit_id: "case-critical-fit-1".into(),
-            field: MechanicalDimension::CriticalFitToX,
-            value: 15.0,
-        },
-    )
-    .unwrap();
-    assert_eq!(stored(&doc).critical_fits.as_ref().unwrap()[0].to.x, 15.0);
+    assert_eq!(
+        set(
+            &mut doc,
+            MechanicalChange::SetCriticalFitPoint {
+                fit_id: "case-critical-fit-1".into(),
+                field: MechanicalDimension::CriticalFitToX,
+                value: 15.0,
+            },
+        )
+        .critical_fits
+        .as_ref()
+        .unwrap()[0]
+            .to
+            .x,
+        15.0
+    );
     assert_eq!(
         apply_change(
             &mut doc,
@@ -529,17 +525,19 @@ fn critical_fits_and_hardware_apply_and_report_their_own_ids() {
         vec!["board", "case-mechanical-hardware-1"]
     );
     assert_eq!(stored(&doc).hardware.as_ref().unwrap()[0].quantity, 6);
-    apply_change(
-        &mut doc,
-        MechanicalChange::SetHardwareText {
-            hardware_id: "case-mechanical-hardware-1".into(),
-            field: MechanicalHardwareTextField::Designation,
-            value: "M2 screw".into(),
-        },
-    )
-    .unwrap();
     assert_eq!(
-        stored(&doc).hardware.as_ref().unwrap()[0].designation,
+        set(
+            &mut doc,
+            MechanicalChange::SetHardwareText {
+                hardware_id: "case-mechanical-hardware-1".into(),
+                field: MechanicalHardwareTextField::Designation,
+                value: "M2 screw".into(),
+            },
+        )
+        .hardware
+        .as_ref()
+        .unwrap()[0]
+            .designation,
         "M2 screw"
     );
     assert_eq!(

@@ -558,7 +558,7 @@ fn repair_haptic_pullups(definition: &mut ModuleDefinition) -> Result<(), Artifa
         .nets
         .iter_mut()
         .find(|net| net.id == supply)
-        .expect("Supply retained");
+        .ok_or_else(|| error(format!("Retained supply {supply} is missing")))?;
     for pin in added {
         if !rail.pins.contains(&pin) {
             rail.pins.push(pin)

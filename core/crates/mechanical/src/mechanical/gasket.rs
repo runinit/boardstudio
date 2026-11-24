@@ -545,7 +545,9 @@ pub(super) fn generate(
             // Outer shells snap to the nearest clamped projection; internal tabs
             // require a bounded capture fraction instead (see internal::generate).
             let reflected = reflect_x(result.gasket_supports[source_index].at, link.axis_x);
-            let region = regions.iter().find(|r| r.id == layout.id).unwrap();
+            let Some(region) = regions.iter().find(|r| r.id == layout.id) else {
+                return Err("Linked gasket positions do not fit the mirrored outline. Unlink the support or restore symmetric clearance.".into());
+            };
             let candidate = region
                 .tracks
                 .iter()

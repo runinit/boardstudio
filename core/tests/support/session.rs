@@ -1,8 +1,8 @@
-//! Typed Core requests and reply assertions used by integration tests.
+//! Typed Core sessions and reply assertions used by integration tests.
 
 use super::fixture;
 use boardstudio_core::mechanical::change::{MechanicalChange, MechanicalEdit, MechanicalTarget};
-use boardstudio_core::{CoreEngine, model::*};
+use boardstudio_core::{CommittedScene, CoreEngine, EditOutcome, model::*};
 use serde_json::Value;
 
 #[path = "builders.rs"]
@@ -72,39 +72,58 @@ impl Session {
         (session, scene, document)
     }
 
-    pub fn send(&mut self, request: CoreRequest) -> CoreReply {
-        self.0.handle(request)
+    pub fn open(&mut self, document: ProjectDoc) -> Result<CommittedScene, String> {
+        self.0.open(document)
     }
 
-    pub fn open(&mut self, document: ProjectDoc) -> CoreReply {
-        self.send(fixture::open(document))
+    pub fn commit(
+        &mut self,
+        revision: u64,
+        operation: EditOperation,
+    ) -> Result<CommittedScene, String> {
+        self.0.commit_edit(EditCommand {
+            base_revision: revision,
+            transaction_id: "edit".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![],
+            operation,
+        })
     }
 
-    pub fn commit(&mut self, revision: u64, operation: EditOperation) -> CoreReply {
-        self.edit(revision, EditPhase::Commit, operation)
-    }
-
-    pub fn preview(&mut self, revision: u64, operation: EditOperation) -> CoreReply {
+    pub fn preview(
+        &mut self,
+        revision: u64,
+        operation: EditOperation,
+    ) -> Result<EditOutcome, String> {
         self.edit(revision, EditPhase::Preview, operation)
     }
 
-    fn edit(&mut self, revision: u64, phase: EditPhase, operation: EditOperation) -> CoreReply {
-        self.send(fixture::edit("edit", "edit", revision, phase, operation))
+    /// Apply a fully-formed edit command, preserving its transaction identity.
+    pub fn apply(&mut self, command: EditCommand) -> Result<EditOutcome, String> {
+        self.0.apply_edit(command)
     }
 
-    pub fn undo(&mut self) -> CoreReply {
-        self.send(CoreRequest::Undo { id: "undo".into() })
+    fn edit(
+        &mut self,
+        revision: u64,
+        phase: EditPhase,
+        operation: EditOperation,
+    ) -> Result<EditOutcome, String> {
+        self.0
+            .apply_edit(fixture::edit("edit", "edit", revision, phase, operation))
     }
 
-    pub fn redo(&mut self) -> CoreReply {
-        self.send(CoreRequest::Redo { id: "redo".into() })
+    pub fn undo(&mut self) -> Result<CommittedScene, String> {
+        self.0.undo()
+    }
+
+    pub fn redo(&mut self) -> Result<CommittedScene, String> {
+        self.0.redo()
     }
 
     #[track_caller]
     pub fn snapshot(&mut self) -> ProjectDoc {
-        fixture::document(self.send(CoreRequest::Snapshot {
-            id: "snapshot".into(),
-        }))
+        fixture::document(self.0.snapshot())
     }
 
     /// Open a document on a fresh session and return only its scene.
@@ -115,12 +134,12 @@ impl Session {
     }
 
     /// Commit a mechanical change with the mounting-hole template at the
-    /// session revision, returning the raw reply.
+    /// session revision.
     pub fn commit_mechanical(
         &mut self,
         target: MechanicalTarget,
         change: MechanicalChange,
-    ) -> CoreReply {
+    ) -> Result<CommittedScene, String> {
         let base_revision = self.rev();
         self.commit(
             base_revision,
@@ -140,7 +159,7 @@ impl Session {
 /// directly instead of through [`Session`].
 pub(crate) fn open_engine(document: ProjectDoc) -> (CoreEngine, SceneDelta, ProjectDoc) {
     let mut engine = CoreEngine::new();
-    let (scene, document) = fixture::scene_and_document(engine.handle(fixture::open(document)));
+    let (scene, document) = fixture::scene_and_document(engine.open(document));
     (engine, scene, document)
 }
 
@@ -151,7 +170,7 @@ pub(crate) fn commit_edit(
     doc: &ProjectDoc,
     operation: EditOperation,
 ) -> (SceneDelta, ProjectDoc) {
-    fixture::scene_and_document(engine.handle(fixture::commit(
+    fixture::scene_and_document(engine.commit_edit(fixture::commit(
         "edit",
         "edit",
         doc.revision,
@@ -160,24 +179,24 @@ pub(crate) fn commit_edit(
 }
 
 #[track_caller]
-pub(crate) fn changed(reply: &CoreReply) -> &[String] {
-    match reply {
-        CoreReply::Scene { scene, .. } => &scene.changed_ids,
-        other => panic!("expected committed edit, got {other:?}"),
+pub(crate) fn changed(result: &Result<CommittedScene, String>) -> &[String] {
+    match result {
+        Ok(committed) => &committed.scene.changed_ids,
+        Err(message) => panic!("expected committed edit, got {message}"),
     }
 }
 
 #[track_caller]
-pub(crate) fn error(reply: &CoreReply) -> &str {
-    match reply {
-        CoreReply::Error { message, .. } => message,
-        other => panic!("expected an error, got {other:?}"),
+pub(crate) fn error(result: &Result<CommittedScene, String>) -> &str {
+    match result {
+        Err(message) => message,
+        Ok(_) => panic!("expected an error"),
     }
 }
 
 #[track_caller]
-pub(crate) fn one_id(reply: &CoreReply, prefix: &str) -> String {
-    let ids: Vec<_> = changed(reply)
+pub(crate) fn one_id(result: &Result<CommittedScene, String>, prefix: &str) -> String {
+    let ids: Vec<_> = changed(result)
         .iter()
         .filter(|id| id.starts_with(prefix))
         .collect();
@@ -304,6 +323,24 @@ pub(crate) fn resolve_request(request: Value) -> Value {
     let reply: Value =
         serde_json::from_str(&CoreEngine::new().request(&request.to_string())).unwrap();
     reply["assembly"].clone()
+}
+
+/// Resolve a mechanical document against explicit contours, asserting the
+/// `mechanical-resolved` reply. Covers the repeated `resolve-mechanical`
+/// request sequences in the mounted-module suites.
+#[track_caller]
+pub(crate) fn resolve_case(
+    engine: &mut CoreEngine,
+    id: &str,
+    document: &Value,
+    contours: impl serde::Serialize,
+) -> Value {
+    let reply = fixture::request(
+        engine,
+        serde_json::json!({"id":id,"kind":"resolve-mechanical","document":document,"contours":contours}),
+    );
+    assert_eq!(reply["kind"], "mechanical-resolved", "{reply}");
+    reply
 }
 
 /// Resolve a mechanical document against a `width` x `height` contour.

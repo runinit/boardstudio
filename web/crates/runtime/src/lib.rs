@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 //! The page's non-UI layer: the browser runtime (workers, storage, CAD and renderer
 //! hosts), model delivery and the operation/projection logic the presentation drives.
 //! No Dioxus. Split from the `boardstudio-web` bin so presentation edits do not
@@ -52,6 +53,10 @@ pub mod renderer_host_page;
 #[cfg(target_arch = "wasm32")]
 pub mod runtime;
 #[cfg(all(not(target_arch = "wasm32"), any(test, feature = "test-support")))]
+#[cfg_attr(
+    feature = "test-support",
+    allow(clippy::unwrap_used, clippy::expect_used)
+)]
 #[path = "runtime_test_stub.rs"]
 pub mod runtime;
 

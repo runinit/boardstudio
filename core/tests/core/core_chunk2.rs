@@ -11,22 +11,19 @@ fn preview_does_not_commit_and_stale_edit_fails() {
         PartKind::Switch,
     ));
     doc.parts.push(fixture::part("k1", "switch", "SW1"));
-    engine.handle(fixture::open(doc));
+    engine.open(doc).unwrap();
     let op = EditOperation::MoveParts {
         positions: vec![Position {
             id: "k1".into(),
             at: Vec2 { x: 10.0, y: 5.0 },
         }],
     };
-    let preview = preview(engine.handle(edit(0, EditPhase::Preview, op.clone())));
+    let preview = preview(engine.apply_edit(edit(0, EditPhase::Preview, op.clone())));
     assert_eq!(preview.revision, 0);
     assert_eq!(preview.transforms[0].pose.at.x, 10.0);
-    let (_, snapshot) = scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() }));
+    let (_, snapshot) = scene(engine.snapshot());
     assert_eq!(snapshot.parts[0].pose.at.x, 0.0);
-    assert!(matches!(
-        engine.handle(CoreRequest::Undo { id: "undo".into() }),
-        CoreReply::Error { .. }
-    ));
+    assert!(engine.undo().is_err());
     let failed = EditOperation::MoveParts {
         positions: vec![
             Position {
@@ -39,18 +36,16 @@ fn preview_does_not_commit_and_stale_edit_fails() {
             },
         ],
     };
-    assert!(matches!(
-        engine.handle(edit(0, EditPhase::Preview, failed)),
-        CoreReply::Error { .. }
-    ));
-    let (_, snapshot) = scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() }));
+    assert!(
+        engine
+            .apply_edit(edit(0, EditPhase::Preview, failed))
+            .is_err()
+    );
+    let (_, snapshot) = scene(engine.snapshot());
     assert_eq!(snapshot.parts[0].pose.at.x, 0.0);
-    let (committed, _) = scene(engine.handle(edit(0, EditPhase::Commit, op.clone())));
+    let (committed, _) = scene(engine.commit_edit(edit(0, EditPhase::Commit, op.clone())));
     assert_eq!(committed.revision, 1);
-    assert!(matches!(
-        engine.handle(edit(0, EditPhase::Commit, op)),
-        CoreReply::Error { revision: 1, .. }
-    ));
+    assert!(engine.commit_edit(edit(0, EditPhase::Commit, op)).is_err());
 }
 
 #[test]
@@ -60,7 +55,7 @@ fn undo_redo_increments_revision() {
     // op for this undo/redo accounting.
     let mut doc = ProjectDoc::empty("p", "Project");
     doc.boards.push(fixture::board("board", "Board"));
-    scene(engine.handle(fixture::open(doc)));
+    scene(engine.open(doc));
     let add = || EditOperation::SetCase {
         body: CaseBody {
             features: None,
@@ -80,11 +75,11 @@ fn undo_redo_increments_revision() {
             gasket: None,
         },
     };
-    scene(engine.handle(edit(0, EditPhase::Commit, add())));
-    let (undo, doc) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    scene(engine.commit_edit(edit(0, EditPhase::Commit, add())));
+    let (undo, doc) = scene(engine.undo());
     assert_eq!(undo.revision, 2);
     assert!(doc.case_bodies.is_empty());
-    let (redo, doc) = scene(engine.handle(CoreRequest::Redo { id: "redo".into() }));
+    let (redo, doc) = scene(engine.redo());
     assert_eq!(redo.revision, 3);
     assert_eq!(doc.case_bodies.len(), 1);
 }
@@ -94,7 +89,10 @@ fn wire_roundtrip_matches_contract() {
     let request = r#"{"id":"snap","kind":"snapshot"}"#;
     let mut engine = CoreEngine::new();
     let reply: CoreReply = serde_json::from_str(&engine.request(request)).unwrap();
-    let (_, doc) = scene(reply);
+    let CoreReply::Scene { document, .. } = reply else {
+        panic!("expected scene: {reply:?}")
+    };
+    let doc = *document;
     assert_eq!(doc.format, "boardstudio/v2");
     assert_eq!(
         serde_json::to_value(&doc).unwrap()["caseBodies"],
@@ -122,7 +120,7 @@ fn mechanical_holes_do_not_need_pad_numbers() {
         .collect();
     doc.parts.push(fixture::part("switch", "switch", "SW1"));
     let mut engine = CoreEngine::new();
-    let (scene, _) = scene(engine.handle(fixture::open(doc)));
+    let (scene, _) = scene(engine.open(doc));
     assert!(
         !scene
             .findings
@@ -154,14 +152,14 @@ fn part_envelope_tracks_committed_move() {
         margin: 1.0,
         operation: Operation::Add,
     });
-    let (before, _) = scene(engine.handle(fixture::open(doc)));
+    let (before, _) = scene(engine.open(doc));
     let op = EditOperation::MoveParts {
         positions: vec![Position {
             id: "k1".into(),
             at: Vec2 { x: 10.0, y: 0.0 },
         }],
     };
-    let (after, _) = scene(engine.handle(edit(0, EditPhase::Commit, op)));
+    let (after, _) = scene(engine.commit_edit(edit(0, EditPhase::Commit, op)));
     let before_min = before.contours[0]
         .points
         .iter()
@@ -181,7 +179,7 @@ fn legacy_scripts_load_without_execution_or_reserialization() {
     json["scripts"] = serde_json::json!([{ "id": "legacy", "name": "Legacy", "enabled": true, "source": "while true {}" }]);
     let doc: ProjectDoc = serde_json::from_value(json).unwrap();
     let mut engine = CoreEngine::new();
-    let (_, opened) = scene(engine.handle(fixture::open(doc)));
+    let (_, opened) = scene(engine.open(doc));
     assert!(opened.parts.is_empty());
     assert_eq!(
         serde_json::to_value(opened).unwrap()["scripts"],
@@ -208,7 +206,7 @@ fn add_part_targets_board_and_removal_cleans_both_boards() {
         outline_ids: vec!["right-edge".into()],
         ..fixture::board("right", "Right")
     });
-    engine.handle(fixture::open(doc));
+    engine.open(doc).unwrap();
     let part = fixture::part("k1", "switch", "SW1");
     let op = EditOperation::AddPart {
         part: part.clone(),
@@ -216,22 +214,12 @@ fn add_part_targets_board_and_removal_cleans_both_boards() {
         definition: None,
         layout_id: None,
     };
-    let preview = preview(engine.handle(edit(0, EditPhase::Preview, op.clone())));
+    let preview = preview(engine.apply_edit(edit(0, EditPhase::Preview, op.clone())));
     assert!(preview.board_readiness[1].pcb);
     assert!(!preview.board_readiness[0].pcb);
-    assert!(
-        scene(engine.handle(CoreRequest::Snapshot {
-            id: "snapshot".into()
-        }))
-        .1
-        .parts
-        .is_empty()
-    );
-    assert!(matches!(
-        engine.handle(CoreRequest::Undo { id: "undo".into() }),
-        CoreReply::Error { .. }
-    ));
-    let (_, added) = scene(engine.handle(edit(0, EditPhase::Commit, op)));
+    assert!(scene(engine.snapshot()).1.parts.is_empty());
+    assert!(engine.undo().is_err());
+    let (_, added) = scene(engine.commit_edit(edit(0, EditPhase::Commit, op)));
     assert!(added.boards[0].part_ids.is_empty());
     assert_eq!(added.boards[1].part_ids, vec!["k1"]);
     let OutlineFeature::PartEnvelope { part_ids: left, .. } = &added.outline[0] else {
@@ -251,18 +239,20 @@ fn add_part_targets_board_and_removal_cleans_both_boards() {
         definition: None,
         layout_id: None,
     };
-    assert!(matches!(
-        engine.handle(edit(1, EditPhase::Commit, invalid.clone())),
-        CoreReply::Error { .. }
-    ));
+    assert!(
+        engine
+            .commit_edit(edit(1, EditPhase::Commit, invalid.clone()))
+            .is_err()
+    );
     if let EditOperation::AddPart { part, .. } = &mut invalid {
         part.id = "k2".into();
     }
-    assert!(matches!(
-        engine.handle(edit(1, EditPhase::Commit, invalid)),
-        CoreReply::Error { .. }
-    ));
-    let (_, removed) = scene(engine.handle(edit(
+    assert!(
+        engine
+            .commit_edit(edit(1, EditPhase::Commit, invalid))
+            .is_err()
+    );
+    let (_, removed) = scene(engine.commit_edit(edit(
         1,
         EditPhase::Commit,
         EditOperation::RemoveParts {
@@ -293,7 +283,7 @@ fn empty_definition_and_pad_ids_are_reported() {
         ..fixture::part_definition("", "Custom", PartKind::Custom)
     });
     doc.parts.push(fixture::part("p", "", "U1"));
-    let (scene, _) = scene(engine.handle(fixture::open(doc)));
+    let (scene, _) = scene(engine.open(doc));
     for suffix in ["id", "pad:0:id", "pad:0:drill"] {
         assert!(
             scene
@@ -313,7 +303,7 @@ fn add_part_refuses_definition_id_mismatch_without_mutation() {
     let mut part = document.parts[0].clone();
     part.id = "board/mismatched-definition".into();
     part.reference = "MISMATCH1".into();
-    let reply = engine.handle(edit(
+    let reply = engine.commit_edit(edit(
         document.revision,
         EditPhase::Commit,
         EditOperation::AddPart {
@@ -323,17 +313,15 @@ fn add_part_refuses_definition_id_mismatch_without_mutation() {
             layout_id: Some("left-layout".into()),
         },
     ));
-    assert!(matches!(reply, CoreReply::Error { .. }), "{reply:?}");
-    let (_, after_refusal) = scene(engine.handle(CoreRequest::Snapshot {
-        id: "snapshot-after-definition-id-mismatch".into(),
-    }));
+    assert!(reply.is_err(), "{reply:?}");
+    let (_, after_refusal) = scene(engine.snapshot());
     assert_eq!(after_refusal, document);
 }
 
 #[test]
 fn matrix_cells_preserve_survivors_and_companions() {
     let mut engine = CoreEngine::new();
-    engine.handle(fixture::open(matrix_doc()));
+    engine.open(matrix_doc()).unwrap();
     let mut value = matrix(2, 2);
     {
         let values = vec![Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 3.0, y: 0.0 }];
@@ -385,7 +373,7 @@ fn matrix_cells_preserve_survivors_and_companions() {
             }],
         },
     ];
-    let (_, doc) = scene(engine.handle(edit(
+    let (_, doc) = scene(engine.commit_edit(edit(
         0,
         EditPhase::Commit,
         fixture::set_matrix(value.clone()),
@@ -409,7 +397,7 @@ fn matrix_cells_preserve_survivors_and_companions() {
     assert!((companion.pose.at.y - 23.939231012048833).abs() < 1e-9);
     let reference = host.reference.clone();
     value.columns = 3;
-    let (_, grown) = scene(engine.handle(edit(
+    let (_, grown) = scene(engine.commit_edit(edit(
         1,
         EditPhase::Commit,
         fixture::set_matrix(value.clone()),
@@ -431,39 +419,35 @@ fn matrix_registers_definitions_atomically() {
     let mut doc = matrix_doc();
     let definitions = std::mem::take(&mut doc.definitions);
     let mut engine = CoreEngine::new();
-    engine.handle(fixture::open(doc));
+    engine.open(doc).unwrap();
     let operation = EditOperation::SetMatrix {
         matrix: matrix(1, 1),
         definitions: Some(definitions),
     };
-    let projected = preview(engine.handle(edit(0, EditPhase::Preview, operation.clone())));
+    let projected = preview(engine.apply_edit(edit(0, EditPhase::Preview, operation.clone())));
     assert_eq!(projected.transforms.len(), 1);
-    let (_, snapshot) = scene(engine.handle(CoreRequest::Snapshot {
-        id: "snapshot".into(),
-    }));
+    let (_, snapshot) = scene(engine.snapshot());
     assert!(snapshot.definitions.is_empty());
     assert!(snapshot.parts.is_empty());
-    assert!(matches!(
-        engine.handle(CoreRequest::Undo { id: "undo".into() }),
-        CoreReply::Error { .. }
-    ));
-    let (_, placed) = scene(engine.handle(edit(0, EditPhase::Commit, operation)));
+    assert!(engine.undo().is_err());
+    let (_, placed) = scene(engine.commit_edit(edit(0, EditPhase::Commit, operation)));
     assert_eq!(placed.definitions.len(), 1);
     assert_eq!(placed.parts.len(), 1);
     let mut conflicting = placed.definitions[0].clone();
     conflicting.name = "Changed".into();
-    assert!(matches!(
-        engine.handle(edit(
-            1,
-            EditPhase::Commit,
-            EditOperation::SetMatrix {
-                matrix: matrix(1, 1),
-                definitions: Some(vec![conflicting]),
-            }
-        )),
-        CoreReply::Error { .. }
-    ));
-    let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    assert!(
+        engine
+            .commit_edit(edit(
+                1,
+                EditPhase::Commit,
+                EditOperation::SetMatrix {
+                    matrix: matrix(1, 1),
+                    definitions: Some(vec![conflicting]),
+                }
+            ))
+            .is_err()
+    );
+    let (_, undone) = scene(engine.undo());
     assert!(undone.definitions.is_empty());
     assert!(undone.parts.is_empty());
 }
@@ -471,11 +455,12 @@ fn matrix_registers_definitions_atomically() {
 #[test]
 fn matrix_mirror_rotation_and_bad_dimensions() {
     let mut engine = CoreEngine::new();
-    engine.handle(fixture::open(matrix_doc()));
+    engine.open(matrix_doc()).unwrap();
     let mut value = matrix(1, 2);
     value.mirror = Some(Mirror::X);
     value.rotation = Some(90.0);
-    let (_, doc) = scene(engine.handle(edit(0, EditPhase::Commit, fixture::set_matrix(value))));
+    let (_, doc) =
+        scene(engine.commit_edit(edit(0, EditPhase::Commit, fixture::set_matrix(value))));
     let second = doc
         .parts
         .iter()
@@ -486,43 +471,46 @@ fn matrix_mirror_rotation_and_bad_dimensions() {
     assert_eq!(doc.matrices[0].edge_gap, Some(Vec2 { x: 1.0, y: 1.0 }));
     let mut bad_gap = matrix(1, 1);
     bad_gap.edge_gap = Some(Vec2 { x: 19.0, y: 1.0 });
-    assert!(matches!(
-        engine.handle(edit(
-            1,
-            EditPhase::Commit,
-            EditOperation::SetMatrix {
-                matrix: bad_gap,
-                definitions: None,
-            }
-        )),
-        CoreReply::Error { .. }
-    ));
+    assert!(
+        engine
+            .commit_edit(edit(
+                1,
+                EditPhase::Commit,
+                EditOperation::SetMatrix {
+                    matrix: bad_gap,
+                    definitions: None,
+                }
+            ))
+            .is_err()
+    );
     let bad = matrix(0, 3);
-    assert!(matches!(
-        engine.handle(edit(
-            1,
-            EditPhase::Commit,
-            EditOperation::SetMatrix {
-                matrix: bad,
-                definitions: None,
-            }
-        )),
-        CoreReply::Error { revision: 1, .. }
-    ));
+    assert!(
+        engine
+            .commit_edit(edit(
+                1,
+                EditPhase::Commit,
+                EditOperation::SetMatrix {
+                    matrix: bad,
+                    definitions: None,
+                }
+            ))
+            .is_err()
+    );
 }
 
 #[test]
 fn deleting_matrix_removes_its_container_and_parts_in_one_edit() {
     let mut engine = CoreEngine::new();
-    engine.handle(fixture::open(matrix_doc()));
-    let (_, before) = scene(engine.handle(edit(
+    engine.open(matrix_doc()).unwrap();
+    let (_, before) = scene(engine.commit_edit(edit(
         0,
         EditPhase::Commit,
         fixture::set_matrix(matrix(2, 2)),
     )));
     let operation: EditOperation =
         serde_json::from_value(serde_json::json!({"kind":"remove-matrix", "id":"main"})).unwrap();
-    let (_, removed) = scene(engine.handle(edit(before.revision, EditPhase::Commit, operation)));
+    let (_, removed) =
+        scene(engine.commit_edit(edit(before.revision, EditPhase::Commit, operation)));
     assert!(removed.matrices.is_empty());
     assert!(
         !removed
@@ -530,15 +518,13 @@ fn deleting_matrix_removes_its_container_and_parts_in_one_edit() {
             .iter()
             .any(|part| before.matrices[0].part_ids.contains(&part.id))
     );
-    let (_, restored) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    let (_, restored) = scene(engine.undo());
     assert_eq!(restored.matrices, before.matrices);
     assert_eq!(restored.parts, before.parts);
-    let (_, deleted_again) = scene(engine.handle(CoreRequest::Redo { id: "redo".into() }));
+    let (_, deleted_again) = scene(engine.redo());
     assert!(deleted_again.matrices.is_empty());
-    let (_, restored) = scene(engine.handle(CoreRequest::Undo {
-        id: "restore".into(),
-    }));
-    let (_, empty) = scene(engine.handle(edit(
+    let (_, restored) = scene(engine.undo());
+    let (_, empty) = scene(engine.commit_edit(edit(
         restored.revision,
         EditPhase::Commit,
         EditOperation::RemoveParts {
@@ -546,23 +532,21 @@ fn deleting_matrix_removes_its_container_and_parts_in_one_edit() {
         },
     )));
     assert!(empty.matrices[0].part_ids.is_empty());
-    let (_, removed_empty) = scene(engine.handle(edit(
+    let (_, removed_empty) = scene(engine.commit_edit(edit(
         empty.revision,
         EditPhase::Commit,
         EditOperation::RemoveMatrix { id: "main".into() },
     )));
     assert!(removed_empty.matrices.is_empty());
-    let (_, restored_empty) = scene(engine.handle(CoreRequest::Undo {
-        id: "undo-empty".into(),
-    }));
+    let (_, restored_empty) = scene(engine.undo());
     assert_eq!(restored_empty.matrices, empty.matrices);
 }
 
 #[test]
 fn deleting_last_matrix_row_removes_matrix_and_key_metadata_and_is_undoable() {
     let mut engine = CoreEngine::new();
-    engine.handle(fixture::open(matrix_doc()));
-    let (_, mut doc) = scene(engine.handle(edit(
+    engine.open(matrix_doc()).unwrap();
+    let (_, mut doc) = scene(engine.commit_edit(edit(
         0,
         EditPhase::Commit,
         fixture::set_matrix(matrix(1, 1)),
@@ -571,11 +555,8 @@ fn deleting_last_matrix_row_removes_matrix_and_key_metadata_and_is_undoable() {
     doc.keymap.as_mut().unwrap().layers[0]
         .bindings
         .insert("matrix/main/r0c0".into(), KeyBinding::None);
-    engine.handle(CoreRequest::Open {
-        id: "reopen".into(),
-        document: doc.clone(),
-    });
-    let (_, removed) = scene(engine.handle(edit(
+    engine.open(doc.clone()).unwrap();
+    let (_, removed) = scene(engine.commit_edit(edit(
         doc.revision,
         EditPhase::Commit,
         EditOperation::RemoveMatrixRow {
@@ -586,7 +567,7 @@ fn deleting_last_matrix_row_removes_matrix_and_key_metadata_and_is_undoable() {
     assert!(removed.matrices.is_empty());
     assert!(removed.parts.is_empty());
     assert!(removed.keymap.unwrap().layers[0].bindings.is_empty());
-    let (_, restored) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    let (_, restored) = scene(engine.undo());
     assert_eq!(restored.matrices, doc.matrices);
     assert_eq!(restored.keymap, doc.keymap);
 }

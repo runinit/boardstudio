@@ -338,12 +338,17 @@ impl CoreEngine {
             {
                 return Err(message);
             }
-            let mut preview = self.stagger_preview.take().unwrap();
-            let SettledStagger {
+            let Some(mut preview) = self.stagger_preview.take() else {
+                return Err("Settled stagger preview is missing".into());
+            };
+            let Some(SettledStagger {
                 document,
                 mut scene,
                 ..
-            } = preview.settled.take().unwrap();
+            }) = preview.settled.take()
+            else {
+                return Err("Settled stagger preview is missing".into());
+            };
             return self
                 .publish_prepared_edit(PreparedEdit {
                     transaction: command.transaction_id,
@@ -1212,12 +1217,8 @@ fn compute_readiness(
             .any(|f| matches!(f.scope, Scope::Pcb) && matches!(f.severity, Severity::Error));
     let board_readiness: Vec<BoardReadiness> = board_contours
         .iter()
-        .map(|board| {
-            let owner = doc
-                .boards
-                .iter()
-                .find(|item| item.id == board.board_id)
-                .unwrap();
+        .filter_map(|board| {
+            let owner = doc.boards.iter().find(|item| item.id == board.board_id)?;
             let relevant = |finding: &Finding| {
                 finding.target_ids.is_empty()
                     || finding.target_ids.iter().any(|id| {
@@ -1273,12 +1274,12 @@ fn compute_readiness(
                             .iter()
                             .any(|body| finding.target_ids.contains(&body.id)))
             });
-            BoardReadiness {
+            Some(BoardReadiness {
                 board_id: board.board_id.clone(),
                 outline,
                 pcb,
                 case_ready: pcb && !bodies.is_empty() && !invalid_case,
-            }
+            })
         })
         .collect();
     let case_ready = !doc.case_bodies.is_empty()

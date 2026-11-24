@@ -18,30 +18,28 @@ fn the_first_switch_profile_assignment_counts_as_a_family_change() {
     doc.parts.push(part("sw", "switch-mx", None));
     doc.parts.push(part("sw2", "switch-mx-2", None));
 
-    apply_change(
-        &mut doc,
-        MechanicalChange::AssignSwitchProfile {
-            definition_id: "switch-mx".into(),
-            family: MechanicalSwitchFamily::ChocV1,
-        },
-    )
-    .unwrap();
     assert_eq!(
-        stored(&doc).plate_thickness,
+        set(
+            &mut doc,
+            MechanicalChange::AssignSwitchProfile {
+                definition_id: "switch-mx".into(),
+                family: MechanicalSwitchFamily::ChocV1,
+            },
+        )
+        .plate_thickness,
         1.3,
         "the first assignment adopts the family's plate thickness"
     );
 
-    apply_change(
-        &mut doc,
-        MechanicalChange::AssignSwitchProfile {
-            definition_id: "switch-mx-2".into(),
-            family: MechanicalSwitchFamily::ChocV1,
-        },
-    )
-    .unwrap();
     assert_eq!(
-        stored(&doc).plate_thickness,
+        set(
+            &mut doc,
+            MechanicalChange::AssignSwitchProfile {
+                definition_id: "switch-mx-2".into(),
+                family: MechanicalSwitchFamily::ChocV1,
+            },
+        )
+        .plate_thickness,
         1.3,
         "a later same-family assignment keeps the existing thickness"
     );
@@ -203,13 +201,12 @@ fn profile_update_and_removal_follow_the_current_definition() {
         .contains("no longer assigned")
     );
 
-    apply_change(
+    set(
         &mut doc,
         MechanicalChange::RemoveProfile {
             definition_id: "library-switch".into(),
         },
-    )
-    .unwrap();
+    );
     assert!(stored(&doc).profiles.is_empty());
 }
 

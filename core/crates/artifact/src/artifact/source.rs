@@ -34,7 +34,8 @@ pub(super) fn import_footprint(source: &str, id: &str) -> Result<CompiledFootpri
     if !matches!(sexpr::head(root), Some("footprint" | "module")) {
         return Err(parse_error("Expected a KiCad footprint".into()));
     }
-    let root_items = sexpr::items(root).expect("footprint root is a list");
+    let root_items =
+        sexpr::items(root).ok_or_else(|| parse_error("Footprint root is a list".into()))?;
     let name_node = root_items
         .get(1)
         .ok_or_else(|| parse_error("Footprint needs a name".into()))?;
@@ -287,7 +288,8 @@ fn patch_footprint_inner(source: &str, patch: &FootprintPatch) -> Result<String,
         .and_then(|value| value.parse::<f64>().ok())
         .unwrap_or(0.0);
     let mut edits: Vec<(Span, String)> = Vec::new();
-    let children = sexpr::items(root).expect("list");
+    let children =
+        sexpr::items(root).ok_or_else(|| SourceError("Footprint patch root is a list".into()))?;
     if let (Some(name), Some(source_name)) = (patch.footprint_name.as_deref(), children.get(1)) {
         edits.push((sexpr::span(source_name), sexpr::quote(name)));
     }
@@ -737,7 +739,9 @@ fn patch_placement(
                 ) {
                     continue;
                 }
-                let parts = sexpr::items(child).expect("coordinate form is a list");
+                let Some(parts) = sexpr::items(child) else {
+                    continue;
+                };
                 negate_coordinate(parts, 2, edits);
                 if form == Some("at") && absolute_at {
                     patch_angle(parts, edits);

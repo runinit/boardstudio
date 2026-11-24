@@ -270,7 +270,7 @@ pub fn retune_offset(
         .constraints
         .iter()
         .position(|record| record.id() == constraint.id())
-        .expect("driving constraint belongs to the document");
+        .ok_or_else(|| format!("Driving constraint {} is missing", constraint.id()))?;
     let at = |id: &str| {
         doc.parts
             .iter()
@@ -553,7 +553,7 @@ fn pose(
     } else {
         *parts
             .get(id)
-            .expect("all placement references were checked")
+            .ok_or_else(|| format!("Constraint placement {id} is missing"))?
     };
     if !next.at.x.is_finite() || !next.at.y.is_finite() || !next.rotation.is_finite() {
         return Err(format!("Constraint target {id} has a non-finite pose"));
