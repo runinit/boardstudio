@@ -67,17 +67,26 @@ pub fn PartSection(props: PartSectionProps) -> Element {
     let mut create_pending = use_signal(|| false);
     let on_net_edit = EventHandler::new(move |request: PartNetEditRequest| {
         let runtime = editor.runtime();
-        if !super::guard_current(editor, &runtime) {
-            return;
-        }
-        let live_part = {
+        let part_current = {
             let runtime = runtime.clone();
-            move |part_id: &str| {
-                super::mode::pcb_source(&runtime, (editor.scope_generation)())
-                    .is_some_and(|(_, live)| live.active_part_id.as_deref() == Some(part_id))
+            move |request: &PartNetEditRequest| {
+                let current_generation = (editor.scope_generation)();
+                super::mode::pcb_source(&runtime, current_generation).is_some_and(|(_, live)| {
+                    super::part_input_projection::part_edit_matches_live(
+                        &request.ui_scope,
+                        &request.board_id,
+                        &request.part_id,
+                        request.token,
+                        request.revision,
+                        request.scope_generation,
+                        &live,
+                        &runtime.model().selected_part_ids,
+                        current_generation,
+                    )
+                })
             }
         };
-        if !live_part(&request.part_id) {
+        if !super::guard_current(editor, &runtime) || !part_current(&request) {
             return;
         }
         let create = matches!(&request.action, PartNetEditAction::CreateNet { .. });
@@ -101,15 +110,16 @@ pub fn PartSection(props: PartSectionProps) -> Element {
             }
             create_pending.set(true);
         }
-        // Classifying a generator source is genuinely async I/O; the commit
-        // after it revalidates the part through its resolver.
+        // Classifying a generator source is genuinely async I/O; re-check
+        // snapshot/scope/selection currency afterwards so an intervening
+        // undo or selection change never rebases the net assignment.
         spawn(async move {
             let classified =
                 crate::presentation::parts::is_generator_source(generator_source).await;
             if create {
                 create_pending.set(false);
             }
-            if !super::guard_current(editor, &runtime) || !live_part(&request.part_id) {
+            if !super::guard_current(editor, &runtime) || !part_current(&request) {
                 return;
             }
             net_failure.set(
@@ -131,15 +141,21 @@ pub fn PartSection(props: PartSectionProps) -> Element {
             return;
         }
         let identity = &request.identity;
-        let Some((_, live)) = super::mode::pcb_source(&runtime, (editor.scope_generation)()) else {
+        let current_generation = (editor.scope_generation)();
+        let Some((_, live)) = super::mode::pcb_source(&runtime, current_generation) else {
             return;
         };
-        if identity.scope_generation != (editor.scope_generation)()
-            || live.ui_scope != identity.ui_scope
-            || live.identity.token != identity.token
-            || live.identity.revision != identity.revision
-            || runtime.model().selected_part_ids.as_slice() != [identity.part_id.as_str()]
-        {
+        if !super::part_input_projection::part_edit_matches_live(
+            &identity.ui_scope,
+            &identity.board_id,
+            &identity.part_id,
+            identity.token,
+            identity.revision,
+            identity.scope_generation,
+            &live,
+            &runtime.model().selected_part_ids,
+            current_generation,
+        ) {
             return;
         }
         let key = identity.part_id.clone();
@@ -252,15 +268,23 @@ pub fn PartSection(props: PartSectionProps) -> Element {
         )
         .collect();
     let net_request = {
+        let ui_scope = source.ui_scope.clone();
         let board_id = board_id.clone();
         let part_id = part_id.to_owned();
         let definition_id = definition.id.clone();
         let generator_source = generator_source.clone();
+        let token = source.identity.token;
+        let revision = source.identity.revision;
+        let scope_generation = source.scope_generation;
         move |action| PartNetEditRequest {
+            ui_scope: ui_scope.clone(),
             board_id: board_id.clone(),
             part_id: part_id.clone(),
             definition_id: definition_id.clone(),
             generator_source: generator_source.clone(),
+            token,
+            revision,
+            scope_generation,
             action,
         }
     };

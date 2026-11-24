@@ -374,6 +374,7 @@ class BuildWebTests(unittest.TestCase):
         # The script resolves appearance first, falls back to the legacy theme
         # key, then to the media query; the workbench theme defaults to original.
         script = head.split("<script>")[1]
+        self.assertIn("if(a===null)", script)
         self.assertLess(script.index("boardstudio:v2:appearance"),
                         script.index("prefers-color-scheme"))
         index = BUILD.index_html("/boardstudio/")

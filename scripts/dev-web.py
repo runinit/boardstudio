@@ -1,15 +1,5 @@
 #!/usr/bin/env python3
-"""Run Dioxus behind a small dev proxy that serves live, isolated app assets.
-
-Dev parity note (P2.3): `dx serve` generates index.html itself (there is no
-web/index.html template for dx 0.7.10), so the packaged pre-paint theme
-bootstrap from scripts/build-web.py cannot be staged into the dev page without
-rewriting proxied HTML. The proxy therefore passes dx HTML through untouched
-(scripts/test-dev-web.py pins the exact passthrough bytes); a cold dev load
-may flash the default desk before the workbench applies the stored Theme x
-Appearance. Packaged builds (plain and release) always carry the synchronous
-bootstrap in <head> before any stylesheet.
-"""
+"""Run Dioxus behind a small dev proxy that serves live, isolated app assets."""
 
 from __future__ import annotations
 

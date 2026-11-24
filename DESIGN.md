@@ -145,14 +145,15 @@ Token names alone do not guarantee contrast across composited states, geometry
 or 3D materials. Every Theme x Appearance matrix (Original/shadcn x
 light/dark) is verified by the hermetic `scripts/check-theme-contrast.py` gate
 (stdlib only; wired into `check.py repo`): body and status text pairs must
-reach WCAG AA 4.5:1 and focus rings, rules, and control edges (`--ring`,
-`--border`, `--border-strong`, `--input`, `--toolbar-border`, `--keycap-rule`
-against adjacent surfaces) must reach 3.0:1. Hairline rules were darkened and
-a few shadcn fills now pair with dark text (following the existing shadcn-dark
-pattern) to meet those floors while keeping each Theme's hues, radii, and
-token names. The quiet measurement grid, scrollbars, and slider tracks stay
-decorative and outside the gate; do not treat this document as evidence of
-accessibility compliance beyond the gated pairs.
+reach WCAG AA 4.5:1 and interactive focus rings, strong rules, and control
+edges (`--ring`, `--border-strong`, `--input`, `--keycap-rule` against
+adjacent surfaces) must reach 3.0:1. Strong/control edges were darkened and a
+few shadcn fills now pair with dark text (following the existing shadcn-dark
+pattern) to meet those floors while keeping each Theme's hues, radii, and token
+names. Quiet structural hairlines (`--border` and `--toolbar-border`), the
+measurement grid, scrollbars, and slider tracks stay decorative outside the
+gate per WCAG 1.4.11; do not treat this document as evidence of accessibility
+compliance beyond the gated pairs.
 
 ## Typography
 

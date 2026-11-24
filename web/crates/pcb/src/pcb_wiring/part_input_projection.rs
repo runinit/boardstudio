@@ -89,6 +89,28 @@ pub fn project(
     })
 }
 
+#[allow(clippy::too_many_arguments, dead_code)]
+pub(crate) fn part_edit_matches_live(
+    ui_scope: &boardstudio_application::Scope,
+    board_id: &str,
+    part_id: &str,
+    token: boardstudio_application::SnapshotToken,
+    revision: u64,
+    scope_generation: u64,
+    live: &super::PcbWiringSource,
+    selected_part_ids: &[String],
+    current_generation: u64,
+) -> bool {
+    scope_generation == current_generation
+        && live.scope_generation == current_generation
+        && live.ui_scope == *ui_scope
+        && live.identity.scope.board_id == board_id
+        && live.identity.token == token
+        && live.identity.revision == revision
+        && live.active_part_id.as_deref() == Some(part_id)
+        && selected_part_ids == [part_id]
+}
+
 pub fn binding_schema(
     schema: &BTreeMap<String, Value>,
     terminal_names: &BTreeSet<String>,
@@ -295,5 +317,57 @@ mod tests {
                 .is_err()
         );
         assert!(validate_parameter_value("anchor", Some(&json!([])), &projection).is_err());
+    }
+
+    #[test]
+    fn rendered_part_action_is_rejected_after_board_selection_or_snapshot_changes() {
+        use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
+        let scope = |board_id: &str| Scope {
+            session_epoch: SessionEpoch(3),
+            document_id: "project".into(),
+            board_id: board_id.into(),
+            instance_id: None,
+        };
+        let document = std::sync::Arc::new(project_fixture());
+        let source = |board_id: &str, part_id: &str, token: u64, rev: u64, gen_id: u64| {
+            super::super::PcbWiringSource {
+                identity: super::super::WiringPlanIdentity {
+                    scope: scope(board_id),
+                    token: SnapshotToken(token),
+                    revision: rev,
+                },
+                ui_scope: scope(board_id),
+                scope_generation: gen_id,
+                document: document.clone(),
+                active_part_id: Some(part_id.into()),
+            }
+        };
+        let base_scope = scope("left");
+        let selected = [String::from("left-J2")];
+        let matches = |live: &super::super::PcbWiringSource, sel: &[String], cur_gen: u64| {
+            part_edit_matches_live(
+                &base_scope,
+                "left",
+                "left-J2",
+                SnapshotToken(7),
+                12,
+                4,
+                live,
+                sel,
+                cur_gen,
+            )
+        };
+        assert!(matches(&source("left", "left-J2", 7, 12, 4), &selected, 4));
+        for (alt, sel, cur_gen) in [
+            (source("right", "left-J2", 7, 12, 4), selected.as_slice(), 4),
+            (source("left", "left-SW1", 7, 12, 4), selected.as_slice(), 4),
+            (source("left", "left-J2", 8, 12, 4), selected.as_slice(), 4),
+            (source("left", "left-J2", 7, 13, 4), selected.as_slice(), 4),
+            (source("left", "left-J2", 7, 12, 5), selected.as_slice(), 4),
+            (source("left", "left-J2", 7, 12, 4), selected.as_slice(), 5),
+            (source("left", "left-J2", 7, 12, 4), &[], 4),
+        ] {
+            assert!(!matches(&alt, sel, cur_gen));
+        }
     }
 }

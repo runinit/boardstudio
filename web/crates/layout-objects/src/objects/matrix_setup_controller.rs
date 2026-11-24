@@ -124,7 +124,8 @@ pub fn use_matrix_setup(
         move || alive.set(false)
     });
     let open = use_signal(|| None::<MatrixSetupOwner>);
-    let preparing = use_signal(|| None::<MatrixSetupOwner>);
+    let mut flight_seq = use_signal(|| 0_u64);
+    let preparing = use_signal(|| None::<(u64, MatrixSetupOwner)>);
     let error = use_signal(|| None::<String>);
     let status = use_signal(|| None::<String>);
 
@@ -189,7 +190,8 @@ pub fn use_matrix_setup(
         let mut preparing = preparing;
         move |owner: MatrixSetupOwner| {
             // Cancelling also releases a preparation flight: its completion guard
-            // compares against `preparing`, so the retired owner never commits.
+            // compares both sequence id and owner against `preparing`, so a retired
+            // flight cannot hijack a reopened form on the same snapshot.
             if open.read().as_ref() == Some(&owner) {
                 open.set(None);
                 preparing.set(None);
@@ -205,8 +207,6 @@ pub fn use_matrix_setup(
         let mut preparing = preparing;
         let mut error = error;
         let mut status = status;
-        let selected_context = selected_context;
-        let anchor_scope = anchor_scope;
         move |request: MatrixSetupCreateRequest| {
             if open.read().as_ref() != Some(&request.owner)
                 || preparing.read().is_some()
@@ -250,7 +250,9 @@ pub fn use_matrix_setup(
                 request.preset.as_str(),
                 reversible,
             );
-            preparing.set(Some(owner.clone()));
+            let flight_id = flight_seq().wrapping_add(1);
+            flight_seq.set(flight_id);
+            preparing.set(Some((flight_id, owner.clone())));
             error.set(None);
             status.set(Some("Preparing matrix definitions…".into()));
             let runtime = runtime.clone();
@@ -283,7 +285,7 @@ pub fn use_matrix_setup(
                 if !preparing
                     .read()
                     .as_ref()
-                    .is_some_and(|active| active == &owner)
+                    .is_some_and(|(seq, active)| *seq == flight_id && active == &owner)
                 {
                     return;
                 }
@@ -767,5 +769,41 @@ mod native_tests {
         poll_detached();
         flush(&probe, &mut dom);
         assert_eq!(probe.edits(), 0);
+    }
+
+    #[test]
+    fn cancelled_flight_cannot_commit_after_reopen_on_same_snapshot() {
+        let (probe, mut dom) = mounted();
+        open(&probe, &mut dom);
+        let first = probe.mount().projection.unwrap().owner;
+        probe.create();
+        poll_detached();
+        // Cancel clears `preparing`, then reopen on the same snapshot creates an
+        // equal MatrixSetupOwner and starts a second preparation flight (3x4).
+        probe.mount().on_cancel.call(first);
+        flush(&probe, &mut dom);
+        open(&probe, &mut dom);
+        let second = probe.mount();
+        second.on_create.call(MatrixSetupCreateRequest {
+            owner: second.projection.unwrap().owner,
+            rows: 3,
+            columns: 4,
+            preset: MatrixSetupPreset::MxSolder,
+        });
+        // Wait: do not poll both flights at once; stage one reply so only flight 1
+        // observes it, proving flight 1's stale flight_id is rejected while flight 2
+        // stays armed and commits 3x4 on its reply.
+        prepared();
+        poll_detached();
+        flush(&probe, &mut dom);
+        assert_eq!(probe.edits(), 0);
+        assert!(probe.mount().projection.is_some());
+        prepared();
+        poll_detached();
+        flush(&probe, &mut dom);
+        assert_eq!(probe.edits(), 1);
+        let accepted = probe.runtime.model().accepted.unwrap();
+        let created = accepted.document.matrices.last().unwrap();
+        assert_eq!((created.rows, created.columns), (3, 4));
     }
 }

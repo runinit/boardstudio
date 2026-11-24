@@ -125,7 +125,7 @@ pub fn use_existing_half(
         .as_ref()
         .map(|(snapshot, scope)| eligible_options(&snapshot.document, &scope.board_id))
         .unwrap_or_default();
-    let can_open = !options.is_empty() && open.read().is_none();
+    let can_open = !options.is_empty();
 
     let on_open = use_callback({
         let runtime = runtime.clone();

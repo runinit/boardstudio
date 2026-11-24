@@ -46,8 +46,8 @@ FIRST_PAINT_THEME_HEAD = (
     "<!--boardstudio:first-paint-theme-->"
     "<script>"
     "try{var d=document.documentElement,a=null,t=null;"
-    'try{a=localStorage.getItem("boardstudio:v2:appearance")'
-    '||localStorage.getItem("boardstudio:v2:theme");'
+    'try{a=localStorage.getItem("boardstudio:v2:appearance");'
+    'if(a===null)a=localStorage.getItem("boardstudio:v2:theme");'
     't=localStorage.getItem("boardstudio:v2:workbench-theme")}catch(e){}'
     'if(a!=="light"&&a!=="dark"){a=(window.matchMedia'
     '&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light"}'

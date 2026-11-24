@@ -10,16 +10,20 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CSS = ROOT / "web" / "tailwind.css"
+BUILD_PY = ROOT / "scripts" / "build-web.py"
 TEXT_MIN = 4.5  # Body/status text on its surface.
-UI_MIN = 3.0  # Focus rings, rules, and control edges on adjacent surfaces.
-# Decorative, non-essential pairs stay out of the gate: the quiet measurement
-# grid, scrollbars, and slider tracks are never the only indicator of state.
+UI_MIN = 3.0  # Focus rings, strong rules, and interactive control edges.
+# Quiet structural hairlines (`--border`, `--toolbar-border`), measurement grid,
+# scrollbars, and slider tracks stay decorative outside WCAG 1.4.11 gating.
+# Translucent backgrounds specify an explicit 3rd element (the opaque backing
+# surface they sit on); otherwise `background` itself is required to be opaque.
 TEXT_PAIRS = (
     ("foreground", "background"), ("card-foreground", "card"),
     ("popover-foreground", "popover"), ("primary-foreground", "primary"),
     ("secondary-foreground", "secondary"), ("muted-foreground", "muted"),
     ("muted-foreground", "background"), ("muted-foreground", "card"),
-    ("foreground", "field"), ("accent-foreground", "accent"),
+    ("foreground", "field", "card"), ("foreground", "field", "background"),
+    ("accent-foreground", "accent"),
     ("destructive-foreground", "destructive"), ("success-foreground", "success"),
     ("warning-foreground", "warning"), ("info-foreground", "info"),
     ("selected-foreground", "selected"), ("selection-foreground", "selection"),
@@ -28,13 +32,18 @@ TEXT_PAIRS = (
 )
 UI_PAIRS = (
     ("ring", "background"), ("ring", "card"),
-    ("border", "background"), ("border", "card"),
     ("border-strong", "background"), ("border-strong", "card"),
     ("input", "background"), ("input", "card"),
-    ("primary", "background"), ("toolbar-border", "toolbar"),
+    ("primary", "background"),
     ("keycap-rule", "keycap-face"), ("geometry-board", "canvas"),
     ("geometry-key", "canvas"), ("geometry-part", "canvas"),
 )
+PREPAINT_CANVAS_SELECTORS = {
+    "original x light": r"html\{background:([^}]+)\}",
+    "original x dark": r'html\[data-appearance="dark"\]\{background:([^}]+)\}',
+    "shadcn x light": r'html\[data-theme="shadcn"\]\{background:([^}]+)\}',
+    "shadcn x dark": r'html\[data-theme="shadcn"\]\[data-appearance="dark"\]\{background:([^}]+)\}',
+}
 SHARED, BASE = ":root", ":root, [data-theme=original]"
 ORIG_DARK, SHADCN, SHADCN_DARK = (
     ":root[data-appearance=dark]", "[data-theme=shadcn]",
@@ -132,35 +141,53 @@ def ratio(foreground: str, background: str, opaque_base: str) -> float:
     return (light + 0.05) / (dark + 0.05)
 
 
+def _pair_tokens(pair: tuple[str, ...]) -> tuple[str, str, str]:
+    return (pair[0], pair[1], pair[2] if len(pair) == 3 else pair[1])
+
+
 def check_matrix(name: str, tokens: dict[str, str]) -> list[str]:
     failures = []
     for pairs, minimum in ((TEXT_PAIRS, TEXT_MIN), (UI_PAIRS, UI_MIN)):
-        for fg_name, bg_name in pairs:
-            value = ratio(tokens[f"--{fg_name}"], tokens[f"--{bg_name}"], tokens["--card"])
+        for pair in pairs:
+            fg_name, bg_name, base_name = _pair_tokens(pair)
+            value = ratio(tokens[f"--{fg_name}"], tokens[f"--{bg_name}"], tokens[f"--{base_name}"])
             if value < minimum:
                 failures.append(f"{name}: {fg_name}/{bg_name} is {value:.2f}:1, needs >={minimum}:1")
+    return failures
+
+
+def _check_prepaint_canvas(tokens_by_matrix: dict[str, dict[str, str]]) -> list[str]:
+    build_py = BUILD_PY.read_text()
+    failures = []
+    for name, pattern in PREPAINT_CANVAS_SELECTORS.items():
+        match, expected = re.search(pattern, build_py), tokens_by_matrix[name]["--canvas"].strip().lower()
+        if not match or match.group(1).strip().lower() != expected:
+            failures.append(f"{name}: first-paint canvas drifted from --canvas {expected!r}")
     return failures
 
 
 def main() -> int:
     css = CSS.read_text()
     blocks = {selector: _block(css, selector) for selector in (SHARED, BASE, ORIG_DARK, SHADCN, SHADCN_DARK)}
-    failures, summary = [], []
+    failures, summary, tokens_by_matrix = [], [], {}
     for name, selectors in MATRICES.items():
         merged = {}
         for selector in selectors:
             merged.update(blocks[selector])
         tokens = _resolve(merged)
+        tokens_by_matrix[name] = tokens
         matrix_failures = check_matrix(name, tokens)
         failures.extend(matrix_failures)
         minima = []
         for pairs, minimum in ((TEXT_PAIRS, TEXT_MIN), (UI_PAIRS, UI_MIN)):
-            worst = min((ratio(tokens[f"--{fg}"], tokens[f"--{bg}"], tokens["--card"]), fg, bg)
-                        for fg, bg in pairs)
+            worst = min(
+                (ratio(tokens[f"--{fg}"], tokens[f"--{bg}"], tokens[f"--{base}"]), fg, bg)
+                for fg, bg, base in (_pair_tokens(pair) for pair in pairs))
             minima.append(f"min {minimum}:1 pair {worst[1]}/{worst[2]} at {worst[0]:.2f}:1")
         status = "PASS" if not matrix_failures else f"FAIL ({len(matrix_failures)} pairs)"
         summary.append(f"{status} {name}: "
                        f"{len(TEXT_PAIRS)} text, {len(UI_PAIRS)} UI pairs; " + "; ".join(minima))
+    failures.extend(_check_prepaint_canvas(tokens_by_matrix))
     print("\n".join([*failures, *summary]))
     return 1 if failures else 0
 

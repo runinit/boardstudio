@@ -4,7 +4,8 @@
 //! plain board/part edit synchronously through `Runtime::commit`, and each
 //! resolver revalidates against the accepted document it receives.
 use boardstudio_application::{
-    AcceptedSnapshot, EditResolver, Event, Lifecycle, Resolution, Scope, TerminalOutcome,
+    AcceptedSnapshot, EditResolver, Event, Lifecycle, Resolution, Scope, SnapshotToken,
+    TerminalOutcome,
 };
 use boardstudio_core_mechanical::electrical::{ElectricalMode, ElectricalPlan};
 
@@ -51,14 +52,19 @@ pub enum PartNetEditAction {
     },
 }
 
-/// One part-net edit against plain board/part ids; the resolver revalidates
-/// the definition and generator source against the accepted document.
+/// One part-net edit bound to the rendered snapshot/scope/selection identity;
+/// the handler verifies currency before and after async generator classification,
+/// and the resolver revalidates the definition against the accepted document.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PartNetEditRequest {
+    pub ui_scope: Scope,
     pub board_id: String,
     pub part_id: String,
     pub definition_id: String,
     pub generator_source: Option<String>,
+    pub token: SnapshotToken,
+    pub revision: u64,
+    pub scope_generation: u64,
     pub action: PartNetEditAction,
 }
 
