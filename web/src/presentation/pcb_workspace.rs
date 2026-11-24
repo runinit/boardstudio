@@ -414,7 +414,7 @@ pub(super) fn PcbWorkspace() -> Element {
     let on_part_hit = interaction::part_hit(editor, adapter.clone(), &frame, &interaction);
     let on_part_pointer_down =
         interaction::part_pointer_down(editor, adapter.clone(), &frame, &interaction);
-    let on_empty_hit = interaction::empty_hit(editor, adapter, &frame, &interaction);
+    let on_empty_hit = interaction::empty_hit(editor, adapter, &frame);
     let surfaces = WorkspaceSurfaces {
         objects: objects(ObjectsInput {
             shared,

@@ -17,7 +17,6 @@ pub(super) use objects::{LayoutInspectorTab, LayoutWorkspaceState, use_layout_wo
 use std::rc::Rc;
 
 pub(in crate::presentation) mod inspector_wiring;
-pub(in crate::presentation) mod pointer;
 pub(in crate::presentation) mod scene;
 pub(in crate::presentation) mod toolbar_wiring;
 
@@ -833,7 +832,7 @@ pub(in crate::presentation) fn use_layout_bundle(
         use_hook(|| Rc::new(super::inspector::LayoutComponentInspectorLifetime::default()));
     let canvas = inspector_wiring::use_canvas_bundle(frame, &mounts, lifetime.clone());
     let toolbar_wiring = toolbar_wiring::use_layout_toolbar(frame, &canvas, &mounts, lifetime);
-    let pointer = pointer::build_canvas_pointer(frame);
+    let pointer = super::workbench::editor_session::canvas_adapter::build_canvas_pointer(frame);
     let overlay = scene::use_outline_overlay(frame);
     let selected_tree_context = canvas.selection.selected_tree_context.clone();
     let bridge = scene::selected_bridge(&frame.snapshot, selected_tree_context.as_ref());
@@ -1127,7 +1126,7 @@ pub(in crate::presentation) fn snap_dock(
 /// The Add-matrix surface floating over the Layout canvas.
 pub(in crate::presentation) fn add_matrix_surface(
     matrix_setup: objects::MatrixSetupMount,
-    mirrored_pair: objects::MirroredPairMount,
+    mirrored_pair: objects::MirroredPairSession,
     guide_covering_single: bool,
 ) -> Element {
     rsx! {
@@ -1137,7 +1136,7 @@ pub(in crate::presentation) fn add_matrix_surface(
 
 pub(in crate::presentation) struct CanvasStatusPillsInput<'a> {
     pub active: bool,
-    pub part_placement: &'a super::part_placement::PartPlacementMount,
+    pub part_placement: &'a super::part_placement::PartPlacementSession,
     pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
     pub pending_splay_origin_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
     pub pending_anchor_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,

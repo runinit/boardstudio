@@ -254,7 +254,7 @@ pub(super) struct CanvasSectionInput<'a> {
     pub inspect_open: Signal<bool>,
     pub workspace: Signal<Workspace>,
     pub matrix_setup: objects::MatrixSetupMount,
-    pub mirrored_pair: objects::MirroredPairMount,
+    pub mirrored_pair: objects::MirroredPairSession,
     pub guide_none: bool,
     pub guide_project_stage: bool,
     pub hardware_split: bool,

@@ -6,7 +6,6 @@ pub(in crate::presentation) mod canvas_adapter;
 pub(in crate::presentation) mod commands;
 pub(in crate::presentation) mod findings_navigation;
 pub(in crate::presentation) mod keyboard;
-pub(in crate::presentation) mod pointer_bundles;
 pub(in crate::presentation) mod selection_handlers;
 pub(in crate::presentation) mod session_state;
 pub(in crate::presentation) mod setup_guide_state;
@@ -41,7 +40,6 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
     );
     use_context_provider(|| shared_wiring);
     use_context_provider(|| workspace_composition::WorkspaceInteraction {
-        navigation: state.canvas_navigation.clone(),
         tree_cell_anchor: state.tree_cell_anchor.clone(),
         inspector_settings: state.inspector_panel_settings,
     });
@@ -108,7 +106,7 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
         workspace_composition::current_tree_context(&state.adapter, model, &render_scope);
     let show_position_inspector =
         camera::session_show_position_inspector(model, session_selected_tree_context.as_ref());
-    let pointer = pointer_bundles::use_pointer_bundle(&state, &cam, &render_scope);
+    let pointer = canvas_adapter::use_pointer_bundle(&state, &cam, &render_scope);
     let (keyboard, key_up, start_pan) =
         keyboard::build_keyboard_bundle(&state, &cam, &render_scope);
     let mut layout_input = use_context::<layout_input::LayoutInput>();
