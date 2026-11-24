@@ -30,9 +30,6 @@ use wasm_bindgen_futures::spawn_local;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MatrixSetupOwner {
-    pub editor_instance_id: u64,
-    pub open_id: u64,
-    pub scope_generation: u64,
     pub scope: Scope,
     pub board_id: String,
     pub snapshot_token: SnapshotToken,
@@ -63,8 +60,8 @@ pub struct MatrixSetupMount {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MatrixPlacementOwner {
-    pub editor_instance_id: u64,
-    pub request_id: u64,
+    // `scope_generation` is read by the canvas placement adapter outside this
+    // crate; retire it together with that consumer instead of here.
     pub scope_generation: u64,
     pub scope: Scope,
     pub board_id: String,
@@ -200,7 +197,6 @@ fn place_matrix_resolver(matrix: Matrix, definitions: Vec<PartDefinition>) -> Ed
 
 #[derive(Clone, Default)]
 struct PlacementUi {
-    request_id: u64,
     preparing: Option<MatrixPlacementOwner>,
     placement: Option<MatrixPlacementProjection>,
     error: Option<String>,
@@ -356,10 +352,7 @@ fn start_place(c: &PlaceCtx, source: MatrixPlacementSource) {
             Some("Open a saved, editable board before placing a key assembly.".into());
         return;
     };
-    let next = ui.read().request_id.saturating_add(1);
     let owner = MatrixPlacementOwner {
-        editor_instance_id: 0,
-        request_id: next,
         scope_generation: (c.input.scope_generation)(),
         scope,
         board_id,
@@ -371,7 +364,7 @@ fn start_place(c: &PlaceCtx, source: MatrixPlacementSource) {
     }
     {
         let mut s = ui.write();
-        (s.request_id, s.preparing, s.error) = (next, Some(owner.clone()), None);
+        (s.preparing, s.error) = (Some(owner.clone()), None);
     }
     let (c, snap) = (c.clone(), snap.clone());
     let orient = if (c.input.assembly_orientation.0)() == SwitchOrientation::South {
@@ -554,7 +547,7 @@ async fn prepare_placement(
                 assemblies_local: Some(true),
             };
             let seed = Matrix {
-                id: mid,
+                id: mid.clone(),
                 name: Some(assembly.name.clone()),
                 rows: 1,
                 columns: 1,
@@ -577,7 +570,7 @@ async fn prepare_placement(
                 &assembly,
                 &srcs,
                 &acc.document,
-                &format!("placement-{}", o.request_id),
+                &format!("placement-{mid}"),
             )?;
             for d in &mut defs {
                 *d = normalize_matrix_definition(d.clone()).await?;

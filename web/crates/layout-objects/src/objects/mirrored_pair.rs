@@ -274,7 +274,6 @@ fn valid_pair_inputs(left: &str, right: &str, dims_valid: bool, gap_mm: f64) -> 
 
 #[derive(Clone)]
 struct PairUi {
-    next_open_id: u64,
     open: Option<MirroredPairOwner>,
     form_state: PairFormState<MirroredPairFormValues>,
     preparing: Option<MirroredPairOwner>,
@@ -286,7 +285,6 @@ struct PairUi {
 impl Default for PairUi {
     fn default() -> Self {
         Self {
-            next_open_id: 0,
             open: None,
             form_state: PairFormState::new(MirroredPairFormValues::default()),
             preparing: None,
@@ -424,13 +422,10 @@ pub fn use_mirrored_pair(
                 return;
             }
             let mut s = ui.write();
-            s.next_open_id = s.next_open_id.saturating_add(1);
             s.form_state = PairFormState::new(MirroredPairFormValues::default());
             s.error = None;
             s.status = None;
             s.open = Some(MirroredPairOwner {
-                editor_instance_id: 0,
-                open_id: s.next_open_id,
                 scope_generation: scope_generation(),
                 scope,
                 board_id,
