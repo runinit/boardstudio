@@ -26,7 +26,7 @@ use stack::{
     resolve_profiles,
 };
 
-type FloatPath = Vec<[f64; 2]>;
+use crate::geometry2d::FloatPath;
 type FloatShapes = Vec<Vec<FloatPath>>;
 
 fn profile_source_for_family(family: MechanicalSwitchFamily) -> MechanicalBuiltinProfile {

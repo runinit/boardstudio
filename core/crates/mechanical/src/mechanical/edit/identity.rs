@@ -1,6 +1,7 @@
 //! Durable identity floors, counters and the mechanical identity ledger.
 
 use super::super::change::MechanicalTarget;
+use super::feature_lifecycle::feature_ids;
 use crate::model::*;
 use std::collections::BTreeMap;
 
@@ -355,11 +356,9 @@ impl MechanicalIdentityLedger {
         owner: IdentityConfigOwner,
         configuration: &MechanicalConfiguration,
     ) {
-        let highest_opening = configuration
-            .openings
-            .iter()
-            .flatten()
-            .map(|opening| identity_index(&opening.id))
+        let highest_opening = feature_ids(configuration, MechanicalFeatureKind::Opening)
+            .into_iter()
+            .map(|id| identity_index(&id))
             .max()
             .unwrap_or(0);
         let highest_vertex = configuration
@@ -384,11 +383,13 @@ impl MechanicalIdentityLedger {
             .filter_map(|entry| identity_index_for(&entry.id, "case-mechanical-hardware"))
             .max()
             .unwrap_or(0);
-        let highest_mount = configuration
-            .mounts
-            .iter()
-            .chain(configuration.closure_mounts.iter().flatten())
-            .filter_map(|mount| identity_index_for(&mount.id, "case-mechanical-mount"))
+        let highest_mount = feature_ids(configuration, MechanicalFeatureKind::Mount)
+            .into_iter()
+            .chain(feature_ids(
+                configuration,
+                MechanicalFeatureKind::ClosureMount,
+            ))
+            .filter_map(|id| identity_index_for(&id, "case-mechanical-mount"))
             .max()
             .unwrap_or(0);
         let counters = IdentityCounters {
@@ -477,10 +478,9 @@ pub(super) fn identity_reservation_of(
     configuration: &MechanicalConfiguration,
 ) -> MechanicalIdentityReservation {
     let openings = configuration.openings.as_ref();
-    let highest_opening = openings
+    let highest_opening = feature_ids(configuration, MechanicalFeatureKind::Opening)
         .into_iter()
-        .flatten()
-        .map(|opening| identity_index(&opening.id))
+        .map(|id| identity_index(&id))
         .max()
         .unwrap_or(0);
     let highest_vertex = openings
@@ -524,11 +524,13 @@ pub(super) fn identity_reservation_of(
                 .saturating_add(1),
         ),
         next_mount_identity: configuration.next_mount_identity.max(
-            configuration
-                .mounts
-                .iter()
-                .chain(configuration.closure_mounts.iter().flatten())
-                .filter_map(|mount| identity_index_for(&mount.id, "case-mechanical-mount"))
+            feature_ids(configuration, MechanicalFeatureKind::Mount)
+                .into_iter()
+                .chain(feature_ids(
+                    configuration,
+                    MechanicalFeatureKind::ClosureMount,
+                ))
+                .filter_map(|id| identity_index_for(&id, "case-mechanical-mount"))
                 .max()
                 .unwrap_or(0)
                 .saturating_add(1),

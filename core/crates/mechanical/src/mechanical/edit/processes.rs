@@ -181,13 +181,6 @@ pub(super) fn initial_switch_family(
         .then_some(*first)
 }
 
-pub(super) fn family_assignment_changes(
-    existing_family: Option<MechanicalSwitchFamily>,
-    selected_family: MechanicalSwitchFamily,
-) -> bool {
-    existing_family != Some(selected_family)
-}
-
 pub(super) fn closure_hardware_mut(
     configuration: &mut MechanicalConfiguration,
 ) -> Result<&mut InternalClosureHardware, String> {

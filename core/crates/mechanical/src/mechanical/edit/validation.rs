@@ -148,12 +148,9 @@ pub(super) fn validate_mounts(mounts: &[Mount]) -> Result<(), String> {
 }
 
 pub(super) fn valid_profile_polygons(polygons: &[Vec<Vec2>]) -> bool {
-    polygons.iter().all(|polygon| {
-        polygon.len() >= 3
-            && polygon
-                .iter()
-                .all(|point| point.x.is_finite() && point.y.is_finite())
-    })
+    polygons
+        .iter()
+        .all(|polygon| crate::geometry2d::is_finite_polygon(polygon))
 }
 
 pub(super) fn validate_profile_openings(

@@ -107,7 +107,7 @@ fn replace_instance_staged(
 
     if projection_required {
         let template = normalized_mounting_hole()?;
-        project(document, Some(&template), &mut changed)?;
+        closures::project_changed(document, Some(&template), &mut changed)?;
     }
     features::validate(document)?;
     dedup_changed(&mut changed);
@@ -203,45 +203,17 @@ fn validate_unambiguous_feature_ids(
     configuration: &MechanicalConfiguration,
     label: &str,
 ) -> Result<(), String> {
-    for (kind, ids) in [
-        (
-            MechanicalFeatureKind::Mount,
-            configuration
-                .mounts
-                .iter()
-                .map(|mount| mount.id.as_str())
-                .collect::<Vec<_>>(),
-        ),
-        (
-            MechanicalFeatureKind::ClosureMount,
-            configuration
-                .closure_mounts
-                .iter()
-                .flatten()
-                .map(|mount| mount.id.as_str())
-                .collect(),
-        ),
-        (
-            MechanicalFeatureKind::Opening,
-            configuration
-                .openings
-                .iter()
-                .flatten()
-                .map(|opening| opening.id.as_str())
-                .collect(),
-        ),
-        (
-            MechanicalFeatureKind::GasketSupport,
-            configuration
-                .gasket_layout
-                .iter()
-                .flat_map(|layout| &layout.supports)
-                .map(|anchor| anchor.id.as_str())
-                .collect(),
-        ),
+    for kind in [
+        MechanicalFeatureKind::Mount,
+        MechanicalFeatureKind::ClosureMount,
+        MechanicalFeatureKind::Opening,
+        MechanicalFeatureKind::GasketSupport,
     ] {
         let mut seen = std::collections::BTreeSet::new();
-        if let Some(duplicate) = ids.into_iter().find(|id| !seen.insert(*id)) {
+        if let Some(duplicate) = feature_ids(configuration, kind)
+            .into_iter()
+            .find(|id| !seen.insert(id))
+        {
             return Err(format!(
                 "The {label} {kind:?} feature id {duplicate:?} is ambiguous."
             ));
@@ -297,7 +269,11 @@ fn reject_omitted_reintroduction(
         MechanicalFeatureKind::Opening,
         MechanicalFeatureKind::GasketSupport,
     ] {
-        for id in feature_ids(after, kind).difference(&feature_ids(before, kind)) {
+        let before_ids = feature_ids(before, kind);
+        for id in feature_ids(after, kind)
+            .into_iter()
+            .filter(|id| !before_ids.contains(id))
+        {
             if pair.features.iter().any(|feature| {
                 feature.id == *id
                     && feature
