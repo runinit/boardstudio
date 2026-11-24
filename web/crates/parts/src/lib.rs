@@ -7,11 +7,9 @@
 #![cfg_attr(not(target_arch = "wasm32"), allow(dead_code, unused_imports))]
 
 // Modules keep the page bin's paths: `super::SelectionAdapter`,
-// `super::objects::TreeContext`, `super::shared_viewer::Viewport3D`,
+// `super::objects::TreeContext`,
 // `crate::footprint_forms`, `crate::runtime`.
 pub(crate) use crate as presentation;
-#[cfg(target_arch = "wasm32")]
-pub(crate) use boardstudio_web_case::{case_display, shared_viewer};
 pub(crate) use boardstudio_web_catalogue::matrix_setup_operation;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use boardstudio_web_runtime::runtime;
@@ -22,7 +20,6 @@ pub(crate) use boardstudio_web_ui_model::state::*;
 pub(crate) use boardstudio_web_ui_shared::footprint_graphics;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use boardstudio_web_ui_shared::model_asset_import;
-
 pub(crate) mod objects {
     #[cfg(target_arch = "wasm32")]
     pub use crate::parts::MatrixPlacementSource;

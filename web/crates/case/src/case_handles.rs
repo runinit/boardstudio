@@ -267,20 +267,28 @@ pub(super) fn mount_constraints(scene: &CadScene, body_id: &str) -> Option<Mount
     (!outer.is_empty()).then_some(MountMoveConstraints { outer, holes })
 }
 
-pub(super) fn active_case_handles(
-    handles: &[ViewerHandle],
-    preview: Option<&[ViewerHandle]>,
-    edit_mode: Option<usize>,
-) -> Vec<ViewerHandle> {
-    preview
-        .unwrap_or(handles)
-        .iter()
-        .filter(|handle| match handle.target {
-            ViewerHandleTarget::Gasket { .. } => edit_mode == Some(0),
-            ViewerHandleTarget::Mount { .. } => edit_mode == Some(1),
-        })
-        .cloned()
-        .collect()
+/// Project the typed Case handle onto the shared geometry-only viewport
+/// handle: gaskets are edit group 0, mounts edit group 1.
+#[cfg(target_arch = "wasm32")]
+pub(super) fn viewport_handle(
+    handle: &ViewerHandle,
+) -> boardstudio_web_ui_shared::viewport_3d::ViewportHandle {
+    boardstudio_web_ui_shared::viewport_3d::ViewportHandle {
+        id: handle.id.clone(),
+        x: handle.x,
+        y: handle.y,
+        z: handle.z,
+        tangent_x: handle.tangent_x,
+        tangent_y: handle.tangent_y,
+        normal_x: handle.normal_x,
+        normal_y: handle.normal_y,
+        length: handle.length,
+        invalid: handle.invalid,
+        edit_group: match handle.target {
+            ViewerHandleTarget::Gasket { .. } => 0,
+            ViewerHandleTarget::Mount { .. } => 1,
+        },
+    }
 }
 
 #[cfg(test)]

@@ -1,5 +1,5 @@
 use super::*;
-use crate::viewport_geometry::{
+use crate::viewport_3d::geometry::{
     board_packet, keycap_style, layout_module_bodies, reference_packet, transformed_module_mesh,
     transformed_module_points,
 };
@@ -10,7 +10,7 @@ pub(super) fn project_source(
     theme: &str,
     preview: Option<&NativePreviewSnapshot>,
     model_rows: Option<&ModelDeliveryRows>,
-    keycaps_preview: Option<&crate::runtime::KeycapsCadPreview>,
+    keycaps_preview: Option<&KeycapsCadPreview>,
 ) -> Result<RendererSceneProjection, String> {
     let bodies = Array::new();
     let mut layers = vec![("pcb".to_owned(), "PCB".to_owned())];
@@ -71,7 +71,12 @@ pub(super) fn project_source(
                 &identity.scope.board_id,
                 preview.preview.thickness,
             );
-            layers.extend(module_bodies.iter().map(body_layer));
+            layers.extend(module_bodies.iter().map(|body| {
+                (
+                    body["id"].as_str().unwrap_or_default().to_owned(),
+                    body["name"].as_str().unwrap_or_default().to_owned(),
+                )
+            }));
             layout_document = Some(preview.document.as_ref());
             (
                 preview.preview.thickness,
@@ -116,12 +121,6 @@ pub(super) fn project_source(
         input,
         layers,
     })
-}
-
-fn body_layer(body: &serde_json::Value) -> (String, String) {
-    let id = body["id"].as_str().unwrap_or_default();
-    let name = body["name"].as_str().unwrap_or_default();
-    (id.to_owned(), name.to_owned())
 }
 
 fn set_js_fields(
@@ -176,7 +175,7 @@ fn body_value(
 fn append_keycap_bodies(
     bodies: &Array,
     layers: &mut Vec<(String, String)>,
-    keycaps_preview: Option<&crate::runtime::KeycapsCadPreview>,
+    keycaps_preview: Option<&KeycapsCadPreview>,
     identity: &ViewerIdentity,
 ) -> Result<(), String> {
     if let Some(keycaps) = keycaps_preview {

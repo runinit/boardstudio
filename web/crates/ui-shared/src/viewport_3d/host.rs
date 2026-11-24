@@ -1,27 +1,27 @@
 //! Shared 3D viewport for immutable scene projections from each workspace.
 
-use boardstudio_web_ui_model::Workspace;
 mod canvas;
-pub use crate::case_handles::{CaseMountTarget, ViewerHandle, ViewerHandleTarget};
-use crate::case_viewport::controls::ViewerOverlayConfig;
-pub use crate::case_viewport::{
-    BodySelection, CaseBodyEditDispatch, CaseBodyEditPortal, CaseSelection, LayerSelection,
-};
-pub(crate) use crate::case_viewport::{CaseViewport, CaseViewportSource};
+mod controls;
 mod interaction;
 mod scene;
 
 use canvas::*;
+use controls::ViewerOverlayConfig;
 use scene::*;
 
-use super::case_assembly_layers::{assembly_layers_with_stack, physical_component_layers};
-use super::layout_viewer_source::LayoutPreviewSnapshot;
-use super::model_delivery::ModelDeliveryRows;
-use crate::case_preview::NativePreviewSnapshot;
-use crate::{runtime::CadScene, viewport_camera::ProjectionInputs};
+use super::assembly_projection::{assembly_layers_with_stack, physical_component_layers};
+use super::camera::ProjectionInputs;
+use crate::case_display::CaseDisplay;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_web_host::cad_jobs::captured_case_document;
 use boardstudio_web_host::renderer_host::{RendererPageHost, js_error};
+use boardstudio_web_runtime::case_preview::NativePreviewSnapshot;
+use boardstudio_web_runtime::layout_viewer_source::LayoutPreviewSnapshot;
+use boardstudio_web_runtime::model_delivery::ModelDeliveryRows;
+use boardstudio_web_runtime::parts_preview::PartsPreviewSnapshot;
+use boardstudio_web_runtime::runtime::{CadScene, KeycapsCadPreview, Runtime};
+use boardstudio_web_ui_model::Workspace;
+use boardstudio_web_ui_model::state::WorkspaceState;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use js_sys::{Array, Float32Array, Object, Reflect};
@@ -31,8 +31,6 @@ use std::{
 };
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{HtmlCanvasElement, PointerEvent};
-
-pub use super::case_display::CaseDisplay;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ViewerIdentity {
@@ -49,6 +47,24 @@ pub struct ViewerFocusRequest {
     pub revision: u64,
     pub navigation_id: u64,
     pub target_ids: Vec<String>,
+}
+
+/// Geometry-only edit handle projected into the renderer. Workspaces keep
+/// their own typed handle targets and map them onto `edit_group`, the
+/// edit-mode toggle index that reveals the handle.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ViewportHandle {
+    pub id: String,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+    pub tangent_x: f32,
+    pub tangent_y: f32,
+    pub normal_x: f32,
+    pub normal_y: f32,
+    pub length: f32,
+    pub invalid: bool,
+    pub edit_group: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -180,7 +196,7 @@ impl PartialEq for RendererSceneProjection {
 #[component]
 pub fn Viewport3D(
     source: ViewportSource,
-    keycaps_preview: Option<crate::runtime::KeycapsCadPreview>,
+    keycaps_preview: Option<KeycapsCadPreview>,
     model_rows: Option<ModelDeliveryRows>,
     #[props(default = "pcb".to_owned())] selected_layer: String,
     display: CaseDisplay,
@@ -189,9 +205,9 @@ pub fn Viewport3D(
     on_display_change: EventHandler<ScopedDisplayChange>,
     #[props(default)] focus_request: Option<ViewerFocusRequest>,
 ) -> Element {
-    let runtime = use_context::<Rc<crate::runtime::Runtime>>();
+    let runtime = use_context::<Rc<Runtime>>();
     let _ = use_context::<Signal<u64>>()();
-    let workspace = use_context::<super::WorkspaceState>().0;
+    let workspace = use_context::<WorkspaceState>().0;
     let theme = resolved_theme;
     let owner = use_hook(|| Rc::new(ViewerOwner::default()));
     let projection_cache = use_hook(|| Rc::new(RefCell::new(None::<ProjectionCache>)));
@@ -222,8 +238,15 @@ pub fn Viewport3D(
     let handle_projection = case
         .and_then(|case| case.handle_source.clone())
         .filter(|accepted| {
+            // A disposable gesture preview inherits handles only from the current accepted scene.
             view.cad.is_some_and(|displayed| {
-                crate::case_viewport::gesture_source_is_current(&runtime, accepted, displayed)
+                runtime
+                    .cad_scene()
+                    .is_some_and(|current| Rc::ptr_eq(&current, accepted))
+                    && (Rc::ptr_eq(displayed, accepted)
+                        || runtime
+                            .case_gesture_preview_scene(accepted)
+                            .is_some_and(|preview| Rc::ptr_eq(displayed, &preview)))
             })
         })
         .map(|source| CaseHandleProjection {
@@ -295,7 +318,26 @@ pub fn Viewport3D(
             .into_iter()
             .flat_map(|assembly| assembly.stack.iter().map(|layer| layer.id.clone())),
     );
-    let selectable_layers = crate::case_viewport::selectable_layers(view.cad.map(Rc::as_ref));
+    let selectable_layers = {
+        let mut layers = vec!["pcb".to_owned()];
+        if let Some(scene) = view.cad.map(Rc::as_ref) {
+            if let Some(assembly) = &scene.mechanical {
+                layers.extend(assembly.stack.iter().map(|layer| layer.id.clone()));
+                if !assembly.gasket_supports.is_empty() {
+                    layers.push("gaskets".to_owned());
+                }
+            }
+            layers.extend(
+                scene
+                    .result
+                    .bodies
+                    .iter()
+                    .filter(|body| body.id.starts_with("gasket:"))
+                    .map(|body| body.id.clone()),
+            );
+        }
+        layers
+    };
     let component_layers = physical_component_layers(view.models, matching_model_rows);
     let module_model_errors = matching_model_rows
         .into_iter()
@@ -325,7 +367,8 @@ pub fn Viewport3D(
         selected_layer,
         selected_reference: case.and_then(|case| case.selected_reference.clone()),
         display,
-        mechanical_settings: case.and_then(|case| case.mechanical_settings.clone()),
+        toolbar_extra: case.and_then(|case| case.toolbar_extra.clone()),
+        edit_labels: case.map_or_else(Vec::new, |case| case.edit_labels.clone()),
         toolbar_leading: parts_toolbar,
         handles: case.map(|case| case.handles.clone()).unwrap_or_default(),
         gesture_message,
@@ -340,6 +383,7 @@ pub fn Viewport3D(
             on_signal,
             on_display_change,
             handle_projection,
+            edit_mode: case.and_then(|case| case.edit_mode),
             handle_preview: case.and_then(|case| case.handle_preview.clone()),
             focus_request,
     } }
@@ -349,10 +393,17 @@ pub fn Viewport3D(
 pub struct CaseViewerSource {
     pub scene: Option<Rc<CadScene>>,
     pub preview: Option<Rc<NativePreviewSnapshot>>,
-    pub mechanical_settings: Option<super::MechanicalSettingsProps>,
+    /// Workspace-owned toolbar content (Case mechanical settings actions)
+    /// rendered beside the generic edit-mode toggle.
+    pub toolbar_extra: Option<Element>,
+    /// Edit-mode labels indexed by `ViewportHandle::edit_group`.
+    pub edit_labels: Vec<&'static str>,
+    /// Case owns the edit-mode signal so its `toolbar_extra` content can
+    /// react to the generic toggle the viewport renders.
+    pub edit_mode: Option<Signal<Option<usize>>>,
     pub handle_source: Option<Rc<CadScene>>,
-    pub handles: Vec<ViewerHandle>,
-    pub handle_preview: Option<Vec<ViewerHandle>>,
+    pub handles: Vec<ViewportHandle>,
+    pub handle_preview: Option<Vec<ViewportHandle>>,
     pub gesture_message: Option<String>,
     pub selected_reference: Option<String>,
 }
@@ -361,10 +412,7 @@ pub struct CaseViewerSource {
 pub enum ViewportSource {
     Case(CaseViewerSource),
     Layout(Rc<LayoutPreviewSnapshot>),
-    Parts(
-        Rc<crate::parts_preview::PartsPreviewSnapshot>,
-        Option<Element>,
-    ),
+    Parts(Rc<PartsPreviewSnapshot>, Option<Element>),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -509,7 +557,7 @@ impl ViewportSource {
         }
     }
 
-    fn is_current(&self, runtime: &crate::runtime::Runtime) -> bool {
+    fn is_current(&self, runtime: &Runtime) -> bool {
         match self {
             Self::Case(case) => {
                 if let Some(scene) = &case.scene {
@@ -548,16 +596,16 @@ impl ViewportSource {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, strum::IntoStaticStr)]
+#[strum(serialize_all = "lowercase")]
 pub(crate) enum AssemblyView {
     Assembled,
     Exploded,
     Section,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, strum::IntoStaticStr)]
+#[strum(serialize_all = "lowercase")]
 pub(crate) enum RenderMode {
     Shaded,
     Wireframe,
@@ -607,13 +655,6 @@ impl CaseHandleProjection {
     }
 }
 
-fn focus_request_matches(request: &ViewerFocusRequest, identity: &ViewerIdentity) -> bool {
-    request.scope == identity.scope
-        && request.snapshot_token == identity.snapshot_token
-        && request.revision == identity.revision
-        && !request.target_ids.is_empty()
-}
-
 fn display_state(
     display: &CaseDisplay,
     selected_layer: &str,
@@ -623,8 +664,8 @@ fn display_state(
     let value = serde_json::json!({
         "hidden": &display.hidden,
         "selectedLayer": selected_layer,
-        "view": transient.assembly,
-        "mode": transient.mode,
+        "view": Into::<&'static str>::into(transient.assembly),
+        "mode": Into::<&'static str>::into(transient.mode),
         "theme": theme,
         "explodeAmount": transient.explode_amount,
         "sectionPlane": transient.section_plane,
@@ -636,7 +677,7 @@ fn display_state(
     js_sys::JSON::parse(&value.to_string()).map_err(js_error)
 }
 
-fn handles_value(handles: &[ViewerHandle]) -> Result<JsValue, String> {
+fn handles_value(handles: &[ViewportHandle]) -> Result<JsValue, String> {
     let number = |value: f32| {
         if value.is_finite() {
             value.into()

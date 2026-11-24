@@ -64,6 +64,7 @@ pub mod board_reference_effect;
 pub mod canvas_layers;
 #[cfg(target_arch = "wasm32")]
 pub mod canvas_navigation;
+pub mod case_display;
 pub mod design_view_toolbar;
 pub mod footprint_graphics;
 #[cfg(any(test, target_arch = "wasm32"))]
@@ -80,6 +81,8 @@ pub mod object_options;
 pub mod panels;
 #[cfg(target_arch = "wasm32")]
 pub mod project_menu;
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+pub mod viewport_3d;
 // Vendored components include hooks that are active only in browser builds.
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code, unused_imports))]
 pub mod ui;

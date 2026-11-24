@@ -25,7 +25,7 @@ mod tests {
 }
 
 /// A Case draft and its provisional CAD lease expire together.
-pub(super) struct Drag<D, P> {
+pub struct Drag<D, P> {
     pub draft: Option<D>,
     pub preview: Option<P>,
 }
@@ -60,8 +60,8 @@ fn retiring_a_case_drag_releases_its_preview_once_and_drops_pending_edits() {
     assert_eq!(drag.retire(), (None, None), "a late End cannot commit");
 }
 
-pub(super) fn current_exact_case(
-    owner: &crate::case_generation_lifecycle::CaseGenerationOwner,
+pub fn current_exact_case(
+    owner: &boardstudio_web_runtime::case_generation_lifecycle::CaseGenerationOwner,
     scope: &boardstudio_application::Scope,
     token: boardstudio_application::SnapshotToken,
     revision: u64,
@@ -78,8 +78,8 @@ pub(super) fn current_exact_case(
 #[cfg(all(test, not(target_arch = "wasm32")))]
 #[test]
 fn exact_result_reuse_and_export_require_the_current_owner() {
-    use crate::case_generation_lifecycle::CaseGenerationOwner;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
+    use boardstudio_web_runtime::case_generation_lifecycle::CaseGenerationOwner;
 
     let mut scope = Scope {
         session_epoch: SessionEpoch(1),
