@@ -277,8 +277,7 @@ pub struct ElectricalHandoffBaseline {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum MechanicalConstructionOwnership {
-    /// Today's effective shared overlay with first-instance fallback, kept until
-    /// the user explicitly converts the instance.
+    /// Shared construction overlay with first-instance fallback.
     #[default]
     Legacy,
     /// The instance's own mechanical configuration is authoritative.

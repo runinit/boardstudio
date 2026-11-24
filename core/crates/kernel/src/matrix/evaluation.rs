@@ -20,20 +20,19 @@ pub fn logical_matrix<'a>(id: &str, doc: &'a ProjectDoc) -> Result<Cow<'a, Matri
             )
         })
     });
-    let derived =
-        boardstudio_model::mirrored_half::derived_matrix(doc, id).and_then(
-            |(pair, source, state)| {
-                let mapping = doc
-                    .hardware
-                    .iter()
-                    .flat_map(|hardware| &hardware.pairs)
-                    .find(|candidate| candidate.id == pair.id)
-                    .map(|candidate| candidate.mapping)
-                    .unwrap_or(pair.mapping);
-                (state == Some(&boardstudio_model::mirrored_half::MirrorOverride::Omitted))
-                    .then_some((pair.id.as_str(), source, mapping))
-            },
-        );
+    let derived = boardstudio_model::mirrored_half::derived_matrix(doc, id).and_then(
+        |(pair, source, state)| {
+            let mapping = doc
+                .hardware
+                .iter()
+                .flat_map(|hardware| &hardware.pairs)
+                .find(|candidate| candidate.id == pair.id)
+                .map(|candidate| candidate.mapping)
+                .unwrap_or(pair.mapping);
+            (state == Some(&boardstudio_model::mirrored_half::MirrorOverride::Omitted))
+                .then_some((pair, source, mapping))
+        },
+    );
     for (records, exceptions, mapping, gap) in links {
         let Some(record) = records
             .iter()
@@ -76,7 +75,7 @@ pub fn logical_matrix<'a>(id: &str, doc: &'a ProjectDoc) -> Result<Cow<'a, Matri
     // A derived two-board mirror resolves from its source while omitted: the
     // derived anchor target follows the source's anchor through the same
     // deterministic naming, and the pair map orients the reflection.
-    if let Some((pair_id, source_id, mapping)) = derived {
+    if let Some((pair, source_id, mapping)) = derived {
         let source = doc
             .matrices
             .iter()
@@ -91,8 +90,15 @@ pub fn logical_matrix<'a>(id: &str, doc: &'a ProjectDoc) -> Result<Cow<'a, Matri
             .map(|layout| layout.board_id.clone());
         if let Some(anchor) = &mut target.anchor {
             let source_anchor = anchor.matrix_id.clone();
+            let owned = doc.matrices.iter().any(|matrix| {
+                matrix.id == source_anchor
+                    && boardstudio_model::mirrored_half::owns_matrix(doc, &pair.source, matrix)
+            });
+            if !owned {
+                return Err("Omitted matrix anchor correspondence is missing".into());
+            }
             anchor.matrix_id =
-                boardstudio_model::mirrored_half::mirrored_matrix_id(pair_id, &source_anchor);
+                boardstudio_model::mirrored_half::mirrored_matrix_id(&pair.id, &source_anchor);
         }
         return super::layout::reflected(source, &target, mapping, false, false).map(Cow::Owned);
     }

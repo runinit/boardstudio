@@ -59,7 +59,8 @@ fn legacy_endpoint(
 ) -> Result<ConstraintEndpoint, String> {
     let located =
         |message: String| format!("Constraint {constraint_id} {}: {message}", side.name());
-    let has_part = document.parts.iter().any(|part| part.id == part_id);
+    let has_part = document.parts.iter().any(|part| part.id == part_id)
+        || mirrored_half::local_part(document, part_id).is_some();
     let mut matched = None;
     for mirror in &document.mirrored_pairs {
         let Some((source_id, state)) = mirrored_half::pair_derivation(document, mirror, part_id)
@@ -596,7 +597,10 @@ pub fn resolve_endpoint(
     endpoint: &ConstraintEndpoint,
 ) -> Result<ResolvedEndpoint, String> {
     let located = |what: String| format!("Constraint {constraint_id} {}: {what}", side.name());
-    let has_part = |id: &str| document.parts.iter().any(|part| part.id == id);
+    let has_part = |id: &str| {
+        document.parts.iter().any(|part| part.id == id)
+            || mirrored_half::local_part(document, id).is_some()
+    };
     let pairs = document
         .hardware
         .as_ref()

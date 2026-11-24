@@ -127,6 +127,14 @@ pub fn resolve_prepared(
     let parts: BTreeMap<_, _> = doc
         .parts
         .iter()
+        .chain(doc.mirrored_pairs.iter().flat_map(|pair| {
+            pair.overrides.iter().filter_map(|item| match &item.state {
+                boardstudio_model::mirrored_half::MirrorOverride::Local(part) => {
+                    Some(part.as_ref())
+                }
+                _ => None,
+            })
+        }))
         .map(|part| {
             (
                 part.id.clone(),
@@ -216,6 +224,36 @@ pub fn resolve_prepared(
             }
         }
     }
+    let mut local_updates = Vec::new();
+    for (pair_idx, pair) in doc.mirrored_pairs.iter().enumerate() {
+        for (ov_idx, item) in pair.overrides.iter().enumerate() {
+            let boardstudio_model::mirrored_half::MirrorOverride::Local(part) = &item.state else {
+                continue;
+            };
+            if let Some(next) = resolved.get(&part.id) {
+                let stored = crate::matrix::layout::stored_part_pose(doc, &part.id, *next);
+                if part.pose != stored {
+                    local_updates.push((
+                        pair_idx,
+                        ov_idx,
+                        part.id.clone(),
+                        part.pose,
+                        *next,
+                        stored,
+                    ));
+                }
+            }
+        }
+    }
+    for (pair_idx, ov_idx, id, old_pose, next, stored) in local_updates {
+        if let boardstudio_model::mirrored_half::MirrorOverride::Local(part) =
+            &mut doc.mirrored_pairs[pair_idx].overrides[ov_idx].state
+        {
+            key_moves.insert(id.clone(), (old_pose, next));
+            part.pose = stored;
+            changed.push(id);
+        }
+    }
     changed.extend(crate::matrix::layout::reconcile_constraint_keys(
         doc, &key_moves, &resolved,
     )?);
@@ -275,6 +313,7 @@ pub fn retune_offset(
         doc.parts
             .iter()
             .find(|part| part.id == id)
+            .or_else(|| boardstudio_model::mirrored_half::local_part(doc, id))
             .map(|part| crate::matrix::layout::evaluated_part_pose(doc, part))
             .ok_or_else(|| format!("Part {id} is missing"))
     };

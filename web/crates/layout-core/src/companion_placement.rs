@@ -144,8 +144,13 @@ pub fn companion_placement_projection(
             let mut targets = Vec::new();
             let mut disabled_reason = None;
             for part_id in selected_parts {
-                let Some((source_id, _)) = mirrored_half::pair_derivation(document, pair, part_id)
-                else {
+                let source_id = if let Some((source_id, _)) =
+                    mirrored_half::pair_derivation(document, pair, part_id)
+                {
+                    source_id
+                } else if mirrored_half::owns_part(document, &pair.source, part_id) {
+                    part_id.as_str()
+                } else {
                     continue;
                 };
                 if let Some(reason) =
@@ -199,11 +204,23 @@ pub fn companion_placement_projection(
     let [(pair, targets, eligible, disabled_reason)] = matches.as_slice() else {
         return None;
     };
-    // Derived pairs carry one pair-wide default; per-item state is the sparse
-    // companion-pose tweak. Modes never mix across the eligible set.
     let default_mode = pair_default_mode(document, pair);
-    let first_mode = Some(default_mode);
-    let mixed_mode = false;
+    let modes: Vec<_> = if eligible.is_empty() {
+        vec![default_mode]
+    } else {
+        eligible
+            .iter()
+            .map(|link| {
+                if item_tweak(pair, &link.source_id).is_some() {
+                    MirroredCompanionMode::LiteralMirrorWithTweak
+                } else {
+                    default_mode
+                }
+            })
+            .collect()
+    };
+    let first_mode = modes.first().copied();
+    let mixed_mode = modes.iter().any(|mode| Some(*mode) != first_mode);
     let tweaks: Vec<_> = eligible
         .iter()
         .map(|link| item_tweak(pair, &link.source_id))

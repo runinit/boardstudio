@@ -82,7 +82,12 @@ fn document(translation: (f64, f64)) -> ProjectDoc {
 }
 
 fn pose_of(doc: &ProjectDoc, id: &str) -> Pose2 {
-    doc.parts.iter().find(|part| part.id == id).unwrap().pose
+    doc.parts
+        .iter()
+        .find(|part| part.id == id)
+        .or_else(|| boardstudio_model::mirrored_half::local_part(doc, id))
+        .unwrap()
+        .pose
 }
 
 fn assert_pose(doc: &ProjectDoc, id: &str, x: f64, y: f64, rotation: f64) {
@@ -455,7 +460,6 @@ fn with_override(state: &str) -> ProjectDoc {
                 "side": local["side"]
             }))
             .unwrap();
-            doc.parts.push(local_part.clone());
             json!({"kind": "local", "payload": local_part})
         }
         _ => json!({"kind": "omitted"}),

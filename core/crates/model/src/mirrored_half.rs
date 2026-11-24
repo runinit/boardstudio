@@ -133,6 +133,17 @@ pub fn override_of<'a>(pair: &'a MirroredPair, source_id: &str) -> Option<&'a Mi
         .map(|item| &item.state)
 }
 
+/// The `Local` override `Part` for `part_id`, if a pair keeps a local copy under that id.
+pub fn local_part<'a>(doc: &'a ProjectDoc, part_id: &str) -> Option<&'a Part> {
+    doc.mirrored_pairs
+        .iter()
+        .flat_map(|pair| &pair.overrides)
+        .find_map(|item| match &item.state {
+            MirrorOverride::Local(part) if part.id == part_id => Some(part.as_ref()),
+            _ => None,
+        })
+}
+
 /// The authored source deriving `part_id` through one pair, if any, plus the
 /// source's sparse override (`None` while fully linked). A `Local` part keeps
 /// its stored id, so it resolves through the override's payload rather than

@@ -29,9 +29,8 @@ use boardstudio_core_mechanical::mechanical::change::{MechanicalEdit, Mechanical
 use boardstudio_core_mechanical::mechanical::{MechanicalEditDisposition, evaluate_edit};
 use boardstudio_model::model::{
     EditOperation, Finding, GasketPlacement, HardwareTransport, MechanicalBottomStyle,
-    MechanicalConfiguration, MechanicalConstructionOwnership, MechanicalGasketAnchor,
-    MechanicalGasketSupport, MechanicalMount, Mount, MountKind, PartDefinition, PlateMethod,
-    Severity,
+    MechanicalConfiguration, MechanicalGasketAnchor, MechanicalGasketSupport, MechanicalMount,
+    Mount, MountKind, PartDefinition, PlateMethod, Severity,
 };
 use boardstudio_web_host::cad_jobs::captured_case_document;
 use boardstudio_web_ui_model::Workspace;
@@ -168,8 +167,6 @@ pub struct MechanicalSettingsProps {
     pub pair_counterpart: Option<String>,
     #[props(default)]
     pub pair_projection_port: Option<MechanicalPairProjectionPort>,
-    #[props(default)]
-    pub construction_is_legacy: bool,
     pub selected_layer: String,
     /// Name of the board the stack is configured for when it is not the active one.
     pub mismatch: Option<String>,
@@ -210,7 +207,6 @@ struct Source {
     pair_counterpart: Option<String>,
     pair_link_options: Option<Rc<[MechanicalPairLinkOption]>>,
     pair_port: Option<MechanicalPairProjectionPort>,
-    construction_is_legacy: bool,
 }
 
 fn project_source(
@@ -269,19 +265,6 @@ fn project_source(
         pair_port: Some(MechanicalPairProjectionPort(Rc::new(move |change| {
             link_preview(&document, &board_contours, change, hole_template.as_deref())
         }))),
-        construction_is_legacy: instance_id
-            .and_then(|id| {
-                accepted
-                    .document
-                    .hardware
-                    .as_ref()?
-                    .instances
-                    .iter()
-                    .find(|instance| instance.id == id)
-            })
-            .is_some_and(|instance| {
-                instance.construction_ownership == MechanicalConstructionOwnership::Legacy
-            }),
         preview: preview.flatten(),
         configuration,
     })
@@ -537,7 +520,6 @@ pub fn use_mechanical_settings(
             pair_link_options: source.pair_link_options,
             pair_counterpart: source.pair_counterpart,
             pair_projection_port: source.pair_port,
-            construction_is_legacy: source.construction_is_legacy,
             selected_layer,
             editable: editable && mismatch.is_none(),
             disabled_reason,

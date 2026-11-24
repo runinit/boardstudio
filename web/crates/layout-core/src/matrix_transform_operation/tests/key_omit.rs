@@ -226,3 +226,31 @@ fn rejoin_resolves_an_omitted_key_without_a_scene_cell() {
         half_exception(MIRROR_MEMBER, HalfExceptionState::Linked)
     );
 }
+
+#[test]
+fn companion_pose_override_keeps_omit_toggle_and_resolves() {
+    let mut doc = pair_doc();
+    doc.mirrored_pairs[0].overrides.push(
+        serde_json::from_value(serde_json::json!({
+            "sourceId": "source-key",
+            "state": {
+                "kind": "companionPose",
+                "payload": { "at": { "x": 0.5, "y": -0.25 }, "rotation": 5.0 }
+            }
+        }))
+        .unwrap(),
+    );
+    let accepted = snapshot(doc);
+    assert_eq!(
+        key_half_exception(&accepted.document, MIRROR_KEY),
+        Some(KeyHalfException {
+            pair_id: "pair".into(),
+            mirror_id: MIRROR_KEY.into(),
+            omitted: false,
+        })
+    );
+    assert_eq!(
+        submitted(resolve(&accepted, "pair", MIRROR_KEY, true)),
+        half_exception(MIRROR_KEY, HalfExceptionState::Omitted)
+    );
+}

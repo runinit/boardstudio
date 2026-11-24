@@ -11,7 +11,10 @@ pub fn key_half_exception(document: &ProjectDoc, member_id: &str) -> Option<KeyH
     let (pair, _, state) = boardstudio_model::mirrored_half::derived_part(document, member_id)?;
     if !matches!(
         state,
-        None | Some(boardstudio_model::mirrored_half::MirrorOverride::Omitted)
+        None | Some(
+            boardstudio_model::mirrored_half::MirrorOverride::Omitted
+                | boardstudio_model::mirrored_half::MirrorOverride::CompanionPose(_)
+        )
     ) {
         return None;
     }
@@ -114,7 +117,10 @@ pub fn key_half_exception_resolver(pair_id: String, mirror_id: String, omit: boo
             };
             if !matches!(
                 override_state,
-                None | Some(boardstudio_model::mirrored_half::MirrorOverride::Omitted)
+                None | Some(
+                    boardstudio_model::mirrored_half::MirrorOverride::Omitted
+                        | boardstudio_model::mirrored_half::MirrorOverride::CompanionPose(_)
+                )
             ) {
                 return Resolution::Retire("The linked key no longer exists.".into());
             }

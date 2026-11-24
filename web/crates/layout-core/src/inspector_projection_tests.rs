@@ -388,7 +388,7 @@ fn companion_placement_projection_normalizes_layout_selections() {
 
     model.selected_part_ids = vec![
         source_companion_id.clone(),
-        second_source_id,
+        second_source_id.clone(),
         "selected-part".into(),
     ];
     let scoped = objects::ScopedTreeContext {
@@ -408,12 +408,10 @@ fn companion_placement_projection_normalizes_layout_selections() {
         2,
         "only selected linked companions project"
     );
-    // The pair default covers both companions; only the sparse tweak differs.
-    assert!(!projection.mixed_mode);
-    assert_eq!(
-        projection.mode,
-        Some(boardstudio_core::model::MirroredCompanionMode::LiteralMirror)
-    );
+    // The first companion inherits the pair default (LiteralMirror) while the
+    // second carries a sparse CompanionPose tweak (LiteralMirrorWithTweak).
+    assert!(projection.mixed_mode);
+    assert!(projection.mode.is_none());
     assert!(projection.mixed_tweak);
     assert!(projection.tweak.is_none());
     assert!(projection.targets.iter().any(|target| matches!(
@@ -426,6 +424,36 @@ fn companion_placement_projection_normalizes_layout_selections() {
         boardstudio_core::model::CompanionPlacementTarget::Item { mirror_id, .. }
             if mirror_id == &second_mirror_companion_id
     )));
+
+    // Selecting only the tweaked companion reports LiteralMirrorWithTweak even
+    // when the pair default is LiteralMirror.
+    model.selected_part_ids = vec![second_source_id.clone()];
+    let tweaked_only = objects::ScopedTreeContext {
+        scope: scoped.scope.clone(),
+        context: objects::TreeContext::Component {
+            part_id: Some(second_source_id),
+            matrix_id: Some("component-matrix".into()),
+            row: Some(0),
+            column: Some(0),
+            assembly_id: Some("led2".into()),
+        },
+    };
+    let single = companion_placement_projection(&model, Some(&tweaked_only), 7, 3)
+        .expect("single tweaked companion projects");
+    assert!(!single.mixed_mode);
+    assert_eq!(
+        single.mode,
+        Some(boardstudio_core::model::MirroredCompanionMode::LiteralMirrorWithTweak)
+    );
+    assert!(!single.mixed_tweak);
+    assert_eq!(
+        single.tweak,
+        Some(boardstudio_core::model::MirroredCompanionTweak {
+            x: 0.5,
+            y: -0.5,
+            rotation: 3.0,
+        })
+    );
 }
 
 #[test]
