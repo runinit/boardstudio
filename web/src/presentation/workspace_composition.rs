@@ -44,7 +44,7 @@ pub(super) struct LayoutSessionServices {
     pub matrix_transform_inspector: objects::MatrixTransformInspectorMount,
     pub matrix_placement: objects::MatrixPlacementSession,
     pub mirrored_pair: objects::MirroredPairSession,
-    pub outline_inspector: Option<outline_lifecycle::OutlineInspectorProjection>,
+    pub outline_inspector: Option<outline::OutlineInspectorProjection>,
     pub layout_findings: boardstudio_web_layout::layout_findings_state::LayoutFindingsState,
     pub on_return_from_layout_finding: Callback<(), ()>,
     pub on_close_layout_findings: Callback<(), ()>,

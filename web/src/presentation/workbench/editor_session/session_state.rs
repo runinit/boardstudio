@@ -394,8 +394,8 @@ pub(in crate::presentation) fn use_matrix_pair_wiring(
 }
 
 pub(in crate::presentation) struct EditorContexts {
-    pub outline_inspector: Option<outline_lifecycle::OutlineInspectorProjection>,
-    pub outline_activation: EventHandler<outline_lifecycle::OutlineAction>,
+    pub outline_inspector: Option<outline::OutlineInspectorProjection>,
+    pub outline_ui: outline::OutlineUiState,
     pub parts_query: parts::PartsQuery,
     pub parts_selection: parts::PartsSelection,
     pub parts_selection_generation: Signal<u64>,
@@ -418,8 +418,15 @@ pub(in crate::presentation) fn use_editor_contexts(
 ) -> EditorContexts {
     let runtime = editor.runtime();
     let workspace = editor.workspace;
-    let (outline_inspector, outline_activation) = outline_lifecycle::use_outline_lifecycle(
-        runtime.clone(),
+    let outline_ui = outline::use_outline_state(
+        &runtime,
+        adapter.selected_context,
+        workspace,
+        adapter.generation,
+    );
+    let outline_inspector = outline::project_outline_inspector(
+        &runtime,
+        outline_ui,
         adapter.selected_context,
         workspace,
         adapter.generation,
@@ -491,7 +498,7 @@ pub(in crate::presentation) fn use_editor_contexts(
     );
     EditorContexts {
         outline_inspector,
-        outline_activation,
+        outline_ui,
         parts_query,
         parts_selection,
         parts_selection_generation,

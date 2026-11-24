@@ -3,10 +3,13 @@
 use boardstudio_application::Scope;
 use boardstudio_model::model::Vec2;
 pub use boardstudio_web_layout_core::interaction::{
-    ActivePan, ActivePartDrag, CanvasEvent, CanvasInteraction, CanvasKey, CanvasMode, GestureSeed,
-    InteractionEffect,
+    ActiveOutlineDrag, ActivePan, ActivePartDrag, ActiveRailDrag, CanvasEvent, CanvasInteraction,
+    CanvasKey, CanvasMode, GestureSeed, InteractionEffect, OutlineHandleSeed, RailBodyDrag,
+    RailDragKind, RailDragSeed,
 };
+use boardstudio_web_layout_core::outline_snapping;
 use boardstudio_web_ui_model::selection::ScopedDrag;
+use boardstudio_web_ui_model::transform_feedback::FeedbackDelta;
 use dioxus::prelude::*;
 use std::rc::Rc;
 use web_sys::PointerEvent;
@@ -18,6 +21,8 @@ pub struct LayoutInteraction {
     state: Signal<CanvasInteraction>,
     cancel: Signal<Option<Rc<dyn Fn()>>>,
     canceled_drag: Signal<Option<ScopedDrag>>,
+    canceled_rail_drag: Signal<Option<ActiveRailDrag>>,
+    canceled_outline_drag: Signal<Option<ActiveOutlineDrag>>,
     gesture: Signal<Option<PointerGesture>>,
     control: Signal<bool>,
     version: Signal<u64>,
@@ -28,6 +33,8 @@ pub fn use_layout_interaction() -> LayoutInteraction {
         state: use_signal(CanvasInteraction::default),
         cancel: use_signal(|| None),
         canceled_drag: use_signal(|| None),
+        canceled_rail_drag: use_signal(|| None),
+        canceled_outline_drag: use_signal(|| None),
         gesture: use_signal(|| None),
         control: use_signal(|| false),
         version: use_signal(|| 0),
@@ -76,6 +83,10 @@ impl LayoutInteraction {
         (self.control)()
     }
 
+    pub fn peek_control_down(self) -> bool {
+        self.state.peek().control_down
+    }
+
     pub fn quick_offset(self) -> bool {
         self.state.peek().quick_offset()
     }
@@ -96,6 +107,14 @@ impl LayoutInteraction {
         self.state.peek().part_drag()
     }
 
+    pub fn rail_drag(self) -> Option<ActiveRailDrag> {
+        self.state.peek().rail_drag()
+    }
+
+    pub fn outline_drag(self) -> Option<ActiveOutlineDrag> {
+        self.state.peek().outline_drag()
+    }
+
     pub fn set_part_drag_gesture_generation(mut self, generation: Option<u64>) {
         self.state
             .write()
@@ -104,6 +123,30 @@ impl LayoutInteraction {
 
     pub fn note_part_drag_sample(mut self, sample: Option<(Vec2, f64, bool)>) {
         self.state.write().note_part_drag_sample(sample);
+    }
+
+    pub fn note_rail_preview(mut self, preview: Option<(String, FeedbackDelta)>) {
+        self.state.write().note_rail_preview(preview);
+    }
+
+    pub fn note_rail_body_sample(mut self, sample: Option<(Vec2, f64, bool)>) {
+        self.state.write().note_rail_body_sample(sample);
+    }
+
+    pub fn sample_outline_drag(
+        mut self,
+        world: Vec2,
+        paths: &[Vec<Vec2>],
+        origins: &[outline_snapping::Origin],
+        options: outline_snapping::Options,
+    ) {
+        self.state
+            .write()
+            .sample_outline_drag(world, paths, origins, options);
+    }
+
+    pub fn note_outline_preview_submitted(mut self) {
+        self.state.write().note_outline_preview_submitted();
     }
 
     pub fn switch_pick(self, mode: CanvasMode) -> bool {
@@ -134,6 +177,14 @@ impl LayoutInteraction {
 
     pub fn take_canceled_drag(mut self) -> Option<ScopedDrag> {
         self.canceled_drag.write().take()
+    }
+
+    pub fn take_canceled_rail_drag(mut self) -> Option<ActiveRailDrag> {
+        self.canceled_rail_drag.write().take()
+    }
+
+    pub fn take_canceled_outline_drag(mut self) -> Option<ActiveOutlineDrag> {
+        self.canceled_outline_drag.write().take()
     }
 
     pub fn cancel_scoped(self, expected_scope: &Scope) {
@@ -167,11 +218,19 @@ impl LayoutInteraction {
 
     pub fn handle(mut self, event: CanvasEvent) -> Vec<InteractionEffect> {
         let previous = self.current();
-        let (effects, control, active_drag) = {
+        let (effects, control, active_drag, active_rail, active_outline) = {
             let mut state = self.state.write();
             let active_drag = active_scoped_drag(&state);
+            let active_rail = state.rail_drag();
+            let active_outline = state.outline_drag();
             let effects = state.handle(event);
-            (effects, state.control_down, active_drag)
+            (
+                effects,
+                state.control_down,
+                active_drag,
+                active_rail,
+                active_outline,
+            )
         };
         if *self.control.peek() != control {
             self.control.set(control);
@@ -186,8 +245,12 @@ impl LayoutInteraction {
                 && let Some(cancel) = cancel
             {
                 *self.canceled_drag.write() = active_drag;
+                *self.canceled_rail_drag.write() = active_rail;
+                *self.canceled_outline_drag.write() = active_outline;
                 cancel();
                 self.canceled_drag.write().take();
+                self.canceled_rail_drag.write().take();
+                self.canceled_outline_drag.write().take();
             }
         }
         effects
@@ -202,4 +265,12 @@ pub fn focus_svg(surface: &web_sys::SvgElement) {
     let options = web_sys::FocusOptions::new();
     options.set_prevent_scroll(true);
     let _ = surface.focus_with_options(&options);
+}
+
+pub fn release_capture(surface: &std::cell::RefCell<Option<web_sys::SvgElement>>, pointer_id: i32) {
+    if let Some(capture) = surface.borrow().as_ref()
+        && capture.has_pointer_capture(pointer_id)
+    {
+        let _ = capture.release_pointer_capture(pointer_id);
+    }
 }

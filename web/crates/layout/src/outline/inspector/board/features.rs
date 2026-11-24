@@ -2,12 +2,10 @@ use super::*;
 
 pub(super) fn manual_features(projection: &OutlineInspectorProjection) -> Element {
     let active_version = projection.active_version_id.clone();
-    let on_action = projection.on_action;
-    let action_context = projection.action_context.clone();
     let enabled = projection.enabled;
-    let mut perimeter_open = projection.editing_points;
-    let mut selected_point = projection.selected_point;
-    let mut selected_feature_id = projection.selected_feature_id;
+    let mut perimeter_open = projection.ui.editing_points;
+    let mut selected_point = projection.ui.selected_point;
+    let mut selected_feature_id = projection.ui.selected_feature_id;
     rsx! {
         if !projection.geometry_features.is_empty() {
             div {
@@ -74,10 +72,13 @@ pub(super) fn manual_features(projection: &OutlineInspectorProjection) -> Elemen
     disabled: !enabled,
     aria_label: "Remove {feature_name} {index + 1}",
     onclick: {
-                                    let action_context = action_context.clone();
+                                    let projection = projection.clone();
                                     let version_id = version_id.clone();
                                     let feature_id = feature_id.clone();
-                                    move |_| on_action.call(action_context.remove_feature(version_id.clone(), feature_id.clone()))
+                                    move |_| projection.dispatch(OutlineActionKind::RemoveFeature {
+                                        version_id: version_id.clone(),
+                                        feature_id: feature_id.clone(),
+                                    })
                                 },
 
                                         "Remove"
@@ -110,7 +111,7 @@ pub(super) fn manual_features(projection: &OutlineInspectorProjection) -> Elemen
                                 back: part.side == Side::Back,
                             });
                         let world_center = anchor.map_or(*center, |anchor| anchor.world(*center));
-                        let action_context = action_context.clone();
+                        let projection = projection.clone();
                         let before = feature.clone();
                         let version_id = active_version.clone();
                         vec2_fields("Rectangle center".to_owned(), world_center, enabled, move |world| {
@@ -118,7 +119,11 @@ pub(super) fn manual_features(projection: &OutlineInspectorProjection) -> Elemen
                             if let OutlineFeature::Rect { center, .. } = &mut after {
                                 *center = anchor.map_or(world, |anchor| anchor.local(world));
                             }
-                            on_action.call(action_context.set_feature(version_id.clone(), before.clone(), after));
+                            projection.dispatch(OutlineActionKind::SetFeature {
+                                version_id: version_id.clone(),
+                                before: before.clone(),
+                                after,
+                            });
                         })
                     }
                     OutlineDimension {
@@ -127,8 +132,7 @@ pub(super) fn manual_features(projection: &OutlineInspectorProjection) -> Elemen
                         minimum: 0.001,
                         editable: enabled,
                         on_commit: commit_feature_edit(
-                            action_context.clone(),
-                            on_action,
+                            projection.clone(),
                             feature.clone(),
                             active_version.clone(),
                             |after, value| {
@@ -144,8 +148,7 @@ pub(super) fn manual_features(projection: &OutlineInspectorProjection) -> Elemen
                         minimum: 0.001,
                         editable: enabled,
                         on_commit: commit_feature_edit(
-                            action_context.clone(),
-                            on_action,
+                            projection.clone(),
                             feature.clone(),
                             active_version.clone(),
                             |after, value| {
@@ -162,8 +165,7 @@ pub(super) fn manual_features(projection: &OutlineInspectorProjection) -> Elemen
                             minimum: 0.0,
                             editable: enabled,
                             on_commit: commit_feature_edit(
-                                action_context.clone(),
-                                on_action,
+                                projection.clone(),
                                 feature.clone(),
                                 active_version.clone(),
                                 |after, value| {

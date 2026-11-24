@@ -602,7 +602,9 @@ pub(in crate::presentation) fn capture_canvas_drag(
     let mode = seed.mode();
     let seed_scope = match &seed {
         GestureSeed::Pan { scope, .. } | GestureSeed::PartDrag { scope, .. } => Some(scope.clone()),
-        GestureSeed::MatrixRail | GestureSeed::PartRail | GestureSeed::OutlineHandle => None,
+        GestureSeed::MatrixRail(_) | GestureSeed::PartRail(_) | GestureSeed::OutlineHandle(_) => {
+            None
+        }
     };
     if interaction.handle(CanvasEvent::PointerDown {
         id,

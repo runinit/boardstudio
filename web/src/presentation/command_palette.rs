@@ -299,9 +299,8 @@ pub(super) fn editor_commands(
     targets
         .into_iter()
         .map(|(label, context)| {
-            let outline_action = super::outline_lifecycle::OutlineAction::for_tree(
-                snapshot, scope, generation, &context,
-            );
+            let outline_action =
+                super::outline::OutlineAction::for_tree(snapshot, scope, generation, &context);
             let sc = scope.clone();
             Command {
                 group: "Objects",

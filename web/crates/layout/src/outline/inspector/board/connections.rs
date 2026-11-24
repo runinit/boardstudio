@@ -1,15 +1,26 @@
 use super::*;
 use boardstudio_web_ui_shared::inspector_fields::SelectField;
 
+fn set_connection_feature(
+    projection: &OutlineInspectorProjection,
+    version_id: Option<String>,
+    before: OutlineFeature,
+    after: OutlineFeature,
+) {
+    projection.dispatch(OutlineActionKind::SetFeature {
+        version_id,
+        before,
+        after,
+    });
+}
+
 pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
     let projection = &view.projection;
     let point_attachment = view.point_attachment;
     let active_version = projection.active_version_id.clone();
-    let on_action = projection.on_action;
-    let action_context = projection.action_context.clone();
     let enabled = projection.enabled;
-    let mut selected_point = projection.selected_point;
-    let mut selected_connection_id = projection.selected_connection_id;
+    let mut selected_point = projection.ui.selected_point;
+    let mut selected_connection_id = projection.ui.selected_connection_id;
     rsx! {
         if !projection.connections.is_empty() {
             div {
@@ -44,7 +55,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
     disabled: !enabled,
     aria_label: "Remove connection {index + 1}",
     onclick: {
-                            let action_context = action_context.clone();
+                            let projection = projection.clone();
                             let before = before.clone();
                             let version_id = active_version.clone();
                             let connection_id = connection.id.clone();
@@ -53,7 +64,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                                 if let OutlineFeature::PartEnvelope { connections, .. } = &mut after {
                                     connections.retain(|item| item.id != connection_id);
                                 }
-                                on_action.call(action_context.set_feature(version_id.clone(), before.clone(), after));
+                                set_connection_feature(&projection, version_id.clone(), before.clone(), after);
                                 selected_connection_id.set(None);
                             }
                         },
@@ -82,7 +93,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                         minimum: 0.001,
                         editable: enabled,
                         on_commit: {
-                            let action_context = action_context.clone();
+                            let projection = projection.clone();
                             let before = before.clone();
                             let version_id = active_version.clone();
                             let connection_id = connection_id.clone();
@@ -95,10 +106,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                                 {
                                     connection.width = value;
                                 }
-                                on_action
-                                    .call(
-                                        action_context.set_feature(version_id.clone(), before.clone(), after),
-                                    );
+                                set_connection_feature(&projection, version_id.clone(), before.clone(), after);
                             }
                         },
                     }
@@ -110,14 +118,14 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                             rsx! {
                                 h4 { "Connection point {index + 1} of {connection.points.len()}" }
                                 {
-                                    let action_context = action_context.clone();
+                                    let projection = projection.clone();
                                     let before = before.clone();
                                     let version_id = active_version.clone();
                                     let connection_id = connection.id.clone();
                                     let parts = projection.outline_parts.clone();
                                     vec2_fields(format!("Point {}", index + 1), world, enabled, move |world| {
                                         let next = move_connection_point(&before, &connection_id, index, world, &parts);
-                                        on_action.call(action_context.set_feature(version_id.clone(), before.clone(), next));
+                                        set_connection_feature(&projection, version_id.clone(), before.clone(), next);
                                     })
                                 }
                                 SelectField {
@@ -149,7 +157,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                                     aria_label: format!("Point {} attachment", index + 1),
                                     disabled: !enabled,
                                         on_commit: {
-                                            let action_context = action_context.clone();
+                                            let projection = projection.clone();
                                             let before = before.clone();
                                             let version_id = active_version.clone();
                                             let connection_id = connection.id.clone();
@@ -162,11 +170,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                                                     (!value.is_empty()).then_some(value.as_str()),
                                                     &parts,
                                                 );
-                                                on_action.call(action_context.set_feature(
-                                                    version_id.clone(),
-                                                    before.clone(),
-                                                    next,
-                                                ));
+                                                set_connection_feature(&projection, version_id.clone(), before.clone(), next);
                                             }
                                         },
                                 }
@@ -176,7 +180,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
     disabled: !enabled || index + 1 == connection.points.len(),
     aria_label: "Insert after connection point {index + 1}",
     onclick: {
-                                    let action_context = action_context.clone();
+                                    let projection = projection.clone();
                                     let before = before.clone();
                                     let version_id = active_version.clone();
                                     let connection_id = connection.id.clone();
@@ -194,7 +198,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                                                 part_id: None,
                                             });
                                             selected_point.set(index + 1);
-                                            on_action.call(action_context.set_feature(version_id.clone(), before.clone(), after));
+                                            set_connection_feature(&projection, version_id.clone(), before.clone(), after);
                                         }
                                     }
                                 },
@@ -207,7 +211,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
     disabled: !enabled || connection.points.len() <= 2,
     aria_label: "Remove connection point {index + 1}",
     onclick: {
-                                    let action_context = action_context.clone();
+                                    let projection = projection.clone();
                                     let before = before.clone();
                                     let version_id = active_version.clone();
                                     let connection_id = connection.id.clone();
@@ -219,7 +223,7 @@ pub(super) fn connection_controls(view: &BoardInspectorView) -> Element {
                                         {
                                             connection.points.remove(index);
                                             selected_point.set(index.saturating_sub(1));
-                                            on_action.call(action_context.set_feature(version_id.clone(), before.clone(), after));
+                                            set_connection_feature(&projection, version_id.clone(), before.clone(), after);
                                         }
                                     }
                                 },

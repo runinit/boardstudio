@@ -1,7 +1,11 @@
 //! Layout canvas admission, modifier state and pointer transitions.
 
-use boardstudio_application::Scope;
+use crate::outline::{OutlineActionEnvelope, OutlinePointTarget, PerimeterAnchor};
+use crate::outline_snapping;
+use crate::rail_gesture::RailGesture;
+use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_model::model::{EditOperation, Position, Vec2};
+use boardstudio_web_ui_model::transform_feedback::FeedbackDelta;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CanvasMode {
@@ -39,6 +43,41 @@ impl CanvasMode {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct RailBodyDrag {
+    pub part_id: String,
+    pub start_at: Vec2,
+    pub last_sample: Option<(Vec2, f64, bool)>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum RailDragKind {
+    Gesture(RailGesture),
+    Body(RailBodyDrag),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct RailDragSeed {
+    pub transaction_id: String,
+    pub tool_label: &'static str,
+    pub kind: RailDragKind,
+    pub token: SnapshotToken,
+    pub revision: u64,
+    pub board_id: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct OutlineHandleSeed {
+    pub point_index: usize,
+    pub points: Vec<Vec2>,
+    pub preview_points: Vec<Vec2>,
+    pub original_world: Vec2,
+    pub target: OutlinePointTarget,
+    pub anchor: Option<PerimeterAnchor>,
+    pub envelope: OutlineActionEnvelope,
+    pub transaction_id: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum GestureSeed {
     Pan {
         scope: Scope,
@@ -51,9 +90,9 @@ pub enum GestureSeed {
         origin_mm: Vec2,
         positions: Vec<Position>,
     },
-    MatrixRail,
-    PartRail,
-    OutlineHandle,
+    MatrixRail(RailDragSeed),
+    PartRail(RailDragSeed),
+    OutlineHandle(OutlineHandleSeed),
 }
 
 impl GestureSeed {
@@ -61,9 +100,9 @@ impl GestureSeed {
         match self {
             Self::Pan { .. } => CanvasMode::Panning,
             Self::PartDrag { .. } => CanvasMode::DraggingParts,
-            Self::MatrixRail => CanvasMode::DraggingMatrixRail,
-            Self::PartRail => CanvasMode::DraggingPartRail,
-            Self::OutlineHandle => CanvasMode::DraggingOutlineHandle,
+            Self::MatrixRail(_) => CanvasMode::DraggingMatrixRail,
+            Self::PartRail(_) => CanvasMode::DraggingPartRail,
+            Self::OutlineHandle(_) => CanvasMode::DraggingOutlineHandle,
         }
     }
 }
@@ -91,26 +130,95 @@ pub struct ActivePartDrag {
     pub active: bool,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct ActiveRailDrag {
+    pub pointer_id: i32,
+    pub transaction_id: String,
+    pub tool_label: &'static str,
+    pub kind: RailDragKind,
+    pub token: SnapshotToken,
+    pub revision: u64,
+    pub board_id: String,
+    pub start_client: (f64, f64),
+    pub last_preview: Option<(String, FeedbackDelta)>,
+    pub quick_offset: bool,
+    pub preview: Option<EditOperation>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ActiveOutlineDrag {
+    pub pointer_id: i32,
+    pub start_client: (f64, f64),
+    pub point_index: usize,
+    pub points: Vec<Vec2>,
+    pub pending: Vec<Vec2>,
+    pub preview_points: Vec<Vec2>,
+    pub original_world: Vec2,
+    pub target: OutlinePointTarget,
+    pub anchor: Option<PerimeterAnchor>,
+    pub envelope: OutlineActionEnvelope,
+    pub transaction_id: String,
+    pub snap: Option<outline_snapping::Snap>,
+    pub preview_submitted: bool,
+    pub moved: bool,
+    pub preview: Option<EditOperation>,
+}
+
+impl ActiveOutlineDrag {
+    pub fn apply_sample(
+        &mut self,
+        world: Vec2,
+        paths: &[Vec<Vec2>],
+        origins: &[outline_snapping::Origin],
+        options: outline_snapping::Options,
+    ) {
+        let count = self.points.len();
+        let index = self.point_index;
+        if count == 0 || index >= count || self.preview_points.len() != count {
+            return;
+        }
+        let context = outline_snapping::Context {
+            anchor: Some(self.preview_points[(index + count - 1) % count]),
+            previous: Some(self.original_world),
+            exclude: Some(self.original_world),
+            neighbor: Some(self.preview_points[(index + 1) % count]),
+        };
+        let mut result = outline_snapping::snap_outline_point(
+            world,
+            context,
+            paths,
+            options,
+            self.snap.as_ref(),
+        );
+        if !options.free
+            && options.enabled
+            && result.guides.is_empty()
+            && let Some((at, _)) = outline_snapping::snap_origin(world, origins, options.tolerance)
+        {
+            result.at = at;
+        }
+        let mut preview_points = self.preview_points.clone();
+        preview_points[index] = result.at;
+        let mut pending = self.points.clone();
+        pending[index] = self
+            .anchor
+            .map_or(result.at, |anchor| anchor.local(result.at));
+        self.moved = pending != self.points;
+        self.pending = pending;
+        self.preview_points = preview_points;
+        self.snap = Some(result);
+    }
+}
+
 #[derive(Debug, Default)]
 enum State {
     #[default]
     Idle,
     Panning(ActivePan),
     DraggingParts(ActivePartDrag),
-    DraggingMatrixRail {
-        id: i32,
-        quick_offset: bool,
-        preview: Option<EditOperation>,
-    },
-    DraggingPartRail {
-        id: i32,
-        quick_offset: bool,
-        preview: Option<EditOperation>,
-    },
-    DraggingOutlineHandle {
-        id: i32,
-        preview: Option<EditOperation>,
-    },
+    DraggingMatrixRail(ActiveRailDrag),
+    DraggingPartRail(ActiveRailDrag),
+    DraggingOutlineHandle(ActiveOutlineDrag),
     Armed {
         mode: CanvasMode,
         pointer: Option<i32>,
@@ -123,9 +231,9 @@ impl State {
             State::Idle => None,
             State::Panning(_) => Some(CanvasMode::Panning),
             State::DraggingParts(_) => Some(CanvasMode::DraggingParts),
-            State::DraggingMatrixRail { .. } => Some(CanvasMode::DraggingMatrixRail),
-            State::DraggingPartRail { .. } => Some(CanvasMode::DraggingPartRail),
-            State::DraggingOutlineHandle { .. } => Some(CanvasMode::DraggingOutlineHandle),
+            State::DraggingMatrixRail(_) => Some(CanvasMode::DraggingMatrixRail),
+            State::DraggingPartRail(_) => Some(CanvasMode::DraggingPartRail),
+            State::DraggingOutlineHandle(_) => Some(CanvasMode::DraggingOutlineHandle),
             State::Armed { mode, .. } => Some(*mode),
         }
     }
@@ -135,9 +243,10 @@ impl State {
             State::Idle => None,
             State::Panning(pan) => Some(pan.pointer_id),
             State::DraggingParts(drag) => Some(drag.pointer_id),
-            State::DraggingMatrixRail { id, .. }
-            | State::DraggingPartRail { id, .. }
-            | State::DraggingOutlineHandle { id, .. } => Some(*id),
+            State::DraggingMatrixRail(drag) | State::DraggingPartRail(drag) => {
+                Some(drag.pointer_id)
+            }
+            State::DraggingOutlineHandle(drag) => Some(drag.pointer_id),
             State::Armed { pointer, .. } => *pointer,
         }
     }
@@ -231,14 +340,8 @@ impl CanvasInteraction {
 
     pub fn quick_offset(&self) -> bool {
         matches!(
-            self.state,
-            State::DraggingMatrixRail {
-                quick_offset: true,
-                ..
-            } | State::DraggingPartRail {
-                quick_offset: true,
-                ..
-            }
+            &self.state,
+            State::DraggingMatrixRail(drag) | State::DraggingPartRail(drag) if drag.quick_offset
         )
     }
 
@@ -256,6 +359,20 @@ impl CanvasInteraction {
         }
     }
 
+    pub fn rail_drag(&self) -> Option<ActiveRailDrag> {
+        match &self.state {
+            State::DraggingMatrixRail(drag) | State::DraggingPartRail(drag) => Some(drag.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn outline_drag(&self) -> Option<ActiveOutlineDrag> {
+        match &self.state {
+            State::DraggingOutlineHandle(drag) => Some(drag.clone()),
+            _ => None,
+        }
+    }
+
     pub fn set_part_drag_gesture_generation(&mut self, generation: Option<u64>) {
         if let State::DraggingParts(drag) = &mut self.state {
             drag.gesture_generation = generation;
@@ -265,6 +382,38 @@ impl CanvasInteraction {
     pub fn note_part_drag_sample(&mut self, sample: Option<(Vec2, f64, bool)>) {
         if let State::DraggingParts(drag) = &mut self.state {
             drag.last_sample = sample;
+        }
+    }
+
+    pub fn note_rail_preview(&mut self, preview: Option<(String, FeedbackDelta)>) {
+        if let State::DraggingMatrixRail(drag) | State::DraggingPartRail(drag) = &mut self.state {
+            drag.last_preview = preview;
+        }
+    }
+
+    pub fn note_rail_body_sample(&mut self, sample: Option<(Vec2, f64, bool)>) {
+        if let State::DraggingMatrixRail(drag) | State::DraggingPartRail(drag) = &mut self.state
+            && let RailDragKind::Body(body) = &mut drag.kind
+        {
+            body.last_sample = sample;
+        }
+    }
+
+    pub fn sample_outline_drag(
+        &mut self,
+        world: Vec2,
+        paths: &[Vec<Vec2>],
+        origins: &[outline_snapping::Origin],
+        options: outline_snapping::Options,
+    ) {
+        if let State::DraggingOutlineHandle(drag) = &mut self.state {
+            drag.apply_sample(world, paths, origins, options);
+        }
+    }
+
+    pub fn note_outline_preview_submitted(&mut self) {
+        if let State::DraggingOutlineHandle(drag) = &mut self.state {
+            drag.preview_submitted = true;
         }
     }
 
@@ -304,8 +453,21 @@ impl CanvasInteraction {
                         return Vec::new();
                     }
                     let quick_offset =
-                        matches!(seed, GestureSeed::MatrixRail | GestureSeed::PartRail)
+                        matches!(seed, GestureSeed::MatrixRail(_) | GestureSeed::PartRail(_))
                             && (control || self.control_down);
+                    let rail_active = |seed: RailDragSeed| ActiveRailDrag {
+                        pointer_id: id,
+                        transaction_id: seed.transaction_id,
+                        tool_label: seed.tool_label,
+                        kind: seed.kind,
+                        token: seed.token,
+                        revision: seed.revision,
+                        board_id: seed.board_id,
+                        start_client: client,
+                        last_preview: None,
+                        quick_offset,
+                        preview: None,
+                    };
                     self.state = match seed {
                         GestureSeed::Pan {
                             scope,
@@ -335,18 +497,28 @@ impl CanvasInteraction {
                             preview: None,
                             active: false,
                         }),
-                        GestureSeed::MatrixRail => State::DraggingMatrixRail {
-                            id,
-                            quick_offset,
-                            preview: None,
-                        },
-                        GestureSeed::PartRail => State::DraggingPartRail {
-                            id,
-                            quick_offset,
-                            preview: None,
-                        },
-                        GestureSeed::OutlineHandle => {
-                            State::DraggingOutlineHandle { id, preview: None }
+                        GestureSeed::MatrixRail(seed) => {
+                            State::DraggingMatrixRail(rail_active(seed))
+                        }
+                        GestureSeed::PartRail(seed) => State::DraggingPartRail(rail_active(seed)),
+                        GestureSeed::OutlineHandle(seed) => {
+                            State::DraggingOutlineHandle(ActiveOutlineDrag {
+                                pointer_id: id,
+                                start_client: client,
+                                point_index: seed.point_index,
+                                pending: seed.points.clone(),
+                                points: seed.points,
+                                preview_points: seed.preview_points,
+                                original_world: seed.original_world,
+                                target: seed.target,
+                                anchor: seed.anchor,
+                                envelope: seed.envelope,
+                                transaction_id: seed.transaction_id,
+                                snap: None,
+                                preview_submitted: false,
+                                moved: false,
+                                preview: None,
+                            })
                         }
                     };
                     vec![CapturePointer(id)]
@@ -376,15 +548,21 @@ impl CanvasInteraction {
                     }
                     effects
                 }
-                State::DraggingMatrixRail {
-                    id: owner, preview, ..
-                }
-                | State::DraggingPartRail {
-                    id: owner, preview, ..
-                }
-                | State::DraggingOutlineHandle {
-                    id: owner, preview, ..
-                } if *owner == id => {
+                State::DraggingMatrixRail(ActiveRailDrag {
+                    pointer_id: owner,
+                    preview,
+                    ..
+                })
+                | State::DraggingPartRail(ActiveRailDrag {
+                    pointer_id: owner,
+                    preview,
+                    ..
+                })
+                | State::DraggingOutlineHandle(ActiveOutlineDrag {
+                    pointer_id: owner,
+                    preview,
+                    ..
+                }) if *owner == id => {
                     if let Some(operation) = operation
                         && preview.as_ref() != Some(&operation)
                     {
@@ -404,10 +582,11 @@ impl CanvasInteraction {
                 match std::mem::take(&mut self.state) {
                     State::Panning(_) => vec![ReleasePointer(id), FinishPan],
                     State::DraggingParts(drag) => release_commit(id, operation, drag.preview),
-                    State::DraggingMatrixRail { preview, .. }
-                    | State::DraggingPartRail { preview, .. }
-                    | State::DraggingOutlineHandle { preview, .. } => {
-                        release_commit(id, operation, preview)
+                    State::DraggingMatrixRail(drag) | State::DraggingPartRail(drag) => {
+                        release_commit(id, operation, drag.preview)
+                    }
+                    State::DraggingOutlineHandle(drag) => {
+                        release_commit(id, operation, drag.preview)
                     }
                     State::Idle | State::Armed { .. } => Vec::new(),
                 }
@@ -477,9 +656,14 @@ impl CanvasInteraction {
             State::Armed { .. } => return vec![Cancel(mode)],
             State::Panning(pan) => (pan.pointer_id, false),
             State::DraggingParts(drag) => (drag.pointer_id, drag.preview.is_some()),
-            State::DraggingMatrixRail { id, preview, .. }
-            | State::DraggingPartRail { id, preview, .. }
-            | State::DraggingOutlineHandle { id, preview, .. } => (id, preview.is_some()),
+            State::DraggingMatrixRail(drag) | State::DraggingPartRail(drag) => (
+                drag.pointer_id,
+                drag.preview.is_some() || drag.last_preview.is_some(),
+            ),
+            State::DraggingOutlineHandle(drag) => (
+                drag.pointer_id,
+                drag.preview.is_some() || drag.preview_submitted,
+            ),
         };
         let mut effects = vec![Cancel(mode)];
         if had_preview {
@@ -527,16 +711,38 @@ mod tests {
         DraggingOutlineHandle,
     ];
 
-    fn key(key: CanvasKey) -> CanvasEvent {
+    macro_rules! is {
+        ($c:expr, $e:expr) => { assert!($c.handle($e).is_empty()) };
+        ($c:expr, $e:expr, $($w:expr),+ $(,)?) => { assert_eq!($c.handle($e), [$($w),+]) };
+    }
+    fn kd(k: CanvasKey, l: bool, c: bool, t: bool, p: bool) -> CanvasEvent {
         CanvasEvent::KeyDown {
-            key,
-            layout: true,
-            canvas: true,
-            typing: false,
-            prevented: false,
+            key: k,
+            layout: l,
+            canvas: c,
+            typing: t,
+            prevented: p,
         }
     }
-
+    fn key(k: CanvasKey) -> CanvasEvent {
+        kd(k, true, true, false, false)
+    }
+    fn mv(id: i32, client: (f64, f64), o: Option<&str>) -> CanvasEvent {
+        CanvasEvent::PointerMove {
+            id,
+            client,
+            operation: o.map(op),
+        }
+    }
+    fn up(id: i32, o: Option<&str>) -> CanvasEvent {
+        CanvasEvent::PointerUp {
+            id,
+            operation: o.map(op),
+        }
+    }
+    fn pt(x: f64, y: f64) -> Vec2 {
+        Vec2 { x, y }
+    }
     fn scope() -> Scope {
         Scope {
             session_epoch: boardstudio_application::SessionEpoch(7),
@@ -545,95 +751,124 @@ mod tests {
             instance_id: None,
         }
     }
-
     fn seed_for(mode: CanvasMode, generation: u64) -> Option<GestureSeed> {
-        match mode {
-            Panning => Some(GestureSeed::Pan {
+        let rail = |body| {
+            let kind = if body {
+                RailDragKind::Body(RailBodyDrag {
+                    part_id: "p1".into(),
+                    start_at: pt(1.0, 2.0),
+                    last_sample: None,
+                })
+            } else {
+                RailDragKind::Gesture(RailGesture::PartRotate {
+                    part_id: "m".into(),
+                    center: Vec2::default(),
+                    start_angle: 0.0,
+                    start_rotation: 0.0,
+                })
+            };
+            RailDragSeed {
+                transaction_id: "tx-rail".into(),
+                tool_label: if body { "Move" } else { "Rotate" },
+                kind,
+                token: SnapshotToken(9),
+                revision: 4,
+                board_id: "b".into(),
+            }
+        };
+        let pts = vec![pt(0.0, 0.0), pt(20.0, 0.0), pt(20.0, 20.0), pt(0.0, 20.0)];
+        let envelope = OutlineActionEnvelope {
+            scope: scope(),
+            token: SnapshotToken(9),
+            revision: 4,
+            generation: 3,
+            board_id: "b".into(),
+        };
+        Some(match mode {
+            Panning => GestureSeed::Pan {
                 scope: scope(),
                 generation,
-                start_camera: Vec2 { x: 7.0, y: 8.0 },
-            }),
-            DraggingParts => Some(GestureSeed::PartDrag {
+                start_camera: pt(7.0, 8.0),
+            },
+            DraggingParts => GestureSeed::PartDrag {
                 scope: scope(),
                 generation,
-                origin_mm: Vec2 { x: 4.0, y: 5.0 },
+                origin_mm: pt(4.0, 5.0),
                 positions: vec![Position {
                     id: "part".into(),
-                    at: Vec2 { x: 4.0, y: 5.0 },
+                    at: pt(4.0, 5.0),
                 }],
+            },
+            DraggingMatrixRail => GestureSeed::MatrixRail(rail(false)),
+            DraggingPartRail => GestureSeed::PartRail(rail(true)),
+            DraggingOutlineHandle => GestureSeed::OutlineHandle(OutlineHandleSeed {
+                point_index: 1,
+                original_world: pts[1],
+                preview_points: pts.clone(),
+                points: pts,
+                target: OutlinePointTarget::Generated { contour: 0 },
+                anchor: None,
+                transaction_id: "tx-outline".into(),
+                envelope,
             }),
-            DraggingMatrixRail => Some(GestureSeed::MatrixRail),
-            DraggingPartRail => Some(GestureSeed::PartRail),
-            DraggingOutlineHandle => Some(GestureSeed::OutlineHandle),
-            _ => None,
-        }
+            _ => return None,
+        })
     }
-
-    fn down(mode: CanvasMode, id: i32) -> CanvasEvent {
+    fn dn(id: i32, control: bool, seed: Option<GestureSeed>) -> CanvasEvent {
         CanvasEvent::PointerDown {
             id,
             client: (100.0, 200.0),
-            control: false,
-            seed: seed_for(mode, 3),
+            control,
+            seed,
         }
     }
-
-    fn start(canvas: &mut CanvasInteraction, mode: CanvasMode, id: i32) {
+    fn down(mode: CanvasMode, id: i32) -> CanvasEvent {
+        dn(id, false, seed_for(mode, 3))
+    }
+    fn start(c: &mut CanvasInteraction, mode: CanvasMode, id: i32) {
         if mode.is_pointer_gesture() {
-            assert_eq!(canvas.handle(down(mode, id)), [CapturePointer(id)]);
+            is!(c, down(mode, id), CapturePointer(id));
         } else {
-            canvas.handle(CanvasEvent::Begin(mode));
-            canvas.handle(down(mode, id));
+            c.handle(CanvasEvent::Begin(mode));
+            c.handle(down(mode, id));
         }
-        assert_eq!(canvas.mode(), Some(mode));
-        assert_eq!(canvas.pointer(), Some(id));
+        assert_eq!((c.mode(), c.pointer()), (Some(mode), Some(id)));
     }
-
-    fn operation(id: &str) -> EditOperation {
+    fn op(id: &str) -> EditOperation {
         EditOperation::RemoveMatrix { id: id.into() }
     }
 
     #[test]
     fn every_mode_rejects_competing_starts_and_second_pointers() {
         for active in MODES {
-            let mut canvas = CanvasInteraction::default();
-            canvas.handle(key(CanvasKey::Space));
-            start(&mut canvas, active, 1);
+            let mut c = CanvasInteraction::default();
+            c.handle(key(CanvasKey::Space));
+            start(&mut c, active, 1);
             for contender in MODES {
-                canvas.handle(CanvasEvent::Begin(contender));
-                canvas.handle(down(contender, 2));
-                assert_eq!(canvas.mode(), Some(active));
-                assert_eq!(canvas.pointer(), Some(1));
+                c.handle(CanvasEvent::Begin(contender));
+                c.handle(down(contender, 2));
+                assert_eq!((c.mode(), c.pointer()), (Some(active), Some(1)));
             }
-            for event in [
-                CanvasEvent::PointerMove {
-                    id: 2,
-                    client: (101.0, 200.0),
-                    operation: Some(operation("other")),
-                },
-                CanvasEvent::PointerUp {
-                    id: 2,
-                    operation: Some(operation("other")),
-                },
+            for e in [
+                mv(2, (101.0, 200.0), Some("other")),
+                up(2, Some("other")),
                 CanvasEvent::PointerCancel(2),
                 CanvasEvent::LostPointerCapture(2),
             ] {
-                assert!(canvas.handle(event).is_empty());
-                assert_eq!(canvas.pointer(), Some(1));
+                is!(c, e);
+                assert_eq!(c.pointer(), Some(1));
             }
-            let drop = canvas.handle(CanvasEvent::PointerUp {
-                id: 1,
-                operation: None,
-            });
+            let drop = c.handle(up(1, None));
             if active.is_pointer_gesture() {
-                assert!(drop.contains(&ReleasePointer(1)));
-                assert_eq!(drop.contains(&FinishPan), active == Panning);
-                assert_eq!(canvas.mode(), None);
+                assert!(
+                    drop.contains(&ReleasePointer(1))
+                        && drop.contains(&FinishPan) == (active == Panning)
+                );
+                assert_eq!(c.mode(), None);
             } else {
-                assert_eq!(canvas.pointer(), None);
-                assert_eq!(canvas.mode(), Some(active));
-                canvas.handle(CanvasEvent::End(active));
-                assert_eq!(canvas.mode(), None);
+                assert_eq!((c.pointer(), c.mode()), (None, Some(active)));
+                c.handle(CanvasEvent::End(active));
+                assert_eq!(c.mode(), None);
             }
         }
     }
@@ -649,294 +884,232 @@ mod tests {
                 (CanvasEvent::PointerCancel(1), false),
                 (CanvasEvent::LostPointerCapture(1), false),
             ] {
-                let mut canvas = CanvasInteraction::default();
-                canvas.handle(key(CanvasKey::Space));
-                canvas.handle(key(CanvasKey::Control));
-                start(&mut canvas, mode, 1);
+                let mut c = CanvasInteraction::default();
+                c.handle(key(CanvasKey::Space));
+                c.handle(key(CanvasKey::Control));
+                start(&mut c, mode, 1);
                 if mode.is_pointer_gesture() {
-                    canvas.handle(CanvasEvent::PointerMove {
-                        id: 1,
-                        client: (101.0, 200.0),
-                        operation: Some(operation("preview")),
-                    });
+                    c.handle(mv(1, (101.0, 200.0), Some("preview")));
                 }
-                let effects = canvas.handle(event);
-                assert!(effects.contains(&Cancel(mode)));
+                let fx = c.handle(event);
                 assert_eq!(
-                    effects.contains(&ClearPreview),
-                    mode.is_pointer_gesture() && mode != Panning
+                    (
+                        fx.contains(&Cancel(mode)),
+                        fx.contains(&ClearPreview),
+                        fx.contains(&ReleasePointer(1)),
+                        fx.iter().any(|e| matches!(e, Commit { .. })),
+                        c.mode(),
+                        c.space_down,
+                        c.control_down
+                    ),
+                    (
+                        true,
+                        mode.is_pointer_gesture() && mode != Panning,
+                        mode.is_pointer_gesture(),
+                        false,
+                        None,
+                        !reset_modifiers,
+                        !reset_modifiers
+                    )
                 );
-                assert_eq!(
-                    effects.contains(&ReleasePointer(1)),
-                    mode.is_pointer_gesture()
-                );
-                assert!(!effects.iter().any(|effect| matches!(effect, Commit { .. })));
-                assert_eq!(canvas.mode(), None);
-                assert_eq!(canvas.space_down, !reset_modifiers);
-                assert_eq!(canvas.control_down, !reset_modifiers);
-                start(&mut canvas, DraggingParts, 2);
+                start(&mut c, DraggingParts, 2);
             }
         }
     }
 
     #[test]
     fn uncaptured_armed_mode_cancel_emits_no_release_pointer() {
-        for mode in MODES.into_iter().filter(|mode| !mode.is_pointer_gesture()) {
+        for mode in MODES.into_iter().filter(|m| !m.is_pointer_gesture()) {
             for (event, escape) in [
                 (key(CanvasKey::Escape), true),
                 (CanvasEvent::Blur, false),
                 (CanvasEvent::WorkspaceChanged, false),
                 (CanvasEvent::ScopeChanged, false),
             ] {
-                let mut canvas = CanvasInteraction::default();
-                canvas.handle(CanvasEvent::Begin(mode));
-                assert_eq!((canvas.mode(), canvas.pointer()), (Some(mode), None));
-                assert!(canvas.handle(CanvasEvent::PointerCancel(1)).is_empty());
-                assert!(canvas.handle(CanvasEvent::LostPointerCapture(1)).is_empty());
+                let mut c = CanvasInteraction::default();
+                c.handle(CanvasEvent::Begin(mode));
+                assert_eq!((c.mode(), c.pointer()), (Some(mode), None));
+                is!(c, CanvasEvent::PointerCancel(1));
+                is!(c, CanvasEvent::LostPointerCapture(1));
                 // Competing seeded PointerDown must not capture an armed mode's pointer slot.
-                assert!(canvas.handle(down(DraggingParts, 2)).is_empty());
-                assert_eq!((canvas.mode(), canvas.pointer()), (Some(mode), None));
-
-                let effects = canvas.handle(event);
+                is!(c, down(DraggingParts, 2));
+                assert_eq!((c.mode(), c.pointer()), (Some(mode), None));
                 let mut expected = vec![Cancel(mode)];
                 if escape {
                     expected.push(PreventDefault);
                 }
-                assert_eq!(effects, expected);
-                assert_eq!(canvas.mode(), None);
+                assert_eq!(c.handle(event), expected);
+                assert_eq!(c.mode(), None);
             }
         }
     }
 
     #[test]
     fn space_admission_and_control_latching() {
-        let mut canvas = CanvasInteraction::default();
-        for (active_canvas, typing, prevented) in [
+        let mut c = CanvasInteraction::default();
+        for (a, t, p) in [
             (false, false, false),
             (true, true, false),
             (true, false, true),
         ] {
-            assert!(
-                canvas
-                    .handle(CanvasEvent::KeyDown {
-                        key: CanvasKey::Space,
-                        layout: active_canvas,
-                        canvas: active_canvas,
-                        typing,
-                        prevented,
-                    })
-                    .is_empty()
-            );
-            assert!(canvas.handle(down(Panning, 1)).is_empty());
+            is!(c, kd(CanvasKey::Space, a, a, t, p));
+            is!(c, down(Panning, 1));
         }
         assert!(
-            canvas
-                .handle(CanvasEvent::KeyDown {
-                    key: CanvasKey::Space,
-                    layout: false,
-                    canvas: true,
-                    typing: false,
-                    prevented: false,
-                })
+            c.handle(kd(CanvasKey::Space, false, true, false, false))
                 .contains(&PreventDefault)
         );
-        assert!(canvas.space_down);
+        assert!(c.space_down);
+        is!(c, kd(CanvasKey::Control, false, true, false, false));
+        start(&mut c, Panning, 9);
         assert!(
-            canvas
-                .handle(CanvasEvent::KeyDown {
-                    key: CanvasKey::Control,
-                    layout: false,
-                    canvas: true,
-                    typing: false,
-                    prevented: false,
-                })
-                .is_empty()
-        );
-        start(&mut canvas, Panning, 9);
-        assert!(
-            canvas
-                .handle(CanvasEvent::KeyDown {
-                    key: CanvasKey::Escape,
-                    layout: false,
-                    canvas: true,
-                    typing: false,
-                    prevented: false,
-                })
+            c.handle(kd(CanvasKey::Escape, false, true, false, false))
                 .contains(&Cancel(Panning))
         );
-        assert_eq!(
-            canvas.handle(CanvasEvent::KeyUp(CanvasKey::Space)),
-            [ModifiersChanged]
-        );
-        assert!(!canvas.space_down);
+        is!(c, CanvasEvent::KeyUp(CanvasKey::Space), ModifiersChanged);
+        assert!(!c.space_down);
         for from_keydown in [false, true] {
             if from_keydown {
-                assert_eq!(canvas.handle(key(CanvasKey::Control)), [ModifiersChanged]);
-                canvas.handle(down(DraggingMatrixRail, 1));
+                is!(c, key(CanvasKey::Control), ModifiersChanged);
+                c.handle(down(DraggingMatrixRail, 1));
             } else {
-                canvas.handle(CanvasEvent::PointerDown {
-                    id: 1,
-                    client: (0.0, 0.0),
-                    control: true,
-                    seed: Some(GestureSeed::PartRail),
-                });
+                c.handle(dn(1, true, seed_for(DraggingPartRail, 3)));
             }
-            assert!(canvas.quick_offset());
+            assert!(c.quick_offset());
             if from_keydown {
-                assert_eq!(
-                    canvas.handle(CanvasEvent::KeyUp(CanvasKey::Control)),
-                    [ModifiersChanged]
-                );
-                assert!(canvas.sync_control(true));
+                is!(c, CanvasEvent::KeyUp(CanvasKey::Control), ModifiersChanged);
+                assert!(c.sync_control(true));
             }
-            assert_eq!(canvas.sync_control(false), from_keydown);
-            assert!(!canvas.control_down);
-            assert!(canvas.quick_offset());
-            canvas.handle(CanvasEvent::Blur);
-            assert!(!canvas.quick_offset());
+            assert_eq!(c.sync_control(false), from_keydown);
+            assert!(!c.control_down && c.quick_offset());
+            c.handle(CanvasEvent::Blur);
+            assert!(!c.quick_offset());
         }
     }
 
     #[test]
     fn atomic_gesture_seed_pointer_down_transitions_and_payloads() {
-        let mut canvas = CanvasInteraction::default();
+        let mut c = CanvasInteraction::default();
+        let com = |id, needs_preview| Commit {
+            operation: op(id),
+            needs_preview,
+        };
+        let ds = |id, ctl, m, g| dn(id, ctl, seed_for(m, g));
         // Seedless PointerDown while Idle does nothing.
-        assert!(
-            canvas
-                .handle(CanvasEvent::PointerDown {
-                    id: 1,
-                    client: (100.0, 200.0),
-                    control: false,
-                    seed: None,
-                })
-                .is_empty()
-        );
-        assert_eq!(canvas.mode(), None);
+        is!(c, dn(1, false, None));
+        assert_eq!(c.mode(), None);
 
         // Pan seed requires space_down and atomically populates ActivePan.
-        assert!(canvas.handle(down(Panning, 1)).is_empty());
-        assert_eq!(canvas.mode(), None);
-        assert!(
-            canvas
-                .handle(key(CanvasKey::Space))
-                .contains(&PreventDefault)
-        );
-        assert_eq!(
-            canvas.handle(CanvasEvent::PointerDown {
-                id: 1,
-                client: (100.0, 200.0),
-                control: false,
-                seed: seed_for(Panning, 4),
-            }),
-            [CapturePointer(1)]
-        );
-        let pan = canvas.pan().expect("pan payload");
-        assert_eq!((pan.pointer_id, pan.scope, pan.generation), (1, scope(), 4));
-        assert_eq!(pan.origin_px, (100.0, 200.0));
-        assert_eq!(pan.start_camera, Vec2 { x: 7.0, y: 8.0 });
-        assert_eq!(
-            canvas.handle(CanvasEvent::PointerUp {
-                id: 1,
-                operation: None
-            }),
-            [ReleasePointer(1), FinishPan]
-        );
+        is!(c, down(Panning, 1));
+        assert_eq!(c.mode(), None);
+        assert!(c.handle(key(CanvasKey::Space)).contains(&PreventDefault));
+        is!(c, ds(1, false, Panning, 4), CapturePointer(1));
+        let p = c.pan().expect("pan payload");
+        assert!((p.pointer_id, p.generation, p.origin_px) == (1, 4, (100.0, 200.0)));
+        assert!((p.start_camera, p.scope) == (pt(7.0, 8.0), scope()));
+        is!(c, up(1, None), ReleasePointer(1), FinishPan);
 
         // PartDrag seed atomically populates ActivePartDrag and tracks generation/sample updates.
-        assert_eq!(
-            canvas.handle(CanvasEvent::PointerDown {
-                id: 2,
-                client: (100.0, 200.0),
-                control: false,
-                seed: seed_for(DraggingParts, 5),
-            }),
-            [CapturePointer(2)]
+        is!(c, ds(2, false, DraggingParts, 5), CapturePointer(2));
+        let d = c.part_drag().expect("drag payload");
+        assert!((d.pointer_id, d.generation, d.active, d.origin_mm) == (2, 5, false, pt(4.0, 5.0)));
+        c.set_part_drag_gesture_generation(Some(11));
+        c.note_part_drag_sample(Some((pt(6.0, 7.0), 2.0, false)));
+        let d = c.part_drag().unwrap();
+        assert!(
+            (d.gesture_generation, d.last_sample) == (Some(11), Some((pt(6.0, 7.0), 2.0, false)))
         );
-        let drag = canvas.part_drag().expect("drag payload");
-        assert_eq!(drag.pointer_id, 2);
-        assert_eq!(drag.generation, 5);
-        assert!(!drag.active);
-        assert_eq!(drag.origin_mm, Vec2 { x: 4.0, y: 5.0 });
-        canvas.set_part_drag_gesture_generation(Some(11));
-        canvas.note_part_drag_sample(Some((Vec2 { x: 6.0, y: 7.0 }, 2.0, false)));
-        let drag = canvas.part_drag().unwrap();
-        assert_eq!(drag.gesture_generation, Some(11));
-        assert_eq!(
-            drag.last_sample,
-            Some((Vec2 { x: 6.0, y: 7.0 }, 2.0, false))
-        );
-        assert_eq!(
-            canvas.handle(CanvasEvent::PointerUp {
-                id: 2,
-                operation: None
-            }),
-            [ReleasePointer(2)]
+        is!(c, up(2, None), ReleasePointer(2));
+
+        // Rail and outline seeds populate payloads and support preview, commit, and cancel.
+        is!(c, ds(3, true, DraggingMatrixRail, 3), CapturePointer(3));
+        assert!((c.rail_drag().unwrap().tool_label, c.quick_offset()) == ("Rotate", true));
+        c.note_rail_preview(Some(("15°".into(), FeedbackDelta::Deg(15.0))));
+        assert!(c.handle(mv(3, (15.0, 20.0), Some("r-prev"))) == [Preview(op("r-prev"))]);
+        is!(c, up(3, None), ReleasePointer(3), com("r-prev", false));
+        assert_eq!(c.rail_drag(), None);
+
+        is!(c, down(DraggingPartRail, 4), CapturePointer(4));
+        c.note_rail_body_sample(Some((pt(3.0, 4.0), 1.0, false)));
+        c.note_rail_preview(Some(("X 3".into(), FeedbackDelta::Mm2(2.0, 2.0))));
+        assert!(matches!(
+            c.rail_drag().unwrap().kind,
+            RailDragKind::Body(RailBodyDrag {
+                last_sample: Some(_),
+                ..
+            })
+        ));
+        is!(
+            c,
+            key(CanvasKey::Escape),
+            Cancel(DraggingPartRail),
+            ClearPreview,
+            ReleasePointer(4),
+            PreventDefault
         );
 
-        // Rail and outline seeds transition directly to their respective modes.
-        for (seed, mode) in [
-            (GestureSeed::MatrixRail, DraggingMatrixRail),
-            (GestureSeed::PartRail, DraggingPartRail),
-            (GestureSeed::OutlineHandle, DraggingOutlineHandle),
-        ] {
-            assert_eq!(
-                canvas.handle(CanvasEvent::PointerDown {
-                    id: 3,
-                    client: (10.0, 20.0),
-                    control: false,
-                    seed: Some(seed),
-                }),
-                [CapturePointer(3)]
-            );
-            assert_eq!((canvas.mode(), canvas.pointer()), (Some(mode), Some(3)));
-            assert_eq!(
-                canvas.handle(CanvasEvent::PointerUp {
-                    id: 3,
-                    operation: None
-                }),
-                [ReleasePointer(3)]
-            );
-        }
+        is!(c, down(DraggingOutlineHandle, 5), CapturePointer(5));
+        let opts = outline_snapping::Options {
+            grid: pt(1.0, 1.0),
+            tolerance: 1.0,
+            enabled: false,
+            free: true,
+        };
+        c.sample_outline_drag(pt(25.0, 3.0), &[], &[], opts);
+        c.note_outline_preview_submitted();
+        let o = c.outline_drag().unwrap();
+        assert!(o.moved && o.preview_submitted && o.pending[1] == pt(25.0, 3.0));
+        is!(
+            c,
+            mv(5, (55.0, 57.0), Some("o-prev")),
+            Preview(op("o-prev"))
+        );
+        is!(
+            c,
+            up(5, Some("o-done")),
+            ReleasePointer(5),
+            com("o-done", true)
+        );
+        start(&mut c, DraggingOutlineHandle, 6);
+        c.note_outline_preview_submitted();
+        is!(
+            c,
+            CanvasEvent::LostPointerCapture(6),
+            Cancel(DraggingOutlineHandle),
+            ClearPreview,
+            ReleasePointer(6)
+        );
+        assert_eq!(c.outline_drag(), None);
     }
 
     #[test]
     fn part_drag_requires_real_client_motion_and_activates_once() {
-        let mut canvas = CanvasInteraction::default();
-        start(&mut canvas, DraggingParts, 1);
-        let sample = |x| CanvasEvent::PointerMove {
-            id: 1,
-            client: (x, 200.0),
-            operation: None,
-        };
-        assert!(canvas.handle(sample(100.0)).is_empty());
-        assert_eq!(canvas.handle(sample(101.0)), [StartPartDrag]);
-        assert!(canvas.handle(sample(102.0)).is_empty());
+        let mut c = CanvasInteraction::default();
+        start(&mut c, DraggingParts, 1);
+        is!(c, mv(1, (100.0, 200.0), None));
+        is!(c, mv(1, (101.0, 200.0), None), StartPartDrag);
+        is!(c, mv(1, (102.0, 200.0), None));
     }
 
     #[test]
     fn drop_reuses_the_preview_unless_release_supplies_a_new_operation() {
-        for release in [None, Some("preview"), Some("release")] {
-            let mut canvas = CanvasInteraction::default();
-            start(&mut canvas, DraggingMatrixRail, 1);
-            let sample = || CanvasEvent::PointerMove {
-                id: 1,
-                client: (100.0, 200.0),
-                operation: Some(operation("preview")),
-            };
-            assert_eq!(canvas.handle(sample()), [Preview(operation("preview"))]);
-            assert!(canvas.handle(sample()).is_empty());
-            assert_eq!(
-                canvas.handle(CanvasEvent::PointerUp {
-                    id: 1,
-                    operation: release.map(operation)
-                }),
-                [
-                    ReleasePointer(1),
-                    Commit {
-                        operation: operation(release.unwrap_or("preview")),
-                        needs_preview: release == Some("release"),
-                    }
-                ]
+        for r in [None, Some("preview"), Some("release")] {
+            let mut c = CanvasInteraction::default();
+            start(&mut c, DraggingMatrixRail, 1);
+            is!(
+                c,
+                mv(1, (100.0, 200.0), Some("preview")),
+                Preview(op("preview"))
+            );
+            is!(c, mv(1, (100.0, 200.0), Some("preview")));
+            is!(
+                c,
+                up(1, r),
+                ReleasePointer(1),
+                Commit {
+                    operation: op(r.unwrap_or("preview")),
+                    needs_preview: r == Some("release")
+                }
             );
         }
     }
