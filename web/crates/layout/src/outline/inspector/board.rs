@@ -49,7 +49,7 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
     let projection = &view.projection;
     let contour_view = contour_preview(&projection.contours);
     let mut perimeter_open = projection.ui.editing_points;
-    let mut selected_point = projection.ui.selected_point;
+    let mut canvas_ui = projection.ui.canvas_ui;
     let enabled = projection.enabled;
     let active_choice = projection
         .versions
@@ -99,7 +99,7 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
     button_type: "button",
     disabled: !enabled,
     onclick: move |_| {
-                selected_point.set(0);
+                canvas_ui.write().selected_point = 0;
                 perimeter_open.set(true);
             },
 

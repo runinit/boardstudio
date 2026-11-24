@@ -4,8 +4,7 @@ pub(super) fn manual_features(projection: &OutlineInspectorProjection) -> Elemen
     let active_version = projection.active_version_id.clone();
     let enabled = projection.enabled;
     let mut perimeter_open = projection.ui.editing_points;
-    let mut selected_point = projection.ui.selected_point;
-    let mut selected_feature_id = projection.ui.selected_feature_id;
+    let mut canvas_ui = projection.ui.canvas_ui;
     rsx! {
         if !projection.geometry_features.is_empty() {
             div {
@@ -16,7 +15,7 @@ pub(super) fn manual_features(projection: &OutlineInspectorProjection) -> Elemen
                 for (index, feature) in projection.geometry_features.iter().enumerate() {
                     {
                         let feature_id = feature.id().to_owned();
-                        let selected = selected_feature_id().as_deref() == Some(feature_id.as_str());
+                        let selected = canvas_ui.read().selected_feature_id.as_deref() == Some(feature_id.as_str());
                         let feature_name = match feature {
                             OutlineFeature::Polygon { operation, .. } => {
                                 match operation {
@@ -45,7 +44,7 @@ pub(super) fn manual_features(projection: &OutlineInspectorProjection) -> Elemen
                                     ),
                                     on_pressed_change: {
                                         let feature_id = feature_id.clone();
-                                        move |_| selected_feature_id.set(Some(feature_id.clone()))
+                                        move |_| canvas_ui.write().selected_feature_id = Some(feature_id.clone())
                                     },
                                     ToggleItem { index: 0usize, disabled: !enabled, "{feature_name} {index + 1}" }
                                 }
@@ -56,8 +55,9 @@ pub(super) fn manual_features(projection: &OutlineInspectorProjection) -> Elemen
     onclick: {
                                     let feature_id = feature_id.clone();
                                     move |_| {
-                                        selected_feature_id.set(Some(feature_id.clone()));
-                                        selected_point.set(0);
+                                        let mut canvas = canvas_ui.write();
+                                        canvas.selected_feature_id = Some(feature_id.clone());
+                                        canvas.selected_point = 0;
                                         perimeter_open.set(true);
                                     }
                                 },
@@ -94,7 +94,7 @@ pub(super) fn manual_features(projection: &OutlineInspectorProjection) -> Elemen
         if let Some(feature) = projection
             .geometry_features
             .iter()
-            .find(|feature| Some(feature.id()) == selected_feature_id().as_deref())
+            .find(|feature| Some(feature.id()) == canvas_ui.read().selected_feature_id.as_deref())
         {
             if let OutlineFeature::Rect { center, size, anchor_part_id, .. } = feature {
                 fieldset {

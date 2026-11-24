@@ -1,12 +1,12 @@
 //! Outline planning, direct projection, and synchronous commit helpers.
 
 pub use boardstudio_web_layout_core::outline::{
-    self as planner, Admission, EditablePerimeter, OutlineAction, OutlineActionEnvelope,
-    OutlineActionKind, OutlineDrawTool, OutlineFeedback, OutlinePointTarget, OutlineVersionChoice,
-    OutlineVersionOwnership, PerimeterAnchor, active_outline, admission, attach_connection_point,
-    blocked_export_labels, connection_point_world, editable_perimeter, gap_focus_camera,
-    move_connection_point, outline_action_matches_saved_owner, outline_edit, outline_state,
-    outline_version, retire_reason, settle, target_ids, version_geometry,
+    self as planner, EditablePerimeter, OutlineAction, OutlineActionEnvelope, OutlineActionKind,
+    OutlineDrawTool, OutlineFeedback, OutlinePointTarget, OutlineVersionChoice,
+    OutlineVersionOwnership, PerimeterAnchor, active_outline, attach_connection_point,
+    blocked_export_labels, connection_point_world, editable_perimeter, evaluate_outline_edit,
+    gap_focus_camera, move_connection_point, outline_action_matches_saved_owner, outline_edit,
+    outline_state, outline_version, target_ids, version_geometry,
 };
 
 #[cfg(target_arch = "wasm32")]
@@ -31,12 +31,12 @@ use crate::{
 };
 #[cfg(target_arch = "wasm32")]
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Scope,
+    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
 };
 #[cfg(target_arch = "wasm32")]
 use boardstudio_model::model::{
-    Contour, EditOperation, EditPhase, OutlineConnection, OutlineFeature, OutlineGap,
-    OutlineRepairSettings, OutlineSettings, Part, Vec2,
+    Contour, EditOperation, OutlineConnection, OutlineFeature, OutlineGap, OutlineRepairSettings,
+    OutlineSettings, Part, Vec2,
 };
 #[cfg(target_arch = "wasm32")]
 use boardstudio_web_ui_model::Workspace;
@@ -46,17 +46,29 @@ use dioxus::prelude::*;
 use std::rc::Rc;
 
 #[cfg(target_arch = "wasm32")]
+#[derive(Clone, Default, PartialEq, Eq)]
+pub struct OutlineVersionUi {
+    pub feedback: Option<OutlineFeedback>,
+    pub version_name_draft: String,
+    pub version_name_failure: Option<String>,
+}
+
+#[cfg(target_arch = "wasm32")]
+#[derive(Clone, Default, PartialEq)]
+pub struct OutlineCanvasUi {
+    pub selected_point: usize,
+    pub drawing_points: Vec<Vec2>,
+    pub selected_feature_id: Option<String>,
+    pub selected_connection_id: Option<String>,
+}
+
+#[cfg(target_arch = "wasm32")]
 #[derive(Clone, Copy, PartialEq)]
 pub struct OutlineUiState {
-    pub feedback: Signal<Option<OutlineFeedback>>,
-    pub version_name_draft: Signal<String>,
-    pub version_name_failure: Signal<Option<String>>,
-    pub selected_point: Signal<usize>,
     pub editing_points: Signal<bool>,
     pub drawing_operation: Signal<Option<OutlineDrawTool>>,
-    pub drawing_points: Signal<Vec<Vec2>>,
-    pub selected_feature_id: Signal<Option<String>>,
-    pub selected_connection_id: Signal<Option<String>>,
+    pub version_ui: Signal<OutlineVersionUi>,
+    pub canvas_ui: Signal<OutlineCanvasUi>,
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -139,10 +151,10 @@ impl OutlineInspectorProjection {
     }
 
     pub fn has_linked_active_version(&self) -> bool {
-        self.active_version_id.as_ref().is_some_and(|version_id| {
-            self.versions.iter().any(|choice| {
-                &choice.id == version_id && choice.ownership == OutlineVersionOwnership::Linked
-            })
+        self.active_version_id.as_ref().is_some_and(|vid| {
+            self.versions
+                .iter()
+                .any(|c| &c.id == vid && c.ownership == OutlineVersionOwnership::Linked)
         })
     }
 }
@@ -178,82 +190,68 @@ pub fn use_outline_state(
     scope_generation: Signal<u64>,
 ) -> OutlineUiState {
     let version = use_context::<Signal<u64>>()();
-    let captured_generation = scope_generation();
-    let feedback = use_signal(|| None::<OutlineFeedback>);
-    let version_name_draft = use_signal(String::new);
-    let version_name_failure = use_signal(|| None::<String>);
-    let selected_point = use_signal(|| 0usize);
-    let editing_points = use_signal(|| false);
-    let drawing_operation = use_signal(|| None::<OutlineDrawTool>);
-    let drawing_points = use_signal(Vec::<Vec2>::new);
-    let selected_feature_id = use_signal(|| None::<String>);
-    let selected_connection_id = use_signal(|| None::<String>);
-    let draft_owner = selected_context.read().clone();
-    let draft_workspace = workspace();
-    let model = runtime.model();
+    let captured_gen = scope_generation();
+    let (editing_points, drawing_operation) =
+        (use_signal(|| false), use_signal(|| None::<OutlineDrawTool>));
+    let (version_ui, canvas_ui) = (
+        use_signal(OutlineVersionUi::default),
+        use_signal(OutlineCanvasUi::default),
+    );
+    let (draft_owner, draft_ws, draft_scope) = (
+        selected_context.read().clone(),
+        workspace(),
+        runtime.scope(),
+    );
     let owner_board = draft_owner
         .as_ref()
-        .and_then(|owner| board_id_for_context(&owner.context));
-    let (draft_active_version, draft_version_name) = model
-        .accepted
-        .as_ref()
-        .zip(owner_board)
-        .map_or((None, String::new()), |(snapshot, board_id)| {
-            let (state, active) = active_outline(snapshot, board_id);
+        .and_then(|o| board_id_for_context(&o.context));
+    let (draft_active, draft_name) = runtime.model().accepted.as_ref().zip(owner_board).map_or(
+        (None, String::new()),
+        |(snap, bid)| {
+            let (s, a) = active_outline(snap, bid);
             (
-                state.and_then(|s| s.active_version_id.clone()),
-                active.map(|v| v.name.clone()).unwrap_or_default(),
+                s.and_then(|s| s.active_version_id.clone()),
+                a.map(|v| v.name.clone()).unwrap_or_default(),
             )
-        });
-    let draft_scope = runtime.scope();
+        },
+    );
     use_effect(use_reactive(
-        (
-            &version,
-            &draft_owner,
-            &draft_workspace,
-            &captured_generation,
-        ),
+        (&version, &draft_owner, &draft_ws, &captured_gen),
         {
-            let (mut drawing_operation, mut drawing_points) = (drawing_operation, drawing_points);
+            let (mut drawing_op, mut canvas) = (drawing_operation, canvas_ui);
             move |_| {
-                drawing_operation.set(None);
-                drawing_points.set(Vec::new());
+                drawing_op.set(None);
+                canvas.write().drawing_points.clear();
             }
         },
     ));
     use_effect(use_reactive(
         (
             &draft_owner,
-            &draft_workspace,
-            &draft_active_version,
+            &draft_ws,
+            &draft_active,
             &draft_scope,
-            &captured_generation,
+            &captured_gen,
         ),
         {
-            let (mut feature_id, mut conn_id, mut draft, mut failure) = (
-                selected_feature_id,
-                selected_connection_id,
-                version_name_draft,
-                version_name_failure,
-            );
+            let (mut ver, mut canvas) = (version_ui, canvas_ui);
             move |_| {
-                feature_id.set(None);
-                conn_id.set(None);
-                draft.set(draft_version_name.clone());
-                failure.set(None);
+                {
+                    let mut c = canvas.write();
+                    c.selected_feature_id = None;
+                    c.selected_connection_id = None;
+                }
+                let mut v = ver.write();
+                v.version_name_draft = draft_name.clone();
+                v.version_name_failure = None;
             }
         },
     ));
     OutlineUiState {
-        feedback,
-        version_name_draft,
-        version_name_failure,
-        selected_point,
         editing_points,
         drawing_operation,
-        drawing_points,
-        selected_feature_id,
-        selected_connection_id,
+        version_ui,
+        canvas_ui,
     }
 }
 
@@ -265,12 +263,11 @@ pub fn project_outline_inspector(
     workspace: Signal<Workspace>,
     scope_generation: Signal<u64>,
 ) -> Option<OutlineInspectorProjection> {
-    let captured_generation = scope_generation();
-    let model = runtime.model();
-    let scope = runtime.scope()?;
-    if workspace() != Workspace::Layout || scope_generation() != captured_generation {
+    if workspace() != Workspace::Layout {
         return None;
     }
+    let (captured_generation, model, scope) =
+        (scope_generation(), runtime.model(), runtime.scope()?);
     let snapshot = model.accepted.as_ref()?;
     let selected = selected_context.read().clone()?;
     if selected.scope != scope
@@ -288,25 +285,26 @@ pub fn project_outline_inspector(
     let blocked_exports = blocked_export_labels(snapshot, &board_id);
     let versions = outline
         .into_iter()
-        .flat_map(|state| state.versions.iter())
-        .map(|version| {
-            let finding_id = format!("board:{board_id}:outline:linked:{}", version.id);
-            let problem = snapshot.scene.findings.iter().find(|f| f.id == finding_id);
+        .flat_map(|s| s.versions.iter())
+        .map(|v| {
+            let fid = format!("board:{board_id}:outline:linked:{}", v.id);
+            let problem = snapshot.scene.findings.iter().find(|f| f.id == fid);
             OutlineVersionChoice {
-                id: version.id.clone(),
-                name: version.name.clone(),
-                ownership: if version.ownership.is_fixed() {
+                id: v.id.clone(),
+                name: v.name.clone(),
+                // A version written before ownership existed is Fixed, so it reads as Edited, never Linked.
+                ownership: if v.ownership.is_fixed() {
                     OutlineVersionOwnership::Edited
                 } else {
                     OutlineVersionOwnership::Linked
                 },
-                problem_finding_id: problem.map(|_| finding_id.clone()),
+                problem_finding_id: problem.map(|_| fid.clone()),
                 problem_message: problem.map(|f| f.message.clone()),
                 problem_selectable: snapshot
                     .scene
                     .finding_markers
                     .iter()
-                    .any(|m| m.finding_id == finding_id && m.board_id == board_id),
+                    .any(|m| m.finding_id == fid && m.board_id == board_id),
                 blocked_exports: if problem.is_some() {
                     blocked_exports.clone()
                 } else {
@@ -318,7 +316,7 @@ pub fn project_outline_inspector(
     let generated = generated_feature(&snapshot.document, board);
     let envelope_margin = match active_version_id.as_deref() {
         None => generated.and_then(envelope_margin),
-        Some(active_id) => outline_version(outline, active_id)
+        Some(id) => outline_version(outline, id)
             .filter(|v| !v.ownership.is_fixed())
             .and_then(|v| v.geometry.features.iter().find_map(envelope_margin)),
     };
@@ -329,7 +327,7 @@ pub fn project_outline_inspector(
         .or_else(|| generated.and_then(generated_settings))
         .unwrap_or_default();
     let repair = settings.repair.clone().unwrap_or_default();
-    let outline_scene = snapshot
+    let scene = snapshot
         .scene
         .board_outline_scenes
         .iter()
@@ -351,8 +349,9 @@ pub fn project_outline_inspector(
         snapshot,
         &board_id,
         active_version_id.as_deref(),
-        ui.selected_feature_id.read().as_deref(),
+        ui.canvas_ui.read().selected_feature_id.as_deref(),
     );
+    // Outline edits queue behind each other, so outline edits keep the panel editable while saving.
     let enabled = matches!(
         model.durability,
         Durability::Saved { .. } | Durability::Saving { .. }
@@ -360,8 +359,9 @@ pub fn project_outline_inspector(
         && model.display_preview.is_none()
         && model.gesture.is_none();
     let feedback = ui
-        .feedback
+        .version_ui
         .read()
+        .feedback
         .as_ref()
         .filter(|f| {
             f.board_id == board_id && f.scope == scope && f.generation == captured_generation
@@ -387,7 +387,7 @@ pub fn project_outline_inspector(
             .find(|b| b.board_id == board_id)
             .map_or_else(Vec::new, |b| b.contours.clone()),
         perimeter,
-        snap_paths: outline_scene
+        snap_paths: scene
             .map(|s| s.source_contours.iter().map(|c| c.points.clone()).collect())
             .unwrap_or_default(),
         geometry_features,
@@ -399,7 +399,7 @@ pub fn project_outline_inspector(
         repair,
         envelope_margin,
         has_generated: generated.is_some(),
-        gaps: outline_scene.map_or_else(Vec::new, |s| s.gaps.clone()),
+        gaps: scene.map_or_else(Vec::new, |s| s.gaps.clone()),
         enabled,
         feedback,
         selection_context: selected.context,
@@ -417,26 +417,16 @@ pub fn focus_outline_gap(
     board_id: &str,
     gap_id: &str,
 ) {
-    let Some(base_bounds) =
+    let Some(bounds) =
         crate::keycaps_fit::layout_canvas_bounds(&snapshot.document, &snapshot.scene, board_id)
     else {
         return;
     };
-    let surface_size = web_sys::window()
-        .and_then(|w| w.document())
-        .and_then(|d| {
-            d.query_selector("[role='group'][aria-label^='Keyboard layout;'], [role='group'][aria-label^='Matrix placement canvas.']")
-                .ok()
-                .flatten()
-        })
-        .map(|s| {
-            let b = s.get_bounding_client_rect();
-            (b.width().max(1.0), b.height().max(1.0))
-        })
+    let size = web_sys::window().and_then(|w| w.document())
+        .and_then(|d| d.query_selector("[role='group'][aria-label^='Keyboard layout;'], [role='group'][aria-label^='Matrix placement canvas.']").ok().flatten())
+        .map(|s| { let b = s.get_bounding_client_rect(); (b.width().max(1.0), b.height().max(1.0)) })
         .unwrap_or((800.0, 600.0));
-    if let Some((center, zoom)) =
-        gap_focus_camera(snapshot, board_id, gap_id, surface_size, base_bounds)
-    {
+    if let Some((center, zoom)) = gap_focus_camera(snapshot, board_id, gap_id, size, bounds) {
         runtime.submit(Event::SetCamera {
             operation_id: runtime.operation(),
             center,
@@ -446,36 +436,23 @@ pub fn focus_outline_gap(
 }
 
 #[cfg(target_arch = "wasm32")]
-fn admit_outline_edit(
-    runtime: &Rc<Runtime>,
+fn record_outline_error(
     ui: OutlineUiState,
     action: &OutlineAction,
     is_version_name: bool,
-) -> Option<boardstudio_core_kernel::outline_edit::OutlineEdit> {
-    let snapshot = runtime.model().accepted?;
-    let edit = outline_edit(&snapshot, action, runtime.operation().0)?;
-    match admission(&snapshot, &edit) {
-        Admission::Submit => Some(edit),
-        Admission::Ignore => None,
-        Admission::Malformed => {
-            if let Err(message) =
-                boardstudio_core_kernel::outline_edit::evaluate(snapshot.document.as_ref(), &edit)
-            {
-                let (scope, _, _, generation, board_id) = action.envelope();
-                let (mut feedback, mut failure) = (ui.feedback, ui.version_name_failure);
-                if is_version_name {
-                    failure.set(Some(message));
-                } else {
-                    feedback.set(Some(OutlineFeedback {
-                        scope: scope.clone(),
-                        generation,
-                        board_id: board_id.clone(),
-                        message: Some(message),
-                    }));
-                }
-            }
-            None
-        }
+    message: Option<String>,
+) {
+    let mut version_ui = ui.version_ui;
+    let mut ver = version_ui.write();
+    if is_version_name {
+        ver.version_name_failure = message;
+    } else {
+        ver.feedback = message.map(|msg| OutlineFeedback {
+            scope: action.envelope.scope.clone(),
+            generation: action.envelope.generation,
+            board_id: action.envelope.board_id.clone(),
+            message: Some(msg),
+        });
     }
 }
 
@@ -486,10 +463,18 @@ pub fn preview_outline_perimeter(
     action: &OutlineAction,
     transaction_id: &str,
 ) -> Option<EditOperation> {
-    if !outline_action_is_current(action, runtime, action.envelope().3) {
+    if !outline_action_is_current(action, runtime, action.envelope.generation) {
         return None;
     }
-    let edit = admit_outline_edit(runtime, ui, action, false)?;
+    let snapshot = runtime.model().accepted?;
+    let edit = match evaluate_outline_edit(&snapshot, action, runtime.operation().0) {
+        Ok(Some(edit)) => edit,
+        Ok(None) => return None,
+        Err(msg) => {
+            record_outline_error(ui, action, false, Some(msg));
+            return None;
+        }
+    };
     let operation = EditOperation::ApplyOutlineEdit {
         edit: Box::new(edit),
     };
@@ -518,86 +503,77 @@ pub fn commit_outline_action(
     {
         return;
     }
-    let (action_scope, _, _, _, board_id) = action.envelope();
     let model = runtime.model();
     let Some(snapshot) = model.accepted.as_ref() else {
         return;
     };
-    let selection_is_current = selected_context.read().as_ref().is_some_and(|selected| {
-        selected.scope == *action_scope
-            && board_id_for_context(&selected.context) == Some(board_id.as_str())
-            && crate::selection::context_is_current(&model, action_scope, &selected.context)
+    let env = &action.envelope;
+    let sel_current = selected_context.read().as_ref().is_some_and(|sel| {
+        sel.scope == env.scope
+            && board_id_for_context(&sel.context) == Some(env.board_id.as_str())
+            && crate::selection::context_is_current(&model, &env.scope, &sel.context)
     });
-    if !selection_is_current {
+    if !sel_current {
         return;
     }
     if let OutlineActionKind::FocusGap { gap_id } = &action.kind {
-        focus_outline_gap(runtime, snapshot, board_id, gap_id);
+        // Focusing a gap only moves the camera and never creates document history.
+        focus_outline_gap(runtime, snapshot, &env.board_id, gap_id);
         return;
     }
     let is_version_name = matches!(
         &action.kind,
         OutlineActionKind::Update {
-            edit: OutlineEdit::RenameVersion { .. },
+            edit: OutlineEdit::RenameVersion { .. }
         }
     );
-    let Some(edit) = admit_outline_edit(runtime, ui, &action, is_version_name) else {
-        return;
+    let edit = match evaluate_outline_edit(snapshot, &action, runtime.operation().0) {
+        Ok(Some(edit)) => edit,
+        Ok(None) => return,
+        Err(msg) => {
+            record_outline_error(ui, &action, is_version_name, Some(msg));
+            return;
+        }
     };
     if let OutlineActionKind::Delete { .. } = &action.kind {
         selected_context.set(Some(crate::objects::ScopedTreeContext {
-            scope: action_scope.clone(),
+            scope: env.scope.clone(),
             context: crate::objects::TreeContext::Outline {
-                board_id: board_id.clone(),
+                board_id: env.board_id.clone(),
             },
         }));
     }
-    if let OutlineActionKind::EditPerimeter {
-        phase: EditPhase::Preview,
-        transaction_id,
-        ..
-    } = &action.kind
-    {
-        runtime.submit(Event::PreviewEdit {
-            operation_id: runtime.operation(),
-            transaction_id: transaction_id.clone(),
-            target_ids: target_ids(&action),
-            operation: EditOperation::ApplyOutlineEdit {
-                edit: Box::new(edit),
-            },
-        });
-        return;
-    }
-    let transaction_id = match &action.kind {
+    let tx_id = match &action.kind {
         OutlineActionKind::EditPerimeter { transaction_id, .. } => transaction_id.clone(),
         _ => String::new(),
     };
-    let (board_id, action_scope) = (board_id.clone(), action_scope.clone());
+    let ids = target_ids(&action);
     let result = runtime.commit(
         "layout-outline",
-        EditResolver::new("layout-outline", move |accepted: &AcceptedSnapshot| {
-            settle(accepted, &edit, &action, transaction_id.clone())
+        EditResolver::new("layout-outline", move |_| {
+            Resolution::submit_with_transaction_id(
+                ids.clone(),
+                tx_id.clone(),
+                EditOperation::ApplyOutlineEdit {
+                    edit: Box::new(edit.clone()),
+                },
+            )
         }),
     );
-    let (mut feedback, mut version_name_draft, mut version_name_failure) =
-        (ui.feedback, ui.version_name_draft, ui.version_name_failure);
     if is_version_name {
-        if let Some(name) = runtime
+        let mut version_ui = ui.version_ui;
+        let name = runtime
             .model()
             .accepted
             .as_ref()
-            .and_then(|s| active_outline(s, &board_id).1)
-            .map(|v| v.name.clone())
-        {
-            version_name_draft.set(name);
+            .and_then(|s| active_outline(s, &env.board_id).1)
+            .map(|v| v.name.clone());
+        let mut ver = version_ui.write();
+        if let Some(name) = name {
+            ver.version_name_draft = name;
         }
-        version_name_failure.set(result.err());
+        ver.version_name_failure = result.err();
     } else {
-        feedback.set(result.err().map(|message| OutlineFeedback {
-            scope: action_scope,
-            generation: captured_generation,
-            board_id,
-            message: Some(message),
-        }));
+        record_outline_error(ui, &action, false, result.err());
     }
 }

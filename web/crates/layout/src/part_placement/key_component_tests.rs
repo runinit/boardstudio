@@ -113,18 +113,16 @@ fn captured_owner_rejects_changed_snapshot_scope_generation_or_guide_stage() {
     };
     let owner = PlacementOwner::capture(
         &initial,
-        PlacementCapture {
-            scope: scope.clone(),
-            generation: 4,
-            part_id: "part-controller".into(),
-            definition_id: "catalog:controller".into(),
-            kind: PartKind::Controller,
-            workflow: PlacementWorkflow::WiringController,
-            intent: PlacementIntent::Existing,
-            source_workspace: Workspace::Parts,
-            layout_id: None,
-            at: Vec2 { x: 3.0, y: 9.0 },
-        },
+        scope.clone(),
+        4,
+        "part-controller".into(),
+        "catalog:controller".into(),
+        &PartKind::Controller,
+        PlacementWorkflow::WiringController,
+        PlacementIntent::Existing,
+        Workspace::Parts,
+        None,
+        Vec2 { x: 3.0, y: 9.0 },
     )
     .unwrap();
 
