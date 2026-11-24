@@ -107,7 +107,7 @@ fn replace_instance_staged(
 
     if projection_required {
         let template = normalized_mounting_hole()?;
-        project(document, Some(&template), &mut changed)?;
+        paired::project_changed(document, Some(&template), &mut changed)?;
     }
     features::validate(document)?;
     dedup_changed(&mut changed);

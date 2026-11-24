@@ -21,6 +21,7 @@ mod closures;
 mod feature_lifecycle;
 mod identity;
 mod ownership;
+mod paired;
 mod processes;
 mod validation;
 
@@ -28,12 +29,12 @@ use changes::apply_change;
 pub use changes::default_configuration;
 pub use closures::resolve_target;
 use closures::{
-    apply_settings, closure_list_absent, dedup_changed, initialize_target_closures, owner_id,
-    paired_index, project, target_board_id, validate_mounting_hole,
+    apply_settings, closure_list_absent, initialize_target_closures, owner_id, paired_index,
+    target_board_id,
 };
 use feature_lifecycle::{
-    apply_feature_lifecycle, feature_ids, find_feature_value, instance_configuration_mut, pair_at,
-    pair_mut_at, pair_owner_ids,
+    apply_feature_lifecycle, find_feature_value, instance_configuration_mut, pair_at,
+    pair_owner_ids,
 };
 pub use feature_lifecycle::{install_feature, remove_feature};
 pub use identity::{IdentityFloor, MechanicalIdentityLedger};

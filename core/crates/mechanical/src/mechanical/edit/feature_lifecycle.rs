@@ -4,7 +4,7 @@ use super::super::change::{MechanicalChange, MechanicalEdit, MechanicalTarget};
 use super::super::features;
 use super::super::inputs::effective_inputs;
 use super::validation::upsert_item;
-use super::{dedup_changed, project};
+use super::paired::project_changed;
 use crate::model::*;
 
 /// Applies one per-feature lifecycle action and projects the result.
@@ -32,8 +32,7 @@ pub(super) fn apply_feature_lifecycle(
         return Ok(changed);
     }
     let mut changed = changed;
-    project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
-    dedup_changed(&mut changed);
+    project_changed(doc, edit.mounting_hole.as_deref(), &mut changed)?;
     Ok(changed)
 }
 

@@ -3,6 +3,7 @@
 use super::super::change::{MechanicalChange, MechanicalEdit, MechanicalTarget};
 use super::super::features;
 use super::super::inputs::{effective_document, effective_inputs};
+use super::paired::{project_changed, validate_supplied_template};
 use super::{
     AUTO_CLOSURE_PREFIX, GENERATED_DEFINITION_PREFIX, GENERATED_PART_PREFIX,
     MechanicalIdentityLedger, apply_change, instance_configuration_mut, pair_index, pair_owner_ids,
@@ -18,11 +19,7 @@ pub(super) fn apply_settings(
     board_id: &str,
     identities: &MechanicalIdentityLedger,
 ) -> Result<Vec<String>, String> {
-    // A supplied template is validated even when the edit is settings-only and the
-    // projection never runs, so a malformed catalogue entry is always an error.
-    if let Some(template) = edit.mounting_hole.as_deref() {
-        validate_mounting_hole(template)?;
-    }
+    validate_supplied_template(edit.mounting_hole.as_deref())?;
     let inputs = effective_inputs(doc, &[], &edit.target)?;
     let mut configuration = inputs.configuration;
     let before = configuration.clone();
@@ -64,7 +61,7 @@ pub(super) fn apply_settings(
     // construction, and the member's own configuration for everything local.
     persist_edit(doc, &edit.target, &before, configuration, &mut changed)?;
     if projection_required {
-        project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
+        project_changed(doc, edit.mounting_hole.as_deref(), &mut changed)?;
     }
     dedup_changed(&mut changed);
     Ok(changed)
