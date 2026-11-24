@@ -24,6 +24,7 @@ REQUIRED = (
     ROOT / "web/assets/cad-worker/entry.js",
     ROOT / "web/assets/cad-worker/m1_cad_worker_bg.wasm",
     ROOT / "web/assets/modules-index.json",
+    ROOT / "web/assets/imported-parts.min.json",
 )
 
 

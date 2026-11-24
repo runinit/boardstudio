@@ -4,8 +4,97 @@ use boardstudio_model::model::{PartDefinition, PartKind, ProjectDoc};
 use serde::Deserialize;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-const IMPORTED_PARTS_JSON: &str =
-    include_str!(concat!(env!("OUT_DIR"), "/imported-parts.min.json"));
+/// Native builds read the parts catalogue straight from the source tree; the WASM page
+/// instead fetches the minified staged asset once (see `imported_parts_json`).
+#[cfg(not(target_arch = "wasm32"))]
+const IMPORTED_PARTS_JSON: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../catalogue/parts/imported-parts.json"
+));
+
+#[cfg(target_arch = "wasm32")]
+thread_local! {
+    static IMPORTED_JSON: std::cell::OnceCell<Rc<String>> =
+        const { std::cell::OnceCell::new() };
+    static PENDING_FETCH: RefCell<Option<js_sys::Promise>> = const { RefCell::new(None) };
+}
+
+#[cfg(target_arch = "wasm32")]
+fn js_error(error: wasm_bindgen::JsValue) -> String {
+    error.as_string().unwrap_or_else(|| format!("{error:?}"))
+}
+
+#[cfg(target_arch = "wasm32")]
+fn resource_url(path: &str) -> Result<String, String> {
+    let location = web_sys::window()
+        .ok_or_else(|| "Imported parts window is unavailable.".to_owned())?
+        .location();
+    let pathname = location.pathname().map_err(js_error)?;
+    let origin = location.origin().map_err(js_error)?;
+    let base = if pathname == "/boardstudio" || pathname.starts_with("/boardstudio/") {
+        "/boardstudio"
+    } else {
+        ""
+    };
+    Ok(format!("{origin}{base}/{path}"))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn imported_parts_json() -> Result<Rc<String>, String> {
+    Ok(Rc::new(IMPORTED_PARTS_JSON.to_owned()))
+}
+
+/// Fetch the staged `assets/imported-parts.min.json` once per page load; concurrent
+/// `load_bundled` calls share one in-flight request and every later call reuses the text.
+#[cfg(target_arch = "wasm32")]
+async fn imported_parts_json() -> Result<Rc<String>, String> {
+    if let Some(cached) = IMPORTED_JSON.with(|cache| cache.get().cloned()) {
+        return Ok(cached);
+    }
+    let promise = PENDING_FETCH.with_borrow_mut(|pending| {
+        pending.clone().unwrap_or_else(|| {
+            let fetch = wasm_bindgen_futures::future_to_promise(async {
+                let result = fetch_imported_parts().await;
+                let _ = PENDING_FETCH.with_borrow_mut(|pending| pending.take());
+                result
+            });
+            *pending = Some(fetch.clone());
+            fetch
+        })
+    });
+    let buffer = wasm_bindgen_futures::JsFuture::from(promise)
+        .await
+        .map_err(js_error)?;
+    let text = String::from_utf8(js_sys::Uint8Array::new(&buffer).to_vec())
+        .map_err(|error| format!("Imported component definitions are invalid: {error}"))?;
+    Ok(IMPORTED_JSON.with(|cache| cache.get_or_init(|| Rc::new(text)).clone()))
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn fetch_imported_parts() -> Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue> {
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_futures::JsFuture;
+
+    let url = resource_url("assets/imported-parts.min.json")
+        .map_err(|error| wasm_bindgen::JsValue::from_str(error.as_str()))?;
+    let window = web_sys::window()
+        .ok_or_else(|| wasm_bindgen::JsValue::from_str("Browser window is unavailable."))?;
+    let response: web_sys::Response = JsFuture::from(window.fetch_with_str(&url))
+        .await?
+        .dyn_into()?;
+    if !response.ok() {
+        return Err(wasm_bindgen::JsValue::from_str(&format!(
+            "Imported parts asset {url} unavailable ({})",
+            response.status()
+        )));
+    }
+    JsFuture::from(
+        response
+            .array_buffer()
+            .map_err(|error| wasm_bindgen::JsValue::from_str(&format!("{error:?}")))?,
+    )
+    .await
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CatalogueSource {
@@ -86,12 +175,13 @@ thread_local! {
     static BUNDLED_CACHE: RefCell<Vec<CachedCatalogue>> = const { RefCell::new(Vec::new()) };
 }
 
-fn imported_parts_hash() -> String {
-    sha256_hex(IMPORTED_PARTS_JSON.as_bytes())
+fn imported_parts_hash(source: &str) -> String {
+    sha256_hex(source.as_bytes())
 }
 
 pub async fn load_bundled(reversible: bool) -> Result<Rc<Vec<CatalogEntry>>, String> {
-    let imported_source_hash = imported_parts_hash();
+    let imported_source = imported_parts_json().await?;
+    let imported_source_hash = imported_parts_hash(&imported_source);
     if let Some(entries) = BUNDLED_CACHE.with(|cache| {
         cache
             .borrow()
@@ -105,7 +195,7 @@ pub async fn load_bundled(reversible: bool) -> Result<Rc<Vec<CatalogEntry>>, Str
         return Ok(entries);
     }
 
-    let imported: ImportedCatalogue = serde_json::from_str(IMPORTED_PARTS_JSON)
+    let imported: ImportedCatalogue = serde_json::from_str(&imported_source)
         .map_err(|error| format!("Imported component definitions are invalid: {error}"))?;
     let imported = imported
         .parts
@@ -581,7 +671,7 @@ fn is_uuid(value: &str) -> bool {
     })
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
 
@@ -618,8 +708,8 @@ mod tests {
     #[test]
     fn imported_source_hash_matches_the_bundled_source_digest() {
         assert_eq!(
-            imported_parts_hash(),
-            "f1a8cf2360df6683bc8e9a0203924eb94b665edfe6709f8309373c838427432c"
+            imported_parts_hash(IMPORTED_PARTS_JSON),
+            "179742117905b66a465c54d454ee5d49b0622e62edcc532c5502ae18aeb459e1"
         );
     }
 
