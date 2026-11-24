@@ -20,11 +20,16 @@ const OPENING_UNAVAILABLE: &str = "The selected access opening is no longer avai
 const VERTEX_UNAVAILABLE: &str = "The selected opening vertex is no longer available.";
 const MOUNT_UNAVAILABLE: &str = "The selected mount is no longer available.";
 
-pub(super) mod construction;
-pub(super) mod gaskets;
-pub(super) mod mounts;
-pub(super) mod openings;
-pub(super) mod profiles;
+#[macro_use]
+mod construction;
+#[macro_use]
+mod gaskets;
+#[macro_use]
+mod mounts;
+#[macro_use]
+mod openings;
+#[macro_use]
+mod profiles;
 
 fn remove_item<T>(
     items: Option<&mut Vec<T>>,
@@ -34,6 +39,48 @@ fn remove_item<T>(
     let items = items.ok_or(unavailable)?;
     let index = items.iter().position(matches).ok_or(unavailable)?;
     Ok(items.remove(index))
+}
+
+fn opening_mut<'a>(
+    openings: &'a mut [MechanicalOpening],
+    id: &str,
+) -> Result<&'a mut MechanicalOpening, String> {
+    find_item_mut(openings, |opening| opening.id == id, OPENING_UNAVAILABLE)
+}
+
+fn mount_mut<'a>(
+    configuration: &'a mut MechanicalConfiguration,
+    collection: MechanicalMountCollection,
+    id: &str,
+) -> Result<&'a mut Mount, String> {
+    find_item_mut(
+        mount_collection_mut(configuration, collection),
+        |mount| mount.id == id,
+        MOUNT_UNAVAILABLE,
+    )
+}
+
+fn upsert_gasket_anchors(
+    configuration: &mut MechanicalConfiguration,
+    support_id: &str,
+    anchors: &[MechanicalGasketAnchor],
+    mutate: impl Fn(&mut MechanicalGasketAnchor),
+    changed: &mut Vec<String>,
+) -> Result<(), String> {
+    if configuration.mount != MechanicalMount::Gasket {
+        return Err("The current configuration no longer contains gasket supports.".into());
+    }
+    let layout = configuration
+        .gasket_layout
+        .get_or_insert_with(crate::mechanical::default_gasket_layout);
+    for source in anchors {
+        let mut anchor = source.clone();
+        mutate(&mut anchor);
+        anchor.placement = Some(GasketPlacement::User);
+        upsert_item(&mut layout.supports, anchor, |entry| &entry.id);
+    }
+    changed.push(support_id.to_owned());
+    Ok(())
 }
 
 /// Reference defaults for a board that has no stored configuration.
@@ -136,16 +183,61 @@ pub(super) fn apply_change(
     ) {
         return Err("This change is handled by the mechanical edit lifecycle.".into());
     }
-    // Each domain owns its variants; exactly one handles the change.
-    if construction::try_apply(configuration, change, document, board_id, changed)?.is_some() {
-    } else if mounts::try_apply(configuration, change, document, identity_floor, changed)?.is_some()
-    {
-    } else if openings::try_apply(configuration, change, identity_floor, changed)?.is_some() {
-    } else if gaskets::try_apply(configuration, change, changed)?.is_some() {
-    } else if profiles::try_apply(configuration, change, document, board_id, changed)?.is_some() {
-    } else {
-        return Err("A change was routed to no edit domain.".into());
+    // Each domain owns its variants; exactly one arm runs.
+    match change {
+        MechanicalChange::Enable
+        | MechanicalChange::Disable
+        | MechanicalChange::InitializeClosures
+        | MechanicalChange::LinkMirrorPair { .. }
+        | MechanicalChange::UnlinkMirrorPair { .. }
+        | MechanicalChange::RemovePhysicalInstance
+        | MechanicalChange::MakeFeatureLocal { .. }
+        | MechanicalChange::OmitFeatureMember { .. }
+        | MechanicalChange::RejoinFeatureMember { .. } => {
+            return Err("This change is handled by the mechanical edit lifecycle.".into());
+        }
+        _ => {}
     }
+    construction_arms!(
+        configuration,
+        change,
+        document,
+        board_id,
+        identity_floor,
+        changed
+    );
+    mount_arms!(
+        configuration,
+        change,
+        document,
+        board_id,
+        identity_floor,
+        changed
+    );
+    opening_arms!(
+        configuration,
+        change,
+        document,
+        board_id,
+        identity_floor,
+        changed
+    );
+    gasket_arms!(
+        configuration,
+        change,
+        document,
+        board_id,
+        identity_floor,
+        changed
+    );
+    profile_arms!(
+        configuration,
+        change,
+        document,
+        board_id,
+        identity_floor,
+        changed
+    );
 
     let family =
         profile_family(configuration).or_else(|| initial_switch_family(document, board_id));

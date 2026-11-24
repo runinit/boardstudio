@@ -1,33 +1,28 @@
 //! Switch, stabilizer and imported-geometry profile assignments.
-use super::*;
-
-/// Applies one change in this domain, or `None` when another domain owns it.
-pub(super) fn try_apply(
-    configuration: &mut MechanicalConfiguration,
-    change: &MechanicalChange,
-    document: &ProjectDoc,
-    board_id: &str,
-    changed: &mut Vec<String>,
-) -> Result<Option<()>, String> {
-    match change {
+/// Applies one profiles change. Expands in [`super::apply_change`] scope and uses its
+/// `configuration`, `change`, `document`, `board_id`, `identity_floor` and
+/// `changed` bindings; exactly one arm runs because domains partition variants.
+macro_rules! profile_arms {
+    ($configuration:expr, $change:expr, $document:expr, $board_id:expr, $identity_floor:expr, $changed:expr) => {
+        match $change {
         MechanicalChange::AssignSwitchProfile {
             definition_id,
             family,
         } => {
             validate_profile_target(
-                document,
-                board_id,
-                configuration,
+                $document,
+                $board_id,
+                $configuration,
                 definition_id,
                 ProfileTargetKind::Switch,
             )?;
-            let existing_family = profile_family(configuration)
-                .or_else(|| initial_switch_family(document, &configuration.board_id));
+            let existing_family = profile_family($configuration)
+                .or_else(|| initial_switch_family($document, &$configuration.board_id));
             let family_changed = existing_family != Some(*family);
             let plate_thickness = if family_changed {
                 crate::mechanical::default_plate_thickness(*family)
             } else {
-                configuration.plate_thickness
+                $configuration.plate_thickness
             };
             let plate_to_pcb = crate::mechanical::mounting_datum(*family) - plate_thickness;
             let source = match family {
@@ -43,13 +38,13 @@ pub(super) fn try_apply(
             profile.switch_family = Some(*family);
             profile.plate_to_pcb = plate_to_pcb;
             if family_changed {
-                configuration.plate_thickness = plate_thickness;
-                configuration.plate_to_pcb = plate_to_pcb;
-                configuration.plate_foam_thickness =
+                $configuration.plate_thickness = plate_thickness;
+                $configuration.plate_to_pcb = plate_to_pcb;
+                $configuration.plate_foam_thickness =
                     crate::mechanical::default_plate_foam_thickness(plate_to_pcb);
             }
-            configuration.profiles.push(profile);
-            changed.push(definition_id.clone());
+            $configuration.profiles.push(profile);
+            $changed.push(definition_id.clone());
         }
         MechanicalChange::AssignStabilizerProfile {
             definition_id,
@@ -62,34 +57,34 @@ pub(super) fn try_apply(
                 return Err("The selected stabilizer profile is not supported.".into());
             }
             validate_profile_target(
-                document,
-                board_id,
-                configuration,
+                $document,
+                $board_id,
+                $configuration,
                 definition_id,
                 ProfileTargetKind::Stabilizer,
             )?;
             let mut profile = crate::mechanical::builtin_profile(
                 definition_id.clone(),
                 source.clone(),
-                configuration.plate_to_pcb,
+                $configuration.plate_to_pcb,
             )?;
             if profile.definition_id != *definition_id || profile.switch_family.is_some() {
                 return Err("Core returned a different stabilizer profile.".into());
             }
-            profile.plate_to_pcb = configuration.plate_to_pcb;
-            configuration.profiles.push(profile);
-            changed.push(definition_id.clone());
+            profile.plate_to_pcb = $configuration.plate_to_pcb;
+            $configuration.profiles.push(profile);
+            $changed.push(definition_id.clone());
         }
         MechanicalChange::AssignImportedGeometryProfile { definition_id } => {
             let (part, definition) = validate_profile_target(
-                document,
-                board_id,
-                configuration,
+                $document,
+                $board_id,
+                $configuration,
                 definition_id,
                 ProfileTargetKind::ImportedGeometry,
             )?;
             let family = inferred_switch_family(part, definition);
-            configuration.profiles.push(MechanicalPartProfile {
+            $configuration.profiles.push(MechanicalPartProfile {
                 source_geometry: None,
                 pcb_holes: None,
                 clearance_volumes: None,
@@ -100,17 +95,17 @@ pub(super) fn try_apply(
                 definition_id: definition.id.clone(),
                 source: format!("KiCad {}", definition.name),
                 cutouts: Vec::new(),
-                plate_to_pcb: family.map_or(configuration.plate_to_pcb, |family| {
-                    crate::mechanical::mounting_datum(family) - configuration.plate_thickness
+                plate_to_pcb: family.map_or($configuration.plate_to_pcb, |family| {
+                    crate::mechanical::mounting_datum(family) - $configuration.plate_thickness
                 }),
             });
-            changed.push(definition_id.clone());
+            $changed.push(definition_id.clone());
         }
         MechanicalChange::UpdateProfile(next) => {
-            if configuration.board_id != board_id {
+            if $configuration.board_id != $board_id {
                 return Err("The mechanical configuration belongs to another board.".into());
             }
-            let Some(profile) = configuration
+            let Some(profile) = $configuration
                 .profiles
                 .iter_mut()
                 .find(|profile| profile.definition_id == next.definition_id)
@@ -119,7 +114,7 @@ pub(super) fn try_apply(
             };
             let extraction_changed = profile.source_geometry != next.source_geometry;
             if extraction_changed {
-                let definition = document
+                let definition = $document
                     .definitions
                     .iter()
                     .find(|definition| definition.id == next.definition_id)
@@ -175,26 +170,26 @@ pub(super) fn try_apply(
             )?;
             let definition_id = next.definition_id.clone();
             *profile = next.clone();
-            changed.push(definition_id);
+            $changed.push(definition_id);
         }
         MechanicalChange::RemoveProfile { definition_id } => {
-            if configuration.board_id != board_id {
+            if $configuration.board_id != $board_id {
                 return Err("The mechanical configuration belongs to another board.".into());
             }
-            let previous_len = configuration.profiles.len();
-            configuration
+            let previous_len = $configuration.profiles.len();
+            $configuration
                 .profiles
                 .retain(|profile| profile.definition_id != *definition_id);
-            if configuration.profiles.len() == previous_len {
+            if $configuration.profiles.len() == previous_len {
                 return Err("The selected mechanical profile is no longer assigned.".into());
             }
-            changed.push(definition_id.clone());
+            $changed.push(definition_id.clone());
         }
         MechanicalChange::SetSwitchFamily {
             definition_id,
             family,
         } => {
-            if !configuration
+            if !$configuration
                 .profiles
                 .iter()
                 .any(|profile| profile.definition_id == *definition_id)
@@ -203,7 +198,7 @@ pub(super) fn try_apply(
             }
             let plate_thickness = crate::mechanical::default_plate_thickness(*family);
             let plate_to_pcb = crate::mechanical::mounting_datum(*family) - plate_thickness;
-            for profile in &mut configuration.profiles {
+            for profile in &mut $configuration.profiles {
                 if profile.definition_id == *definition_id {
                     profile.switch_family = Some(*family);
                     profile.plate_to_pcb = plate_to_pcb;
@@ -212,13 +207,13 @@ pub(super) fn try_apply(
                         crate::mechanical::mounting_datum(other_family) - plate_thickness;
                 }
             }
-            configuration.plate_thickness = plate_thickness;
-            configuration.plate_to_pcb = plate_to_pcb;
-            configuration.plate_foam_thickness =
+            $configuration.plate_thickness = plate_thickness;
+            $configuration.plate_to_pcb = plate_to_pcb;
+            $configuration.plate_foam_thickness =
                 crate::mechanical::default_plate_foam_thickness(plate_to_pcb);
-            changed.push(definition_id.clone());
+            $changed.push(definition_id.clone());
         }
-        _ => return Ok(None),
+            _ => {}
+        }
     };
-    Ok(Some(()))
 }
