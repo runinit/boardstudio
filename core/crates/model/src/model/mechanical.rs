@@ -419,16 +419,18 @@ pub struct CompiledFootprint {
     pub preview_svg: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(rename_all = "camelCase"))]
 pub struct FootprintCompileJob {
     pub id: String,
     pub definition: PartDefinition,
     pub side: Side,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(rename_all = "kebab-case"))]
 pub enum ArtifactErrorCode {
     ParseError,
     Validation,
@@ -439,8 +441,9 @@ pub enum ArtifactErrorCode {
     Internal,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(rename_all = "camelCase"))]
 pub struct ArtifactError {
     pub code: ArtifactErrorCode,
     pub message: String,
@@ -457,21 +460,25 @@ impl ArtifactError {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(rename_all = "camelCase"))]
 pub struct FootprintPatch {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "wire-json",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub footprint_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "wire-json", serde(skip_serializing_if = "Option::is_none"))]
     pub reference: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "wire-json", serde(skip_serializing_if = "Option::is_none"))]
     pub value: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "wire-json", serde(skip_serializing_if = "Option::is_none"))]
     pub placement: Option<Pose2>,
     pub side: Side,
     pub pad_nets: BTreeMap<String, (u32, String)>,
     pub uuid_scope: String,
-    #[serde(default)]
+    #[cfg_attr(feature = "wire-json", serde(default))]
     pub model_forms: Vec<String>,
 }
 
@@ -509,8 +516,9 @@ pub struct ReservedNet {
     pub index: u32,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(rename_all = "camelCase"))]
 pub struct ExportPlan {
     pub snapshot_token: String,
     pub fingerprint: String,
@@ -524,8 +532,9 @@ pub struct ExportPlan {
     pub model_paths: BTreeMap<String, String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(rename_all = "camelCase"))]
 pub struct RenderedJob {
     pub snapshot_token: String,
     pub revision: u64,
@@ -534,27 +543,33 @@ pub struct RenderedJob {
     pub nets: Vec<ReservedNet>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(rename_all = "camelCase"))]
 pub struct FinishExportRequest {
     pub plan: ExportPlan,
     pub results: Vec<RenderedJob>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(rename_all = "camelCase"))]
 pub struct ArtifactFile {
     pub filename: String,
     pub content: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(rename_all = "camelCase"))]
 pub struct ExportArtifact {
     pub snapshot_token: String,
     pub revision: u64,
     pub files: Vec<ArtifactFile>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(
+        feature = "wire-json",
+        serde(default, skip_serializing_if = "Vec::is_empty")
+    )]
     pub skipped_utilities: Vec<String>,
 }
 
@@ -567,9 +582,10 @@ pub struct OutlineExportRequest {
     pub format: OutlineExportFormat,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
-#[serde(rename_all_fields = "camelCase")]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(tag = "kind", rename_all = "kebab-case"))]
+#[cfg_attr(feature = "wire-json", serde(rename_all_fields = "camelCase"))]
 pub enum ArtifactRequest {
     ReadBoardSource {
         id: String,
@@ -579,14 +595,17 @@ pub enum ArtifactRequest {
     },
     ImportModuleBoard {
         id: String,
-        #[serde(rename = "definitionId")]
+        #[cfg_attr(feature = "wire-json", serde(rename = "definitionId"))]
         definition_id: String,
         name: String,
         source: String,
         provenance: HardwareSource,
         family: String,
         variant: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(
+            feature = "wire-json",
+            serde(default, skip_serializing_if = "Option::is_none")
+        )]
         repair: Option<ModuleCircuitRepair>,
     },
     ExportMechanicalPlate {
@@ -630,9 +649,10 @@ pub enum ArtifactRequest {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
-#[serde(rename_all_fields = "camelCase")]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "wire-json", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wire-json", serde(tag = "kind", rename_all = "kebab-case"))]
+#[cfg_attr(feature = "wire-json", serde(rename_all_fields = "camelCase"))]
 pub enum ArtifactReply {
     ReadBoardSource {
         id: String,

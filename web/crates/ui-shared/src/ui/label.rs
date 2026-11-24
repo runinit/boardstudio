@@ -6,8 +6,8 @@
 //! - every root element carries a `data-slot` (theme contract section 9)
 //! - absent `html_for` omits `for` so a nested control retains native implicit association
 
+use crate::ui::class_merge::merge_classes;
 use dioxus::prelude::*;
-use tw_merge::tw_merge;
 
 #[component]
 pub fn Label(
@@ -15,7 +15,7 @@ pub fn Label(
     #[props(into, default)] class: Option<String>,
     children: Element,
 ) -> Element {
-    let class = tw_merge!(
+    let class = merge_classes!(
         "flex items-center gap-2 text-sm leading-none font-medium select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50",
         class.as_deref().unwrap_or("")
     );

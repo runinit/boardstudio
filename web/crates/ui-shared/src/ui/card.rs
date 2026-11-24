@@ -6,8 +6,8 @@
 //! - built-in borders removed, cards style (theme contract section 8); focus rings kept
 //! - every root element carries a `data-slot` (theme contract section 9)
 
+use crate::ui::class_merge::merge_classes;
 use dioxus::prelude::*;
-use tw_merge::tw_merge;
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub enum CardSize {
@@ -30,7 +30,7 @@ pub fn Card(
         CardSize::Default => "default",
         CardSize::Sm => "sm",
     };
-    let merged_class = tw_merge!(
+    let merged_class = merge_classes!(
         "bg-card text-card-foreground flex flex-col rounded-xl shadow-sm",
         size_classes,
         class.as_deref().unwrap_or("")
@@ -43,7 +43,7 @@ pub fn Card(
 
 #[component]
 pub fn CardHeader(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
-    let merged_class = tw_merge!(
+    let merged_class = merge_classes!(
         "@container/card-header flex flex-col items-start gap-1.5 px-6 [[data-size=sm]_&]:px-4 [.border-b]:pb-6 sm:grid sm:auto-rows-min sm:grid-rows-[auto_auto] has-data-[slot=card-action]:sm:grid-cols-[1fr_auto]",
         class.as_deref().unwrap_or("")
     );
@@ -53,14 +53,14 @@ pub fn CardHeader(#[props(into, optional)] class: Option<String>, children: Elem
 
 #[component]
 pub fn CardTitle(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
-    let merged_class = tw_merge!("leading-none font-semibold", class.as_deref().unwrap_or(""));
+    let merged_class = merge_classes!("leading-none font-semibold", class.as_deref().unwrap_or(""));
 
     rsx! { h2 { "data-slot": "card-title", "data-name": "CardTitle", class: "{merged_class}", {children} } }
 }
 
 #[component]
 pub fn CardContent(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
-    let merged_class = tw_merge!(
+    let merged_class = merge_classes!(
         "px-6 [[data-size=sm]_&]:px-4",
         class.as_deref().unwrap_or("")
     );
@@ -73,7 +73,7 @@ pub fn CardDescription(
     #[props(into, optional)] class: Option<String>,
     children: Element,
 ) -> Element {
-    let merged_class = tw_merge!(
+    let merged_class = merge_classes!(
         "text-muted-foreground text-sm",
         class.as_deref().unwrap_or("")
     );
@@ -83,7 +83,7 @@ pub fn CardDescription(
 
 #[component]
 pub fn CardFooter(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
-    let merged_class = tw_merge!(
+    let merged_class = merge_classes!(
         "flex items-center gap-2 px-6 [[data-size=sm]_&]:px-4 [.border-t]:pt-6",
         class.as_deref().unwrap_or("")
     );
@@ -93,7 +93,7 @@ pub fn CardFooter(#[props(into, optional)] class: Option<String>, children: Elem
 
 #[component]
 pub fn CardAction(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
-    let merged_class = tw_merge!(
+    let merged_class = merge_classes!(
         "self-start sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:justify-self-end",
         class.as_deref().unwrap_or("")
     );
@@ -103,14 +103,14 @@ pub fn CardAction(#[props(into, optional)] class: Option<String>, children: Elem
 
 #[component]
 pub fn CardList(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
-    let merged_class = tw_merge!("flex flex-col gap-4", class.as_deref().unwrap_or(""));
+    let merged_class = merge_classes!("flex flex-col gap-4", class.as_deref().unwrap_or(""));
 
     rsx! { ul { "data-slot": "card-list", "data-name": "CardList", class: "{merged_class}", {children} } }
 }
 
 #[component]
 pub fn CardItem(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
-    let merged_class = tw_merge!(
+    let merged_class = merge_classes!(
         "flex items-center [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0",
         class.as_deref().unwrap_or("")
     );

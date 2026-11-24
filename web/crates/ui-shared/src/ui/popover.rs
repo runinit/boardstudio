@@ -6,12 +6,13 @@
 //! crate's styled preview component. Edits to the upstream file:
 //! - upstream's own state, inline `<script>` and document listeners are replaced by the primitive;
 //! - rust-ui classes go on the primitive's parts through `merge_attributes`, so a caller's `class` is
-//!   appended, not `tw_merge`d;
+//!   appended, not `merge_classes`d;
 //! - every part carries a `data-slot` (theme contract section 9);
 //! - upstream's CSS anchor positioning is replaced by placement classes keyed to the primitive's `data-side`;
 //! - built-in trigger and floating-content borders removed, cards style (theme contract section 8); focus rings kept;
 //! - control height reads the shared theme-independent metric.
 
+use crate::ui::class_merge::merge_classes;
 use dioxus::prelude::*;
 use dioxus_primitives::popover::{
     self, PopoverContentProps, PopoverRootProps, PopoverTriggerProps,
@@ -68,7 +69,7 @@ pub fn PopoverContent(props: PopoverContentProps) -> Element {
 
 #[component]
 pub fn PopoverTitle(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
-    let merged = tw_merge::tw_merge!(
+    let merged = merge_classes!(
         "leading-none font-medium mb-3",
         class.as_deref().unwrap_or("")
     );
@@ -80,7 +81,7 @@ pub fn PopoverDescription(
     #[props(into, optional)] class: Option<String>,
     children: Element,
 ) -> Element {
-    let merged = tw_merge::tw_merge!(
+    let merged = merge_classes!(
         "text-muted-foreground text-sm",
         class.as_deref().unwrap_or("")
     );

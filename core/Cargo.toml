@@ -16,10 +16,14 @@ name = "prepare_case"
 required-features = ["wire-json"]
 
 [[example]]
+name = "artifact_request"
+required-features = ["wire-json"]
+
+[[example]]
 name = "dump_firmware"
 
 [features]
-wire-json = ["boardstudio-model/wire-json", "boardstudio-core-engine/wire-json"]
+wire-json = ["boardstudio-model/wire-json", "boardstudio-core-artifact/wire-json", "boardstudio-core-engine/wire-json"]
 
 [dependencies]
 boardstudio-core-artifact = { path = "crates/artifact" }
@@ -34,7 +38,9 @@ wasm-bindgen = "0.2.129"
 js-sys = "0.3.106"
 
 [dev-dependencies]
+boardstudio-core-artifact = { path = "crates/artifact", features = ["wire-json"] }
 boardstudio-core-engine = { path = "crates/engine", features = ["wire-json"] }
+boardstudio_core = { path = ".", features = ["wire-json"] }
 boardstudio-footprints = { path = "../footprints" }
 regex = { version = "1", default-features = false, features = ["std", "perf", "unicode"] }
 serde = { version = "1", features = ["derive"] }

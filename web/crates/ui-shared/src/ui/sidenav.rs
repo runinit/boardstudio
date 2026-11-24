@@ -24,6 +24,7 @@ pub use browser::*;
 mod browser {
     use super::ResizeDrag;
     use crate::panels::{PanelSettings, PanelSide};
+    use crate::ui::class_merge::merge_classes;
     use dioxus::prelude::*;
     use dioxus_web::WebEventExt;
     use wasm_bindgen::JsCast;
@@ -92,7 +93,7 @@ mod browser {
                 }
             }
         });
-        let class = tw_merge::tw_merge!(
+        let class = merge_classes!(
             "relative flex flex-col shrink-0 min-h-0 h-full rounded-xl bg-sidenav text-sidenav-foreground shadow-sm",
             class.as_deref().unwrap_or("")
         );

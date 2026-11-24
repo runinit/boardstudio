@@ -7,14 +7,14 @@
 //! - `FieldGroup`'s optional `data_slot` falls back to `field-group`
 //! - every root element carries a `data-slot` (theme contract section 9)
 
+use crate::ui::class_merge::merge_classes;
 use dioxus::prelude::*;
-use tw_merge::tw_merge;
 
 use crate::ui::separator::Separator;
 
 #[component]
 pub fn FieldSet(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
-    let merged = tw_merge!(
+    let merged = merge_classes!(
         "flex flex-col gap-6 has-[>[data-name=CheckboxGroup]]:gap-3 has-[>[data-name=RadioGroup]]:gap-3",
         class.as_deref().unwrap_or("")
     );
@@ -27,7 +27,7 @@ pub fn FieldGroup(
     #[props(into, optional)] data_slot: Option<String>,
     children: Element,
 ) -> Element {
-    let merged = tw_merge!(
+    let merged = merge_classes!(
         "group/field-group @container/field-group flex flex-col gap-7 w-full has-[>[data-name=CheckboxGroup]]:gap-3 [&>[data-name=FieldGroup]]:gap-4",
         class.as_deref().unwrap_or("")
     );
@@ -43,7 +43,7 @@ pub fn FieldGroup(
 
 #[component]
 pub fn FieldContent(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
-    let merged = tw_merge!(
+    let merged = merge_classes!(
         "group/field-content flex flex-1 flex-col gap-1.5 leading-snug",
         class.as_deref().unwrap_or("")
     );
@@ -54,7 +54,7 @@ pub fn FieldContent(#[props(into, optional)] class: Option<String>, children: El
 
 #[component]
 pub fn FieldTitle(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
-    let merged = tw_merge!(
+    let merged = merge_classes!(
         "flex items-center gap-2 text-sm leading-snug font-medium w-fit group-data-[disabled=true]/field:opacity-50",
         class.as_deref().unwrap_or("")
     );
@@ -66,7 +66,7 @@ pub fn FieldDescription(
     #[props(into, optional)] class: Option<String>,
     children: Element,
 ) -> Element {
-    let merged = tw_merge!(
+    let merged = merge_classes!(
         "text-muted-foreground text-sm leading-normal font-normal group-has-[[data-orientation=horizontal]]/field:text-balance last:mt-0 nth-last-2:-mt-1 [[data-variant=legend]+&]:-mt-1.5 [&>a:hover]:text-primary [&>a]:underline [&>a]:underline-offset-4",
         class.as_deref().unwrap_or("")
     );
@@ -90,7 +90,7 @@ pub fn FieldLegend(
         FieldLegendVariant::Legend => "legend",
         FieldLegendVariant::Label => "label",
     };
-    let merged = tw_merge!(
+    let merged = merge_classes!(
         "mb-3 font-medium data-[variant=legend]:text-base data-[variant=label]:text-sm",
         class.as_deref().unwrap_or("")
     );
@@ -129,7 +129,7 @@ pub fn Field(
             "flex-col [&>*]:w-full [&>.hidden]:w-auto @md/field-group:flex-row @md/field-group:items-center @md/field-group:[&>*]:w-auto @md/field-group:[&>[data-slot=field-label]]:flex-auto @md/field-group:has-[>[data-name=FieldContent]]:items-start @md/field-group:has-[>[data-name=FieldContent]]:[&>[role=checkbox],[role=radio]]:mt-px"
         }
     };
-    let merged = tw_merge!(
+    let merged = merge_classes!(
         "group/field flex gap-3 w-full data-[invalid=true]:text-destructive",
         variant_class,
         class.as_deref().unwrap_or("")
@@ -153,7 +153,7 @@ pub fn FieldLabel(
     children: Element,
 ) -> Element {
     let field_target = html_for.or(r#for).unwrap_or_default();
-    let merged = tw_merge!(
+    let merged = merge_classes!(
         "group/field-label peer/field-label flex gap-2 leading-snug w-fit group-data-[disabled=true]/field:opacity-50 has-[>[data-name=Field]]:w-full has-[>[data-name=Field]]:flex-col has-[>[data-name=Field]]:rounded-md [&>*]:data-[name=Field]:p-4 has-data-[state=checked]:bg-primary/5 dark:has-data-[state=checked]:bg-primary/10 has-[:checked]:bg-primary/5 dark:has-[:checked]:bg-primary/10",
         "text-sm font-medium leading-none select-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50",
         class.as_deref().unwrap_or("")
@@ -174,7 +174,7 @@ pub fn FieldSeparator(
     #[props(optional)] children: Option<Element>,
 ) -> Element {
     let has_content = children.is_some();
-    let merged = tw_merge!(
+    let merged = merge_classes!(
         "relative -my-2 h-5 text-sm group-data-[variant=outline]/field-group:-mb-2",
         class.as_deref().unwrap_or("")
     );
@@ -201,7 +201,7 @@ pub fn FieldError(
     #[props(optional)] children: Option<Element>,
     #[props(optional)] errors: Option<Vec<String>>,
 ) -> Element {
-    let error_class = tw_merge!(
+    let error_class = merge_classes!(
         "text-destructive text-sm font-normal",
         class.as_deref().unwrap_or("")
     );

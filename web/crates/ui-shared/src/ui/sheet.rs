@@ -10,6 +10,7 @@ use std::{
 };
 
 use super::button::{Button, ButtonVariant};
+use crate::ui::class_merge::merge_classes;
 
 static SHEET_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
@@ -144,7 +145,7 @@ pub fn SheetContent(
             }
         },
     ));
-    let class = tw_merge::tw_merge!(
+    let class = merge_classes!(
         "fixed box-border z-100 bg-card text-card-foreground shadow-lg rounded-xl p-6 overflow-y-auto overscroll-y-contain outline-none focus-visible:ring-2 focus-visible:ring-ring",
         direction.class(),
         class.as_deref().unwrap_or("")

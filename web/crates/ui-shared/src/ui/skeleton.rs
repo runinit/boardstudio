@@ -5,12 +5,12 @@
 //! Edits to the upstream file:
 //! - every root element carries a `data-slot` (theme contract section 9)
 
+use crate::ui::class_merge::merge_classes;
 use dioxus::prelude::*;
-use tw_merge::tw_merge;
 
 #[component]
 pub fn Skeleton(#[props(into, optional)] class: Option<String>) -> Element {
-    let merged_class = tw_merge!(
+    let merged_class = merge_classes!(
         "animate-pulse rounded-md bg-muted",
         class.as_deref().unwrap_or("")
     );

@@ -6,8 +6,8 @@
 //! - built-in borders removed, cards style (theme contract section 8); focus rings kept
 //! - every root element carries a `data-slot` (theme contract section 9)
 
+use crate::ui::class_merge::merge_classes;
 use dioxus::prelude::*;
-use tw_merge::tw_merge;
 
 #[derive(Default, Clone, PartialEq, Eq)]
 pub enum BadgeVariant {
@@ -66,7 +66,7 @@ pub fn Badge(
     #[props(default = BadgeSize::default())] size: BadgeSize,
     children: Element,
 ) -> Element {
-    let merged = tw_merge!(
+    let merged = merge_classes!(
         "inline-flex items-center font-semibold rounded-md transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2 w-fit",
         variant.as_str(),
         size.as_str(),
