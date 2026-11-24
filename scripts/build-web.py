@@ -250,7 +250,7 @@ def dx_command(route: str, *, release: bool, fast: bool) -> list[str]:
     command = ["dx", "build", "--web", "--base-path", ROUTES[route], *DX_FLAGS,
                "--no-default-features", "--features", "page", "--cargo-args=--locked"]
     if release:
-        command.insert(3, "--release")
+        command[3:3] = ["--release", "--debug-symbols", "false"]
     elif fast:
         # The checked build shares the `wasm-check` profile with every wasm test build.
         command[3:3] = ["--profile", "wasm-check", "--debug-symbols", "false"]

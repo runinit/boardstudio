@@ -176,11 +176,40 @@ incremental = false
 # measured core-worker -1.5% and cad-worker -0.8% vs the pre-split record.
 # Wave 6 added lto = "thin", bringing the release main page wasm to 23,401,010 bytes (22.32 MiB).
 # P2 added strip = "debuginfo" (plus trimmed duplicate component/generic monomorphizations), bringing the release main page wasm to 19,276,206 bytes (18.38 MiB).
+# P3.1b A/B: workspace opt-level 2 + panic = "abort" + lto = "fat" beats opt-level "s"/"z" for
+# the page (opt-z grew page code +33 KiB vs opt 2 while saving only ~237 KiB across the
+# workers/renderer; thin LTO kept code 16.33 MiB + data 2.67 MiB). Omitting [web.wasm_opt]
+# (dx default -Oz, no memory-packing) beats memory_packing = true (data +4 KiB). The
+# renderer-only 3D stack keeps opt-level "z" (the page graph never links it). P3.1b release
+# page boardstudio-web_bg.wasm: 16,676,853 bytes (15.90 MiB), gzip-9 5,626,119 (5.37 MiB),
+# brotli-11 3,717,402 (3.55 MiB), code 15,156,399 + data 1,428,847, zero DWARF sections;
+# companions m1 841,844 / offline 65,913 / renderer 666,268 / cad 8,268,898 bytes.
+# subsecond stays an unpatched non-optional dioxus =0.7.10 dependency, mitigated by LTO +
+# release debug-assertions = false (workspace lints still deny unwrap/expect outside tests).
 [profile.release]
 codegen-units = 1
-lto = "thin"
+lto = "fat"
 opt-level = 2
+panic = "abort"
 strip = "debuginfo"
+
+# Renderer-only 3D/tessellation stack (absent from the page dependency graph, verified via
+# `cargo tree -p boardstudio-web --features page`): size-optimized so boardstudio_renderer_wasm
+# stays small while the page and workers keep execution-speed codegen.
+[profile.release.package.boardstudio-renderer]
+opt-level = "z"
+
+[profile.release.package.three-d]
+opt-level = "z"
+
+[profile.release.package.three-d-asset]
+opt-level = "z"
+
+[profile.release.package.lyon_path]
+opt-level = "z"
+
+[profile.release.package.lyon_tessellation]
+opt-level = "z"
 
 # The profile for every wasm build `scripts/check.py` makes: the packaged page
 # (`build-web.py --fast`), the page tests and each crate's `wasm-pack test`. With the wasm rustflags

@@ -444,6 +444,12 @@ class BuildWebTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             BUILD.main(["--routes", "elsewhere"])
 
+    def test_dx_command_strips_release_and_fast_debug_symbols(self):
+        release = BUILD.dx_command("subpath", release=True, fast=False)
+        self.assertEqual(release[3:6], ["--release", "--debug-symbols", "false"])
+        fast = BUILD.dx_command("subpath", release=False, fast=True)
+        self.assertEqual(fast[3:7], ["--profile", "wasm-check", "--debug-symbols", "false"])
+
     def test_checked_build_stages_providers_and_css_before_both_routes(self):
         root = self.root
         public = root / "public"
