@@ -1,7 +1,17 @@
 use super::super::model_transform::{
-    ModelTransformFieldset, ModelVector, model_vector, new_model, upload_model_asset,
+    ModelAxis, ModelTransformFieldset, ModelVector, model_vector, new_model, set_model_axis,
+    upload_model_asset, valid_transform_value,
 };
 use super::*;
+use boardstudio_model::model::AssemblyModelMode;
+
+/// One direct member mutation, applied by the member fields' edit callback
+/// and published back into the draft.
+type MemberEdit = Rc<dyn Fn(&mut AssemblyMember)>;
+
+fn member_edit(edit: impl Fn(&mut AssemblyMember) + 'static) -> MemberEdit {
+    Rc::new(edit)
+}
 use boardstudio_web_ui_shared::inspector_fields::{
     FilePickerButton, InspectorSection, TOUCH_CLS, ToggleField,
 };
@@ -39,7 +49,8 @@ pub(super) fn AssemblyDraftFields(
         })
         .cloned()
         .collect::<Vec<_>>();
-    let recipe = assembly_preview_recipe(&render_value, &member_definitions, &assets());
+    let recipe =
+        super::recipes::assembly_preview_recipe(&render_value, &member_definitions, &assets());
     let preview_definition = recipe
         .first()
         .map(|member| Rc::new(member.definition.clone()));
@@ -230,8 +241,29 @@ fn AssemblyMemberFields(
     let edit = use_callback({
         let draft = draft.clone();
         let id = member.id.clone();
-        move |patch| update_member(value, assets, draft.clone(), on_change, id.clone(), patch)
+        move |patch: MemberEdit| {
+            let mut value = value;
+            let mut updated = false;
+            value.with_mut(|assembly| {
+                if let Some(member) = assembly.members.iter_mut().find(|member| member.id == id) {
+                    patch(member);
+                    updated = true;
+                }
+            });
+            if updated {
+                publish_draft(value, assets, &draft, on_change);
+            }
+        }
     });
+    let remove_member = {
+        let draft = draft.clone();
+        let id = member.id.clone();
+        move |_| {
+            let mut value = value;
+            value.with_mut(|assembly| assembly.members.retain(|member| member.id != id));
+            publish_draft(value, assets, &draft, on_change);
+        }
+    };
     let mut import_model = {
         let runtime = runtime.clone();
         let draft = draft.clone();
@@ -275,7 +307,10 @@ fn AssemblyMemberFields(
                 {
                     assets.with_mut(|assets| assets.push(asset.clone()));
                 }
-                edit.call(MemberPatch::AddModel(new_model(asset.id)));
+                edit.call(member_edit(move |member| {
+                    member.model_mode = Some(AssemblyModelMode::Custom);
+                    member.models.push(new_model(asset.id.clone()));
+                }));
             });
         }
     };
@@ -339,7 +374,10 @@ fn AssemblyMemberFields(
                     import_pending.set(false);
                     return;
                 }
-                edit.call(MemberPatch::ModelMode(true, models));
+                edit.call(member_edit(move |member| {
+                    member.model_mode = Some(AssemblyModelMode::Custom);
+                    member.models = models.clone();
+                }));
                 import_feedback.set(None);
                 import_pending.set(false);
             });
@@ -360,7 +398,12 @@ fn AssemblyMemberFields(
                     ))
                     .collect(),
                 disabled,
-                on_commit: move |selected: String| edit.call(MemberPatch::Definition(selected)),
+                on_commit: move |selected: String| edit.call(member_edit(move |member| {
+                    member.definition_id = (!selected.is_empty()).then(|| selected.clone());
+                    member.parameters = None;
+                    member.model_mode = Some(AssemblyModelMode::Defaults);
+                    member.models.clear();
+                })),
             }
             if definition.as_ref().is_some_and(|definition| definition.generator.is_some())
                 && let Some(parameters) = member.parameters.as_ref() {
@@ -372,7 +415,7 @@ fn AssemblyMemberFields(
                     on_commit: move |enabled| {
                         params.insert("hotswap".into(), serde_json::Value::Bool(enabled));
                         params.insert("solder".into(), serde_json::Value::Bool(!enabled));
-                        edit.call(MemberPatch::Parameters(Some(params.clone())));
+                        edit.call(member_edit(move |member| member.parameters = Some(params.clone())));
                     },
                   } }
                 }
@@ -382,12 +425,20 @@ fn AssemblyMemberFields(
                 value: if matches!(&member.side, Side::Back) { "back".to_owned() } else { "front".to_owned() },
                 options: vec![("front".to_owned(), "Front".to_owned()), ("back".to_owned(), "Back".to_owned())],
                 disabled,
-                on_commit: move |selected: String| edit.call(MemberPatch::Side(selected == "back")),
+                on_commit: move |selected: String| edit.call(member_edit(move |member| {
+                    let back = selected == "back";
+                    member.side = if back { Side::Back } else { Side::Front };
+                    if let Some(parameters) = member.parameters.as_mut()
+                        && parameters.contains_key("side")
+                    {
+                        parameters.insert("side".into(), serde_json::Value::String(if back { "F" } else { "B" }.into()));
+                    }
+                })),
             }
             div { class: "grid grid-cols-3 gap-2",
-                NumericField { label: "X (mm)", step: Some(0.1), value: member.pose.at.x, disabled_reason: disabled.then(|| "Assembly is read-only".to_owned()), on_commit: move |number: f64| edit.call(MemberPatch::X(number)) }
-                NumericField { label: "Y (mm)", step: Some(0.1), value: member.pose.at.y, disabled_reason: disabled.then(|| "Assembly is read-only".to_owned()), on_commit: move |number: f64| edit.call(MemberPatch::Y(number)) }
-                NumericField { label: "Angle (°)", step: Some(1.0), value: member.pose.rotation, disabled_reason: disabled.then(|| "Assembly is read-only".to_owned()), on_commit: move |number: f64| edit.call(MemberPatch::Rotation(number)) }
+                NumericField { label: "X (mm)", step: Some(0.1), value: member.pose.at.x, disabled_reason: disabled.then(|| "Assembly is read-only".to_owned()), on_commit: move |number: f64| edit.call(member_edit(move |member| { if number.is_finite() { member.pose.at.x = number; } })) }
+                NumericField { label: "Y (mm)", step: Some(0.1), value: member.pose.at.y, disabled_reason: disabled.then(|| "Assembly is read-only".to_owned()), on_commit: move |number: f64| edit.call(member_edit(move |member| { if number.is_finite() { member.pose.at.y = number; } })) }
+                NumericField { label: "Angle (°)", step: Some(1.0), value: member.pose.rotation, disabled_reason: disabled.then(|| "Assembly is read-only".to_owned()), on_commit: move |number: f64| edit.call(member_edit(move |member| { if number.is_finite() { member.pose.rotation = number; } })) }
             }
             SelectField::<String> {
                 label: "3D models",
@@ -397,7 +448,10 @@ fn AssemblyMemberFields(
                 on_commit: move |selected: String| {
                     let custom = selected == "custom";
                     let models = if custom && current_models.is_empty() { model_defaults.clone() } else { current_models.clone() };
-                    edit.call(MemberPatch::ModelMode(custom, models));
+                    edit.call(member_edit(move |member| {
+                        member.model_mode = Some(if custom { AssemblyModelMode::Custom } else { AssemblyModelMode::Defaults });
+                        member.models = models.clone();
+                    }));
                 },
             }
             if is_custom {
@@ -423,7 +477,11 @@ fn AssemblyMemberFields(
             if is_custom {
                 Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS, disabled: disabled || options.is_empty(), onclick: move |_| {
                     if let Some(option) = options.first() {
-                        edit.call(MemberPatch::AddModel(new_model(option.id.clone())));
+                        let model = new_model(option.id.clone());
+                        edit.call(member_edit(move |member| {
+                            member.model_mode = Some(AssemblyModelMode::Custom);
+                            member.models.push(model.clone());
+                        }));
                     }
                 }, "Add model" }
             }
@@ -436,7 +494,7 @@ fn AssemblyMemberFields(
             if let Some(message) = import_feedback.read().as_ref() {
                 Alert { variant: AlertVariant::Destructive, "{message}" }
             }
-            Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS, disabled, onclick: move |_| edit.call(MemberPatch::RemoveMember), "Remove component" }
+            Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS, disabled, onclick: remove_member, "Remove component" }
         }
     }
 }
@@ -447,7 +505,7 @@ fn AssemblyModelFields(
     index: usize,
     options: Vec<ModelOption>,
     disabled: bool,
-    edit: EventHandler<MemberPatch>,
+    edit: Callback<MemberEdit>,
 ) -> Element {
     rsx! {
         InspectorSection { title: "Model {index + 1}",
@@ -455,15 +513,117 @@ fn AssemblyModelFields(
                 label: "Asset", value: "{model.asset_id}",
                 options: model_option_rows(&options, Some(model.asset_id.as_str()), "Saved model asset unavailable"),
                 disabled,
-                on_commit: move |selected| edit.call(MemberPatch::ModelAsset(index, selected)),
+                on_commit: move |selected| edit.call(member_edit(move |member| {
+                    if let Some(model) = member.models.get_mut(index) { model.asset_id = selected.clone(); }
+                })),
             }
             for (label, field) in [("Offset (mm)", ModelVector::Offset), ("Rotation (°)", ModelVector::Rotation), ("Scale", ModelVector::Scale)] {
                 ModelTransformFieldset { title: label.to_owned(), value: model_vector(&model, field),
                     disabled_reason: disabled.then(|| "Assembly is read-only".to_owned()),
-                    on_commit: move |(axis, number)| edit.call(MemberPatch::ModelVector(index, field, axis, number)),
+                    on_commit: move |(axis, number)| edit.call(member_edit(move |member| {
+                        if valid_transform_value(field, number)
+                            && let Some(model) = member.models.get_mut(index) { set_model_axis(model, field, axis, number); }
+                    })),
                 }
             }
-            Button { disabled, onclick: move |_| edit.call(MemberPatch::RemoveModel(index)), "Remove model" }
+            Button { disabled, onclick: move |_| edit.call(member_edit(move |member| {
+                member.model_mode = Some(AssemblyModelMode::Custom);
+                if index < member.models.len() { member.models.remove(index); }
+            })), "Remove model" }
         }
     }
+}
+
+fn publish_draft(
+    value: Signal<AssemblyDefinition>,
+    assets: Signal<Vec<Asset>>,
+    draft: &AssemblyDraft,
+    on_change: EventHandler<AssemblyDraft>,
+) {
+    on_change.call(AssemblyDraft {
+        value: value(),
+        assets: assets(),
+        ..draft.clone()
+    });
+}
+
+#[derive(Clone, PartialEq)]
+struct ModelOption {
+    id: String,
+    name: String,
+}
+
+/// Option rows for a model dropdown, appending the saved selection with
+/// `missing_label` when it is no longer among `options`. Component pickers
+/// prepend their own empty "Visual model only" row at the call site.
+fn model_option_rows(
+    options: &[ModelOption],
+    selected_id: Option<&str>,
+    missing_label: &str,
+) -> Vec<(String, String)> {
+    let mut rows = Vec::with_capacity(options.len() + 2);
+    rows.extend(
+        options
+            .iter()
+            .map(|option| (option.id.clone(), option.name.clone())),
+    );
+    if let Some(selected_id) =
+        selected_id.filter(|id| !options.iter().any(|option| option.id == *id))
+    {
+        rows.push((selected_id.to_owned(), missing_label.to_owned()));
+    }
+    rows
+}
+
+fn model_options(document_assets: &[Asset], draft_assets: &[Asset]) -> Vec<ModelOption> {
+    let is_model = |name: &str| {
+        [".step", ".stp", ".stl", ".wrl"]
+            .iter()
+            .any(|extension| name.to_ascii_lowercase().ends_with(extension))
+    };
+    let mut options = document_assets
+        .iter()
+        .chain(draft_assets)
+        .filter(|asset| is_model(&asset.name))
+        .map(|asset| ModelOption {
+            id: asset.id.clone(),
+            name: asset.name.clone(),
+        })
+        .collect::<Vec<_>>();
+    for (id, _) in crate::bundled_models::preview_model_paths() {
+        if options.iter().any(|option| option.id == id) {
+            continue;
+        }
+        if let Some(model) = crate::bundled_models::bundled_model(id) {
+            options.push(ModelOption {
+                id: id.to_owned(),
+                name: model.filename.to_owned(),
+            });
+        }
+    }
+    options
+}
+
+fn assembly_owner_current(
+    runtime: &crate::runtime::Runtime,
+    draft: &AssemblyDraft,
+    workspace: Workspace,
+) -> bool {
+    let guard = crate::parts_custom_definition::PartsOwnerGuard::document(
+        draft.scope.clone(),
+        draft.session_epoch,
+        draft.document_id.clone(),
+    );
+    runtime.model().accepted.as_ref().is_some_and(|accepted| {
+        guard.is_current(accepted, runtime.scope(), None, None, None, Some(workspace))
+    })
+}
+
+fn member_id(assembly: &AssemblyDefinition) -> Option<String> {
+    let current = Date::now().max(0.0) as u64;
+    let root = crate::runtime::new_project_id().unwrap_or_else(|_| format!("{current:x}"));
+    crate::parts_custom_definition::unique_suffixed_id_capped(
+        &format!("component-{}", &root[..root.len().min(8)]),
+        |id| assembly.members.iter().any(|member| member.id == id),
+    )
 }
