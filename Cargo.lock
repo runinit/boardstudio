@@ -332,6 +332,7 @@ version = "0.1.0"
 dependencies = [
  "boardstudio-application",
  "boardstudio-web-case",
+ "boardstudio-web-catalogue",
  "boardstudio-web-host",
  "boardstudio-web-layout",
  "boardstudio-web-parts",
@@ -392,7 +393,6 @@ dependencies = [
  "boardstudio-core-kernel",
  "boardstudio-core-mechanical",
  "boardstudio-model",
- "boardstudio-web-host",
  "boardstudio_core",
  "serde",
  "serde_json",
@@ -433,7 +433,6 @@ dependencies = [
  "boardstudio-web-test-runtime",
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
- "boardstudio-web-workspaces",
  "dioxus",
  "dioxus-web",
  "gloo-timers",

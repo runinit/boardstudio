@@ -1,7 +1,7 @@
 //! Private owner for Keycaps finding navigation effects.
-use super::keycaps_fit;
 use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
 use boardstudio_model::model::{ProjectDoc, Vec2};
+use boardstudio_web_ui_model::finding_navigation;
 use boardstudio_web_ui_model::{Workspace, tree::TreeContext};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
@@ -37,13 +37,13 @@ pub struct AcceptedNavigationSource {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct AdmittedNavigation {
-    pub target: keycaps_fit::FindingNavigationTarget,
+    pub target: finding_navigation::FindingNavigationTarget,
     pub effects: RouteEffects,
     pub owner: NavigationOwner,
 }
 
 pub fn focused_finding_for_admitted_route(
-    request: &keycaps_fit::FindingNavigationRequest,
+    request: &finding_navigation::FindingNavigationRequest,
     admitted: &AdmittedNavigation,
 ) -> Option<super::keycaps_finding_marker::FocusedFinding> {
     matches!(&admitted.owner.destination, Destination::Layout(_)).then(|| {
@@ -63,7 +63,7 @@ pub struct NavigationAdmission<'a> {
     pub live_scope: Option<&'a Scope>,
     pub live_generation: u64,
     pub accepted: &'a AcceptedNavigationSource,
-    pub fit_state: &'a keycaps_fit::KeycapsFitState,
+    pub fit_state: &'a finding_navigation::KeycapsFitState,
     pub document: &'a ProjectDoc,
     pub live_mechanical_layers: Option<&'a [String]>,
 }
@@ -90,9 +90,9 @@ pub struct LiveNavigationOwner {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PendingLayoutFit {
-    pub request: keycaps_fit::FindingNavigationRequest,
+    pub request: finding_navigation::FindingNavigationRequest,
     pub owner: NavigationOwner,
-    pub source_basis: Option<keycaps_fit::CameraBasis>,
+    pub source_basis: Option<finding_navigation::CameraBasis>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -139,7 +139,7 @@ pub fn use_pending_layout_fit<T: Clone + PartialEq + 'static>(
 }
 
 pub fn owner_for_request(
-    request: &keycaps_fit::FindingNavigationRequest,
+    request: &finding_navigation::FindingNavigationRequest,
     destination: Destination,
     generation: u64,
 ) -> NavigationOwner {
@@ -234,15 +234,15 @@ pub fn request_owner_is_current(
 }
 
 pub fn route_effects(
-    request: &keycaps_fit::FindingNavigationRequest,
-    target: &keycaps_fit::FindingNavigationTarget,
+    request: &finding_navigation::FindingNavigationRequest,
+    target: &finding_navigation::FindingNavigationTarget,
     part_context: Option<TreeContext>,
     generation: u64,
 ) -> Option<RouteEffects> {
     if request.target != *target {
         return None;
     }
-    use keycaps_fit::FindingNavigationTarget as T;
+    use finding_navigation::FindingNavigationTarget as T;
     let (destination, fit_after_layout, pin_inspector) = match target {
         T::MechanicalLayer { layer_id, .. } => {
             (Destination::CaseLayer(layer_id.clone()), false, false)
@@ -278,9 +278,11 @@ pub fn route_effects(
 }
 
 pub fn admit_accepted_request(
-    request: &keycaps_fit::FindingNavigationRequest,
+    request: &finding_navigation::FindingNavigationRequest,
     a: NavigationAdmission<'_>,
-    part_context_for_target: impl FnOnce(&keycaps_fit::FindingNavigationTarget) -> Option<TreeContext>,
+    part_context_for_target: impl FnOnce(
+        &finding_navigation::FindingNavigationTarget,
+    ) -> Option<TreeContext>,
 ) -> Option<AdmittedNavigation> {
     if !request_owner_is_current(
         a.current_workspace,
@@ -302,15 +304,16 @@ pub fn admit_accepted_request(
     } else {
         a.live_mechanical_layers.unwrap_or(&[])
     };
-    let target = keycaps_fit::accepted_navigation_target(a.fit_state, request, a.document, layers)?;
+    let target =
+        finding_navigation::accepted_navigation_target(a.fit_state, request, a.document, layers)?;
     if matches!(
         &request.target,
-        keycaps_fit::FindingNavigationTarget::MechanicalLayer { .. }
+        finding_navigation::FindingNavigationTarget::MechanicalLayer { .. }
     ) && target != request.target
     {
         return None;
     }
-    if keycaps_fit::target_board_id(&target) != request.source.scope.board_id
+    if finding_navigation::target_board_id(&target) != request.source.scope.board_id
         || !target_exists(a.document, &target, layers)
     {
         return None;
@@ -331,10 +334,10 @@ pub fn admit_accepted_request(
 
 fn target_exists(
     doc: &ProjectDoc,
-    target: &keycaps_fit::FindingNavigationTarget,
+    target: &finding_navigation::FindingNavigationTarget,
     layers: &[String],
 ) -> bool {
-    use keycaps_fit::FindingNavigationTarget as T;
+    use finding_navigation::FindingNavigationTarget as T;
     match target {
         T::MechanicalLayer { layer_id, .. } => layers.contains(layer_id),
         T::Body { board_id, body_id } => doc
@@ -366,8 +369,8 @@ fn target_exists(
 
 pub fn dispatch_route_with_camera_basis(
     effects: RouteEffects,
-    request: &keycaps_fit::FindingNavigationRequest,
-    source_basis: Option<keycaps_fit::CameraBasis>,
+    request: &finding_navigation::FindingNavigationRequest,
+    source_basis: Option<finding_navigation::CameraBasis>,
     mut perform: impl FnMut(RouteAction),
 ) {
     let generation = effects.generation;

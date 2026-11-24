@@ -24,7 +24,7 @@ pub(super) fn document() -> ProjectDoc {
 }
 
 pub(super) fn mechanical(doc: &ProjectDoc, thickness: f64) -> MechanicalConfiguration {
-    let mut value = boardstudio_web_host::case_settings::initial_settings(doc, "board-a").unwrap();
+    let mut value = crate::case_settings::initial_settings(doc, "board-a").unwrap();
     value.plate_thickness = thickness;
     value
 }

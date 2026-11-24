@@ -13,7 +13,6 @@ test-support = []
 boardstudio-core-kernel = { path = "../../../core/crates/kernel" }
 boardstudio-core-mechanical = { path = "../../../core/crates/mechanical" }
 boardstudio-model = { path = "../../../core/crates/model" }
-boardstudio-web-host = { path = "../host", features = ["page"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 

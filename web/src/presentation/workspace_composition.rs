@@ -2,6 +2,7 @@
 use super::editor::camera::{self, camera_commands};
 use super::*;
 use boardstudio_web_ui_model::editor::EditorContext;
+use boardstudio_web_ui_model::finding_navigation;
 
 #[derive(Clone)]
 pub(super) struct SharedObjectsInput {
@@ -518,7 +519,7 @@ impl WorkspaceFrame {
 
     pub(super) fn design_canvas(
         &self,
-        keycaps_fit: Option<keycaps_fit::KeycapsFitState>,
+        keycaps_fit: Option<finding_navigation::KeycapsFitState>,
         canvas: Element,
     ) -> Element {
         if (self.status.layout.assembly_3d())() {

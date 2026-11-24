@@ -4,10 +4,10 @@
 //! Layout 3D, Case and Parts. Layout and Keymap mount this same component.
 
 use crate::keycaps_finding_marker::FocusedFinding;
-use crate::keycaps_fit::{FindingNavigationTarget, KeycapsFitState};
 use boardstudio_application::SelectionMode;
 use boardstudio_web_runtime::layout_viewer_source::LayoutKeycapPickSource;
 use boardstudio_web_runtime::runtime::Runtime;
+use boardstudio_web_ui_model::finding_navigation::{FindingNavigationTarget, KeycapsFitState};
 use boardstudio_web_ui_model::selection::{ContextRequest, SelectionAdapter, submit_context};
 use boardstudio_web_ui_model::state::ResolvedAppearance;
 use boardstudio_web_ui_model::tree::{TreeContext, context_for_part};
@@ -265,8 +265,13 @@ pub fn KeycapsAssemblyViewer(
             .findings
             .iter()
             .find(|finding| finding.id == focused.finding_id)?;
-        let target = crate::keycaps_fit::finding_navigation_target(finding, &accepted.document)?;
-        if crate::keycaps_fit::target_board_id(&target) != focused.scope.board_id {
+        let target = boardstudio_web_ui_model::finding_navigation::finding_navigation_target(
+            finding,
+            &accepted.document,
+        )?;
+        if boardstudio_web_ui_model::finding_navigation::target_board_id(&target)
+            != focused.scope.board_id
+        {
             return None;
         }
         let target_ids = match target {

@@ -4,6 +4,7 @@
 #![cfg_attr(not(target_arch = "wasm32"), allow(dead_code, unused_imports))]
 
 pub mod bundled;
+pub mod case_settings;
 pub mod catalogue;
 pub mod matrix_input;
 pub mod matrix_setup_operation;

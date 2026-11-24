@@ -22,8 +22,6 @@ pub(crate) use boardstudio_web_ui_model::state::*;
 pub(crate) use boardstudio_web_ui_model::svg_coordinates::coordinates;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use boardstudio_web_ui_shared::panels;
-#[cfg(target_arch = "wasm32")]
-pub(crate) use boardstudio_web_workspaces::keycaps_fit;
 
 pub use boardstudio_web_layout_core::{
     anchor_badge, anchor_pick, canvas_projection, companion_placement, component_inspector,

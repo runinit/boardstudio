@@ -1,5 +1,6 @@
 use super::*;
 use boardstudio_web_ui_model::editor::EditorContext;
+use boardstudio_web_ui_model::finding_navigation;
 pub(in crate::presentation) mod action_handlers;
 mod camera;
 mod commands;
@@ -243,7 +244,7 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
     let model = &state.view.model;
     let workspace = state.active_workspace;
     let status = workspace_composition::StatusFooter {
-        count: keycaps_fit::presented_findings(&views.findings, &snapshot.document).len(),
+        count: finding_navigation::presented_findings(&views.findings, &snapshot.document).len(),
         toggle_findings: nav.callbacks.on_toggle_layout_findings,
         layout: state.layout_state,
         part_position: guide_state.active_part_position,

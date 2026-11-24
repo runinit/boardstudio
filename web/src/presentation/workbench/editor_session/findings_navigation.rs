@@ -1,5 +1,6 @@
 use super::super::*;
 use boardstudio_web_ui_model::Workspace;
+use boardstudio_web_ui_model::finding_navigation;
 
 pub(super) fn navigate_scoped_handler(
     runtime: Rc<Runtime>,
@@ -236,11 +237,14 @@ pub(super) fn use_layout_finding_callbacks(
             let Some(snapshot) = model.accepted.as_ref() else {
                 return;
             };
-            if !keycaps_fit::presented_findings(&snapshot.scene.findings, &snapshot.document)
+            if !finding_navigation::presented_findings(&snapshot.scene.findings, &snapshot.document)
                 .iter()
                 .any(|finding| finding == &request.finding)
-                || keycaps_fit::finding_navigation_target(&request.finding, &snapshot.document)
-                    .as_ref()
+                || finding_navigation::finding_navigation_target(
+                    &request.finding,
+                    &snapshot.document,
+                )
+                .as_ref()
                     != Some(&request.target)
                 || !layout_findings::target_has_live_layout_destination(
                     &request.target,
@@ -249,7 +253,7 @@ pub(super) fn use_layout_finding_callbacks(
             {
                 return;
             }
-            let target_board = keycaps_fit::target_board_id(&request.target).to_owned();
+            let target_board = finding_navigation::target_board_id(&request.target).to_owned();
             let Some(scope) = owner.scope.as_ref() else {
                 return;
             };
@@ -417,7 +421,7 @@ pub(super) fn use_layout_finding_resume(input: LayoutFindingResumeInput) {
                 let live_layers = live_layers.unwrap_or_else(|| Rc::from([]));
                 let fit = fit.peek();
                 let state = fit.as_ref()?;
-                if keycaps_fit::accepted_navigation_target(
+                if finding_navigation::accepted_navigation_target(
                     state,
                     request,
                     &snapshot.document,
@@ -426,7 +430,7 @@ pub(super) fn use_layout_finding_resume(input: LayoutFindingResumeInput) {
                 {
                     return None;
                 }
-                let target_bounds = keycaps_fit::finding_navigation_bounds(
+                let target_bounds = finding_navigation::finding_navigation_bounds(
                     &snapshot.document,
                     &snapshot.scene,
                     &request.finding.id,
@@ -438,13 +442,16 @@ pub(super) fn use_layout_finding_resume(input: LayoutFindingResumeInput) {
                 let basis = if let Some(basis) = pending_fit.source_basis {
                     basis
                 } else {
-                    let destination_base = keycaps_fit::layout_canvas_bounds(
+                    let destination_base = finding_navigation::layout_canvas_bounds(
                         &snapshot.document,
                         &snapshot.scene,
                         &request.source.scope.board_id,
                     )?;
-                    keycaps_fit::CameraBasis {
-                        bounds: keycaps_fit::aspect_bounds(destination_base, destination_surface),
+                    finding_navigation::CameraBasis {
+                        bounds: finding_navigation::aspect_bounds(
+                            destination_base,
+                            destination_surface,
+                        ),
                         surface: destination_surface,
                     }
                 };
