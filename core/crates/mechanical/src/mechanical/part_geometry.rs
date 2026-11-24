@@ -15,32 +15,25 @@ pub(super) struct PartGeometry {
     pub(super) bottom_foam_clearances: Vec<Contour>,
 }
 
-/// Reports one finding for the part under review: the code names the part, and
-/// the part carries the report. Every per-part finding in this module shares
-/// this shape; only the code suffix, severity and message vary per site.
-fn part_issue(
-    issue: &mut dyn FnMut(&str, Severity, &str, Vec<String>),
-    part: &Part,
-    code: &str,
-    severity: Severity,
-    message: &str,
-) {
-    issue(
-        &format!("{code}:{}", part.id),
-        severity,
-        message,
-        vec![part.id.clone()],
-    );
+/// Reports findings for the part under review.
+///
+/// Every per-part finding names the same part, so the call sites name only
+/// the code suffix, severity and message. Sites with bespoke codes use
+/// [`PartReporter::report_raw`].
+struct PartReporter<'a> {
+    issue: &'a mut dyn FnMut(&str, Severity, &str, Vec<String>),
+    part: &'a Part,
 }
 
-/// Reports one battery finding against the battery owner.
-fn battery_issue(
-    issue: &mut dyn FnMut(&str, Severity, &str, Vec<String>),
-    code: &str,
-    severity: Severity,
-    message: &str,
-) {
-    issue(code, severity, message, vec!["battery".into()]);
+impl PartReporter<'_> {
+    fn report(&mut self, code: &str, severity: Severity, message: &str) {
+        let code = format!("{code}:{}", self.part.id);
+        self.report_raw(&code, severity, message);
+    }
+
+    fn report_raw(&mut self, code: &str, severity: Severity, message: &str) {
+        (self.issue)(code, severity, message, vec![self.part.id.clone()]);
+    }
 }
 
 pub(super) fn collect_part_geometry(
@@ -68,13 +61,12 @@ pub(super) fn collect_part_geometry(
             .iter()
             .find(|definition| definition.id == part.definition_id);
         let is_switch = definition.is_some_and(|definition| is_switch_position(part, definition));
+        let mut reporter = PartReporter { issue, part };
         if !part.pose.at.x.is_finite()
             || !part.pose.at.y.is_finite()
             || !part.pose.rotation.is_finite()
         {
-            part_issue(
-                issue,
-                part,
+            reporter.report(
                 "pose",
                 Severity::Error,
                 "Mechanical part pose must be finite.",
@@ -85,6 +77,7 @@ pub(super) fn collect_part_geometry(
         // board pose; storage stays within-half. The borrow extends the
         // owned shadow only while a half-frame offset applies.
         let part: &Part = &crate::matrix::layout::evaluated_part(document, part);
+        let mut reporter = PartReporter { issue, part };
         let profile = config
             .profiles
             .iter()
@@ -116,32 +109,24 @@ pub(super) fn collect_part_geometry(
                         config.clearance,
                         document.revision,
                     ) {
-                        Ok(()) => part_issue(
-                            issue,
-                            part,
+                        Ok(()) => reporter.report(
                             "foam-approximation",
                             Severity::Warning,
                             &format!(
                                 "Foam clearance uses the {source} as a conservative footprint approximation because no explicit mechanical clearance is assigned; a 3D model is not required."
                             ),
-                        ),
-                        Err(message) => {
-                            part_issue(issue, part, "foam-approximation", Severity::Error, &message)
-                        }
+                            ),
+                        Err(message) => reporter.report("foam-approximation", Severity::Error, &message),
                     }
                 } else {
-                    part_issue(
-                        issue,
-                        part,
+                    reporter.report(
                         "foam-bounds",
                         Severity::Warning,
                         "No courtyard, closed pad bounds, or keycap dimensions are available for a foam clearance; no component model was used to guess one.",
                     );
                 }
             } else {
-                part_issue(
-                    issue,
-                    part,
+                reporter.report(
                     "foam-bounds",
                     Severity::Warning,
                     "The footprint definition is missing, so no outline-based foam clearance could be generated.",
@@ -152,29 +137,26 @@ pub(super) fn collect_part_geometry(
             if is_switch {
                 let unresolved = definition
                     .is_some_and(|definition| inferred_switch_family(part, definition).is_none());
-                issue(
-                    if unresolved {
-                        "switch-family"
-                    } else {
-                        "profile"
-                    },
-                    Severity::Error,
-                    if unresolved {
-                        "Choose the MX, Choc v1, or Choc v2 fit for this switch before generating its plate cutout."
-                    } else {
-                        "Switch has no qualified mechanical profile; no cutout was guessed."
-                    },
-                    vec![part.id.clone()],
-                );
+                let (code, message) = if unresolved {
+                    (
+                        "switch-family",
+                        "Choose the MX, Choc v1, or Choc v2 fit for this switch before generating its plate cutout.",
+                    )
+                } else {
+                    (
+                        "profile",
+                        "Switch has no qualified mechanical profile; no cutout was guessed.",
+                    )
+                };
+                reporter.report_raw(code, Severity::Error, message);
             }
             continue;
         };
         if is_switch && profile.switch_family.is_none() {
-            issue(
+            reporter.report_raw(
                 "switch-family",
                 Severity::Error,
                 "Choose the switch family before generating a plate for this imported footprint.",
-                vec![part.id.clone()],
             );
         }
         let has_access = profile.openings.as_ref().is_some_and(|v| !v.is_empty())
@@ -186,9 +168,7 @@ pub(super) fn collect_part_geometry(
         if (profile.cutouts.is_empty() && (is_switch || !has_access))
             || profile.source.trim().is_empty()
         {
-            part_issue(
-                issue,
-                part,
+            reporter.report(
                 "profile-empty",
                 Severity::Error,
                 "Mechanical profile requires cutout geometry and source provenance.",
@@ -198,9 +178,7 @@ pub(super) fn collect_part_geometry(
             || ((is_switch || !profile.cutouts.is_empty())
                 && (profile.plate_to_pcb - config.plate_to_pcb).abs() > 0.001)
         {
-            part_issue(
-                issue,
-                part,
+            reporter.report(
                 "engagement",
                 Severity::Error,
                 "Selected mechanical profiles have incompatible plate-to-PCB engagement distances.",
@@ -214,18 +192,14 @@ pub(super) fn collect_part_geometry(
                 || config.plate_thickness < range.x
                 || config.plate_thickness > range.y
             {
-                part_issue(
-                    issue,
-                    part,
+                reporter.report(
                     "thickness",
                     Severity::Error,
                     "Plate thickness is outside this profile's supported range.",
                 );
             }
         } else {
-            part_issue(
-                issue,
-                part,
+            reporter.report(
                 "qualification",
                 Severity::Warning,
                 "Profile plate thickness compatibility has not been qualified.",
@@ -246,9 +220,7 @@ pub(super) fn collect_part_geometry(
                         || !custom.plate_to_pcb.is_finite()
                         || (custom.plate_to_pcb - config.plate_to_pcb).abs() > 0.001
                     {
-                        part_issue(
-                            issue,
-                            part,
+                        reporter.report(
                             "plate-stabilizer",
                             Severity::Error,
                             "Custom plate-mount profile requires source geometry and matching engagement.",
@@ -260,18 +232,14 @@ pub(super) fn collect_part_geometry(
                                 crate::geometry2d::rotate_polygon(polygon, sin, cos)
                             }),
                         );
-                        part_issue(
-                            issue,
-                            part,
+                        reporter.report(
                             "custom-stabilizer",
                             Severity::Warning,
                             "Custom plate-mount geometry requires supplier review; compatibility has not been qualified.",
                         );
                     }
                 } else {
-                    part_issue(
-                        issue,
-                        part,
+                    reporter.report(
                         "plate-stabilizer",
                         Severity::Error,
                         "Plate-mount stabilizer requires an explicit custom profile; PCB-mount geometry cannot substitute.",
@@ -301,13 +269,11 @@ pub(super) fn collect_part_geometry(
                             }));
                         }
                         Err(message) => {
-                            part_issue(issue, part, "stabilizer-source", Severity::Error, &message)
+                            reporter.report("stabilizer-source", Severity::Error, &message)
                         }
                     }
                 } else {
-                    part_issue(
-                        issue,
-                        part,
+                    reporter.report(
                         "stabilizer-size",
                         Severity::Error,
                         "No qualified stabilizer profile exists for this key size.",
@@ -315,9 +281,7 @@ pub(super) fn collect_part_geometry(
                 }
             }
         } else if part.keycap.is_some_and(|size| size.x.max(size.y) >= 37.0) {
-            part_issue(
-                issue,
-                part,
+            reporter.report(
                 "stabilizer-proposal",
                 Severity::Warning,
                 "Wide keycap needs a stabilizer decision: confirm key units and PCB-mount orientation; no cutout was guessed.",
@@ -326,9 +290,7 @@ pub(super) fn collect_part_geometry(
         if let Some(source) = &profile.source_geometry {
             let hash = sha256_hex(source.text.as_bytes());
             if hash != source.sha256 {
-                part_issue(
-                    issue,
-                    part,
+                reporter.report(
                     "source-hash",
                     Severity::Error,
                     "Mechanical source hash does not match retained source text.",
@@ -341,9 +303,7 @@ pub(super) fn collect_part_geometry(
                 || !hole.at.x.is_finite()
                 || !hole.at.y.is_finite()
             {
-                part_issue(
-                    issue,
-                    part,
+                reporter.report(
                     "pcb-hole",
                     Severity::Error,
                     "PCB hole references require finite positions and positive diameters.",
@@ -376,15 +336,16 @@ pub(super) fn collect_part_geometry(
                 pcb_reference_contours.push(Contour { hole: true, points });
             }
             if !linked {
-                issue(
-                    &format!("pcb-hole-link:{}:{}", part.id, hole.source_id),
-                    if board.traces.is_empty() {
-                        Severity::Warning
-                    } else {
-                        Severity::Error
-                    },
+                let code = format!("pcb-hole-link:{}:{}", part.id, hole.source_id);
+                let severity = if board.traces.is_empty() {
+                    Severity::Warning
+                } else {
+                    Severity::Error
+                };
+                reporter.report_raw(
+                    &code,
+                    severity,
                     "Mechanical mounting hole is not linked to a matching electrical PCB hole; the PCB remains unchanged.",
-                    vec![part.id.clone()],
                 );
             }
         }
@@ -412,9 +373,7 @@ pub(super) fn collect_part_geometry(
                 || !volume.height.is_finite()
                 || volume.height <= 0.0
             {
-                part_issue(
-                    issue,
-                    part,
+                reporter.report(
                     "clearance-volume",
                     Severity::Error,
                     "Clearance volumes need finite polygons/Z and positive height.",
@@ -436,7 +395,7 @@ pub(super) fn collect_part_geometry(
                     ) {
                         Ok(()) => {}
                         Err(message) => {
-                            part_issue(issue, part, "clearance-volume", Severity::Error, &message)
+                            reporter.report("clearance-volume", Severity::Error, &message)
                         }
                     }
                 }
@@ -453,7 +412,7 @@ pub(super) fn collect_part_geometry(
                     ) {
                         Ok(()) => {}
                         Err(message) => {
-                            part_issue(issue, part, "clearance-volume", Severity::Error, &message)
+                            reporter.report("clearance-volume", Severity::Error, &message)
                         }
                     }
                 }
@@ -469,9 +428,7 @@ pub(super) fn collect_part_geometry(
         }
         for polygon in profile.clearances.iter().flatten() {
             if !crate::geometry2d::is_finite_polygon(polygon) {
-                part_issue(
-                    issue,
-                    part,
+                reporter.report(
                     "clearance",
                     Severity::Error,
                     "Profile clearance geometry must be finite polygons.",
@@ -485,11 +442,9 @@ pub(super) fn collect_part_geometry(
                 if let Err(message) =
                     add_foam_clearance(target, part, polygon, config.clearance, document.revision)
                 {
-                    part_issue(issue, part, "clearance", Severity::Error, &message);
+                    reporter.report("clearance", Severity::Error, &message);
                 }
-                part_issue(
-                    issue,
-                    part,
+                reporter.report(
                     "access",
                     Severity::Warning,
                     "Explicit component clearance is excluded from foam on the component side; case wall access still requires review.",
@@ -498,9 +453,7 @@ pub(super) fn collect_part_geometry(
         }
         for polygon in &polygons {
             if !crate::geometry2d::is_finite_polygon(polygon) {
-                part_issue(
-                    issue,
-                    part,
+                reporter.report(
                     "polygon",
                     Severity::Error,
                     "Mechanical profile has an invalid polygon.",
@@ -551,11 +504,11 @@ pub(super) fn resolve_battery_space(
             .iter()
             .any(|v| !v.is_finite() || *v <= 0.0)
         {
-            battery_issue(
-                issue,
+            issue(
                 "battery-size",
                 Severity::Error,
                 "Battery dimensions must be positive finite millimetres.",
+                vec!["battery".into()],
             );
             return None;
         }
@@ -591,11 +544,11 @@ pub(super) fn resolve_battery_space(
             || envelope.iter().any(|p| !inside_outline(*p, contours))
             || !inside_outline(battery.cable_exit, contours)
         {
-            battery_issue(
-                issue,
+            issue(
                 "battery-containment",
                 Severity::Error,
                 "Battery envelope or cable exit lies outside the assembly outline.",
+                vec!["battery".into()],
             );
         }
         for mount in config
@@ -617,11 +570,11 @@ pub(super) fn resolve_battery_space(
         }
         let cable_width = battery.cable_width.unwrap_or(2.0);
         if !cable_width.is_finite() || cable_width <= 0.0 {
-            battery_issue(
-                issue,
+            issue(
                 "battery-cable-width",
                 Severity::Error,
                 "Battery cable clearance width must be positive finite millimetres.",
+                vec!["battery".into()],
             );
         } else {
             let clearance = cable_width / 2.0 + config.clearance;
@@ -639,11 +592,11 @@ pub(super) fn resolve_battery_space(
             }
             let access = convex_envelope(access_points);
             if access.iter().any(|point| !inside_outline(*point, contours)) {
-                battery_issue(
-                    issue,
+                issue(
                     "battery-cable-containment",
                     Severity::Error,
                     "Battery cable clearance envelope crosses the assembly outline.",
+                    vec!["battery".into()],
                 );
             }
             bottom_foam_contours.push(Contour {
@@ -661,11 +614,11 @@ pub(super) fn resolve_battery_space(
                 vec!["battery".into(), "bottom-foam".into()],
             );
         }
-        battery_issue(
-            issue,
+        issue(
             "battery-fit",
             Severity::Warning,
             "Battery envelope and cable exit require mechanical fit review; retention features are not generated.",
+            vec!["battery".into()],
         );
     }
     Some(BatterySpace {
