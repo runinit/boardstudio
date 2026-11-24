@@ -300,18 +300,16 @@ fn follow_basis(matrix: &Matrix, doc: &ProjectDoc) -> FollowBasis {
         }
     }
     if let Some((derived, _, _)) = boardstudio_model::mirrored_half::derived_matrix(doc, &matrix.id)
-    {
-        if let Some(pair) = doc
+        && let Some(pair) = doc
             .hardware
             .iter()
             .flat_map(|hardware| &hardware.pairs)
             .find(|pair| pair.id == derived.id)
-        {
-            return FollowBasis::Reflected {
-                translation: pair.mapping.at,
-                rotation: pair.mapping.rotation,
-            };
-        }
+    {
+        return FollowBasis::Reflected {
+            translation: pair.mapping.at,
+            rotation: pair.mapping.rotation,
+        };
     }
     FollowBasis::World
 }
