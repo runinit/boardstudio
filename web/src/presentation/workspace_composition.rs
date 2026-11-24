@@ -30,7 +30,6 @@ pub(super) struct CanvasEventHandlers {
 // The active workspace supplies its surfaces under the existing dock and canvas shells.
 #[derive(Clone)]
 pub(super) struct WorkspaceInteraction {
-    pub navigation: CanvasNavigationState,
     pub tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
     pub inspector_settings: Signal<PanelSettings>,
 }
@@ -43,8 +42,8 @@ pub(super) struct WorkspaceInteraction {
 pub(super) struct LayoutSessionServices {
     pub matrix_inspector: objects::MatrixInspectorMount,
     pub matrix_transform_inspector: objects::MatrixTransformInspectorMount,
-    pub matrix_placement: objects::MatrixPlacementMount,
-    pub mirrored_pair: objects::MirroredPairMount,
+    pub matrix_placement: objects::MatrixPlacementSession,
+    pub mirrored_pair: objects::MirroredPairSession,
     pub outline_inspector: Option<outline_lifecycle::OutlineInspectorProjection>,
     pub layout_findings: boardstudio_web_layout::layout_findings_state::LayoutFindingsState,
     pub on_return_from_layout_finding: Callback<(), ()>,
@@ -67,7 +66,7 @@ pub(super) struct WorkspaceFrame {
     pub svg: Rc<RefCell<Option<SvgElement>>>,
     pub surface_size: Signal<(f64, f64)>,
     pub matrix_setup: objects::MatrixSetupMount,
-    pub part_placement: part_placement::PartPlacementMount,
+    pub part_placement: part_placement::PartPlacementSession,
     pub placement_error: Option<String>,
     pub layout_target: Signal<Option<String>>,
     pub parts_query: parts::PartsQuery,

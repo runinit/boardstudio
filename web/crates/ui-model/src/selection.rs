@@ -410,39 +410,57 @@ fn additive_inspector_context(
         .unwrap_or_else(|| requested.clone())
 }
 
+/// Releases pointer capture and cancels the session gesture when the render
+/// that owns `pointer_id` is torn down or superseded. The active gesture lives
+/// in `CanvasInteraction`; this only owns the DOM capture and the cancel event.
 pub fn cancel_scoped_drag(
     runtime: &Rc<Runtime>,
-    drag: &Rc<RefCell<Option<crate::state::Drag>>>,
     svg: &Rc<RefCell<Option<web_sys::SvgElement>>>,
     expected_scope: Option<&Scope>,
+    pointer_id: i32,
 ) {
-    let pending = drag.borrow_mut().take();
-    if let Some(pending) = pending {
-        if expected_scope.is_some_and(|scope| scope != &pending.scope) {
-            *drag.borrow_mut() = Some(pending);
-            return;
-        }
-        if let Some(element) = svg.borrow().as_ref() {
-            let _ = element.release_pointer_capture(pending.pointer as i32);
-        }
-        cancel_drag_if_owned(runtime, &pending);
+    if let Some(element) = svg.borrow().as_ref() {
+        let _ = element.release_pointer_capture(pointer_id);
+    }
+    if expected_scope.is_some_and(|scope| runtime.scope().as_ref() != Some(scope)) {
+        return;
+    }
+    // Pan gestures never open a session gesture; only cancel when the model
+    // actually holds this pointer's gesture.
+    if runtime
+        .model()
+        .gesture
+        .is_some_and(|gesture| gesture.pointer_id == i64::from(pointer_id))
+    {
+        runtime.submit(Event::GestureCancel {
+            pointer_id: i64::from(pointer_id),
+        });
     }
 }
 
-pub fn cancel_drag_if_owned(runtime: &Rc<Runtime>, drag: &crate::state::Drag) {
-    if !drag.active || drag.pan || !owns_session_gesture(runtime, drag) {
+pub fn cancel_drag_if_owned(
+    runtime: &Rc<Runtime>,
+    pointer: i64,
+    scope: &Scope,
+    gesture_generation: Option<u64>,
+) {
+    if !owns_session_gesture(runtime, pointer, scope, gesture_generation) {
         return;
     }
     runtime.submit(Event::GestureCancel {
-        pointer_id: drag.pointer,
+        pointer_id: pointer,
     });
 }
 
-pub fn owns_session_gesture(runtime: &Rc<Runtime>, drag: &crate::state::Drag) -> bool {
-    runtime.scope().as_ref() == Some(&drag.scope)
+pub fn owns_session_gesture(
+    runtime: &Rc<Runtime>,
+    pointer: i64,
+    scope: &Scope,
+    gesture_generation: Option<u64>,
+) -> bool {
+    runtime.scope().as_ref() == Some(scope)
         && runtime.model().gesture.is_some_and(|gesture| {
-            gesture.pointer_id == drag.pointer
-                && Some(gesture.generation) == drag.gesture_generation
+            gesture.pointer_id == pointer && Some(gesture.generation) == gesture_generation
         })
 }
 

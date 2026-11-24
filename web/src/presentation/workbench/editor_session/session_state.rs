@@ -219,10 +219,10 @@ pub(in crate::presentation) struct MatrixPairWiringInput<'a> {
 }
 
 pub(in crate::presentation) struct MatrixPairWiring {
-    pub matrix_placement: objects::MatrixPlacementMount,
+    pub matrix_placement: objects::MatrixPlacementSession,
     pub on_place_matrix_assembly: EventHandler<objects::MatrixPlacementSource>,
     pub pair_created_selection: Signal<Option<objects::MirroredPairCreated>>,
-    pub mirrored_pair: objects::MirroredPairMount,
+    pub mirrored_pair: objects::MirroredPairSession,
 }
 
 pub(in crate::presentation) fn use_matrix_pair_wiring(

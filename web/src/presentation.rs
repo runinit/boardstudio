@@ -62,9 +62,9 @@ pub(crate) use boardstudio_web_ui_model::state::{
 };
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::state::{
-    CaseGenerationState, CompactPanelState, Drag, FieldPreview, FieldPreviewSource,
-    FieldPreviewState, InstanceSelection, LayerVisibility, LayoutOwnerIdentity, RelationHighlight,
-    ResolvedAppearance, WorkspaceState,
+    CaseGenerationState, CompactPanelState, FieldPreview, FieldPreviewSource, FieldPreviewState,
+    InstanceSelection, LayerVisibility, LayoutOwnerIdentity, RelationHighlight, ResolvedAppearance,
+    WorkspaceState,
 };
 pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
     PointerLocation, coordinates, coordinates_at, coordinates_with_scale, pointer_location,
@@ -144,19 +144,14 @@ pub(crate) use mechanical_settings::{
 };
 pub(crate) use notifications::RuntimeReportBanner;
 pub(crate) use owner_checks::{
-    canvas_owner_is_current, case_setup_context_is_current, current_case_layer_ids,
-    pcb_add_layout_open_handler, pcb_add_layout_owner_is_current, pcb_add_outline_select_handler,
-    pcb_owner_is_current,
+    case_setup_context_is_current, current_case_layer_ids, pcb_add_layout_open_handler,
+    pcb_add_layout_owner_is_current, pcb_add_outline_select_handler, pcb_owner_is_current,
 };
 use panels::{
     DockLayout, InspectorPanel, ObjectsPanel, PanelMode, PanelSettings, PanelSide,
     use_panel_settings,
 };
 use parts::{PartsQuery, PartsSelection};
-pub(crate) use pending_picks::{
-    PendingAnchorPick, PendingSplayOriginPick, apply_pending_anchor_pick,
-    apply_pending_splay_origin_pick,
-};
 pub(crate) use routing::WorkspaceRoutingSlots;
 use selection::{ReentrancyReset, SelectionAdapter};
 use setup_guide::{PendingNewKeyboard, SetupGuideRequest, SetupGuideStage};

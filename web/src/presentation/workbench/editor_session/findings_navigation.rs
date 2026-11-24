@@ -4,7 +4,7 @@ use boardstudio_web_ui_model::Workspace;
 pub(super) fn navigate_scoped_handler(
     runtime: Rc<Runtime>,
     adapter: SelectionAdapter,
-    drag: Rc<RefCell<Option<Drag>>>,
+    interaction: LayoutInteraction,
     svg: Rc<RefCell<Option<SvgElement>>>,
     generation: u64,
 ) -> impl FnMut((Scope, String, Option<String>)) + Clone + 'static {
@@ -36,7 +36,17 @@ pub(super) fn navigate_scoped_handler(
         if captured_scope.board_id == board_id && captured_scope.instance_id == instance_id {
             return;
         }
-        selection::cancel_scoped_drag(&runtime, &drag, &svg, Some(&captured_scope));
+        if let Some(active) = interaction
+            .part_drag()
+            .filter(|drag| drag.scope == captured_scope)
+        {
+            interaction.handle(CanvasEvent::PointerCancel(active.pointer_id));
+            selection::cancel_scoped_drag(&runtime, &svg, Some(&captured_scope), active.pointer_id);
+        }
+        if let Some(active) = interaction.pan().filter(|pan| pan.scope == captured_scope) {
+            interaction.handle(CanvasEvent::PointerCancel(active.pointer_id));
+            selection::cancel_scoped_drag(&runtime, &svg, Some(&captured_scope), active.pointer_id);
+        }
         selected_context.set(None);
         anchor_scope.set(None);
         runtime.submit(Event::Navigate {
@@ -502,7 +512,7 @@ pub(super) struct PhysicalSetupReconcileInput {
     pub token: boardstudio_application::SnapshotToken,
     pub revision: u64,
     pub generation: u64,
-    pub drag: Rc<RefCell<Option<Drag>>>,
+    pub interaction: LayoutInteraction,
 }
 
 pub(super) fn use_physical_setup_reconcile(
@@ -520,7 +530,7 @@ pub(super) fn use_physical_setup_reconcile(
         token,
         revision,
         generation,
-        drag,
+        interaction,
     } = input;
     let preference_version = instance_preference();
     let physical_setup_busy_value = physical_setup_busy();
@@ -540,7 +550,8 @@ pub(super) fn use_physical_setup_reconcile(
                     || (adapter.generation)() != generation
                     || !instance_selection::can_reconcile(&model)
                     || physical_setup_busy.peek().is_some()
-                    || drag.borrow().is_some()
+                    || interaction.part_drag().is_some()
+                    || interaction.pan().is_some()
                 {
                     return;
                 }
@@ -568,38 +579,31 @@ pub(super) fn use_physical_setup_reconcile(
 pub(super) fn use_selection_cleanup(
     runtime: Rc<Runtime>,
     adapter: SelectionAdapter,
-    drag: Rc<RefCell<Option<Drag>>>,
+    interaction: LayoutInteraction,
     svg: Rc<RefCell<Option<SvgElement>>>,
 ) {
     let layout_input = use_context::<layout_input::LayoutInput>();
     let cleanup_registration = use_hook({
         let runtime = runtime.clone();
         let adapter = adapter.clone();
-        let drag = drag.clone();
         let svg = svg.clone();
         move || {
             let id = adapter.next_cleanup_id.get();
             adapter.next_cleanup_id.set(id.wrapping_add(1).max(1));
             let weak_runtime = Rc::downgrade(&runtime);
-            let weak_drag = Rc::downgrade(&drag);
             let weak_svg = Rc::downgrade(&svg);
             let cleanup: selection::Cleanup = Rc::new(move || {
+                let doomed = interaction
+                    .part_drag()
+                    .map(|drag| drag.pointer_id)
+                    .or_else(|| interaction.pan().map(|pan| pan.pointer_id));
                 layout_input.dispatch(CanvasEvent::ScopeChanged);
-                let (Some(runtime), Some(drag), Some(svg)) = (
-                    weak_runtime.upgrade(),
-                    weak_drag.upgrade(),
-                    weak_svg.upgrade(),
-                ) else {
+                let (Some(runtime), Some(svg)) = (weak_runtime.upgrade(), weak_svg.upgrade())
+                else {
                     return;
                 };
-                let pending = drag.borrow_mut().take();
-                if let Some(pending) = pending {
-                    if let Some(element) = svg.borrow().as_ref() {
-                        let _ = element.release_pointer_capture(pending.pointer as i32);
-                    }
-                    if pending.active && !pending.pan {
-                        selection::cancel_drag_if_owned(&runtime, &pending);
-                    }
+                if let Some(pointer_id) = doomed {
+                    selection::cancel_scoped_drag(&runtime, &svg, None, pointer_id);
                 }
             });
             *adapter.cleanup.borrow_mut() = Some((id, cleanup));
@@ -639,9 +643,9 @@ pub(super) fn use_navigation_bundle(
     let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
     let runtime = &editor.runtime();
     let adapter = &state.adapter;
-    let drag = &cam.placement.drag;
     let svg = &cam.svg_surface.svg;
     let render_generation = state.render_generation;
+    let interaction = use_context::<LayoutInteraction>();
     let instance_preference = editor.instance_selection.0;
     let workspace = editor.workspace;
     let objects_open = editor.panels.objects_open;
@@ -659,7 +663,7 @@ pub(super) fn use_navigation_bundle(
     let navigate_scoped = navigate_scoped_handler(
         runtime.clone(),
         adapter.clone(),
-        drag.clone(),
+        interaction,
         svg.clone(),
         render_generation,
     );
@@ -715,7 +719,7 @@ pub(super) fn use_navigation_bundle(
             token: snapshot.token,
             revision: snapshot.document.revision,
             generation: render_generation,
-            drag: drag.clone(),
+            interaction,
         },
         navigate_scoped.clone(),
     );
@@ -725,7 +729,7 @@ pub(super) fn use_navigation_bundle(
             navigate.clone(),
             render_scope.clone(),
         );
-    use_selection_cleanup(runtime.clone(), adapter.clone(), drag.clone(), svg.clone());
+    use_selection_cleanup(runtime.clone(), adapter.clone(), interaction, svg.clone());
     (
         NavNamed {
             callbacks: LayoutFindingCallbacks {

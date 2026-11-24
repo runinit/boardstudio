@@ -6,7 +6,7 @@
 //! Switching modes cancels the current owner before opening the other so the
 //! two controllers never own the canvas at once.
 use super::matrix_setup::{MatrixSetup, MatrixSetupMount};
-use super::mirrored_pair::{MirroredPairCanvasOverlay, MirroredPairMount};
+use super::mirrored_pair::{MirroredPairCanvasOverlay, MirroredPairSession};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use dioxus::prelude::*;
 
@@ -19,7 +19,7 @@ pub enum AddMatrixMode {
 #[derive(Props, Clone, PartialEq)]
 pub struct AddMatrixSurfaceProps {
     pub matrix_setup: MatrixSetupMount,
-    pub mirrored_pair: MirroredPairMount,
+    pub mirrored_pair: MirroredPairSession,
     /// The Setup Guide renders its own inline single-matrix form; while it does,
     /// the surface hides its single mode (and its switch) so one owner mounts once.
     pub guide_covering_single: bool,

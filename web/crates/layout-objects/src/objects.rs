@@ -42,7 +42,6 @@ mod layout_selection_kind;
 mod layout_toolbar;
 mod layout_toolbar_logic;
 mod matrix_inspector;
-mod matrix_placement_controller;
 mod matrix_preparation;
 mod matrix_preset;
 mod matrix_preset_logic;
@@ -53,7 +52,6 @@ mod matrix_setup_logic;
 mod matrix_transform;
 mod mirror_links;
 mod mirrored_pair;
-mod mirrored_pair_controller;
 mod tree_projection_logic;
 pub use add_matrix_surface::{AddMatrixMode, AddMatrixSurface};
 pub use board_setup_controller::{BoardSetupMount, use_board_setup};
@@ -82,13 +80,13 @@ pub use layout_toolbar::{
     snap_label as layout_snap_label,
 };
 pub use matrix_inspector::{MatrixInspector, MatrixInspectorMount, use_matrix_inspector};
-pub use matrix_placement_controller::use_matrix_placement;
 pub use matrix_preset::{
     MatrixPreset, SwitchOrientation as MatrixSwitchOrientation, matrix_with_preset,
 };
 pub use matrix_setup::{
-    MatrixPlacementInput, MatrixPlacementMount, MatrixPlacementMove, MatrixPlacementSource,
-    MatrixSetup, MatrixSetupMount,
+    MatrixPlacementInput, MatrixPlacementMove, MatrixPlacementOwner, MatrixPlacementProjection,
+    MatrixPlacementSession, MatrixPlacementSource, MatrixSetup, MatrixSetupMount,
+    use_matrix_placement,
 };
 pub use matrix_setup_controller::use_matrix_setup;
 pub use matrix_transform::{
@@ -97,9 +95,9 @@ pub use matrix_transform::{
     use_workspace_matrix_transform,
 };
 pub use mirrored_pair::{
-    MirroredPairCanvasOverlay, MirroredPairCreated, MirroredPairMount, MirroredPairMove,
+    MirroredPairCanvasOverlay, MirroredPairCreated, MirroredPairMove, MirroredPairSession,
+    use_mirrored_pair,
 };
-pub use mirrored_pair_controller::use_mirrored_pair;
 use tree::TreeKind;
 pub use tree::{ScopedTreeContext, TreeContext};
 

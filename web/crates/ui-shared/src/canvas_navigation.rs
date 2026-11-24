@@ -1,8 +1,7 @@
 //! Shared canvas navigation state and the behavior that owns camera gestures.
 
-use boardstudio_application::Scope;
 use boardstudio_model::model::Vec2;
-use boardstudio_web_ui_model::{state::Drag, svg_coordinates::PointerLocation};
+use boardstudio_web_ui_model::svg_coordinates::PointerLocation;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::{cell::RefCell, rc::Rc};
@@ -12,7 +11,6 @@ use web_sys::SvgElement;
 #[derive(Clone)]
 pub struct CanvasNavigationState {
     surface_size: Signal<(f64, f64)>,
-    drag: Rc<RefCell<Option<Drag>>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -21,31 +19,15 @@ pub struct ZoomTarget {
     pub zoom: f64,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct PanStart {
-    pub pointer_id: i64,
-    pub scope: Scope,
-    pub generation: u64,
-    pub client: (f64, f64),
-    pub camera: Vec2,
-}
-
 pub fn use_canvas_navigation_state() -> CanvasNavigationState {
     CanvasNavigationState {
         surface_size: use_signal(|| (1.0, 1.0)),
-        drag: use_hook(|| Rc::new(RefCell::new(None))),
     }
 }
 
 impl CanvasNavigationState {
     pub fn surface_size(&self) -> Signal<(f64, f64)> {
         self.surface_size
-    }
-
-    /// Shared with page-level selection/placement arbitration; navigation owns
-    /// pan lifecycle while workspace handlers own non-navigation drags.
-    pub fn drag_interaction(&self) -> Rc<RefCell<Option<Drag>>> {
-        self.drag.clone()
     }
 
     pub fn mount_handler(
@@ -74,55 +56,27 @@ impl CanvasNavigationState {
         }
     }
 
-    pub fn start_space_pan(&self, start: PanStart) -> bool {
-        let mut drag = self.drag.borrow_mut();
-        if drag.is_some() {
-            return false;
-        }
-        *drag = Some(Drag {
-            pointer: start.pointer_id,
-            scope: start.scope,
-            generation: start.generation,
-            gesture_generation: None,
-            origin: Vec2::default(),
-            client_x: start.client.0,
-            client_y: start.client.1,
-            positions: Vec::new(),
-            last_sample: None,
-            active: true,
-            pan: true,
-            camera: start.camera,
-        });
-        true
-    }
-
     /// Finish a pan gesture by applying its accumulated camera delta and
-    /// releasing the captured pointer. Returns true when this handle owned it.
+    /// releasing the captured pointer. The active pan payload lives in
+    /// `CanvasInteraction`; navigation only applies the camera math here.
+    #[allow(clippy::too_many_arguments)]
     pub fn finish_pan(
         &self,
         runtime: &Rc<boardstudio_web_runtime::runtime::Runtime>,
         svg: &Rc<RefCell<Option<SvgElement>>>,
-        pointer_id: i32,
-        client: (f64, f64),
+        start_camera: Vec2,
+        origin_px: (f64, f64),
+        client_px: (f64, f64),
         view_box: (f64, f64),
-    ) -> bool {
-        let current = {
-            let mut drag = self.drag.borrow_mut();
-            if !drag
-                .as_ref()
-                .is_some_and(|drag| drag.pan && drag.pointer == i64::from(pointer_id))
-            {
-                return false;
-            }
-            drag.take().unwrap()
-        };
+        pointer_id: i32,
+    ) {
         if let Some(element) = svg.borrow().as_ref() {
             let rect = element.get_bounding_client_rect();
             if rect.width() > 0.0 && rect.height() > 0.0 {
                 let scale = (rect.width() / view_box.0).min(rect.height() / view_box.1);
                 if let Some(center) = Self::pan_center(
-                    current.camera,
-                    (client.0 - current.client_x, client.1 - current.client_y),
+                    start_camera,
+                    (client_px.0 - origin_px.0, client_px.1 - origin_px.1),
                     scale,
                 ) {
                     let camera = runtime.model().camera;
@@ -135,7 +89,6 @@ impl CanvasNavigationState {
             }
             let _ = element.release_pointer_capture(pointer_id);
         }
-        true
     }
 
     pub fn pan_center(start: Vec2, client_delta: (f64, f64), scale: f64) -> Option<Vec2> {

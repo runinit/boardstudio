@@ -4,26 +4,9 @@ use crate::Workspace;
 use crate::case_generation_lifecycle::AutomaticCaseGeneration;
 use crate::instance_selection;
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_model::model::{Position, Vec2};
 use boardstudio_web_runtime::operation_outcomes::OutcomeSlot;
 use dioxus::prelude::*;
 use std::collections::BTreeSet;
-
-#[derive(Clone)]
-pub struct Drag {
-    pub pointer: i64,
-    pub scope: Scope,
-    pub generation: u64,
-    pub gesture_generation: Option<u64>,
-    pub origin: Vec2,
-    pub client_x: f64,
-    pub client_y: f64,
-    pub positions: Vec<Position>,
-    pub last_sample: Option<(Vec2, f64, bool)>,
-    pub active: bool,
-    pub pan: bool,
-    pub camera: Vec2,
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LayoutOwnerIdentity {
