@@ -1,4 +1,4 @@
-use boardstudio_core::model::{PartDefinition, PartGenerator, PartKind};
+use boardstudio_model::model::{PartDefinition, PartGenerator, PartKind};
 use std::collections::BTreeMap;
 
 pub fn definition(id: &str, source: &str, kind: PartKind) -> PartDefinition {

@@ -486,42 +486,6 @@ impl Drop for CadWorker {
     }
 }
 
-/// Browser-only test seam for exercising the public worker request path with a mock Worker.
-#[cfg(feature = "test-harness")]
-#[wasm_bindgen]
-pub async fn test_cad_worker_request(url: String) -> Result<u32, JsValue> {
-    let worker = CadWorker::new(&url).map_err(|error| JsValue::from_str(&error.to_string()))?;
-    let reply = worker
-        .request(CadRequest {
-            request_id: "decoder-regression-request".into(),
-            job_id: "decoder-regression-job".into(),
-            identity: CadSnapshotIdentity {
-                token: 1,
-                session_epoch: 1,
-                document_id: "decoder-regression-document".into(),
-                board_id: "decoder-regression-board".into(),
-                instance_id: None,
-                revision: 1,
-            },
-            operation: CadOperation::ReadStep,
-            prepared: None,
-            source_sha256: Some(
-                "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a".into(),
-            ),
-            step_import_options: None,
-            collision_query: None,
-            generated_analysis_request: None,
-            collision_meshes: None,
-            input_bytes: vec![1],
-        })
-        .await
-        .map_err(|error| JsValue::from_str(&error.to_string()))?;
-    let result = reply
-        .result
-        .ok_or_else(|| JsValue::from_str("CAD test worker returned no result"))?;
-    Ok(result.bodies.len() as u32)
-}
-
 fn validate_request(request: &CadRequest) -> Result<(), CadWorkerError> {
     if request.operation == CadOperation::AnalyzeGeneratedBody {
         if !request.input_bytes.is_empty()

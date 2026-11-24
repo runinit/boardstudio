@@ -11,24 +11,6 @@ pub(crate) use boardstudio_web_runtime::runtime;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use boardstudio_web_ui_model::state::*;
 
-#[cfg(target_arch = "wasm32")]
-pub(crate) use boardstudio_web_ui_shared::project_menu::close_project_menu;
-
-#[cfg(target_arch = "wasm32")]
-pub(crate) mod setup_guide {
-    pub use boardstudio_web_ui_model::state::{PendingNewKeyboard, SetupGuideRequest};
-}
-
-#[cfg(any(target_arch = "wasm32", test))]
-pub(crate) mod pcb_wiring {
-    pub use boardstudio_web_ui_model::wiring::PcbWiringResolution;
-}
-
-#[cfg(any(target_arch = "wasm32", test))]
-pub(crate) mod objects {
-    pub use boardstudio_web_ui_model::tree::TreeContext;
-}
-
 #[cfg(any(target_arch = "wasm32", test))]
 pub(crate) mod demo_projects;
 #[cfg(target_arch = "wasm32")]

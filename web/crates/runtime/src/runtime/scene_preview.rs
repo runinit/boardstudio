@@ -130,17 +130,6 @@ impl Runtime {
         if !is_current() {
             return Err("Case gesture preview was superseded".into());
         }
-        #[cfg(any(test, feature = "test-support"))]
-        {
-            let executor = self
-                .test
-                .case_gesture_preview_test_executor
-                .borrow()
-                .clone();
-            if let Some(executor) = executor {
-                return executor(snapshot, owner.scope.clone());
-            }
-        }
         let prepared = prepare_captured_case(&snapshot, &owner.scope, false)
             .map_err(|error| format!("Case preview preparation failed: {error:?}"))?;
         if !is_current() {

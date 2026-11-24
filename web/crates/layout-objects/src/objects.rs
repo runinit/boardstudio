@@ -29,7 +29,6 @@ mod layout_align;
 mod layout_align_geometry;
 mod layout_align_logic;
 mod layout_anchor_pick;
-mod layout_canvas_controls;
 mod layout_rail;
 mod layout_rail_chrome;
 mod layout_rail_menu;
@@ -58,7 +57,6 @@ pub use existing_half::{ExistingHalfMount, ExistingHalfSetup};
 pub use keycap_size::{KeySizeControls, KeySizeMount, use_key_size};
 pub use layout_align::{AlignCommand, AlignReference, LayoutAlignMount, use_canvas_align};
 pub use layout_anchor_pick::{AnchorPickOwner, LayoutAnchorPickOverlay};
-pub use layout_canvas_controls::LayoutCanvasControls;
 pub use layout_rail::{
     LayoutRailOverlay, LayoutTransformRuntime, LayoutTransformTool, RailTarget, ToolActivation,
     activate_transform_tool,

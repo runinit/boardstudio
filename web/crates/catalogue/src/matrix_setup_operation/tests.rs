@@ -1,9 +1,7 @@
 use super::{MatrixSetupPreset, MatrixSetupRequest, next_matrix_id, prepare_matrix};
 use boardstudio_core::model::{Part, PartKind, Pose2, Side, Vec2};
 
-#[path = "test_catalogue.rs"]
-mod test_catalogue;
-use test_catalogue::{catalogue, definition};
+use super::test_catalogue::{catalogue, definition};
 
 #[test]
 fn matrix_setup_builds_the_reference_mx_rgb_cell_recipe_and_owned_definition_snapshots() {

@@ -15,9 +15,13 @@ async fn archive_exactly_at_size_limit_reaches_normal_validation() {
     let runtime = project_name_test_support::new_runtime();
     project_name_test_support::open_document(&runtime, in_process_support::board_document()).await;
     let imported = ProjectDoc::empty("archive-at-limit", "At limit");
-    let prepared =
-        crate::portable_archive::prepare_archive(&imported, &BTreeMap::new(), vec![], false)
-            .unwrap();
+    let prepared = boardstudio_web_runtime::portable_archive::prepare_archive(
+        &imported,
+        &BTreeMap::new(),
+        vec![],
+        false,
+    )
+    .unwrap();
     let (_, buffers) = boardstudio_core::archive::request(&prepared.metadata, &prepared.buffers);
     let parts = Array::new();
     parts.push(&Uint8Array::from(buffers[0].as_slice()));

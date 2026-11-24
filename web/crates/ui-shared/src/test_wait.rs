@@ -46,14 +46,6 @@ pub async fn bounded<T>(
     .await
 }
 
-/// [`bounded`] with the shared bound, panicking with the wait's name on timeout.
-pub async fn wait_until_future<T>(what: &str, future: impl Future<Output = T>) -> T {
-    match bounded(what, WAIT_BOUND_MS, future).await {
-        Ok(value) => value,
-        Err(message) => panic!("{message}"),
-    }
-}
-
 /// Polls `step` until it returns true, or fails with `what` once `bound_ms` has elapsed.
 ///
 /// Each poll awaits `step`, so a step can do work before it checks (for example, draining the
@@ -102,18 +94,4 @@ pub async fn wait_until_step(what: &str, step: impl AsyncFnMut() -> bool) {
     if let Err(message) = wait_for_step(what, WAIT_BOUND_MS, step).await {
         panic!("{message}");
     }
-}
-
-/// Drive the fixture before each check of an observed state.
-pub async fn settle_until<T>(
-    fixture: &T,
-    mut drive: impl AsyncFnMut(&T),
-    what: &str,
-    condition: impl Fn() -> bool,
-) {
-    wait_until_step(what, async || {
-        drive(fixture).await;
-        condition()
-    })
-    .await;
 }

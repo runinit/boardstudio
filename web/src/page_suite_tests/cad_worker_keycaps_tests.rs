@@ -33,7 +33,7 @@ impl Drop for WorkerSource {
     }
 }
 
-fn spec() -> KeycapSpec {
+pub(super) fn spec() -> KeycapSpec {
     KeycapSpec {
         id: "key-1".into(),
         reference: "A1".into(),

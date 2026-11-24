@@ -49,65 +49,12 @@ mod objects {
     #[cfg(test)]
     pub use boardstudio_web_ui_model::tree::{ScopedTreeContext, TreeContext, resolve_selection};
 
-    /// Shared matrix-template fixture for native lifecycle tests. It mirrors the catalogue
-    /// crate's `test_catalogue.rs` without pulling that crate's `#[cfg(test)]` module across
-    /// crates (inline test modules cannot `#[path]`-include it through a virtual directory).
     #[cfg(test)]
     mod test_fixtures {
         use super::super::runtime::Runtime;
         use boardstudio_application::Event;
-        use boardstudio_core::model::{Board, PartDefinition, PartGenerator, PartKind, ProjectDoc};
-        use std::collections::BTreeMap;
-
-        pub fn definition(id: &str, source: &str, kind: PartKind) -> PartDefinition {
-            PartDefinition {
-                hardware_profile: None,
-                input_profile: None,
-                mechanical_profile: None,
-                id: id.into(),
-                name: id.into(),
-                kind,
-                keycap: None,
-                envelope_source: None,
-                kicad_source: None,
-                terminals: BTreeMap::new(),
-                matrix_terminals: None,
-                envelope_notice: None,
-                courtyard: vec![],
-                pads: vec![],
-                models: None,
-                generator: Some(PartGenerator {
-                    source: source.into(),
-                    version: "fixture".into(),
-                    parameters: BTreeMap::new(),
-                }),
-            }
-        }
-
-        pub fn catalogue() -> Vec<PartDefinition> {
-            vec![
-                definition(
-                    "generator:ceoloide/switch_mx",
-                    "ceoloide/switch_mx",
-                    PartKind::Switch,
-                ),
-                definition(
-                    "generator:ceoloide/switch_choc_v1_v2",
-                    "ceoloide/switch_choc_v1_v2",
-                    PartKind::Switch,
-                ),
-                definition(
-                    "generator:ceoloide/diode_tht_sod123",
-                    "ceoloide/diode_tht_sod123",
-                    PartKind::Passive,
-                ),
-                definition(
-                    "generator:ceoloide/led_sk6812mini-e",
-                    "ceoloide/led_sk6812mini-e",
-                    PartKind::Passive,
-                ),
-            ]
-        }
+        use boardstudio_core::model::{Board, ProjectDoc};
+        pub use boardstudio_web_catalogue::matrix_setup_operation::test_catalogue::catalogue;
 
         /// An empty saved document with one board, optionally carrying the
         /// single configured physical instance the setup owners admit.

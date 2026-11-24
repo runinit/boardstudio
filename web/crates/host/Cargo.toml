@@ -9,7 +9,6 @@ description = "Browser host services for the BoardStudio page: storage, CAD work
 [features]
 # The page's host services (storage, renderer host, CAD job capture).
 page = ["boardstudio-web-worker-host/cad", "dep:boardstudio-application", "dep:boardstudio-core-kernel", "dep:boardstudio-core-mechanical", "dep:boardstudio-model", "dep:serde_json"]
-test-harness = ["boardstudio-web-worker-host?/test-harness"]
 # Test-only hooks the page suite drives; forwards so run-wasm-tests.py's
 # `--features page,boardstudio-web-host/test-support` enables both crates.
 test-support = ["boardstudio-web-worker-host?/test-support"]

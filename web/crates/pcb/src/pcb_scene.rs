@@ -1,7 +1,7 @@
 //! Read-only host scene projection for the currently accepted PCB board.
-use crate::presentation::footprint_graphics::FootprintGraphics;
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
 use boardstudio_model::model::{PadShape, Side, Vec2};
+use boardstudio_web_ui_shared::footprint_graphics::FootprintGraphics;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::collections::BTreeSet;

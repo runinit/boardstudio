@@ -1,14 +1,14 @@
 //! Private owner for Keycaps finding navigation effects.
-use super::{keycaps_fit, objects};
+use super::keycaps_fit;
 use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
 use boardstudio_model::model::{ProjectDoc, Vec2};
-use boardstudio_web_ui_model::Workspace;
+use boardstudio_web_ui_model::{Workspace, tree::TreeContext};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Destination {
-    Layout(objects::TreeContext),
+    Layout(TreeContext),
     CaseLayer(String),
     CaseBody(String),
 }
@@ -203,18 +203,9 @@ pub fn queue_owner_focus(
 #[derive(Clone, Debug, PartialEq)]
 pub enum RouteAction {
     SetWorkspace(Workspace),
-    SelectTree {
-        scope: Scope,
-        context: objects::TreeContext,
-    },
-    SelectCaseLayer {
-        scope: Scope,
-        layer_id: String,
-    },
-    SelectCaseBody {
-        scope: Scope,
-        body_id: String,
-    },
+    SelectTree { scope: Scope, context: TreeContext },
+    SelectCaseLayer { scope: Scope, layer_id: String },
+    SelectCaseBody { scope: Scope, body_id: String },
     CloseObjects,
     OpenInspector,
     PinInspector,
@@ -245,7 +236,7 @@ pub fn request_owner_is_current(
 pub fn route_effects(
     request: &keycaps_fit::FindingNavigationRequest,
     target: &keycaps_fit::FindingNavigationTarget,
-    part_context: Option<objects::TreeContext>,
+    part_context: Option<TreeContext>,
     generation: u64,
 ) -> Option<RouteEffects> {
     if request.target != *target {
@@ -259,14 +250,14 @@ pub fn route_effects(
         T::Body { body_id, .. } => (Destination::CaseBody(body_id.clone()), false, true),
         T::Part { .. } => (Destination::Layout(part_context?), true, true),
         T::Matrix { matrix_id, .. } => (
-            Destination::Layout(objects::TreeContext::Matrix {
+            Destination::Layout(TreeContext::Matrix {
                 matrix_id: matrix_id.clone(),
             }),
             true,
             true,
         ),
         T::Outline { board_id } | T::Board { board_id } => (
-            Destination::Layout(objects::TreeContext::Outline {
+            Destination::Layout(TreeContext::Outline {
                 board_id: board_id.clone(),
             }),
             true,
@@ -289,9 +280,7 @@ pub fn route_effects(
 pub fn admit_accepted_request(
     request: &keycaps_fit::FindingNavigationRequest,
     a: NavigationAdmission<'_>,
-    part_context_for_target: impl FnOnce(
-        &keycaps_fit::FindingNavigationTarget,
-    ) -> Option<objects::TreeContext>,
+    part_context_for_target: impl FnOnce(&keycaps_fit::FindingNavigationTarget) -> Option<TreeContext>,
 ) -> Option<AdmittedNavigation> {
     if !request_owner_is_current(
         a.current_workspace,
@@ -497,7 +486,7 @@ mod tests {
             board_id: "b".into(),
             instance_id: None,
         };
-        let dest = Destination::Layout(objects::TreeContext::Outline {
+        let dest = Destination::Layout(TreeContext::Outline {
             board_id: "b".into(),
         });
         let expected = NavigationOwner {

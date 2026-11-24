@@ -21,10 +21,10 @@ use crate::case_generation_lifecycle::{
 #[component]
 pub fn CasePanel(
     generation_ready: bool,
-    mechanical_settings: Option<crate::presentation::MechanicalSettingsProps>,
+    mechanical_settings: Option<crate::mechanical_settings::MechanicalSettingsProps>,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
-    let instance_selection = use_context::<crate::presentation::InstanceSelection>();
+    let instance_selection = use_context::<crate::InstanceSelection>();
     let runtime_version = use_context::<Signal<u64>>();
     let _ = runtime_version();
     let _ = try_use_context::<boardstudio_web_ui_shared::DurabilityVersion>().map(|d| d.0());
@@ -62,7 +62,7 @@ pub fn CasePanel(
     let Some(snapshot) = model.accepted.as_ref() else {
         return rsx! {};
     };
-    let case_generation = use_context::<crate::presentation::CaseGenerationState>();
+    let case_generation = use_context::<crate::CaseGenerationState>();
     let mut live_preview = case_generation.live_preview;
     let mut automatic_generation = case_generation.automatic;
     let current_scope = runtime.scope();

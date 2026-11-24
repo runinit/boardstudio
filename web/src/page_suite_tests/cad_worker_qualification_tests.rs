@@ -17,7 +17,7 @@ use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 use wasm_bindgen_test::wasm_bindgen_test;
 use web_sys::DedicatedWorkerGlobalScope;
 
-fn fixture() -> serde_json::Value {
+pub(super) fn fixture() -> serde_json::Value {
     serde_json::from_str(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../cad/wasm/tests/fixtures/generated-analysis-contract.json"
@@ -127,17 +127,23 @@ pub(super) fn controlled_provider(unqualified: bool) -> JsValue {
         .unwrap()
 }
 
-fn preparation(id: &str) -> WireRequest {
-    let body: PreparedCaseIR = serde_json::from_value(fixture()["preparedBody"].clone()).unwrap();
+pub(super) fn analysis_request(
+    id: &str,
+    token: u64,
+    document_id: &str,
+    board_id: &str,
+    body: PreparedCaseIR,
+    target_deflection_mm: Option<f64>,
+) -> WireRequest {
     WireRequest {
         header: CadEnvelope {
             request_id: id.into(),
             job_id: id.into(),
             identity: CadSnapshotIdentity {
-                token: 11,
-                session_epoch: 2,
-                document_id: "contract-document".into(),
-                board_id: "contract-board".into(),
+                token,
+                session_epoch: if token == 3 { 1 } else { 2 },
+                document_id: document_id.into(),
+                board_id: board_id.into(),
                 instance_id: None,
                 revision: body.revision,
             },
@@ -146,7 +152,7 @@ fn preparation(id: &str) -> WireRequest {
         generated_analysis_request: Some(CadGeneratedAnalysisRequest {
             body_id: body.body.id.clone(),
             geometry_identity: generated_geometry_identity(&body).unwrap(),
-            target_deflection_mm: None,
+            target_deflection_mm,
         }),
         prepared: Some(PreparedCaseAssemblyIR {
             revision: body.revision,
@@ -160,6 +166,11 @@ fn preparation(id: &str) -> WireRequest {
         packaged_step: false,
         keycaps: None,
     }
+}
+
+fn preparation(id: &str) -> WireRequest {
+    let body: PreparedCaseIR = serde_json::from_value(fixture()["preparedBody"].clone()).unwrap();
+    analysis_request(id, 11, "contract-document", "contract-board", body, None)
 }
 
 async fn prepare(

@@ -12,8 +12,6 @@
 // Modules keep the page bin's paths: `super::InstanceSelection`, `super::objects::TreeContext`,
 // `crate::presentation::model_delivery`, `crate::runtime`.
 #[cfg(target_arch = "wasm32")]
-pub(crate) use crate as presentation;
-#[cfg(target_arch = "wasm32")]
 pub(crate) use boardstudio_web_runtime::case_generation_lifecycle;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use boardstudio_web_runtime::{

@@ -36,31 +36,6 @@ pub fn board_reference_owner_is_current(
         .is_some_and(|accepted| accepted.token == token && accepted.document.revision == revision)
 }
 
-pub fn board_reference_target_is_current(
-    runtime: &Rc<Runtime>,
-    workspace: Signal<Workspace>,
-    adapter: &SelectionAdapter,
-    owner: &LayoutOwnerIdentity,
-    reference_id: &str,
-    source_asset_id: &str,
-) -> bool {
-    if !board_reference_owner_lineage_is_current(runtime, workspace, adapter, owner) {
-        return false;
-    }
-    let model = runtime.model();
-    let Some(scope) = owner.scope.as_ref() else {
-        return false;
-    };
-    active_board_scope_matches(&model, scope)
-        && model.accepted.as_ref().is_some_and(|accepted| {
-            accepted.document.board_references.iter().any(|reference| {
-                reference.id == reference_id
-                    && reference.board_id == scope.board_id
-                    && reference.asset_id == source_asset_id
-            })
-        })
-}
-
 pub fn board_reference_owner_lineage_is_current(
     runtime: &Rc<Runtime>,
     workspace: Signal<Workspace>,

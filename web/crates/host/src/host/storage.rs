@@ -409,22 +409,6 @@ impl BrowserStore {
             .await
     }
 
-    /// Store one raw record without validation, so tests can fabricate entries
-    /// the typed writers never produce (for example values JSON cannot
-    /// represent, which decode to unreadable records with no token).
-    #[cfg(any(test, feature = "test-support"))]
-    pub async fn put_raw_record_for_test(&self, value: JsValue) -> Result<(), PersistError> {
-        let store = self.clone();
-        storage_task(async move {
-            let key = Reflect::get(&value, &"id".into()).map_err(js_error)?;
-            let result = store
-                .change_project(key, None, Some((value, None)), vec![], vec![])
-                .await;
-            result.map_err(|error| PersistError(error.to_string()))
-        })
-        .await
-    }
-
     pub async fn delete_project_expected(
         &self,
         project_id: String,

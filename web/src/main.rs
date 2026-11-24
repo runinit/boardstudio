@@ -1,12 +1,7 @@
 // The page's non-UI layer lives in `boardstudio-web-runtime`; re-export its modules at
 // the crate root so presentation code keeps addressing them as `crate::<module>`.
-#[cfg(feature = "page")]
-#[allow(unused_imports)]
-use boardstudio_web_runtime::{
-    archive_export, bundled_models, case_generation_lifecycle, case_model_lifecycle, case_preview,
-    firmware_position_projection, layout_viewer_source, model_delivery, operation_outcomes,
-    parts_preview, portable_archive, runtime,
-};
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
+use boardstudio_web_runtime::{case_generation_lifecycle, runtime};
 
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 pub(crate) use boardstudio_web_case::cad_presentation;

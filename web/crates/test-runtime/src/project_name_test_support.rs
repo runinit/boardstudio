@@ -1,8 +1,7 @@
 use super::in_process_support::InProcessAdapters;
 pub use crate::runtime::test_hooks::{
-    deliver_completion, drive_pending, fail_storage_initialization, fixed_command_event, navigate,
-    observe, observe_next, replace_document, replace_session, run_effect, run_pending,
-    set_storage_initializing, submit_fixed_command, take_held_effects,
+    deliver_completion, navigate, observe, observe_next, replace_document, run_pending,
+    submit_fixed_command, take_held_effects,
 };
 use crate::runtime::{Runtime, test_hooks};
 use boardstudio_application::{Event, Session};
@@ -46,38 +45,12 @@ pub(super) fn installed(runtime: &Runtime) -> Rc<InProcessAdapters> {
     adapters.downcast().expect("in-process adapter type")
 }
 
-pub fn gate_open_saved_result(
-    runtime: &Runtime,
-) -> (
-    futures_channel::oneshot::Receiver<()>,
-    futures_channel::oneshot::Sender<()>,
-) {
-    installed(runtime).gate_next_store_read()
-}
-
 pub fn track_import_file(runtime: &Runtime) -> futures_channel::oneshot::Receiver<()> {
-    installed(runtime).observe_next_open()
-}
-
-pub fn track_open_saved(runtime: &Runtime) -> futures_channel::oneshot::Receiver<()> {
     installed(runtime).observe_next_open()
 }
 
 pub fn track_next_persist_target(runtime: &Runtime) -> futures_channel::oneshot::Receiver<()> {
     installed(runtime).persistence().observe_next_target()
-}
-
-pub fn fail_next_persist(runtime: &Runtime, reason: impl Into<String>) {
-    installed(runtime).persistence().fail_next_save(reason);
-}
-
-pub fn gate_next_persist(
-    runtime: &Runtime,
-) -> (
-    futures_channel::oneshot::Receiver<()>,
-    futures_channel::oneshot::Sender<()>,
-) {
-    installed(runtime).persistence().gate_next_save()
 }
 
 /// The copy a completed save left in the in-process memory store.

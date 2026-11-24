@@ -57,13 +57,9 @@ pub(crate) use boardstudio_web_ui_model::selection::{
     active_board_scope_matches, current_layout_owner, layout_owner_is_current,
 };
 pub(crate) use boardstudio_web_ui_model::state::{
-    AppearanceState, PreferenceStorageWarning, ThemeState,
-};
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_ui_model::state::{
-    CaseGenerationState, CompactPanelState, FieldPreview, FieldPreviewSource, FieldPreviewState,
-    InstanceSelection, LayerVisibility, LayoutOwnerIdentity, RelationHighlight, ResolvedAppearance,
-    WorkspaceState,
+    AppearanceState, CaseGenerationState, CompactPanelState, FieldPreview, FieldPreviewSource,
+    FieldPreviewState, InstanceSelection, LayerVisibility, LayoutOwnerIdentity,
+    PreferenceStorageWarning, RelationHighlight, ResolvedAppearance, ThemeState, WorkspaceState,
 };
 pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
     PointerLocation, coordinates, coordinates_at, coordinates_with_scale, pointer_location,
@@ -116,7 +112,6 @@ use boardstudio_web_layout::canvas_interaction::{
     CanvasEvent, CanvasKey, CanvasMode, GestureSeed, InteractionEffect, LayoutInteraction,
     client_point, focus_svg,
 };
-pub(crate) use boardstudio_web_ui_shared::footprint_graphics;
 use canvas_layers::CanvasLayers;
 pub(crate) use companion_placement::{
     companion_placement_projection, matrix_context_relations, relation_target_request,
@@ -173,9 +168,9 @@ use boardstudio_core::model::{
     CompanionPlacementTarget, Contour, EditOperation, Finding as LayoutFinding, Part, Position,
     Vec2,
 };
+use boardstudio_web_ui_shared::footprint_graphics::FootprintGraphics;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
-use footprint_graphics::FootprintGraphics;
 use std::{
     cell::{Cell, RefCell},
     collections::{BTreeSet, HashSet},

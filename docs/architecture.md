@@ -24,7 +24,7 @@ presentation calls typed methods and reads accepted state.
 | `web/crates/ui-model/` | UI vocabulary shared by presentation code: tree contexts, selection, workspace and view state |
 | `web/crates/ui-shared/` | UI used by several workspaces: panels, canvas layers, layout camera, footprint graphics, model import |
 | `web/crates/catalogue/` | Bundled component catalogue loading, generator normalization, physical setup proposals; no Dioxus |
-| `web/crates/workspaces/`, `case/`, `parts/`, `pcb/`, `layout/`, `layout-objects/` | Workspace features: Library, Keymap editor and Keycap fit/scenes; Case viewer and mechanical adapters; Parts browser and generators; PCB wiring and physical setup; Layout objects tree, outlines, placement, setup guide |
+| `web/crates/workspaces/`, `case/`, `parts/`, `pcb/`, `layout/`, `layout-objects/` | Workspace features (no sideways `-> case` deps): Library, Keymap editor, and keycap fit/settings/3D `<Viewport3D />` assembly viewer; Case viewport overlays and mechanical settings; Parts browser and generators; PCB wiring and physical setup; Layout objects tree, outlines, placement, setup guide |
 | `web/crates/test-runtime/` | Shared native fixtures and detached-task support for web tests (`new_native_runtime`, layout fixtures) |
 | `renderer/` | GPU scene rendering, picking and camera behavior |
 | `cad/` | CAD provider bindings and the pure-Rust CAD WASM kernel |

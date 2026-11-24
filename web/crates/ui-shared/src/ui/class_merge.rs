@@ -19,20 +19,12 @@
 /// Fast path: when at most one part carries any token (the common case of a base string
 /// plus an empty `class` prop), that part is returned verbatim without tokenizing.
 pub(crate) fn merge_classes(parts: &[&str]) -> String {
-    let mut sole: Option<&str> = None;
-    let mut non_empty = 0;
-    for part in parts {
-        if part.split_whitespace().next().is_none() {
-            continue;
-        }
-        non_empty += 1;
-        if non_empty > 1 {
-            break;
-        }
-        sole = Some(part);
-    }
-    if non_empty <= 1 {
-        return sole.unwrap_or("").to_owned();
+    let mut non_empty = parts
+        .iter()
+        .copied()
+        .filter(|p| p.split_whitespace().next().is_some());
+    if let (first, None) = (non_empty.next(), non_empty.next()) {
+        return first.unwrap_or("").to_owned();
     }
     let mut surviving: Vec<(&str, &'static str, &str, &str)> = Vec::new();
     for part in parts {
@@ -83,103 +75,65 @@ fn split_modifiers(token: &str) -> (&str, &str) {
     }
 }
 
-/// Whether `(group, detail)` supersedes an earlier `(old_group, old_detail)` token.
-fn evicts(group: &str, detail: &str, old_group: &str, old_detail: &str) -> bool {
-    if group == old_group {
-        return detail == old_detail;
-    }
-    match group {
-        "size" => matches!(old_group, "w" | "h" | "size"),
-        "w" => matches!(old_group, "w" | "size"),
-        "h" => matches!(old_group, "h" | "size"),
-        "p" => matches!(old_group, "p" | "px" | "py" | "pt" | "pr" | "pb" | "pl"),
-        "px" => matches!(old_group, "px" | "pl" | "pr"),
-        "py" => matches!(old_group, "py" | "pt" | "pb"),
-        "m" => matches!(old_group, "m" | "mx" | "my" | "mt" | "mr" | "mb" | "ml"),
-        "mx" => matches!(old_group, "mx" | "ml" | "mr"),
-        "my" => matches!(old_group, "my" | "mt" | "mb"),
-        "gap" => matches!(old_group, "gap" | "gap-x" | "gap-y"),
-        "rounded" => matches!(old_group, "rounded" | "rounded-dir"),
-        "inset" => matches!(
-            old_group,
-            "inset" | "inset-x" | "inset-y" | "top" | "right" | "bottom" | "left"
-        ),
-        "inset-x" => matches!(old_group, "inset-x" | "left" | "right"),
-        "inset-y" => matches!(old_group, "inset-y" | "top" | "bottom"),
-        _ => false,
-    }
+fn has_word(words: &str, token: &str) -> bool {
+    words.split(' ').any(|word| word == token)
 }
 
-const PREFIX_GROUPS: &[(&str, &str)] = &[
-    ("whitespace-", "whitespace"),
-    ("tracking-", "tracking"),
-    ("leading-", "leading"),
-    ("justify-items-", "justify-items"),
-    ("justify-self-", "justify-self"),
-    ("justify-", "justify"),
-    ("items-", "items"),
-    ("content-", "content"),
-    ("self-", "self"),
-    ("order-", "order"),
-    ("opacity-", "opacity"),
-    ("z-", "z"),
-    ("cursor-", "cursor"),
-    ("basis-", "basis"),
-    ("pointer-events-", "pointer-events"),
-    ("duration-", "duration"),
-    ("aspect-", "aspect"),
-    ("line-clamp-", "line-clamp"),
-    ("select-", "select"),
-    ("overscroll-", "overscroll"),
-    ("overflow-x-", "overflow-x"),
-    ("overflow-y-", "overflow-y"),
-    ("overflow-", "overflow"),
-    ("gap-x-", "gap-x"),
-    ("gap-y-", "gap-y"),
-    ("min-w-", "min-w"),
-    ("max-w-", "max-w"),
-    ("min-h-", "min-h"),
-    ("max-h-", "max-h"),
-    ("px-", "px"),
-    ("py-", "py"),
-    ("pt-", "pt"),
-    ("pr-", "pr"),
-    ("pb-", "pb"),
-    ("pl-", "pl"),
-    ("ps-", "ps"),
-    ("pe-", "pe"),
-    ("mx-", "mx"),
-    ("my-", "my"),
-    ("mt-", "mt"),
-    ("mr-", "mr"),
-    ("mb-", "mb"),
-    ("ml-", "ml"),
-    ("ms-", "ms"),
-    ("me-", "me"),
-    ("inset-x-", "inset-x"),
-    ("inset-y-", "inset-y"),
-    ("top-", "top"),
-    ("right-", "right"),
-    ("bottom-", "bottom"),
-    ("left-", "left"),
-    ("rotate-", "rotate"),
-    ("scale-", "scale"),
+const EVICT_SUPERSET: &[(&str, &str)] = &[
+    ("size", "w h"),
+    ("w", "size"),
+    ("h", "size"),
+    ("p", "px py pt pr pb pl"),
+    ("px", "pl pr"),
+    ("py", "pt pb"),
+    ("m", "mx my mt mr mb ml"),
+    ("mx", "ml mr"),
+    ("my", "mt mb"),
+    ("gap", "gap-x gap-y"),
+    ("rounded", "rounded-dir"),
+    ("inset", "inset-x inset-y top right bottom left"),
+    ("inset-x", "left right"),
+    ("inset-y", "top bottom"),
 ];
 
-const EXACT_OR_PREFIX_GROUPS: &[(&str, &str)] = &[
-    ("transition", "transition"),
-    ("shadow", "shadow"),
-    ("outline", "outline"),
-    ("shrink", "shrink"),
-    ("grow", "grow"),
-    ("gap", "gap"),
-    ("size", "size"),
-    ("w", "w"),
-    ("h", "h"),
-    ("p", "p"),
-    ("m", "m"),
-    ("inset", "inset"),
+/// Whether `(group, detail)` supersedes an earlier `(old_group, old_detail)` token.
+fn evicts(group: &str, detail: &str, old_group: &str, old_detail: &str) -> bool {
+    (group == old_group && detail == old_detail)
+        || EVICT_SUPERSET
+            .iter()
+            .any(|&(g, olds)| g == group && has_word(olds, old_group))
+}
+
+// Ordered longest-prefix-first so e.g. `justify-items-` beats `justify-` and `overflow-x-` beats `overflow-`.
+const PREFIX_GROUPS: &str = "\
+    whitespace tracking leading justify-items justify-self justify items content self order \
+    opacity z cursor basis pointer-events duration aspect line-clamp select overscroll \
+    overflow-x overflow-y overflow gap-x gap-y min-w max-w min-h max-h px py pt pr pb pl ps \
+    pe mx my mt mr mb ml ms me inset-x inset-y top right bottom left rotate scale";
+
+const EXACT_OR_PREFIX_GROUPS: &str = "transition shadow outline shrink grow gap size w h p m inset";
+
+const EXACT_GROUPS: &[(&str, &str)] = &[
+    (
+        "block inline-block inline flex inline-flex table inline-table grid inline-grid contents list-item hidden",
+        "display",
+    ),
+    (
+        "flex-row flex-row-reverse flex-col flex-col-reverse",
+        "flex-direction",
+    ),
+    ("flex-wrap flex-wrap-reverse flex-nowrap", "flex-wrap"),
+    ("static fixed absolute relative sticky", "position"),
+    ("truncate", "text-overflow"),
+    ("ring", "ring-width"),
+    ("rounded", "rounded"),
+    ("border", "border-width"),
 ];
+
+const TEXT_SIZES: &str = "xs sm base lg xl 2xl 3xl 4xl 5xl 6xl 7xl 8xl 9xl";
+const ROUNDED_DIRS: &str = "t r b l tl tr bl br s e ss se es ee start end";
+const BG_POSITIONS: &str =
+    "bottom center left left-bottom left-top right right-bottom right-top top";
 
 fn starts_with_bracket_digit(rest: &str) -> bool {
     rest.starts_with('[') && rest.as_bytes().get(1).is_some_and(u8::is_ascii_digit)
@@ -188,84 +142,49 @@ fn starts_with_bracket_digit(rest: &str) -> bool {
 /// Classify `base` into a conflict group + detail slice. Unknown utilities dedup exactly.
 fn conflict_group(base: &str) -> (&'static str, &str) {
     let core = base.strip_prefix('-').unwrap_or(base);
-    match core {
-        "block" | "inline-block" | "inline" | "flex" | "inline-flex" | "table" | "inline-table"
-        | "grid" | "inline-grid" | "contents" | "list-item" | "hidden" => return ("display", ""),
-        "flex-row" | "flex-row-reverse" | "flex-col" | "flex-col-reverse" => {
-            return ("flex-direction", "");
-        }
-        "flex-wrap" | "flex-wrap-reverse" | "flex-nowrap" => return ("flex-wrap", ""),
-        "static" | "fixed" | "absolute" | "relative" | "sticky" => return ("position", ""),
-        "truncate" => return ("text-overflow", ""),
-        "ring" => return ("ring-width", ""),
-        "rounded" => return ("rounded", ""),
-        "border" => return ("border-width", ""),
-        _ => {}
-    }
-    if let Some(&(_, group)) = PREFIX_GROUPS
+    if let Some(&(_, group)) = EXACT_GROUPS
         .iter()
-        .find(|&&(prefix, _)| core.starts_with(prefix))
+        .find(|&&(tokens, _)| has_word(tokens, core))
     {
         return (group, "");
     }
-    if let Some(&(_, group)) = EXACT_OR_PREFIX_GROUPS.iter().find(|&&(stem, _)| {
-        core == stem || (core.starts_with(stem) && core.as_bytes().get(stem.len()) == Some(&b'-'))
-    }) {
+    if let Some(group) = PREFIX_GROUPS
+        .split(' ')
+        .find(|&g| core.strip_prefix(g).is_some_and(|r| r.starts_with('-')))
+    {
+        return (group, "");
+    }
+    if let Some(group) = EXACT_OR_PREFIX_GROUPS
+        .split(' ')
+        .find(|&g| core == g || core.strip_prefix(g).is_some_and(|r| r.starts_with('-')))
+    {
         return (group, "");
     }
     if let Some(rest) = core.strip_prefix("font-") {
-        if matches!(
+        if has_word(
+            "thin extralight light normal medium semibold bold extrabold black",
             rest,
-            "thin"
-                | "extralight"
-                | "light"
-                | "normal"
-                | "medium"
-                | "semibold"
-                | "bold"
-                | "extrabold"
-                | "black"
         ) || rest.starts_with('[')
         {
             return ("font-weight", "");
         }
-        if matches!(rest, "sans" | "serif" | "mono") || rest.starts_with('(') {
+        if has_word("sans serif mono", rest) || rest.starts_with('(') {
             return ("font-family", "");
         }
         return ("", base);
     }
     if let Some(rest) = core.strip_prefix("text-") {
-        if matches!(
-            rest,
-            "xs" | "sm"
-                | "base"
-                | "lg"
-                | "xl"
-                | "2xl"
-                | "3xl"
-                | "4xl"
-                | "5xl"
-                | "6xl"
-                | "7xl"
-                | "8xl"
-                | "9xl"
-        ) || starts_with_bracket_digit(rest)
-        {
+        if has_word(TEXT_SIZES, rest) || starts_with_bracket_digit(rest) {
             return ("text-size", "");
         }
-        if matches!(
-            rest,
-            "left" | "center" | "right" | "justify" | "start" | "end"
-        ) {
-            return ("text-align", "");
-        }
-        if matches!(rest, "wrap" | "nowrap" | "balance" | "pretty") {
-            return ("text-wrap", "");
-        }
-        if matches!(rest, "ellipsis" | "clip") {
-            return ("text-overflow", "");
-        }
-        return ("text-color", "");
+        return [
+            ("left center right justify start end", "text-align"),
+            ("wrap nowrap balance pretty", "text-wrap"),
+            ("ellipsis clip", "text-overflow"),
+        ]
+        .into_iter()
+        .find_map(|(words, group)| has_word(words, rest).then_some((group, "")))
+        .unwrap_or(("text-color", ""));
     }
     if let Some(rest) = core.strip_prefix("ring-") {
         if rest.starts_with("offset-") {
@@ -281,71 +200,39 @@ fn conflict_group(base: &str) -> (&'static str, &str) {
     }
     if let Some(rest) = core.strip_prefix("rounded-") {
         let segment = rest.split('-').next().unwrap_or(rest);
-        if !rest.starts_with('[')
-            && matches!(
-                segment,
-                "t" | "r"
-                    | "b"
-                    | "l"
-                    | "tl"
-                    | "tr"
-                    | "bl"
-                    | "br"
-                    | "s"
-                    | "e"
-                    | "ss"
-                    | "se"
-                    | "es"
-                    | "ee"
-                    | "start"
-                    | "end"
-            )
-        {
+        if !rest.starts_with('[') && has_word(ROUNDED_DIRS, segment) {
             return ("rounded-dir", segment);
         }
         return ("rounded", "");
     }
     if let Some(rest) = core.strip_prefix("border-") {
-        if matches!(
-            rest,
-            "solid" | "dashed" | "dotted" | "double" | "hidden" | "none"
-        ) {
+        if has_word("solid dashed dotted double hidden none", rest) {
             return ("border-style", "");
         }
-        if let Some(direction) = ["t", "r", "b", "l", "x", "y"]
+        if let Some(dir) = ["t", "r", "b", "l", "x", "y"]
             .into_iter()
             .find(|dir| rest == *dir || rest.strip_prefix(dir).is_some_and(|s| s.starts_with('-')))
         {
-            return ("border-dir", direction);
+            return ("border-dir", dir);
         }
-        if matches!(rest, "0" | "2" | "4" | "8") || starts_with_bracket_digit(rest) {
+        if has_word("0 2 4 8", rest) || starts_with_bracket_digit(rest) {
             return ("border-width", "");
         }
         return ("border-color", "");
     }
     if let Some(rest) = core.strip_prefix("bg-") {
-        if matches!(
-            rest,
-            "bottom"
-                | "center"
-                | "left"
-                | "left-bottom"
-                | "left-top"
-                | "right"
-                | "right-bottom"
-                | "right-top"
-                | "top"
-        ) {
-            return ("bg-position", "");
-        }
-        if matches!(rest, "auto" | "cover" | "contain") {
-            return ("bg-size", "");
+        if let Some(hit) = [
+            (BG_POSITIONS, "bg-position"),
+            ("auto cover contain", "bg-size"),
+            ("fixed local scroll", "bg-attachment"),
+        ]
+        .into_iter()
+        .find_map(|(words, group)| has_word(words, rest).then_some((group, "")))
+        {
+            return hit;
         }
         if rest == "repeat" || rest.starts_with("repeat-") || rest == "no-repeat" {
             return ("bg-repeat", "");
-        }
-        if matches!(rest, "fixed" | "local" | "scroll") {
-            return ("bg-attachment", "");
         }
         if rest.starts_with("clip-") {
             return ("bg-clip", "");
@@ -354,12 +241,9 @@ fn conflict_group(base: &str) -> (&'static str, &str) {
             return ("bg-origin", "");
         }
         if rest == "none"
-            || rest.starts_with("gradient-")
-            || rest.starts_with("linear-")
-            || rest.starts_with("[url(")
-            || rest.starts_with("[linear-")
-            || rest.starts_with("[radial-")
-            || rest.starts_with("[conic-")
+            || "gradient- linear- [url( [linear- [radial- [conic-"
+                .split(' ')
+                .any(|p| rest.starts_with(p))
         {
             return ("bg-image", "");
         }
@@ -387,63 +271,35 @@ mod tests {
 
     #[test]
     fn card_and_button_real_caller_overrides() {
-        let merged_card = merge_classes(&[
-            "bg-card text-card-foreground flex flex-col rounded-xl shadow-sm",
-            "py-6 gap-4",
-            "block bg-canvas p-0 text-lg",
-        ]);
-        let card: Vec<&str> = merged_card.split_whitespace().collect();
-        for kept in [
-            "block",
-            "bg-canvas",
-            "p-0",
-            "text-lg",
-            "text-card-foreground",
-            "flex-col",
-            "rounded-xl",
-            "shadow-sm",
-            "gap-4",
-        ] {
-            assert!(card.contains(&kept), "card missing {kept}: {card:?}");
-        }
-        for dropped in ["flex", "bg-card", "py-6"] {
-            assert!(!card.contains(&dropped), "card kept {dropped}: {card:?}");
-        }
-
-        let merged_btn = merge_classes(&[
-            "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm",
-            "bg-primary text-primary-foreground shadow-xs",
-            "h-control px-4 py-2",
-            "w-fit h-9 px-2 bg-red-500 text-white gap-1",
-        ]);
-        let btn: Vec<&str> = merged_btn.split_whitespace().collect();
-        for kept in [
-            "inline-flex",
-            "items-center",
-            "justify-center",
-            "whitespace-nowrap",
-            "rounded-md",
-            "text-sm",
-            "shadow-xs",
-            "py-2",
-            "w-fit",
-            "h-9",
-            "px-2",
-            "bg-red-500",
-            "text-white",
-            "gap-1",
-        ] {
-            assert!(btn.contains(&kept), "btn missing {kept}: {btn:?}");
-        }
-        for dropped in [
-            "h-control",
-            "px-4",
-            "bg-primary",
-            "text-primary-foreground",
-            "gap-2",
-        ] {
-            assert!(!btn.contains(&dropped), "btn kept {dropped}: {btn:?}");
-        }
+        let check = |parts: &[&str], kept: &str, dropped: &str| {
+            let merged = merge_classes(parts);
+            let tokens: Vec<&str> = merged.split_whitespace().collect();
+            for token in kept.split_whitespace() {
+                assert!(tokens.contains(&token), "missing {token}: {tokens:?}");
+            }
+            for token in dropped.split_whitespace() {
+                assert!(!tokens.contains(&token), "kept {token}: {tokens:?}");
+            }
+        };
+        check(
+            &[
+                "bg-card text-card-foreground flex flex-col rounded-xl shadow-sm",
+                "py-6 gap-4",
+                "block bg-canvas p-0 text-lg",
+            ],
+            "block bg-canvas p-0 text-lg text-card-foreground flex-col rounded-xl shadow-sm gap-4",
+            "flex bg-card py-6",
+        );
+        check(
+            &[
+                "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm",
+                "bg-primary text-primary-foreground shadow-xs",
+                "h-control px-4 py-2",
+                "w-fit h-9 px-2 bg-red-500 text-white gap-1",
+            ],
+            "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm shadow-xs py-2 w-fit h-9 px-2 bg-red-500 text-white gap-1",
+            "h-control px-4 bg-primary text-primary-foreground gap-2",
+        );
     }
 
     #[test]

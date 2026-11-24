@@ -353,9 +353,6 @@ pub struct Runtime {
 }
 
 #[cfg(any(test, feature = "test-support"))]
-type CaseGesturePreviewTestExecutor = dyn Fn(AcceptedSnapshot, Scope) -> Result<CadScene, String>;
-
-#[cfg(any(test, feature = "test-support"))]
 type KeycapsPreviewTestExecutor = dyn Fn(
     KeycapsPreviewInput,
 ) -> crate::model_delivery::ModelFuture<
@@ -365,7 +362,6 @@ type KeycapsPreviewTestExecutor = dyn Fn(
 #[cfg(any(test, feature = "test-support"))]
 #[derive(Default)]
 struct TestRuntimeState {
-    case_gesture_preview_test_executor: RefCell<Option<Rc<CaseGesturePreviewTestExecutor>>>,
     keycaps_preview_test_executor: RefCell<Option<Rc<KeycapsPreviewTestExecutor>>>,
     in_process_adapters: RefCell<Option<Rc<dyn test_hooks::InstalledAdapters>>>,
     held_effects: RefCell<Vec<Effect>>,
@@ -378,61 +374,12 @@ struct TestRuntimeState {
     allow(clippy::unwrap_used, clippy::expect_used)
 )]
 impl Runtime {
-    pub fn set_case_gesture_preview_executor_test(
-        &self,
-        executor: Rc<CaseGesturePreviewTestExecutor>,
-    ) {
-        *self.test.case_gesture_preview_test_executor.borrow_mut() = Some(executor);
-    }
-
-    pub fn case_gesture_preview_active_test(&self) -> bool {
-        self.case_gesture_preview.borrow().active_owner().is_some()
-    }
-
     pub fn set_cad_scene_test(&self, scene: Option<Rc<CadScene>>) {
         *self.cad_scene.borrow_mut() = scene;
     }
 
     pub fn set_keycaps_preview_executor_test(&self, executor: Rc<KeycapsPreviewTestExecutor>) {
         *self.test.keycaps_preview_test_executor.borrow_mut() = Some(executor);
-    }
-
-    pub fn install_case_pcb_preview_test(&self) {
-        let accepted = self.accepted_snapshot().expect("accepted preview fixture");
-        let scope = self.scope().expect("selected physical fixture scope");
-        let generation = self
-            .native_case_preview
-            .next_generation("Case preview generation identity exhausted")
-            .unwrap();
-        let capture = crate::case_preview::capture_native_preview(
-            &accepted,
-            &scope,
-            generation,
-            format!("case-keycaps-test-{generation}"),
-        )
-        .expect("valid accepted Case preview input");
-        self.set_native_preview_pending(capture.lease.clone());
-        let preview = crate::case_preview::accept_native_preview(
-            capture,
-            PcbPreview {
-                revision: accepted.document.revision,
-                thickness: 1.6,
-                contours: vec![],
-                surfaces: vec![],
-                holes: vec![],
-                models: vec![],
-                diagnostics: vec![],
-            },
-        )
-        .expect("controlled PCB payload preserves the accepted preview owner");
-        self.native_case_preview
-            .publish(
-                preview,
-                generation,
-                "fixture owner changed before publication",
-            )
-            .unwrap();
-        self.changed();
     }
 }
 

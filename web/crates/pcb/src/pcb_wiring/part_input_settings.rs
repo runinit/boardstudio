@@ -115,7 +115,7 @@ pub fn PartSection(props: PartSectionProps) -> Element {
         // undo or selection change never rebases the net assignment.
         spawn(async move {
             let classified =
-                crate::presentation::parts::is_generator_source(generator_source).await;
+                boardstudio_web_catalogue::bundled::is_generator_source(generator_source).await;
             if create {
                 create_pending.set(false);
             }
@@ -189,7 +189,7 @@ pub fn PartSection(props: PartSectionProps) -> Element {
         .map(|generator| generator.source.clone());
     let ergogen_source = use_resource(use_reactive((&generator_source,), |(source,)| async move {
         match source {
-            Some(source) => crate::presentation::parts::is_generator_source(source).await,
+            Some(source) => boardstudio_web_catalogue::bundled::is_generator_source(source).await,
             None => Ok(false),
         }
     }));
@@ -387,7 +387,9 @@ fn PartInputSection(
     });
     let schema = use_resource(use_reactive((&generator_source,), |(source,)| async move {
         match source {
-            Some(source) => crate::presentation::parts::generator_parameter_schema(source).await,
+            Some(source) => {
+                boardstudio_web_catalogue::bundled::generator_parameter_schema(source).await
+            }
             None => Ok(BTreeMap::new()),
         }
     }));

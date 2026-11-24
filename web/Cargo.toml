@@ -19,7 +19,6 @@ default = ["page"]
 page = ["boardstudio-web-host/page", "dep:boardstudio-web-runtime", "dep:boardstudio-web-ui-model", "dep:boardstudio-web-ui-shared", "dep:boardstudio-web-layout", "dep:boardstudio-web-pcb", "dep:boardstudio-web-parts", "dep:boardstudio-web-case", "dep:boardstudio-web-workspaces", "dep:boardstudio-application", "dep:boardstudio_core", "dep:dioxus", "dep:dioxus-web", "dep:gloo-timers", "dep:serde_json"]
 cad-worker = ["boardstudio-web-worker-host/cad", "dep:serde_json"]
 service-worker = ["dep:boardstudio-web-worker-host"]
-test-harness = ["boardstudio-web-host?/test-harness", "boardstudio-web-worker-host?/test-harness"]
 
 [dependencies]
 boardstudio-application = { path = "../application", optional = true }

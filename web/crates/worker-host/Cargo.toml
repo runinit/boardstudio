@@ -8,7 +8,6 @@ description = "Browser worker host services shared by the BoardStudio workers an
 
 [features]
 cad = ["dep:boardstudio-core-kernel", "dep:boardstudio-model", "dep:serde_json"]
-test-harness = []
 # Test-only hooks the page suite drives through boardstudio-web-host's test-support.
 test-support = []
 

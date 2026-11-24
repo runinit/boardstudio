@@ -1,10 +1,11 @@
 use super::demo_projects::DEMO_PROJECTS;
-use super::setup_guide::{PendingNewKeyboard, SetupGuideRequest};
 use crate::project_name::{ProjectNameOwner, ProjectNameRejection, project_name_resolver};
 use crate::runtime::Runtime;
 use boardstudio_model::model::{PartKind, ProjectDoc};
 use boardstudio_web_host::host::UnreadableProject;
+use boardstudio_web_ui_model::state::{PendingNewKeyboard, SetupGuideRequest};
 use boardstudio_web_ui_shared::inspector_fields::TextCommitField;
+use boardstudio_web_ui_shared::project_menu::close_project_menu;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     alert_dialog::{
@@ -298,7 +299,7 @@ fn DemoActionCard(mut open: Signal<bool>) -> Element {
                                     div { class: "min-w-0", h3 { class: "text-xs font-semibold", "{demo.name}" } p { class: "text-[11px] text-muted-foreground", "{demo.summary}" } }
                                     Button { variant: ButtonVariant::Default, onclick: move |_| {
                                         match rt.open_demo_copy(doc.clone()) {
-                                            Ok(()) => { super::close_project_menu(); dismiss_browser(browser); }
+                                            Ok(()) => { close_project_menu(); dismiss_browser(browser); }
                                             Err(err) => rt.report(err),
                                         }
                                     }, "Open demo copy" }
@@ -325,7 +326,7 @@ fn start_new_keyboard(
     mut pending_new: Signal<Option<PendingNewKeyboard>>,
     mut new_error: Signal<String>,
 ) {
-    super::close_project_menu();
+    close_project_menu();
     dismiss_browser(browser);
     if pending_new().is_some() {
         return;
