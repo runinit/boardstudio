@@ -103,14 +103,14 @@ pub(in crate::presentation) fn use_canvas_surface(
     let (c2, c3) = (c1.clone(), c1.clone());
     CanvasEventHandlers {
         mount,
-        start_pan: EventHandler::new(move |e| c1.handle_start_pan(e)),
-        move_pointer: EventHandler::new(move |e| c2.handle_move(e)),
-        end_pointer: EventHandler::new(move |e| c3.handle_end(e)),
+        start_pan: use_callback(move |e| c1.handle_start_pan(e)),
+        move_pointer: use_callback(move |e| c2.handle_move(e)),
+        end_pointer: use_callback(move |e| c3.handle_end(e)),
         cancel_pointer,
         lost_capture,
-        keyboard: EventHandler::new(keyboard),
-        key_up: EventHandler::new(key_up),
-        wheel: EventHandler::new(wh),
+        keyboard: use_callback(keyboard),
+        key_up: use_callback(key_up),
+        wheel: use_callback(wh),
     }
 }
 
@@ -159,8 +159,8 @@ pub(in crate::presentation) fn build_canvas_pointer(f: &WorkspaceFrame) -> Layou
     });
     let m = s.clone();
     LayoutPointer {
-        matrix_pointer_down: EventHandler::new(move |r| m.on_down(CanvasHit::Matrix(r))),
-        part_pointer_down: EventHandler::new(move |r| s.on_down(CanvasHit::Part(r))),
+        matrix_pointer_down: use_callback(move |r| m.on_down(CanvasHit::Matrix(r))),
+        part_pointer_down: use_callback(move |r| s.on_down(CanvasHit::Part(r))),
     }
 }
 
@@ -723,11 +723,10 @@ pub(in crate::presentation) fn capture_canvas_drag(
         GestureSeed::Pan { scope, .. } | GestureSeed::PartDrag { scope, .. } => Some(scope.clone()),
         _ => None,
     };
-    if !svg
-        .borrow()
-        .as_ref()
-        .is_some_and(|s| interaction.capture_drag(id, client, control, seed.clone(), s, None))
-    {
+    let Some(el) = svg.borrow().clone() else {
+        return false;
+    };
+    if !interaction.capture_drag(id, client, control, seed.clone(), &el, None) {
         return false;
     }
     let (rt, svg) = (runtime.clone(), svg.clone());

@@ -370,13 +370,14 @@ fn start_rail_drag(view: &RailView, ptr: &web_sys::PointerEvent, tool: T) {
         return;
     }
     let model = view.runtime.model();
+    // Sync Ctrl before reading quick-offset: handles stop propagation, so the latched state may be stale.
+    view.interaction.sync_control(ptr.ctrl_key());
     let quick = ptr.ctrl_key() || view.interaction.peek_control_down();
     if let (Some(snap), Some(scope)) = (model.accepted.as_ref(), view.runtime.scope())
         && drag_session_is_ready(&model, Some(snap.document.revision))
         && let (Some((pt, _)), Some(cap)) = (view.world_pt(ptr), view.surface.borrow().clone())
         && let Some((kind, is_mtx)) = tool_seed(&view.target, tool, &view.affect, snap, pt, quick)
     {
-        view.interaction.sync_control(ptr.ctrl_key());
         let transaction_id = format!("layout-transform-{}", view.runtime.operation().0);
         let (tool_label, token, revision, board_id) = (
             tool.label(),
@@ -580,9 +581,7 @@ fn commit_rail_edit(
     let (id, tx) = (target_id.to_owned(), tx.to_owned());
     let res = EditResolver::new("layout-transform-drag", move |acc| {
         if expected_rev.is_some_and(|r| acc.document.revision != r) {
-            return Resolution::Retire(
-                "The edit target changed before the change was saved.".into(),
-            );
+            return Resolution::Retire("The layout changed before this drag landed.".into());
         }
         Resolution::submit_with_transaction_id(vec![id.clone()], tx.clone(), op.clone())
     });
@@ -792,7 +791,7 @@ fn matrix_tokens(
             (l, format_placement_value(placement_current(m, p)))
         } else if let (T::Splay, Some(b)) = (tool, basis) {
             let ang = column_angle(b.splay_angle, b.rotation, aff);
-            ("Drag to splay", format!("{ang:.1}°"))
+            ("Drag to splay", format!("{ang:.0}°"))
         } else if tool == T::Move {
             (
                 "Drag to move matrix",
