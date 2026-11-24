@@ -1,5 +1,5 @@
-//! Mirrored-pair actions: reviewed link, per-feature make-local / remove / rejoin, legacy
-//! construction conversion and member removal. Reviews show the complete result first.
+//! Mirrored-pair actions: reviewed link, per-feature make-local / remove / rejoin and
+//! member removal. Reviews show the complete result first.
 use crate::mechanical_pair::{
     MechanicalPairFeatureRow, MechanicalPairLinkOption, MechanicalPairProjectionPort,
     feature_label, reviewed_link_change,
@@ -33,19 +33,6 @@ fn Confirmed(
             Button { variant: ButtonVariant::Ghost, size: ButtonSize::Sm, aria_label: "{keep}", onclick: move |_| confirming.set(false), "{keep}" }
         } else {
             Button { variant: ButtonVariant::Ghost, size: ButtonSize::Sm, aria_label: "{prompt}", disabled: !editable, onclick: move |_| confirming.set(true), "{prompt}…" }
-        }
-    }
-}
-
-#[component]
-pub(crate) fn LegacyConstructionControl(editable: bool, send: Sender) -> Element {
-    let id = send.instance_id();
-    rsx! {
-        section { aria_label: "Shared construction", class: "grid gap-2",
-            p { class: "text-muted-foreground text-sm", "This half still uses the shared construction baseline." }
-            Confirmed { editable, prompt: format!("Make construction local for {id}"), confirm: format!("Confirm making construction local for {id}"), keep: format!("Keep shared construction for {id}"),
-                summary: format!("Makes {id}'s construction its own: the values it shows today (including overlaid hardware, critical fits and profiles) become this half's local values. One Undo restores the ownership and the overlay."),
-                on_confirm: { let id = id.clone(); move |_| send.send(MechanicalSettingsPatch::MaterializeLegacyConstruction { instance_ids: vec![id.clone()] }) } }
         }
     }
 }

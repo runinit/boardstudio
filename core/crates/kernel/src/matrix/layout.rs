@@ -228,15 +228,13 @@ pub fn member_pairs(
 /// Part correspondences for explicit member pairs.
 pub fn part_correspondences(
     pairs: impl IntoIterator<Item = (String, String)>,
-) -> impl Iterator<Item = MirroredCorrespondence> {
+) -> impl Iterator<Item = LayoutLinkPair> {
     pairs
         .into_iter()
-        .map(|(source_id, mirror_id)| MirroredCorrespondence {
+        .map(|(source_id, mirror_id)| LayoutLinkPair {
             kind: MirroredItemKind::Part,
             source_id,
             mirror_id,
-            companion_mode: None,
-            companion_tweak: None,
         })
 }
 

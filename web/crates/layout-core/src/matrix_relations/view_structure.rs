@@ -52,8 +52,9 @@ impl View<'_> {
             .unwrap_or_default()
     }
 
-    /// Mirrors Core's exception lookup over same-board links and native pairs,
-    /// read-only: what Local/Omitted overlay covers this linked item, if any.
+    /// Mirrors Core's exception lookup over same-board links and derived
+    /// pairs, read-only: what Local/Omitted overlay covers this linked item,
+    /// if any.
     pub(super) fn exception(
         &self,
         kind: MirroredItemKind,
@@ -64,16 +65,11 @@ impl View<'_> {
             .iter()
             .filter_map(|layout| layout.mirror_link.as_ref())
             .flat_map(|link| &link.exceptions)
-            .chain(
-                self.document
-                    .hardware
-                    .iter()
-                    .flat_map(|hardware| &hardware.pairs)
-                    .filter_map(|pair| pair.halves.as_ref())
-                    .flat_map(|halves| &halves.exceptions),
-            )
             .find(|exception| exception.kind == kind && exception.mirror_id == id)
             .map(|exception| exception.state)
+            .or_else(|| {
+                boardstudio_model::mirrored_half::derived_override_state(&self.document, kind, id)
+            })
     }
 
     /// The canonical member Core assigns a matrix slot. Only a fallback for

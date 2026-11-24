@@ -20,6 +20,5 @@ pub mod wire;
 pub mod mechanical {
     pub mod change;
     pub mod features;
-    pub mod halves;
     pub mod pair;
 }

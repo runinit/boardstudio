@@ -19,18 +19,27 @@ fn part(id: &str, x: f64, y: f64, rotation: f64) -> serde_json::Value {
     })
 }
 
-/// alpha/T and alpha/S are authored; beta/T and beta/S mirror them through pair/A. local/P and
-/// the free parts have no pair.
+/// Derived mirror ids through pair/A: `6/pair/A/part/<source>`.
+const MIRROR_T: &str = "6/pair/A/part/alpha/T";
+const MIRROR_S: &str = "6/pair/A/part/alpha/S";
+
+/// alpha/T and alpha/S are authored; their mirrors derive through pair/A.
+/// local/P and the free parts have no pair.
 fn document(translation: (f64, f64)) -> ProjectDoc {
     let mut doc = ProjectDoc::empty("p", "P");
     doc.parts = serde_json::from_value(json!([
         part("alpha/T", 4.2, 14.4, 161.86989764584402),
-        part("beta/T", 8.0, 2.0, 55.0),
         part("alpha/S", 2.0, 5.0, 25.0),
-        part("beta/S", 15.4, -4.2, 191.86989764584402),
         part("local/P", 3.0, 4.0, 40.0),
         part("free/Q", 0.0, 0.0, 0.0),
         part("free/R", 1.0, 1.0, 0.0),
+    ]))
+    .unwrap();
+    doc.boards = serde_json::from_value(json!([
+        {"id": "alpha", "name": "Alpha", "partIds": ["alpha/T", "alpha/S"],
+         "outlineIds": [], "netIds": [], "thickness": 1.6},
+        {"id": "beta", "name": "Beta", "partIds": [],
+         "outlineIds": [], "netIds": [], "thickness": 1.6}
     ]))
     .unwrap();
     doc.hardware = Some(
@@ -54,16 +63,21 @@ fn document(translation: (f64, f64)) -> ProjectDoc {
                 },
                 "constructionSource": "alpha-instance",
                 "halves": {
-                    "sourceBoardId": "alpha", "mirrorBoardId": "beta",
-                    "correspondences": [
-                        {"kind": "part", "sourceId": "alpha/T", "mirrorId": "beta/T"},
-                        {"kind": "part", "sourceId": "alpha/S", "mirrorId": "beta/S"}
-                    ]
+                    "sourceBoardId": "alpha", "mirrorBoardId": "beta"
                 }
             }]
         }))
         .unwrap(),
     );
+    doc.mirrored_pairs = serde_json::from_value(json!([{
+        "id": "pair/A",
+        "source": {"kind": "secondBoard", "id": "alpha"},
+        "destination": {"kind": "secondBoard", "id": "beta"},
+        "mapping": {"at": {"x": translation.0, "y": translation.1},
+                    "rotation": 36.86989764584402},
+        "overrides": []
+    }]))
+    .unwrap();
     doc
 }
 
@@ -98,8 +112,8 @@ fn compiling_legacy_mirror_endpoints_retains_authored_views_and_literal_offset()
     let doc = document((20.0, -7.0));
     let legacy = Constraint::Offset {
         id: "durable/constraint-7".into(),
-        source_part_id: "beta/S".into(),
-        target_part_id: "beta/T".into(),
+        source_part_id: MIRROR_S.into(),
+        target_part_id: MIRROR_T.into(),
         offset: Vec2 { x: 5.0, y: -2.0 },
         rotation: 15.0,
     };
@@ -113,8 +127,8 @@ fn compiling_legacy_mirror_endpoints_retains_authored_views_and_literal_offset()
     } = compiled;
 
     assert_eq!(id, "durable/constraint-7");
-    assert_eq!(source, linked("alpha/S", "beta/S"));
-    assert_eq!(target, linked("alpha/T", "beta/T"));
+    assert_eq!(source, linked("alpha/S", MIRROR_S));
+    assert_eq!(target, linked("alpha/T", MIRROR_T));
     assert_eq!(
         relation,
         ConstraintRelation::Offset {
@@ -221,7 +235,7 @@ fn a_local_source_drives_the_authority_of_a_linked_target_in_its_authored_direct
     let record = framed(
         "c/mixed",
         part_endpoint("local/P"),
-        linked("alpha/T", "beta/T"),
+        linked("alpha/T", MIRROR_T),
         offset_5_neg2(),
     );
     resolve_prepared(&mut doc, &[], std::slice::from_ref(&record)).unwrap();
@@ -240,7 +254,7 @@ fn the_pair_translation_is_read_live_not_frozen_in_the_endpoint() {
     let record = framed(
         "c/mixed",
         part_endpoint("local/P"),
-        linked("alpha/T", "beta/T"),
+        linked("alpha/T", MIRROR_T),
         offset_5_neg2(),
     );
     resolve_prepared(&mut doc, &[], &[record]).unwrap();
@@ -253,7 +267,7 @@ fn a_linked_source_drives_a_local_target() {
     let mut doc = document((20.0, -7.0));
     let record = framed(
         "c/out",
-        linked("alpha/S", "beta/S"),
+        linked("alpha/S", MIRROR_S),
         part_endpoint("local/P"),
         offset_5_neg2(),
     );
@@ -376,8 +390,8 @@ fn refuses(doc: &mut ProjectDoc, records: &[FramedConstraint], needle: &str) {
 }
 
 #[test]
-fn bindings_that_do_not_match_a_live_correspondence_are_refused_atomically() {
-    // Stale: beta/S is not the mirror of alpha/T.
+fn bindings_that_do_not_match_a_live_derivation_are_refused_atomically() {
+    // Stale: beta/S is not the derived mirror of alpha/T.
     refuses(
         &mut document((20.0, -7.0)),
         &[framed(
@@ -386,10 +400,10 @@ fn bindings_that_do_not_match_a_live_correspondence_are_refused_atomically() {
             linked("alpha/T", "beta/S"),
             offset_5_neg2(),
         )],
-        "correspondence",
+        "derived mirror",
     );
     // Unknown pair.
-    let mut unknown = linked("alpha/T", "beta/T");
+    let mut unknown = linked("alpha/T", MIRROR_T);
     if let ConstraintEndpoint::LinkedMirror { pair_id, .. } = &mut unknown {
         *pair_id = "pair/none".into();
     }
@@ -420,21 +434,34 @@ fn bindings_that_do_not_match_a_live_correspondence_are_refused_atomically() {
         &[framed(
             "c",
             part_endpoint("local/P"),
-            part_endpoint("beta/T"),
+            part_endpoint(MIRROR_T),
             offset_5_neg2(),
         )],
         "linked mirror",
     );
 }
 
-fn with_exception(state: &str) -> ProjectDoc {
+fn with_override(state: &str) -> ProjectDoc {
     let mut doc = document((20.0, -7.0));
-    doc.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .exceptions = serde_json::from_value(json!([
-        {"kind": "part", "mirrorId": "beta/T", "state": state}
+    let override_state = match state {
+        "local" => {
+            let local: serde_json::Value =
+                serde_json::from_value(json!(part(MIRROR_T, 8.0, 2.0, 55.0))).unwrap();
+            let local_part: crate::model::Part = serde_json::from_value(json!({
+                "id": MIRROR_T,
+                "definitionId": local["definitionId"],
+                "reference": local["reference"],
+                "pose": local["pose"],
+                "side": local["side"]
+            }))
+            .unwrap();
+            doc.parts.push(local_part.clone());
+            json!({"kind": "local", "payload": local_part})
+        }
+        _ => json!({"kind": "omitted"}),
+    };
+    doc.mirrored_pairs[0].overrides = serde_json::from_value(json!([
+        {"sourceId": "alpha/T", "state": override_state}
     ]))
     .unwrap();
     doc
@@ -444,11 +471,11 @@ fn with_exception(state: &str) -> ProjectDoc {
 fn local_and_omitted_mirrors_cannot_be_addressed_as_linked() {
     for state in ["local", "omitted"] {
         refuses(
-            &mut with_exception(state),
+            &mut with_override(state),
             &[framed(
                 "c",
                 part_endpoint("local/P"),
-                linked("alpha/T", "beta/T"),
+                linked("alpha/T", MIRROR_T),
                 offset_5_neg2(),
             )],
             state,
@@ -458,15 +485,15 @@ fn local_and_omitted_mirrors_cannot_be_addressed_as_linked() {
 
 #[test]
 fn a_local_mirror_is_an_ordinary_part_endpoint() {
-    let mut doc = with_exception("local");
+    let mut doc = with_override("local");
     let record = framed(
         "c",
         part_endpoint("local/P"),
-        part_endpoint("beta/T"),
+        part_endpoint(MIRROR_T),
         offset_5_neg2(),
     );
     resolve_prepared(&mut doc, &[], &[record]).unwrap();
-    assert_pose(&doc, "beta/T", 8.0, 2.0, 55.0);
+    assert_pose(&doc, MIRROR_T, 8.0, 2.0, 55.0);
 }
 
 #[test]
@@ -479,7 +506,7 @@ fn two_visible_targets_sharing_one_authority_are_refused() {
         &[framed(
             "c",
             part_endpoint("local/P"),
-            linked("alpha/T", "beta/T"),
+            linked("alpha/T", MIRROR_T),
             offset_5_neg2(),
         )],
         "multiple constraints",
@@ -493,7 +520,7 @@ fn cycles_through_an_alias_are_refused() {
         &mut document((20.0, -7.0)),
         &[framed(
             "c",
-            linked("alpha/T", "beta/T"),
+            linked("alpha/T", MIRROR_T),
             part_endpoint("alpha/T"),
             offset_5_neg2(),
         )],
@@ -508,7 +535,7 @@ fn cycles_through_an_alias_are_refused() {
         &[framed(
             "c",
             part_endpoint("free/Q"),
-            linked("alpha/T", "beta/T"),
+            linked("alpha/T", MIRROR_T),
             offset_5_neg2(),
         )],
         "cycle",
@@ -561,7 +588,7 @@ fn an_unrelated_part_is_left_alone() {
     let record = framed(
         "c",
         part_endpoint("local/P"),
-        linked("alpha/T", "beta/T"),
+        linked("alpha/T", MIRROR_T),
         offset_5_neg2(),
     );
     resolve_prepared(&mut doc, &[], &[record]).unwrap();
@@ -649,7 +676,7 @@ fn framed_constraint_endpoints_and_relations_round_trip() {
         Constraint::Framed {
             id: "framed/offset".into(),
             source: part_endpoint("alpha/S"),
-            target: linked("alpha/T", "beta/T"),
+            target: linked("alpha/T", MIRROR_T),
             relation: ConstraintRelation::Offset {
                 offset: Vec2 { x: 5.0, y: -2.0 },
                 rotation: 15.0,
@@ -657,7 +684,7 @@ fn framed_constraint_endpoints_and_relations_round_trip() {
         },
         Constraint::Framed {
             id: "framed/part-offset".into(),
-            source: linked("alpha/S", "beta/S"),
+            source: linked("alpha/S", MIRROR_S),
             target: part_endpoint("local/P"),
             relation: ConstraintRelation::PartOffset {
                 offset: Vec2 { x: -3.0, y: 8.0 },
@@ -689,7 +716,7 @@ fn persisted_framed_constraints_solve_through_the_stored_document_path() {
     doc.constraints.push(Constraint::Framed {
         id: "durable/framed".into(),
         source: part_endpoint("local/P"),
-        target: linked("alpha/T", "beta/T"),
+        target: linked("alpha/T", MIRROR_T),
         relation: offset_5_neg2(),
     });
 
@@ -708,27 +735,49 @@ fn a_persisted_framed_constraint_with_a_stale_binding_is_refused_atomically() {
         relation: offset_5_neg2(),
     });
 
-    refuses(&mut doc, &[], "correspondence");
+    refuses(&mut doc, &[], "derived mirror");
 }
+
+/// The derived mirror id of `source` through the beta-authored inverse pair.
+const INVERSE_MIRROR_T: &str = "6/pair/A/part/beta/T";
 
 #[test]
 fn a_pair_whose_construction_source_is_its_second_member_uses_the_inverse_map() {
     let mut doc = document((20.0, -7.0));
-    // beta is now the authored half: beta/T owns the geometry and alpha/T is its mirror.
+    // beta is now the authored half: beta/T owns the geometry and its derived
+    // mirror lives on alpha.
+    doc.parts = serde_json::from_value(json!([
+        part("beta/T", 8.0, 2.0, 55.0),
+        part("local/P", 3.0, 4.0, 40.0),
+        part("free/Q", 0.0, 0.0, 0.0),
+        part("free/R", 1.0, 1.0, 0.0),
+    ]))
+    .unwrap();
+    doc.boards = serde_json::from_value(json!([
+        {"id": "alpha", "name": "Alpha", "partIds": [],
+         "outlineIds": [], "netIds": [], "thickness": 1.6},
+        {"id": "beta", "name": "Beta", "partIds": ["beta/T"],
+         "outlineIds": [], "netIds": [], "thickness": 1.6}
+    ]))
+    .unwrap();
     let pair = &mut doc.hardware.as_mut().unwrap().pairs[0];
     pair.construction_source = Some("beta-instance".into());
     let halves = pair.halves.as_mut().unwrap();
     halves.source_board_id = "beta".into();
     halves.mirror_board_id = "alpha".into();
-    halves.correspondences = serde_json::from_value(json!([
-        {"kind": "part", "sourceId": "beta/T", "mirrorId": "alpha/T"}
-    ]))
+    doc.mirrored_pairs = serde_json::from_value(json!([{
+        "id": "pair/A",
+        "source": {"kind": "secondBoard", "id": "beta"},
+        "destination": {"kind": "secondBoard", "id": "alpha"},
+        "mapping": {"at": {"x": 20.0, "y": -7.0}, "rotation": 36.86989764584402},
+        "overrides": []
+    }]))
     .unwrap();
     set_at(&mut doc, "beta/T", 0.0, 0.0);
     let record = framed(
         "c/inverse",
         part_endpoint("local/P"),
-        linked("beta/T", "alpha/T"),
+        linked("beta/T", INVERSE_MIRROR_T),
         offset_5_neg2(),
     );
     resolve_prepared(&mut doc, &[], &[record]).unwrap();
@@ -741,8 +790,9 @@ fn a_pair_whose_construction_source_is_its_second_member_uses_the_inverse_map() 
 
 const KEY: &str = "matrix/alpha-m/r0c0";
 const COMPANION: &str = "matrix/alpha-m/r0c0/diode";
-const MIRROR_KEY: &str = "matrix/beta-m/r0c0";
-const MIRROR_COMPANION: &str = "matrix/beta-m/r0c0/diode";
+/// Derived matrix ids through pair/A: `mirror_706169722f41_alpha-m`.
+const MIRROR_KEY: &str = "matrix/mirror_706169722f41_alpha-m/r0c0";
+const MIRROR_COMPANION: &str = "matrix/mirror_706169722f41_alpha-m/r0c0/diode";
 
 /// Key K = (2, 5) heading 0 and its companion C = (4, 8) heading 30 on the alpha half, with
 /// their mirrors on beta. `definition` is the companion's definition, `mode` the pair's
@@ -759,42 +809,38 @@ fn matrix_document(definition: &str, mode: &str, tweak: Option<(f64, f64, f64)>)
     doc.parts = serde_json::from_value(json!([
         part(KEY, 2.0, 5.0, 0.0),
         part(COMPANION, 4.0, 8.0, 30.0),
-        part(MIRROR_KEY, 15.4, -4.2, 36.86989764584402),
-        part(MIRROR_COMPANION, 12.0, -3.0, 6.86989764584402),
         part("local/P", 3.0, 4.0, 40.0),
         part("free/Q", 0.0, 0.0, 0.0),
     ]))
     .unwrap();
     doc.matrices = serde_json::from_value(json!([
         {"id": "alpha-m", "rows": 1, "columns": 1, "pitch": {"x": 19, "y": 19},
-         "origin": {"x": 2, "y": 5}, "definitionId": "key", "partIds": [KEY, COMPANION],
+         "origin": {"x": 2, "y": 5}, "definitionId": "key", "boardId": "alpha",
+         "partIds": [KEY, COMPANION],
          "cells": [{"row": 0, "column": 0, "enabled": true, "assemblies": [
              {"id": "diode", "definitionId": definition,
-              "offset": {"x": 2.0, "y": 3.0}, "rotation": 30.0}]}]},
-        {"id": "beta-m", "rows": 1, "columns": 1, "pitch": {"x": 19, "y": 19},
-         "origin": {"x": 15.4, "y": -4.2}, "definitionId": "key", "partIds": [MIRROR_KEY]}
+              "offset": {"x": 2.0, "y": 3.0}, "rotation": 30.0}]}]}
+    ]))
+    .unwrap();
+    doc.boards = serde_json::from_value(json!([
+        {"id": "alpha", "name": "Alpha", "partIds": [KEY, COMPANION],
+         "outlineIds": [], "netIds": [], "thickness": 1.6},
+        {"id": "beta", "name": "Beta", "partIds": [],
+         "outlineIds": [], "netIds": [], "thickness": 1.6}
     ]))
     .unwrap();
     let halves = doc.hardware.as_mut().unwrap().pairs[0]
         .halves
         .as_mut()
         .unwrap();
-    let item = |source: &str, mirror: &str| {
-        let mut value = json!({"kind": "part", "sourceId": source, "mirrorId": mirror});
-        if let Some((u, v, w)) = tweak
-            && source == COMPANION
-        {
-            value["companionTweak"] = json!({"x": u, "y": v, "rotation": w});
-            value["companionMode"] = json!("literal-mirror-with-tweak");
-        }
-        value
-    };
-    halves.correspondences = serde_json::from_value(json!([
-        item(KEY, MIRROR_KEY),
-        item(COMPANION, MIRROR_COMPANION),
-    ]))
-    .unwrap();
     halves.companion_mode = serde_json::from_value(json!(mode)).unwrap();
+    if let Some((u, v, w)) = tweak {
+        doc.mirrored_pairs[0].overrides = serde_json::from_value(json!([
+            {"sourceId": COMPANION, "state": {"kind": "companionPose",
+             "payload": {"at": {"x": u, "y": v}, "rotation": w}}}
+        ]))
+        .unwrap();
+    }
     doc
 }
 
@@ -912,7 +958,7 @@ fn the_driving_record_is_found_through_either_half_of_a_linked_pair() {
     let mut doc = document((20.0, -7.0));
     doc.constraints
         .push(legacy_offset("c/legacy", "free/Q", "alpha/T", 1.0, 2.0));
-    for asked in ["alpha/T", "beta/T"] {
+    for asked in ["alpha/T", MIRROR_T] {
         let found = doc.constraint_driving_part(asked).unwrap();
         assert_eq!(found.map(Constraint::id), Some("c/legacy"), "{asked}");
     }
@@ -926,33 +972,31 @@ fn the_driving_lookup_refuses_a_stale_explicit_mirror_binding() {
     doc.constraints.push(Constraint::Framed {
         id: "c/stale-binding".into(),
         source: part_endpoint("local/P"),
-        target: linked("alpha/S", "beta/T"),
+        target: linked("alpha/S", MIRROR_T),
         relation: offset_5_neg2(),
     });
 
-    let message = doc.constraint_driving_part("beta/T").unwrap_err();
+    let message = doc.constraint_driving_part(MIRROR_T).unwrap_err();
 
     assert!(
-        message.contains("does not match a current part correspondence")
-            && message.contains("pair/A"),
+        message.contains("is not the derived mirror") && message.contains("pair/A"),
         "{message}"
     );
 
     let message = doc.constraint_driving_part("alpha/S").unwrap_err();
 
     assert!(
-        message.contains("does not match a current part correspondence")
-            && message.contains("pair/A"),
+        message.contains("is not the derived mirror") && message.contains("pair/A"),
         "{message}"
     );
 }
 
 #[test]
 fn a_local_mirror_is_its_own_authority_for_the_lookup() {
-    let mut doc = with_exception("local");
+    let mut doc = with_override("local");
     doc.constraints
         .push(legacy_offset("c/legacy", "free/Q", "alpha/T", 1.0, 2.0));
-    assert_eq!(super::driving_constraint(&doc, "beta/T").unwrap(), None);
+    assert_eq!(super::driving_constraint(&doc, MIRROR_T).unwrap(), None);
     assert!(
         super::driving_constraint(&doc, "alpha/T")
             .unwrap()
@@ -966,8 +1010,8 @@ fn two_records_on_one_authority_are_a_located_error_not_a_guess() {
     doc.constraints
         .push(legacy_offset("c/one", "free/Q", "alpha/T", 1.0, 2.0));
     doc.constraints
-        .push(legacy_offset("c/two", "free/R", "beta/T", 1.0, 2.0));
-    let message = super::driving_constraint(&doc, "beta/T").unwrap_err();
+        .push(legacy_offset("c/two", "free/R", MIRROR_T, 1.0, 2.0));
+    let message = super::driving_constraint(&doc, MIRROR_T).unwrap_err();
     assert!(
         message.contains("alpha/T") && message.contains("multiple constraints"),
         "{message}"
@@ -982,7 +1026,7 @@ fn a_stored_pair_on_one_authority_is_a_located_solver_conflict() {
     doc.constraints
         .push(legacy_offset("c/one", "free/Q", "alpha/T", 1.0, 2.0));
     doc.constraints
-        .push(legacy_offset("c/two", "free/R", "beta/T", 1.0, 2.0));
+        .push(legacy_offset("c/two", "free/R", MIRROR_T, 1.0, 2.0));
     assert!(super::driving_constraint(&doc, "alpha/T").is_err());
     let before = doc.clone();
     let message = super::resolve(&mut doc).unwrap_err();
@@ -1001,14 +1045,14 @@ fn a_stored_record_and_a_framed_one_on_one_authority_are_refused_by_the_solver()
     // The stored record names the visible mirror; the framed one names the source: one part.
     let mut doc = document((20.0, -7.0));
     doc.constraints
-        .push(legacy_offset("c/legacy", "free/Q", "beta/T", 0.0, 0.0));
+        .push(legacy_offset("c/legacy", "free/Q", MIRROR_T, 0.0, 0.0));
     // beta/T is a derived mirror, so the lookup, not the literal id, decides the conflict.
     refuses(
         &mut doc,
         &[framed(
             "c/framed",
             part_endpoint("local/P"),
-            linked("alpha/T", "beta/T"),
+            linked("alpha/T", MIRROR_T),
             offset_5_neg2(),
         )],
         "multiple constraints",

@@ -591,25 +591,6 @@ fn a_generic_addition_on_a_paired_half_joins_the_pair() {
 }
 
 #[test]
-fn legacy_conversion_rejects_ineligible_selections_without_mutating() {
-    let mut document = legacy_document();
-    // A locally owned member is not legacy.
-    document
-        .hardware
-        .as_mut()
-        .unwrap()
-        .instances
-        .push(mirror_instance("local", vec![]));
-    let before = document.clone();
-
-    for ids in [Vec::new(), vec!["a", "a"], vec!["ghost"], vec!["local"]] {
-        let error = convert(&mut document, &ids).unwrap_err();
-        assert!(!error.is_empty(), "{ids:?}");
-        assert_eq!(document, before, "{ids:?} must not mutate the document");
-    }
-}
-
-#[test]
 fn a_legacy_halves_shared_field_edit_reads_back() {
     let mut document = legacy_halves_document();
     let changed = set_wall_thickness(&mut document, "left", 4.0).unwrap();

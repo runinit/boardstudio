@@ -392,12 +392,10 @@ pub fn add(doc: &mut ProjectDoc, id: &str, anchor: &MatrixAnchor) -> Result<Vec<
                         && record.mirror_id == counterpart_id
                 })
             {
-                link.correspondences.push(MirroredCorrespondence {
+                link.correspondences.push(LayoutLinkPair {
                     kind: MirroredItemKind::Matrix,
                     source_id: ids_by_layout[&source_id].clone(),
                     mirror_id: counterpart_id.clone(),
-                    companion_mode: None,
-                    companion_tweak: None,
                 });
             }
         }

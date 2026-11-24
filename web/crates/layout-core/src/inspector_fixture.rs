@@ -1,8 +1,8 @@
 #[cfg(not(target_arch = "wasm32"))]
 use boardstudio_application::{AcceptedSnapshot, ReadModel, Scope, SessionEpoch, SnapshotToken};
 use boardstudio_core::model::{
-    Board, Layout, LayoutMirrorLink, MirroredCorrespondence, MirroredItemKind, Part,
-    PartDefinition, PartKind, PartOutline, Pose2, ProjectDoc, Side, Vec2,
+    Board, Layout, LayoutLinkPair, LayoutMirrorLink, MirroredItemKind, Part, PartDefinition,
+    PartKind, PartOutline, Pose2, ProjectDoc, Side, Vec2,
 };
 #[cfg(not(target_arch = "wasm32"))]
 use boardstudio_core::model::{Readiness, SceneDelta};
@@ -78,9 +78,7 @@ pub(super) fn fixture_document(configure: impl FnOnce(&mut ProjectDoc)) -> Proje
         matrix_ids: vec!["paired-matrix".into()],
         part_ids: vec![],
         mirror_link: Some(LayoutMirrorLink {
-            correspondences: vec![MirroredCorrespondence {
-                companion_mode: None,
-                companion_tweak: None,
+            correspondences: vec![LayoutLinkPair {
                 kind: MirroredItemKind::Matrix,
                 source_id: "matrix".into(),
                 mirror_id: "paired-matrix".into(),

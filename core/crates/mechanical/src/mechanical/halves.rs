@@ -2,7 +2,7 @@
 
 use crate::model::{
     HardwareConfiguration, MechanicalMirrorPair, MirroredCompanionMode, MirroredCompanionTweak,
-    MirroredHalves, ProjectDoc,
+    ProjectDoc,
 };
 use boardstudio_model::mirrored_half::MirrorDestination;
 use std::collections::{BTreeMap, BTreeSet};
@@ -142,41 +142,9 @@ fn member_boards<'a>(
                 ));
             }
         }
-        validate_companions(pair, halves)?;
+        validate_companion(halves.companion_mode, None)?;
     }
     Ok(boards)
-}
-
-fn validate_companions(pair: &MechanicalMirrorPair, halves: &MirroredHalves) -> Result<(), String> {
-    validate_companion(halves.companion_mode, None)?;
-    for (collection, mode, tweak) in halves
-        .correspondences
-        .iter()
-        .enumerate()
-        .map(|(index, item)| {
-            (
-                ("correspondences", index),
-                item.companion_mode,
-                item.companion_tweak,
-            )
-        })
-        .chain(halves.exceptions.iter().enumerate().map(|(index, item)| {
-            (
-                ("exceptions", index),
-                item.companion_mode,
-                item.companion_tweak,
-            )
-        }))
-    {
-        let (name, index) = collection;
-        validate_companion(mode.unwrap_or(halves.companion_mode), tweak).map_err(|error| {
-            format!(
-                "mechanical pair {:?} halves.{name}[{index}]: {error}",
-                pair.id
-            )
-        })?;
-    }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -286,39 +254,5 @@ mod tests {
         let overrides = &mut doc.mirrored_pairs[0].overrides;
         overrides.push(overrides[0].clone());
         expect_error(&doc, "duplicate override");
-    }
-
-    #[test]
-    fn companion_settings_still_require_the_effective_mode_and_finite_tweaks() {
-        let mut doc = document();
-        let halves = pair(&mut doc).halves.as_mut().unwrap();
-        halves.correspondences.push(
-            serde_json::from_value(json!({
-                "kind": "part", "sourceId": "key", "mirrorId": "other-key",
-                "companionTweak": { "x": 1.0, "y": 0.0, "rotation": 0.0 }
-            }))
-            .unwrap(),
-        );
-        expect_error(&doc, "correspondences[0]: companionTweak is only valid");
-        let halves = pair(&mut doc).halves.as_mut().unwrap();
-        halves.companion_mode = MirroredCompanionMode::LiteralMirrorWithTweak;
-        validate_document(&doc).unwrap();
-
-        let halves = pair(&mut doc).halves.as_mut().unwrap();
-        halves.exceptions.push(
-            serde_json::from_value(json!({
-                "kind": "part", "mirrorId": "other-key", "state": "local"
-            }))
-            .unwrap(),
-        );
-        halves.exceptions[0].companion_tweak = Some(MirroredCompanionTweak {
-            x: 0.0,
-            y: 0.0,
-            rotation: f64::NAN,
-        });
-        expect_error(
-            &doc,
-            "exceptions[0]: companionTweak x, y and rotation must be finite",
-        );
     }
 }
