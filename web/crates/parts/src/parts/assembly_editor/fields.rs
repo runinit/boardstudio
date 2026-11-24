@@ -1,5 +1,5 @@
 use super::super::model_transform::{
-    ModelAxis, ModelTransformFieldset, ModelVector, model_vector, new_model, set_model_axis,
+    ModelTransformFieldset, ModelVector, model_vector, new_model, set_model_axis,
     upload_model_asset, valid_transform_value,
 };
 use super::*;
@@ -415,7 +415,8 @@ fn AssemblyMemberFields(
                     on_commit: move |enabled| {
                         params.insert("hotswap".into(), serde_json::Value::Bool(enabled));
                         params.insert("solder".into(), serde_json::Value::Bool(!enabled));
-                        edit.call(member_edit(move |member| member.parameters = Some(params.clone())));
+                        let updated = params.clone();
+                        edit.call(member_edit(move |member| member.parameters = Some(updated.clone())));
                     },
                   } }
                 }
@@ -513,7 +514,7 @@ fn AssemblyModelFields(
                 label: "Asset", value: "{model.asset_id}",
                 options: model_option_rows(&options, Some(model.asset_id.as_str()), "Saved model asset unavailable"),
                 disabled,
-                on_commit: move |selected| edit.call(member_edit(move |member| {
+                on_commit: move |selected: String| edit.call(member_edit(move |member| {
                     if let Some(model) = member.models.get_mut(index) { model.asset_id = selected.clone(); }
                 })),
             }
