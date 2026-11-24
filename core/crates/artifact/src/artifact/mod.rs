@@ -4,10 +4,9 @@ mod mechanical_plate;
 mod module_import;
 pub mod outline;
 mod source;
-mod source_geometry;
 
 pub use boardstudio_core_kicad_source::mechanical_extract;
-use boardstudio_core_kicad_source::{parsed_board, preview, sexpr};
+use boardstudio_core_kicad_source::{footprint_geometry, parsed_board, preview, sexpr};
 
 use crate::model::{
     ArtifactDiagnostic, ArtifactDiagnosticKind, ArtifactReply, ArtifactRequest, CompiledFootprint,

@@ -239,18 +239,9 @@ fn purpose_contours(
             MechanicalShape::Circle { center, end, .. } => {
                 contours.push(tessellate_circle(*center, *end, max_deviation_mm)?);
             }
-            MechanicalShape::Rectangle { start, end, .. } => contours.push(vec![
-                *start,
-                Vec2 {
-                    x: end.x,
-                    y: start.y,
-                },
-                *end,
-                Vec2 {
-                    x: start.x,
-                    y: end.y,
-                },
-            ]),
+            MechanicalShape::Rectangle { start, end, .. } => {
+                contours.push(sexpr::rect_corners(*start, *end).to_vec())
+            }
             MechanicalShape::Polygon { points, .. } => contours.push(points.clone()),
             MechanicalShape::Drill {
                 at,
@@ -290,13 +281,7 @@ fn tessellate_circle(center: Vec2, edge: Vec2, deviation: f64) -> Result<Vec<Vec
     if radius <= 0.0 {
         return Err(validation("Degenerate plate-cutout circle"));
     }
-    let max_step = 2.0
-        * (1.0 - deviation.min(radius) / radius)
-            .clamp(-1.0, 1.0)
-            .acos();
-    let count = (std::f64::consts::TAU / max_step.max(0.001))
-        .ceil()
-        .max(12.0) as usize;
+    let count = sexpr::arc_subdivision_count(std::f64::consts::TAU, radius, deviation, 12);
     Ok((0..count)
         .map(|index| {
             let angle = std::f64::consts::TAU * index as f64 / count as f64;
@@ -339,11 +324,7 @@ fn tessellate_drill(
     };
     let radius = minor / 2.0;
     let half_center = (major - minor) / 2.0;
-    let max_step = 2.0
-        * (1.0 - deviation.min(radius) / radius)
-            .clamp(-1.0, 1.0)
-            .acos();
-    let segments = (std::f64::consts::PI / max_step.max(0.001)).ceil().max(4.0) as usize;
+    let segments = sexpr::arc_subdivision_count(std::f64::consts::PI, radius, deviation, 4);
     let mut points = Vec::with_capacity(2 * (segments + 1));
     for index in 0..=segments {
         let theta =
@@ -415,11 +396,7 @@ fn tessellate_arc(
 ) -> Result<Vec<Vec2>, ArtifactError> {
     let (center, first, sweep, radius) =
         circular_arc_parameters(start, mid, end, legacy_sweep_degrees)?;
-    let max_step = 2.0
-        * (1.0 - deviation.min(radius) / radius)
-            .clamp(-1.0, 1.0)
-            .acos();
-    let count = (sweep.abs() / max_step.max(0.001)).ceil().max(2.0) as usize;
+    let count = sexpr::arc_subdivision_count(sweep, radius, deviation, 2);
     Ok(sexpr::sample_arc(center, first, sweep, radius, count))
 }
 
@@ -457,7 +434,7 @@ fn graphic_kind(head: Option<&str>) -> Option<GeometryKind> {
 }
 
 fn parse_graphic(node: &Node, kind: GeometryKind) -> Result<MechanicalShape, ArtifactError> {
-    let width = graphic_width(node).map(parse_finite).transpose()?;
+    let width = sexpr::graphic_width(node).map(parse_finite).transpose()?;
     match kind {
         GeometryKind::Line => Ok(MechanicalShape::Line {
             start: point(required_child(node, "start", "Line needs start")?)?,
@@ -582,13 +559,6 @@ fn declared_layers(node: &Node) -> Vec<String> {
         .filter_map(sexpr::atom)
         .map(str::to_owned)
         .collect()
-}
-
-fn graphic_width(node: &Node) -> Option<&str> {
-    sexpr::child(node, "stroke")
-        .and_then(|stroke| sexpr::child(stroke, "width"))
-        .or_else(|| sexpr::child(node, "width"))
-        .and_then(scalar)
 }
 
 fn scalar(node: &Node) -> Option<&str> {
