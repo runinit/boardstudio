@@ -145,16 +145,14 @@ pub fn build_operation(
             },
             Field::MatrixFollowX,
             Value::Bool(x),
-        ) => Ok(EditOperation::SetMatrixAnchor {
-            matrix_id: matrix.id.clone(),
-            anchor: MatrixAnchor {
-                follow: Follow {
-                    x,
-                    ..current.follow
-                },
-                ..current.clone()
+        ) => Ok(set_follow(
+            &matrix.id,
+            current,
+            Follow {
+                x,
+                ..current.follow
             },
-        }),
+        )),
         (
             MatrixTransformFields::Matrix {
                 anchor: Some(current),
@@ -162,16 +160,14 @@ pub fn build_operation(
             },
             Field::MatrixFollowY,
             Value::Bool(y),
-        ) => Ok(EditOperation::SetMatrixAnchor {
-            matrix_id: matrix.id.clone(),
-            anchor: MatrixAnchor {
-                follow: Follow {
-                    y,
-                    ..current.follow
-                },
-                ..current.clone()
+        ) => Ok(set_follow(
+            &matrix.id,
+            current,
+            Follow {
+                y,
+                ..current.follow
             },
-        }),
+        )),
         (
             MatrixTransformFields::Matrix {
                 anchor: Some(current),
@@ -179,16 +175,14 @@ pub fn build_operation(
             },
             Field::MatrixFollowRotation,
             Value::Bool(rotation),
-        ) => Ok(EditOperation::SetMatrixAnchor {
-            matrix_id: matrix.id.clone(),
-            anchor: MatrixAnchor {
-                follow: Follow {
-                    rotation,
-                    ..current.follow
-                },
-                ..current.clone()
+        ) => Ok(set_follow(
+            &matrix.id,
+            current,
+            Follow {
+                rotation,
+                ..current.follow
             },
-        }),
+        )),
         (MatrixTransformFields::Matrix { .. }, Field::OriginX, Value::Number(x)) => {
             let mut next = matrix.clone();
             next.origin.x = x;
@@ -320,11 +314,11 @@ pub fn build_operation(
             MatrixTransformFields::Column { column, .. },
             Field::ColumnSplay,
             Value::Number(angle),
-        ) => Ok(EditOperation::SetMatrixSplay {
-            matrix_id: matrix.id.clone(),
-            column: *column,
-            change: MatrixSplayChange::Angle { angle, affect },
-        }),
+        ) => Ok(set_splay(
+            matrix,
+            *column,
+            MatrixSplayChange::Angle { angle, affect },
+        )),
         (
             MatrixTransformFields::Column {
                 column,
@@ -333,13 +327,13 @@ pub fn build_operation(
             },
             Field::SplayOriginMode,
             Value::OriginMode(custom),
-        ) => Ok(EditOperation::SetMatrixSplay {
-            matrix_id: matrix.id.clone(),
-            column: *column,
-            change: MatrixSplayChange::Origin {
+        ) => Ok(set_splay(
+            matrix,
+            *column,
+            MatrixSplayChange::Origin {
                 world: custom.then_some(*splay_origin),
             },
-        }),
+        )),
         (
             MatrixTransformFields::Column {
                 column,
@@ -348,16 +342,16 @@ pub fn build_operation(
             },
             Field::SplayOriginX,
             Value::Number(x),
-        ) => Ok(EditOperation::SetMatrixSplay {
-            matrix_id: matrix.id.clone(),
-            column: *column,
-            change: MatrixSplayChange::Origin {
+        ) => Ok(set_splay(
+            matrix,
+            *column,
+            MatrixSplayChange::Origin {
                 world: Some(Vec2 {
                     x,
                     y: splay_origin.y,
                 }),
             },
-        }),
+        )),
         (
             MatrixTransformFields::Column {
                 column,
@@ -366,34 +360,34 @@ pub fn build_operation(
             },
             Field::SplayOriginY,
             Value::Number(y),
-        ) => Ok(EditOperation::SetMatrixSplay {
-            matrix_id: matrix.id.clone(),
-            column: *column,
-            change: MatrixSplayChange::Origin {
+        ) => Ok(set_splay(
+            matrix,
+            *column,
+            MatrixSplayChange::Origin {
                 world: Some(Vec2 {
                     x: splay_origin.x,
                     y,
                 }),
             },
-        }),
+        )),
         (
             MatrixTransformFields::Column { column, .. },
             Field::SplayOriginPoint,
             Value::Point(point),
-        ) => Ok(EditOperation::SetMatrixSplay {
-            matrix_id: matrix.id.clone(),
-            column: *column,
-            change: MatrixSplayChange::Origin { world: Some(point) },
-        }),
+        ) => Ok(set_splay(
+            matrix,
+            *column,
+            MatrixSplayChange::Origin { world: Some(point) },
+        )),
         (
             MatrixTransformFields::Column { column, .. },
             Field::SplayOriginSwingPoint,
             Value::Point(point),
-        ) => Ok(EditOperation::SetMatrixSplay {
-            matrix_id: matrix.id.clone(),
-            column: *column,
-            change: MatrixSplayChange::OriginSwing { world: Some(point) },
-        }),
+        ) => Ok(set_splay(
+            matrix,
+            *column,
+            MatrixSplayChange::OriginSwing { world: Some(point) },
+        )),
         (
             MatrixTransformFields::Key {
                 row,
@@ -585,31 +579,74 @@ fn set_matrix(matrix: Matrix) -> EditOperation {
     }
 }
 
-fn set_cell_enabled(matrix: &Matrix, row: u32, column: u32, enabled: bool) -> EditOperation {
+fn set_follow(matrix_id: &str, current: &MatrixAnchor, follow: Follow) -> EditOperation {
+    EditOperation::SetMatrixAnchor {
+        matrix_id: matrix_id.to_owned(),
+        anchor: MatrixAnchor {
+            follow,
+            ..current.clone()
+        },
+    }
+}
+
+fn set_splay(matrix: &Matrix, column: u32, change: MatrixSplayChange) -> EditOperation {
+    EditOperation::SetMatrixSplay {
+        matrix_id: matrix.id.clone(),
+        column,
+        change,
+    }
+}
+
+fn edit_cell(
+    matrix: &Matrix,
+    row: u32,
+    column: u32,
+    create: bool,
+    update: impl FnOnce(&mut MatrixCell),
+) -> EditOperation {
     let mut next = matrix.clone();
     if let Some(cell) = next
         .cells
         .iter_mut()
         .find(|cell| cell.row == row && cell.column == column)
     {
-        cell.enabled = enabled;
-    } else {
-        next.cells.push(MatrixCell {
+        update(cell);
+    } else if create {
+        let mut cell = MatrixCell {
             shift: None,
             bend: None,
             deleted: false,
             row,
             column,
-            enabled,
+            enabled: true,
             definition_id: None,
             variant: None,
             offset: None,
             rotation: None,
             assemblies: Vec::new(),
             assemblies_local: None,
-        });
+        };
+        update(&mut cell);
+        next.cells.push(cell);
     }
     set_matrix(next)
+}
+
+pub fn set_cells_enabled(matrix: &Matrix, cells: &[(u32, u32)], enabled: bool) -> EditOperation {
+    let mut next = matrix.clone();
+    for &(row, column) in cells {
+        if let EditOperation::SetMatrix {
+            matrix: updated, ..
+        } = edit_cell(&next, row, column, true, |cell| cell.enabled = enabled)
+        {
+            next = updated;
+        }
+    }
+    set_matrix(next)
+}
+
+fn set_cell_enabled(matrix: &Matrix, row: u32, column: u32, enabled: bool) -> EditOperation {
+    edit_cell(matrix, row, column, true, |cell| cell.enabled = enabled)
 }
 
 /// Only a linked mirror target keeps an assembly edit local to its key, like the reference
@@ -621,12 +658,7 @@ fn set_cell_assembly(
     definition_id: String,
     mirror_target: bool,
 ) -> EditOperation {
-    let mut next = matrix.clone();
-    if let Some(cell) = next
-        .cells
-        .iter_mut()
-        .find(|cell| cell.row == row && cell.column == column)
-    {
+    edit_cell(matrix, row, column, true, |cell| {
         let changed = cell.definition_id.as_deref() != Some(definition_id.as_str())
             || cell.variant.as_deref() != Some(definition_id.as_str());
         cell.definition_id = Some(definition_id.clone());
@@ -634,23 +666,7 @@ fn set_cell_assembly(
         if changed && mirror_target {
             cell.assemblies_local = Some(true);
         }
-    } else {
-        next.cells.push(MatrixCell {
-            shift: None,
-            bend: None,
-            deleted: false,
-            row,
-            column,
-            enabled: true,
-            definition_id: Some(definition_id.clone()),
-            variant: Some(definition_id),
-            offset: None,
-            rotation: None,
-            assemblies: Vec::new(),
-            assemblies_local: mirror_target.then_some(true),
-        });
-    }
-    set_matrix(next)
+    })
 }
 
 fn set_cell_attached(
@@ -660,13 +676,8 @@ fn set_cell_attached(
     attached: &[(String, String)],
     mirror_target: bool,
 ) -> EditOperation {
-    let mut next = matrix.clone();
-    if let Some(cell) = next
-        .cells
-        .iter_mut()
-        .find(|cell| cell.row == row && cell.column == column)
-    {
-        let assemblies = cell
+    edit_cell(matrix, row, column, false, |cell| {
+        let assemblies: Vec<_> = cell
             .assemblies
             .iter()
             .filter_map(|assembly| {
@@ -679,25 +690,18 @@ fn set_cell_attached(
                         assembly
                     })
             })
-            .collect::<Vec<_>>();
+            .collect();
         if mirror_target && assemblies != cell.assemblies {
             cell.assemblies_local = Some(true);
         }
         cell.assemblies = assemblies;
-    }
-    set_matrix(next)
+    })
 }
 
 fn set_cell_assemblies_local(matrix: &Matrix, row: u32, column: u32, local: bool) -> EditOperation {
-    let mut next = matrix.clone();
-    if let Some(cell) = next
-        .cells
-        .iter_mut()
-        .find(|cell| cell.row == row && cell.column == column)
-    {
+    edit_cell(matrix, row, column, false, |cell| {
         cell.assemblies_local = Some(local);
-    }
-    set_matrix(next)
+    })
 }
 
 fn set_cell_transform(
@@ -707,38 +711,10 @@ fn set_cell_transform(
     offset: Vec2,
     rotation: Option<f64>,
 ) -> EditOperation {
-    let mut next = matrix.clone();
-    let mut cell = next
-        .cells
-        .iter()
-        .find(|cell| cell.row == row && cell.column == column)
-        .cloned()
-        .unwrap_or(MatrixCell {
-            shift: None,
-            bend: None,
-            deleted: false,
-            row,
-            column,
-            enabled: true,
-            definition_id: None,
-            variant: None,
-            offset: None,
-            rotation: None,
-            assemblies: Vec::new(),
-            assemblies_local: None,
-        });
-    cell.offset = Some(offset);
-    if let Some(rotation) = rotation {
-        cell.rotation = Some(rotation);
-    }
-    if let Some(existing) = next
-        .cells
-        .iter_mut()
-        .find(|existing| existing.row == row && existing.column == column)
-    {
-        *existing = cell;
-    } else {
-        next.cells.push(cell);
-    }
-    set_matrix(next)
+    edit_cell(matrix, row, column, true, |cell| {
+        cell.offset = Some(offset);
+        if let Some(rotation) = rotation {
+            cell.rotation = Some(rotation);
+        }
+    })
 }

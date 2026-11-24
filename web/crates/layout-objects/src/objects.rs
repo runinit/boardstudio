@@ -24,10 +24,8 @@ mod board_setup_controller;
 mod existing_half;
 mod keycap_resize;
 mod keycap_size;
-mod keycap_size_controller;
 mod keycap_size_logic;
 mod layout_align;
-mod layout_align_controller;
 mod layout_align_geometry;
 mod layout_align_logic;
 mod layout_anchor_pick;
@@ -57,12 +55,8 @@ pub use add_matrix_surface::{AddMatrixMode, AddMatrixSurface};
 pub use board_setup_controller::{BoardSetupMount, use_board_setup};
 use boardstudio_web_ui_model::tree;
 pub use existing_half::{ExistingHalfMount, ExistingHalfSetup};
-pub use keycap_size::KeySizeControls;
-pub use keycap_size_controller::{KeySizeMount, use_key_size};
-pub use layout_align::{
-    AlignAction, AlignCommand, AlignFeedback, AlignReference, LayoutAlignMount,
-};
-pub use layout_align_controller::use_canvas_align;
+pub use keycap_size::{KeySizeControls, KeySizeMount, use_key_size};
+pub use layout_align::{AlignCommand, AlignReference, LayoutAlignMount, use_canvas_align};
 pub use layout_anchor_pick::{AnchorPickOwner, LayoutAnchorPickOverlay};
 pub use layout_canvas_controls::LayoutCanvasControls;
 pub use layout_rail::{

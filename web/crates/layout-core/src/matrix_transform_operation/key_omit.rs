@@ -44,17 +44,7 @@ pub fn key_half_exception_at_resolver(
         move |accepted: &AcceptedSnapshot| {
             // A live key resolves through its scene cell; an omitted key left
             // the scene, so its Omitted overlay names the canonical member.
-            let member = accepted
-                .scene
-                .matrix_scenes
-                .iter()
-                .find(|scene| scene.matrix_id == matrix_id)
-                .and_then(|scene| {
-                    scene
-                        .cells
-                        .iter()
-                        .find(|cell| cell.row == row && cell.column == column)
-                })
+            let member = crate::scene_cell(&accepted.scene.matrix_scenes, &matrix_id, row, column)
                 .and_then(|cell| cell.member_id.clone());
             let member = match member {
                 Some(member) => member,
@@ -88,7 +78,7 @@ pub fn key_half_exception_omitted(
     row: u32,
     column: u32,
 ) -> Option<KeyHalfException> {
-    let candidate = format!("matrix/{matrix_id}/r{row}c{column}");
+    let candidate = crate::canonical_matrix_member(matrix_id, row, column);
     key_half_exception(document, &candidate).filter(|exception| exception.omitted)
 }
 

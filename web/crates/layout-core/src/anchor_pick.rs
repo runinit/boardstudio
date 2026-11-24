@@ -18,7 +18,7 @@
 use boardstudio_application::CoreEngine;
 use boardstudio_core_kernel::matrix::layout::evaluated_part_pose;
 use boardstudio_model::model::{
-    EditOperation, Follow, Layout, Matrix, MatrixAnchor, Part, PartAnchor, Pose2, ProjectDoc, Vec2,
+    EditOperation, Follow, Layout, MatrixAnchor, Part, PartAnchor, Pose2, ProjectDoc, Vec2,
 };
 use boardstudio_web_ui_model::tree::TreeContext;
 
@@ -75,15 +75,15 @@ pub const MAJOR_RING_HOVER_PX: f64 = 9.0;
 /// Major hit area edge, in screen px.
 pub const MAJOR_HIT_PX: f64 = 36.0;
 
-fn owner_matrix<'a>(document: &'a ProjectDoc, matrix_id: &str) -> Option<&'a Matrix> {
+fn owner_part<'a>(document: &'a ProjectDoc, part_id: &str) -> Option<&'a Part> {
+    document.parts.iter().find(|part| part.id == part_id)
+}
+
+fn part_in_any_matrix(document: &ProjectDoc, part_id: &str) -> bool {
     document
         .matrices
         .iter()
-        .find(|matrix| matrix.id == matrix_id)
-}
-
-fn owner_part<'a>(document: &'a ProjectDoc, part_id: &str) -> Option<&'a Part> {
-    document.parts.iter().find(|part| part.id == part_id)
+        .any(|matrix| matrix.part_ids.iter().any(|member| member == part_id))
 }
 
 fn layout_for_matrix<'a>(document: &'a ProjectDoc, matrix_id: &str) -> Option<&'a Layout> {
@@ -144,7 +144,7 @@ fn owner_anchor<'a>(
 ) -> Option<OwnerAnchor<'a>> {
     match selection {
         TreeContext::Matrix { matrix_id } => {
-            let matrix = owner_matrix(document, matrix_id)?;
+            let matrix = crate::matrix_by_id(document, matrix_id)?;
             Some(OwnerAnchor::Matrix {
                 matrix_id,
                 anchor: matrix.anchor.as_ref()?,
@@ -156,14 +156,7 @@ fn owner_anchor<'a>(
             ..
         } => {
             let part = owner_part(document, part_id)?;
-            if part.locked == Some(true) {
-                return None;
-            }
-            if document
-                .matrices
-                .iter()
-                .any(|matrix| matrix.part_ids.contains(part_id))
-            {
+            if part.locked == Some(true) || part_in_any_matrix(document, part_id) {
                 return None;
             }
             Some(OwnerAnchor::Part {
@@ -245,7 +238,7 @@ pub fn anchor_pick_candidates(
                 continue;
             }
             if let Some(next) =
-                owner_matrix(document, &cursor).and_then(|matrix| matrix.anchor.as_ref())
+                crate::matrix_by_id(document, &cursor).and_then(|matrix| matrix.anchor.as_ref())
             {
                 stack.extend(next.targets().iter().map(|part| part.matrix_id.clone()));
             }
@@ -261,7 +254,7 @@ pub fn anchor_pick_candidates(
 
     let mut keys = Vec::new();
     for matrix_id in &layout.matrix_ids {
-        let Some(target) = owner_matrix(document, matrix_id) else {
+        let Some(target) = crate::matrix_by_id(document, matrix_id) else {
             continue;
         };
         let same_board = target
@@ -310,12 +303,8 @@ pub fn anchor_pick_candidates(
     let mut majors: Vec<AnchorMajorTarget> = layout
         .part_ids
         .iter()
-        .filter(|id| owner_part_id.as_deref() != Some(id.as_str()))
         .filter(|id| {
-            !document
-                .matrices
-                .iter()
-                .any(|matrix| matrix.part_ids.iter().any(|member| member == *id))
+            owner_part_id.as_deref() != Some(id.as_str()) && !part_in_any_matrix(document, id)
         })
         .map(|id| AnchorMajorTarget {
             kind: AnchorMajorKind::Part(id.clone()),
