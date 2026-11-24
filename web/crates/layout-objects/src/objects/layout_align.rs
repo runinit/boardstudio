@@ -183,19 +183,19 @@ pub fn LayoutAlignToolbar(
             open_menu, menu: LayoutCommandMenu::Align, label: "Align", trigger: rsx! { span { "Align" } },
             Label { "Reference part" }
             if mount.references.len() > 12 {
-                Combobox::<String> {
+                Combobox {
                     aria_label: "Alignment reference", list_aria_label: "Alignment reference",
                     value: Some(selected_reference.into()), on_value_change: on_ref,
                     for (index, part) in mount.references.iter().enumerate() {
-                        ComboboxOption::<String> { index, value: part.id.clone(), text_value: part.label.clone(), "{part.label}" }
+                        ComboboxOption { index, value: part.id.clone(), text_value: part.label.clone(), "{part.label}" }
                     }
                 }
             } else {
-                Select::<String> {
+                Select {
                     aria_label: "Alignment reference", value: Some(selected_reference.into()),
                     disabled: mount.references.is_empty(), on_value_change: on_ref,
                     for (index, part) in mount.references.iter().enumerate() {
-                        SelectOption::<String> { index, value: part.id.clone(), text_value: part.label.clone(), "{part.label}" }
+                        SelectOption { index, value: part.id.clone(), text_value: part.label.clone(), "{part.label}" }
                     }
                 }
             }

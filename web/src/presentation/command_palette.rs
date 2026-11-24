@@ -118,24 +118,50 @@ pub(super) fn CommandPalette(state: PaletteState) -> Element {
         "Current Workspace",
         "Objects",
     ];
+    // Index-keyed for the `String`-only `Combobox`: positions here must match the
+    // render order below so a committed key decodes to the visible command.
+    let grouped: Vec<(&str, Vec<Command>)> = groups
+        .into_iter()
+        .map(|group| {
+            let matching: Vec<_> = commands
+                .iter()
+                .filter(|c| {
+                    c.group == group
+                        && format!("{} {}", c.group, c.label)
+                            .to_lowercase()
+                            .contains(&needle)
+                })
+                .cloned()
+                .collect();
+            (group, matching)
+        })
+        .collect();
+    let ordered: Vec<Command> = grouped
+        .iter()
+        .flat_map(|(_, matching)| matching.iter().cloned())
+        .collect();
     rsx! {
         Dialog { open: Some(open), on_open_change: move |next: bool| if !next { state.close(None); },
             class: "command-palette",
             DialogTitle { id: "command-palette-title", "Command palette" }
             DialogDescription { id: "command-palette-description", "Search existing actions and objects. Unavailable actions explain why." }
-            Combobox::<Command> {
+            Combobox {
                 open: Some(true), query: Some(query()),
                 aria_label: "Search commands and objects", list_aria_label: "Commands and objects",
                 placeholder: "Search commands and objects…",
                 on_query_change: move |next| query.set(next),
-                on_value_change: move |cmd: Option<Command>| if let Some(c) = cmd && (!browser() || matches!(c.group, "Go to" | "Project" | "Edit")) { state.close(Some(c)); },
+                on_value_change: move |key: Option<String>| {
+                    let Some(cmd) = key
+                        .and_then(|key| key.parse::<usize>().ok())
+                        .and_then(|index| ordered.get(index).cloned()) else { return; };
+                    if !browser() || matches!(cmd.group, "Go to" | "Project" | "Edit") { state.close(Some(cmd)); }
+                },
                 filter: move |_: (String, String)| true,
                 {
                     let mut idx = 0usize;
                     rsx! {
-                        for group in groups {
+                        for (group, matching) in grouped {
                             {
-                                let matching: Vec<_> = commands.iter().filter(|c| c.group == group && format!("{} {}", c.group, c.label).to_lowercase().contains(&needle)).cloned().collect();
                                 rsx! {
                                     if !matching.is_empty() {
                                         div { role: "group", aria_label: group,
@@ -144,7 +170,7 @@ pub(super) fn CommandPalette(state: PaletteState) -> Element {
                                                 {
                                                     let i = idx; idx += 1;
                                                     rsx! {
-                                                        ComboboxOption::<Command> { key: "{i}:{cmd.label}", index: i, value: cmd.clone(), text_value: cmd.label.clone(), aria_label: cmd.label.clone(), disabled: cmd.reason.is_some(),
+                                                        ComboboxOption { key: "{i}", index: i, value: i.to_string(), text_value: cmd.label.clone(), aria_label: cmd.label.clone(), disabled: cmd.reason.is_some(),
                                                             div { class: "flex flex-col text-left",
                                                                 span { "{cmd.label}" }
                                                                 if let Some(reason) = &cmd.reason { small { "{reason}" } }

@@ -30,8 +30,10 @@ pub use dioxus_primitives::select::SelectGroup;
 
 use crate::ui::icons::{Check, ChevronDown};
 
+// Concrete over `String`: `dioxus_primitives::select` is instantiated exactly once.
+// Callers with other key types map `T <-> String` (see `SelectField`'s index keys).
 #[component]
-pub fn Select<T: Clone + PartialEq + 'static>(props: SelectProps<T>) -> Element {
+pub fn Select(props: SelectProps) -> Element {
     let (open, set_open) =
         dioxus_primitives::use_controlled(props.open, (props.default_open)(), props.on_open_change);
     let mut trigger: Signal<Option<std::rc::Rc<MountedData>>> = use_signal(|| None);
@@ -126,14 +128,14 @@ pub fn SelectGroupLabel(props: SelectGroupLabelProps) -> Element {
 }
 
 #[component]
-pub fn SelectOption<T: Clone + PartialEq + 'static>(props: SelectOptionProps<T>) -> Element {
+pub fn SelectOption(props: SelectOptionProps<String>) -> Element {
     let base = attributes!(div {
         class: "group flex gap-2 items-center w-full rounded-sm px-2 py-1.5 text-sm cursor-pointer outline-none transition-colors duration-200 text-popover-foreground hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg:not([class*='size-'])]:size-4",
         "data-slot": "select-option",
     });
     let merged = merge_attributes(vec![base, props.attributes]);
     rsx! {
-        select::SelectOption::<T> {
+        select::SelectOption::<String> {
             value: props.value,
             text_value: props.text_value,
             disabled: props.disabled,

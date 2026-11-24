@@ -348,6 +348,10 @@ pub fn TextCommitField(
 }
 
 /// Declarative choice selector (`Select` up to 12 options, filterable `Combobox` above).
+///
+/// The generic `T` never reaches `dioxus_primitives`: options are keyed by their
+/// position index (`String`) so the primitives instantiate exactly once, and the
+/// key is decoded back to `T` on commit. Per-`T` codegen is just this thin mapping.
 #[component]
 pub fn SelectField<T: Clone + PartialEq + 'static>(
     label: String,
@@ -364,35 +368,46 @@ pub fn SelectField<T: Clone + PartialEq + 'static>(
         id.unwrap_or_else(|| format!("inspector-select-{}", dioxus::core::current_scope_id().0));
     let disabled = disabled || disabled_reason.is_some();
     let long = options.len() > 12;
-    let has_match = options.iter().any(|(candidate, _)| *candidate == value);
-    let selected = has_match.then(|| value.clone());
-    let current = use_memo(use_reactive((&selected,), |(s,)| s));
+    let selected_index = options
+        .iter()
+        .position(|(candidate, _)| *candidate == value);
+    let has_match = selected_index.is_some();
+    let selected_key = selected_index.map(|index| index.to_string());
+    let current = use_memo(use_reactive((&selected_key,), |(s,)| s));
     let name = aria_label.unwrap_or_else(|| label.clone());
     let empty_placeholder = (!has_match).then(|| placeholder.clone()).flatten();
     let offset = usize::from(empty_placeholder.is_some());
+    // Unmatched values render a disabled placeholder option under a sentinel key
+    // that can never collide with a positional index key nor decode to a commit.
+    const PLACEHOLDER_KEY: &str = "__unmatched__";
+    let (values, labels): (Vec<T>, Vec<String>) = options.into_iter().unzip();
+    let decode = move |next: Option<String>| {
+        next.and_then(|key| key.parse::<usize>().ok())
+            .and_then(|index| values.get(index).cloned())
+    };
     rsx! {
         Field { class: "gap-1.5 min-w-0", disabled,
             if long {
                 Label { class: "flex-col items-stretch gap-2 w-full", "{label}"
-                    Combobox::<T> {
+                    Combobox {
                         id, class: COMBO_CLS, aria_label: name.clone(), list_aria_label: name,
                         placeholder: placeholder.unwrap_or_default(), value: Some(current.into()), disabled,
-                        on_value_change: move |next: Option<T>| if let Some(next) = next { on_commit.call(next); },
-                        for (index, (v, t)) in options.into_iter().enumerate() {
-                            ComboboxOption::<T> { class: TOUCH_CLS, index, value: v, text_value: t.clone(), "{t}" }
+                        on_value_change: move |next: Option<String>| if let Some(next) = decode(next) { on_commit.call(next); },
+                        for (index, t) in labels.into_iter().enumerate() {
+                            ComboboxOption { class: TOUCH_CLS, index, value: index.to_string(), text_value: t.clone(), "{t}" }
                         }
                     }
                 }
             } else {
                 FieldLabel { html_for: id.clone(), "{label}" }
-                Select::<T> {
+                Select {
                     id, class: SELECT_CLS, aria_label: name, value: Some(current.into()), disabled,
-                    on_value_change: move |next: Option<T>| if let Some(next) = next { on_commit.call(next); },
+                    on_value_change: move |next: Option<String>| if let Some(next) = decode(next) { on_commit.call(next); },
                     if let Some(text) = empty_placeholder {
-                        SelectOption::<T> { class: TOUCH_CLS, index: 0usize, value, disabled: true, text_value: text.clone(), "{text}" }
+                        SelectOption { class: TOUCH_CLS, index: 0usize, value: PLACEHOLDER_KEY.to_owned(), disabled: true, text_value: text.clone(), "{text}" }
                     }
-                    for (index, (v, t)) in options.into_iter().enumerate() {
-                        SelectOption::<T> { class: TOUCH_CLS, index: index + offset, value: v, text_value: t.clone(), "{t}" }
+                    for (index, t) in labels.into_iter().enumerate() {
+                        SelectOption { class: TOUCH_CLS, index: index + offset, value: index.to_string(), text_value: t.clone(), "{t}" }
                     }
                 }
             }

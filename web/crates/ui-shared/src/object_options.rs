@@ -29,7 +29,7 @@ fn ObjectOptions(mut grouping: Signal<Grouping>) -> Element {
     rsx! {
         div { class: "grid gap-1",
             span { "Group objects" }
-            Select::<String> {
+            Select {
                 aria_label: "Tree grouping",
                 value: Some(selected.into()),
                 on_value_change: move |value: Option<String>| {
@@ -38,8 +38,8 @@ fn ObjectOptions(mut grouping: Signal<Grouping>) -> Element {
                     grouping.set(next);
                     write_tree_grouping(next);
                 },
-                SelectOption::<String> { index: 0usize, value: "column", text_value: "Columns", "Columns" }
-                SelectOption::<String> { index: 1usize, value: "row", text_value: "Rows", "Rows" }
+                SelectOption { index: 0usize, value: "column", text_value: "Columns", "Columns" }
+                SelectOption { index: 1usize, value: "row", text_value: "Rows", "Rows" }
             }
         }
     }

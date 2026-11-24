@@ -23,14 +23,16 @@ use dioxus_primitives::{dioxus_attributes::attributes, merge_attributes};
 
 use crate::ui::icons::{Check, ChevronsUpDown};
 
+// Concrete over `String`: `dioxus_primitives::combobox` is instantiated exactly once.
+// Callers with other key types map `T <-> String` (see `SelectField`'s index keys).
 #[derive(Props, Clone, PartialEq)]
-pub struct ComboboxProps<T: Clone + PartialEq + 'static = String> {
+pub struct ComboboxProps {
     #[props(default)]
-    pub value: Option<ReadSignal<Option<T>>>,
+    pub value: Option<ReadSignal<Option<String>>>,
     #[props(default)]
-    pub default_value: Option<T>,
+    pub default_value: Option<String>,
     #[props(default)]
-    pub on_value_change: Callback<Option<T>>,
+    pub on_value_change: Callback<Option<String>>,
     #[props(default)]
     pub disabled: ReadSignal<bool>,
     #[props(default)]
@@ -61,7 +63,7 @@ pub struct ComboboxProps<T: Clone + PartialEq + 'static = String> {
 }
 
 #[component]
-pub fn Combobox<T: Clone + PartialEq + 'static>(props: ComboboxProps<T>) -> Element {
+pub fn Combobox(props: ComboboxProps) -> Element {
     let (input_identity, root_attributes): (Vec<_>, Vec<_>) = props
         .attributes
         .into_iter()
@@ -126,14 +128,14 @@ pub fn ComboboxEmpty(props: ComboboxEmptyProps) -> Element {
 }
 
 #[component]
-pub fn ComboboxOption<T: Clone + PartialEq + 'static>(props: ComboboxOptionProps<T>) -> Element {
+pub fn ComboboxOption(props: ComboboxOptionProps<String>) -> Element {
     let base = attributes!(div {
         class: "flex gap-2 items-center w-full rounded-sm px-2 py-1.5 text-sm cursor-pointer outline-none transition-colors duration-200 text-popover-foreground hover:bg-accent hover:text-accent-foreground data-[highlighted=true]:bg-accent data-[highlighted=true]:text-accent-foreground data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50",
         "data-slot": "combobox-option",
     });
     let merged = merge_attributes(vec![base, props.attributes]);
     rsx! {
-        combobox::ComboboxOption::<T> {
+        combobox::ComboboxOption::<String> {
             value: props.value,
             text_value: props.text_value,
             disabled: props.disabled,
