@@ -1,14 +1,14 @@
 //! Switch, stabilizer and imported-geometry profile assignments.
 use super::*;
 
-/// Applies one change in this domain; anything else is a routing error.
-pub(super) fn apply(
+/// Applies one change in this domain, or `None` when another domain owns it.
+pub(super) fn try_apply(
     configuration: &mut MechanicalConfiguration,
     change: &MechanicalChange,
     document: &ProjectDoc,
     board_id: &str,
     changed: &mut Vec<String>,
-) -> Result<(), String> {
+) -> Result<Option<()>, String> {
     match change {
         MechanicalChange::AssignSwitchProfile {
             definition_id,
@@ -218,7 +218,7 @@ pub(super) fn apply(
                 crate::mechanical::default_plate_foam_thickness(plate_to_pcb);
             changed.push(definition_id.clone());
         }
-        _ => return Err("A change was routed to the wrong edit domain.".into()),
+        _ => return Ok(None),
     };
-    Ok(())
+    Ok(Some(()))
 }

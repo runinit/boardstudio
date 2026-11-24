@@ -122,80 +122,29 @@ pub(super) fn apply_change(
     changed: &mut Vec<String>,
 ) -> Result<(), String> {
     let previous = configuration.clone();
-    match change {
+    if matches!(
+        change,
         MechanicalChange::Enable
-        | MechanicalChange::Disable
-        | MechanicalChange::InitializeClosures
-        | MechanicalChange::LinkMirrorPair { .. }
-        | MechanicalChange::UnlinkMirrorPair { .. }
-        | MechanicalChange::RemovePhysicalInstance
-        | MechanicalChange::MakeFeatureLocal { .. }
-        | MechanicalChange::OmitFeatureMember { .. }
-        | MechanicalChange::RejoinFeatureMember { .. } => {
-            return Err("This change is handled by the mechanical edit lifecycle.".into());
-        }
-        MechanicalChange::SetBatteryEnabled(_)
-        | MechanicalChange::SetMethod(_)
-        | MechanicalChange::SetBottomStyle(_)
-        | MechanicalChange::SetMiddleFrame(_)
-        | MechanicalChange::SetIntegratedPlateFrame(_)
-        | MechanicalChange::SetDimension { .. }
-        | MechanicalChange::SetStabilizerKind(_)
-        | MechanicalChange::AddProcessOverride { .. }
-        | MechanicalChange::RemoveProcessOverride { .. }
-        | MechanicalChange::SetProcessMethod { .. }
-        | MechanicalChange::SetProcessMaterial { .. }
-        | MechanicalChange::SetProcessThickness { .. } => {
-            construction::apply(configuration, change, document, board_id, changed)?
-        }
-        MechanicalChange::SetClosureInsertPreset(_)
-        | MechanicalChange::SetClosureDrive(_)
-        | MechanicalChange::SetClosureInstallation(_)
-        | MechanicalChange::SetClosureThread(_)
-        | MechanicalChange::SetClosureFixedLength(_)
-        | MechanicalChange::SetClosureScrewLengths(_)
-        | MechanicalChange::SetClosureHeadProfile(_)
-        | MechanicalChange::SetClosureLengthDatum(_)
-        | MechanicalChange::AddCriticalFit { .. }
-        | MechanicalChange::RemoveCriticalFit { .. }
-        | MechanicalChange::SetCriticalFitText { .. }
-        | MechanicalChange::SetCriticalFitPart { .. }
-        | MechanicalChange::SetCriticalFitPoint { .. }
-        | MechanicalChange::AddHardware { .. }
-        | MechanicalChange::RemoveHardware { .. }
-        | MechanicalChange::SetHardwareMount { .. }
-        | MechanicalChange::SetHardwareText { .. }
-        | MechanicalChange::SetHardwareDimension { .. }
-        | MechanicalChange::SetMount(_)
-        | MechanicalChange::AddMount { .. }
-        | MechanicalChange::AddSuggestedClosureMounts(_)
-        | MechanicalChange::SetMountCollection { .. }
-        | MechanicalChange::AdoptClosurePositions(_)
-        | MechanicalChange::SetMountDimension { .. }
-        | MechanicalChange::SetMountPosition { .. }
-        | MechanicalChange::SetMountKind { .. }
-        | MechanicalChange::RemoveMount { .. } => {
-            mounts::apply(configuration, change, document, identity_floor, changed)?
-        }
-        MechanicalChange::AddOpening
-        | MechanicalChange::RemoveOpening { .. }
-        | MechanicalChange::AddOpeningVertex { .. }
-        | MechanicalChange::RemoveOpeningVertex { .. }
-        | MechanicalChange::SetOpeningDimension { .. } => {
-            openings::apply(configuration, change, identity_floor, changed)?
-        }
-        MechanicalChange::SetGasketSupportDimension { .. }
-        | MechanicalChange::SetGasketSupportPlacement { .. }
-        | MechanicalChange::SetGasketSupportUnlinked { .. }
-        | MechanicalChange::ResetGasketPlacement => gaskets::apply(configuration, change, changed)?,
-        MechanicalChange::AssignSwitchProfile { .. }
-        | MechanicalChange::AssignStabilizerProfile { .. }
-        | MechanicalChange::AssignImportedGeometryProfile { .. }
-        | MechanicalChange::UpdateProfile(_)
-        | MechanicalChange::RemoveProfile { .. }
-        | MechanicalChange::SetSwitchFamily { .. } => {
-            profiles::apply(configuration, change, document, board_id, changed)?
-        }
+            | MechanicalChange::Disable
+            | MechanicalChange::InitializeClosures
+            | MechanicalChange::LinkMirrorPair { .. }
+            | MechanicalChange::UnlinkMirrorPair { .. }
+            | MechanicalChange::RemovePhysicalInstance
+            | MechanicalChange::MakeFeatureLocal { .. }
+            | MechanicalChange::OmitFeatureMember { .. }
+            | MechanicalChange::RejoinFeatureMember { .. }
+    ) {
+        return Err("This change is handled by the mechanical edit lifecycle.".into());
+    }
+    // Each domain owns its variants; exactly one handles the change.
+    if construction::try_apply(configuration, change, document, board_id, changed)?.is_some() {
+    } else if mounts::try_apply(configuration, change, document, identity_floor, changed)?.is_some()
+    {
+    } else if openings::try_apply(configuration, change, identity_floor, changed)?.is_some() {
+    } else if gaskets::try_apply(configuration, change, changed)?.is_some() {
+    } else if profiles::try_apply(configuration, change, document, board_id, changed)?.is_some() {
+    } else {
+        return Err("A change was routed to no edit domain.".into());
     }
 
     let family =

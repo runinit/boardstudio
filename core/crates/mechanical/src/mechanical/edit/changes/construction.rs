@@ -1,14 +1,14 @@
 //! Case-body construction, battery, process and profile-engagement changes.
 use super::*;
 
-/// Applies one change in this domain; anything else is a routing error.
-pub(super) fn apply(
+/// Applies one change in this domain, or `None` when another domain owns it.
+pub(super) fn try_apply(
     configuration: &mut MechanicalConfiguration,
     change: &MechanicalChange,
     document: &ProjectDoc,
     board_id: &str,
     changed: &mut Vec<String>,
-) -> Result<(), String> {
+) -> Result<Option<()>, String> {
     match change {
         MechanicalChange::SetBatteryEnabled(enabled) => {
             if document
@@ -166,7 +166,7 @@ pub(super) fn apply(
             upsert_item(values, stabilizer.clone(), |entry| &entry.part_id);
             changed.push(stabilizer.part_id.clone());
         }
-        _ => return Err("A change was routed to the wrong edit domain.".into()),
+        _ => return Ok(None),
     };
-    Ok(())
+    Ok(Some(()))
 }

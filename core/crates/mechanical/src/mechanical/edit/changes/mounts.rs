@@ -1,7 +1,7 @@
 //! Mounts, closure mounts and hardware, and critical-fit changes.
 use super::*;
 
-/// Applies one change in this domain; anything else is a routing error.
+/// Applies one change in this domain, or `None` when another domain owns it.
 fn mount_mut<'a>(
     configuration: &'a mut MechanicalConfiguration,
     collection: MechanicalMountCollection,
@@ -14,13 +14,13 @@ fn mount_mut<'a>(
     )
 }
 
-pub(super) fn apply(
+pub(super) fn try_apply(
     configuration: &mut MechanicalConfiguration,
     change: &MechanicalChange,
     document: &ProjectDoc,
     identity_floor: IdentityFloor,
     changed: &mut Vec<String>,
-) -> Result<(), String> {
+) -> Result<Option<()>, String> {
     match change {
         MechanicalChange::SetClosureInsertPreset(id) => {
             resize_closure_insert(closure_hardware_mut(configuration)?, id)?;
@@ -418,7 +418,7 @@ pub(super) fn apply(
             )?;
             changed.push(removed.id);
         }
-        _ => return Err("A change was routed to the wrong edit domain.".into()),
+        _ => return Ok(None),
     };
-    Ok(())
+    Ok(Some(()))
 }

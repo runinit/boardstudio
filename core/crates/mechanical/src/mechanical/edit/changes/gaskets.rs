@@ -1,7 +1,7 @@
 //! Gasket support placement and reset changes.
 use super::*;
 
-/// Applies one change in this domain; anything else is a routing error.
+/// Applies one change in this domain, or `None` when another domain owns it.
 fn upsert_gasket_anchors(
     configuration: &mut MechanicalConfiguration,
     support_id: &str,
@@ -24,11 +24,11 @@ fn upsert_gasket_anchors(
     changed.push(support_id.to_owned());
     Ok(())
 }
-pub(super) fn apply(
+pub(super) fn try_apply(
     configuration: &mut MechanicalConfiguration,
     change: &MechanicalChange,
     changed: &mut Vec<String>,
-) -> Result<(), String> {
+) -> Result<Option<()>, String> {
     match change {
         MechanicalChange::SetGasketSupportDimension {
             support_id,
@@ -109,7 +109,7 @@ pub(super) fn apply(
                 .supports
                 .clear();
         }
-        _ => return Err("A change was routed to the wrong edit domain.".into()),
+        _ => return Ok(None),
     };
-    Ok(())
+    Ok(Some(()))
 }

@@ -1,7 +1,7 @@
 //! Access-opening and opening-vertex changes.
 use super::*;
 
-/// Applies one change in this domain; anything else is a routing error.
+/// Applies one change in this domain, or `None` when another domain owns it.
 fn opening_mut<'a>(
     openings: &'a mut [MechanicalOpening],
     id: &str,
@@ -9,12 +9,12 @@ fn opening_mut<'a>(
     find_item_mut(openings, |opening| opening.id == id, OPENING_UNAVAILABLE)
 }
 
-pub(super) fn apply(
+pub(super) fn try_apply(
     configuration: &mut MechanicalConfiguration,
     change: &MechanicalChange,
     identity_floor: IdentityFloor,
     changed: &mut Vec<String>,
-) -> Result<(), String> {
+) -> Result<Option<()>, String> {
     match change {
         MechanicalChange::AddOpening => {
             let id = reserve_opening_identity(configuration, identity_floor.opening)?;
@@ -125,7 +125,7 @@ pub(super) fn apply(
                 changed.push(opening_id.clone());
             }
         }
-        _ => return Err("A change was routed to the wrong edit domain.".into()),
+        _ => return Ok(None),
     };
-    Ok(())
+    Ok(Some(()))
 }
