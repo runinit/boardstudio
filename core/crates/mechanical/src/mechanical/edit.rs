@@ -43,8 +43,8 @@ use identity::{
 };
 pub use ownership::reconcile_physical_topology;
 use ownership::{
-    disable, enable, initialize_closures, link_mirror_pair, materialize_legacy_construction,
-    pair_index, persist, persist_edit, remove_physical_instance, unlink_mirror_pair,
+    disable, enable, initialize_closures, link_mirror_pair, pair_index, persist, persist_edit,
+    remove_physical_instance, unlink_mirror_pair,
 };
 use processes::{
     closure_hardware_mut, critical_fit_mut, family_assignment_changes, hardware_mut,
@@ -246,9 +246,6 @@ fn apply_staged(
         MechanicalChange::RemovePhysicalInstance => {
             remove_physical_instance(doc, board_contours, edit)
         }
-        MechanicalChange::MaterializeLegacyConstruction { .. } => {
-            materialize_legacy_construction(doc, &board_id, edit)
-        }
         MechanicalChange::MakeFeatureLocal { .. }
         | MechanicalChange::OmitFeatureMember { .. }
         | MechanicalChange::RejoinFeatureMember { .. } => apply_feature_lifecycle(doc, edit),
@@ -258,10 +255,6 @@ fn apply_staged(
 
 /// Whether a mechanical change can create, move or remove generated clearance
 /// geometry.
-///
-/// Legacy conversion is deliberately absent: it materializes each selected member's
-/// current effective values without changing any closure mount, so the generated
-/// clearance geometry it derives is unchanged and no mounting-hole template is needed.
 ///
 /// Projection rebuilds the generated closure-hole parts, definitions and
 /// memberships. Whenever it is required the caller must supply the normalized

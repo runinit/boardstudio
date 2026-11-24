@@ -2,6 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::model::{Part, ProjectDoc};
 use crate::{MirrorDestination, MirrorOverride, MirroredPair};
+use boardstudio_model::mirrored_half::{
+    members, mirrored_entity_id, mirrored_part_id, owns_matrix,
+};
 
 /// Geometry for consumers. This type has no archive encoder.
 #[derive(Clone, Debug, PartialEq)]
@@ -106,7 +109,7 @@ pub fn project_document(canonical: &ProjectDoc) -> ResolvedDoc {
                 layout.matrix_ids.extend(
                     matrices
                         .iter()
-                        .map(|matrix| entity_id(mirror, "matrix", &matrix.id)),
+                        .map(|matrix| mirrored_entity_id(mirror, "matrix", &matrix.id)),
                 );
                 &layout.board_id
             }
@@ -144,7 +147,7 @@ pub fn project_document(canonical: &ProjectDoc) -> ResolvedDoc {
                     if let Some(settings) = keycaps.matrices.get(&matrix.id).cloned() {
                         keycaps
                             .matrices
-                            .entry(entity_id(mirror, "matrix", &matrix.id))
+                            .entry(mirrored_entity_id(mirror, "matrix", &matrix.id))
                             .or_insert(settings);
                     }
                 }
@@ -178,7 +181,7 @@ pub fn project_document(canonical: &ProjectDoc) -> ResolvedDoc {
                 match &mirror.destination {
                     MirrorDestination::SecondBoard(_) => {
                         let mut net = source_net.clone();
-                        net.id = entity_id(mirror, "net", &source_net.id);
+                        net.id = mirrored_entity_id(mirror, "net", &source_net.id);
                         net.pins = pins;
                         board.net_ids.push(net.id.clone());
                         geometry.nets.push(net);
@@ -266,7 +269,7 @@ pub fn project_document(canonical: &ProjectDoc) -> ResolvedDoc {
                     .filter(|module| module.host_board_id == source_board.id)
                 {
                     let mut projected = module.clone();
-                    projected.id = entity_id(mirror, "module", &module.id);
+                    projected.id = mirrored_entity_id(mirror, "module", &module.id);
                     projected.host_board_id.clone_from(board_id);
                     projected.host_instance_id = None;
                     let pose = crate::reflect::pose(
@@ -282,7 +285,7 @@ pub fn project_document(canonical: &ProjectDoc) -> ResolvedDoc {
                         if let Some(id) = ids.get(connection.host_connector_part_id.as_str()) {
                             connection.host_connector_part_id.clone_from(id);
                             if let Some(upstream) = &mut connection.upstream_module_id {
-                                *upstream = entity_id(mirror, "module", upstream);
+                                *upstream = mirrored_entity_id(mirror, "module", upstream);
                             }
                         } else {
                             projected.connection = None;
@@ -310,21 +313,6 @@ pub fn project_document(canonical: &ProjectDoc) -> ResolvedDoc {
     }
 }
 
-fn members<'a>(doc: &'a ProjectDoc, location: &MirrorDestination) -> Option<&'a [String]> {
-    match location {
-        MirrorDestination::SecondBoard(id) => doc
-            .boards
-            .iter()
-            .find(|board| &board.id == id)
-            .map(|board| board.part_ids.as_slice()),
-        MirrorDestination::SameBoardLayout(id) => doc
-            .layouts
-            .iter()
-            .find(|layout| &layout.id == id)
-            .map(|layout| layout.part_ids.as_slice()),
-    }
-}
-
 fn project_part(
     doc: &ProjectDoc,
     mirror: &MirroredPair,
@@ -338,14 +326,14 @@ fn project_part(
     }
 
     let mut part = source?.clone();
-    part.id = part_id(doc, mirror, &part.id);
+    part.id = mirrored_part_id(doc, mirror, &part.id);
     if let Some(anchor) = &mut part.anchor {
         if doc
             .matrices
             .iter()
             .any(|matrix| matrix.id == anchor.matrix_id && owns_matrix(doc, &mirror.source, matrix))
         {
-            anchor.matrix_id = entity_id(mirror, "matrix", &anchor.matrix_id);
+            anchor.matrix_id = mirrored_entity_id(mirror, "matrix", &anchor.matrix_id);
             anchor.spread = -anchor.spread;
             anchor.splay = -anchor.splay;
             anchor.offset.x = -anchor.offset.x;
@@ -359,48 +347,4 @@ fn project_part(
         _ => crate::reflect::pose(mirror.mapping, part.pose),
     };
     Some(part)
-}
-
-pub(crate) fn part_id(doc: &ProjectDoc, mirror: &MirroredPair, source_id: &str) -> String {
-    for matrix in &doc.matrices {
-        if owns_matrix(doc, &mirror.source, matrix)
-            && matrix.part_ids.iter().any(|id| id == source_id)
-            && let Some(member) = source_id.strip_prefix(&format!("matrix/{}/", matrix.id))
-        {
-            return format!(
-                "matrix/{}/{member}",
-                entity_id(mirror, "matrix", &matrix.id)
-            );
-        }
-    }
-    entity_id(mirror, "part", source_id)
-}
-
-pub(crate) fn entity_id(mirror: &MirroredPair, kind: &str, source_id: &str) -> String {
-    if kind == "matrix" {
-        return boardstudio_model::mirrored_half::mirrored_matrix_id(&mirror.id, source_id);
-    }
-    format!("{}/{}/{kind}/{source_id}", mirror.id.len(), mirror.id)
-}
-
-pub(crate) fn owns_matrix(
-    doc: &ProjectDoc,
-    location: &MirrorDestination,
-    matrix: &crate::model::Matrix,
-) -> bool {
-    match location {
-        MirrorDestination::SecondBoard(id) => matrix.board_id.as_ref() == Some(id),
-        MirrorDestination::SameBoardLayout(id) => doc
-            .layouts
-            .iter()
-            .any(|layout| &layout.id == id && layout.matrix_ids.contains(&matrix.id)),
-    }
-}
-
-pub(crate) fn owns_part(doc: &ProjectDoc, location: &MirrorDestination, id: &str) -> bool {
-    members(doc, location).is_some_and(|ids| ids.iter().any(|part_id| part_id == id))
-        || doc.matrices.iter().any(|matrix| {
-            owns_matrix(doc, location, matrix)
-                && matrix.part_ids.iter().any(|part_id| part_id == id)
-        })
 }

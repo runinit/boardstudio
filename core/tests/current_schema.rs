@@ -81,8 +81,7 @@ fn mirrored_halves_round_trip_in_camel_case() {
         "constructionSource": "left",
         "halves": {
             "sourceBoardId": "left-board", "mirrorBoardId": "right-board",
-            "correspondences": [{ "kind": "part", "sourceId": "l-key", "mirrorId": "r-key" }],
-            "exceptions": [{ "kind": "part", "mirrorId": "r-extra", "state": "omitted" }]
+            "companionMode": "duplicate-position"
         }
     }));
     let pair: boardstudio_core::model::MechanicalMirrorPair =
@@ -91,8 +90,10 @@ fn mirrored_halves_round_trip_in_camel_case() {
     let halves = pair.halves.as_ref().expect("halves decode");
     assert_eq!(halves.source_board_id, "left-board");
     assert_eq!(halves.mirror_board_id, "right-board");
-    assert_eq!(halves.correspondences.len(), 1);
-    assert_eq!(halves.exceptions.len(), 1);
+    assert_eq!(
+        halves.companion_mode,
+        boardstudio_core::model::MirroredCompanionMode::DuplicatePosition
+    );
     let encoded = serde_json::to_value(&pair).unwrap();
     assert_eq!(encoded["constructionSource"], value["constructionSource"]);
     assert_eq!(encoded["halves"], value["halves"]);
@@ -103,19 +104,18 @@ fn mirrored_halves_round_trip_in_camel_case() {
 
 #[test]
 fn unknown_mirrored_item_kinds_and_exception_states_are_refused() {
-    let kind = pair_value(serde_json::json!({
-        "halves": { "sourceBoardId": "a", "mirrorBoardId": "b",
-            "correspondences": [{ "kind": "switch", "sourceId": "x", "mirrorId": "y" }] }
-    }));
-    assert!(serde_json::from_value::<boardstudio_core::model::MechanicalMirrorPair>(kind).is_err());
+    use boardstudio_core::model::LayoutMirrorLink;
+    let kind = serde_json::json!({
+        "sourceId": "left", "axisX": 0.0,
+        "correspondences": [{ "kind": "switch", "sourceId": "x", "mirrorId": "y" }]
+    });
+    assert!(serde_json::from_value::<LayoutMirrorLink>(kind).is_err());
     // A linked state is the default, never an exception.
-    let state = pair_value(serde_json::json!({
-        "halves": { "sourceBoardId": "a", "mirrorBoardId": "b",
-            "exceptions": [{ "kind": "part", "mirrorId": "y", "state": "linked" }] }
-    }));
-    assert!(
-        serde_json::from_value::<boardstudio_core::model::MechanicalMirrorPair>(state).is_err()
-    );
+    let state = serde_json::json!({
+        "sourceId": "left", "axisX": 0.0,
+        "exceptions": [{ "kind": "part", "mirrorId": "y", "state": "linked" }]
+    });
+    assert!(serde_json::from_value::<LayoutMirrorLink>(state).is_err());
 }
 
 /// Direct Open reads only the current format and never offers a conversion.

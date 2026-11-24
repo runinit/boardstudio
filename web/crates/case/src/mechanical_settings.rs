@@ -16,9 +16,7 @@ use crate::mechanical_profiles::{ManufacturingSection, ProfileSection};
 pub use crate::mechanical_projection::*;
 pub use crate::mechanical_rules::MechanicalSettingsPatchExt;
 use crate::mechanical_rules::dimension_range;
-use crate::pair_controls::{
-    LegacyConstructionControl, PairLinkControls, PairMemberRemoval, PairRowControls,
-};
+use crate::pair_controls::{PairLinkControls, PairMemberRemoval, PairRowControls};
 use crate::shared_viewer::CaseSelection;
 use crate::{InstanceSelection, parts};
 use boardstudio_application::{
@@ -921,7 +919,6 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         disabled_reason: (config.mount == MechanicalMount::Gasket).then(|| "Not available for a gasket mount.".to_owned()),
                         on_commit: move |v| send.send(MechanicalSettingsPatch::SetIntegratedPlateFrame(v)) }
                 }
-                if props.construction_is_legacy { LegacyConstructionControl { editable, send } }
             }
             InspectorSection { title: "Switch fit profiles", default_open: false,
                 ProfileSection { profiles: props.profiles.clone(), targets: props.profile_targets.clone(), extract: props.extract_profile.clone(), plate_thickness: config.plate_thickness, plate_to_pcb: config.plate_to_pcb, editable, send }

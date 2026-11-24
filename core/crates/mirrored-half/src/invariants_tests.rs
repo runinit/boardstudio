@@ -243,9 +243,10 @@ fn check_invariants(doc: &ProjectDoc) {
         for source in doc
             .parts
             .iter()
-            .filter(|part| crate::project::owns_part(doc, &pair.source, &part.id))
+            .filter(|part| boardstudio_model::mirrored_half::owns_part(doc, &pair.source, &part.id))
         {
-            let target_id = crate::project::part_id(doc, pair, &source.id);
+            let target_id =
+                boardstudio_model::mirrored_half::mirrored_part_id(doc, pair, &source.id);
             let override_state = pair
                 .overrides
                 .iter()
@@ -297,7 +298,7 @@ fn check_invariants(doc: &ProjectDoc) {
 fn linked_target(doc: &ProjectDoc) -> Option<(String, String, String)> {
     let pair = doc.mirrored_pairs.first()?;
     for source in &doc.parts {
-        if !crate::project::owns_part(doc, &pair.source, &source.id)
+        if !boardstudio_model::mirrored_half::owns_part(doc, &pair.source, &source.id)
             || pair
                 .overrides
                 .iter()
@@ -307,7 +308,7 @@ fn linked_target(doc: &ProjectDoc) -> Option<(String, String, String)> {
         }
         return Some((
             pair.id.clone(),
-            crate::project::part_id(doc, pair, &source.id),
+            boardstudio_model::mirrored_half::mirrored_part_id(doc, pair, &source.id),
             source.id.clone(),
         ));
     }
@@ -544,7 +545,11 @@ impl Fuzz {
             pair.overrides.first().map(|item| {
                 (
                     pair.id.clone(),
-                    crate::project::part_id(&self.doc, pair, &item.source_id),
+                    boardstudio_model::mirrored_half::mirrored_part_id(
+                        &self.doc,
+                        pair,
+                        &item.source_id,
+                    ),
                 )
             })
         });

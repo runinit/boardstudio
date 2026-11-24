@@ -166,7 +166,10 @@ fn companion_placement_projection_normalizes_layout_selections() {
     let document = Arc::make_mut(&mut model.accepted.as_mut().expect("fixture snapshot").document);
     let source_key_id = "matrix/component-matrix/r0c0";
     let source_companion_id = format!("{source_key_id}/led");
-    let mirror_companion_id = "matrix/paired-matrix/r0c0/led";
+    // Derived through pair/A: the hex-prefixed matrix carries the mirrors.
+    let mirror_matrix_id = "mirror_706169722f41_component-matrix";
+    let mirror_companion_id = format!("matrix/{mirror_matrix_id}/r0c0/led");
+    let second_mirror_companion_id = format!("matrix/{mirror_matrix_id}/r0c0/led2");
     document.matrices.push(Matrix {
         id: "component-matrix".into(),
         name: Some("Keys".into()),
@@ -228,10 +231,7 @@ fn companion_placement_projection_normalizes_layout_selections() {
                 "mapping":{"at":{"x":0.0,"y":0.0},"rotation":0.0},
                 "construction":{"method":"printed","mount":"tray","integratedPlateFrame":false,"plateThickness":1.5,"plateFoamThickness":0.0,"bottomFoamThickness":0.0,"bottomThickness":1.5,"plateToPcb":5.0,"wallThickness":2.0,"clearance":0.2},
                 "constructionSource":"source-instance",
-                "halves":{"sourceBoardId":"board","mirrorBoardId":"mirror-board","correspondences":[
-                    {"kind":"matrix","sourceId":"component-matrix","mirrorId":"paired-matrix"},
-                    {"kind":"part","sourceId":source_companion_id,"mirrorId":mirror_companion_id}
-                ]}
+                "halves":{"sourceBoardId":"board","mirrorBoardId":"mirror-board"}
             }]
         }))
         .expect("fixture linked pair"),
@@ -262,18 +262,14 @@ fn companion_placement_projection_normalizes_layout_selections() {
         .clone();
     second_source.id = second_source_id.clone();
     document.parts.push(second_source);
-    document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .correspondences
-        .push(boardstudio_core::model::MirroredCorrespondence {
-            companion_mode: Some(boardstudio_core::model::MirroredCompanionMode::DuplicatePosition),
-            companion_tweak: None,
-            kind: boardstudio_core::model::MirroredItemKind::Part,
-            source_id: second_source_id.clone(),
-            mirror_id: "matrix/paired-matrix/r0c0/led2".into(),
-        });
+    // The second companion carries a sparse companion-pose tweak while the
+    // first stays fully linked: the projection reports one shared default
+    // mode and a mixed tweak.
+    document.mirrored_pairs[0].overrides = serde_json::from_value(json!([
+        {"sourceId": second_source_id.clone(), "state": {"kind": "companionPose",
+         "payload": {"at": {"x": 0.5, "y": -0.5}, "rotation": 3.0}}}
+    ]))
+    .expect("fixture companion tweak");
     let snapshot = model.accepted.as_mut().expect("fixture snapshot");
     let scene = Arc::make_mut(&mut snapshot.scene);
     scene.matrix_scenes.push(MatrixScene {
@@ -346,11 +342,11 @@ fn companion_placement_projection_normalizes_layout_selections() {
             vec![
                 boardstudio_core::model::CompanionPlacementTarget::Item {
                     item_kind: boardstudio_core::model::MirroredItemKind::Part,
-                    mirror_id: mirror_companion_id.into(),
+                    mirror_id: mirror_companion_id.clone(),
                 },
                 boardstudio_core::model::CompanionPlacementTarget::Item {
                     item_kind: boardstudio_core::model::MirroredItemKind::Part,
-                    mirror_id: "matrix/paired-matrix/r0c0/led2".into(),
+                    mirror_id: second_mirror_companion_id.clone(),
                 },
             ],
         ),
@@ -365,11 +361,11 @@ fn companion_placement_projection_normalizes_layout_selections() {
             vec![
                 boardstudio_core::model::CompanionPlacementTarget::Item {
                     item_kind: boardstudio_core::model::MirroredItemKind::Part,
-                    mirror_id: mirror_companion_id.into(),
+                    mirror_id: mirror_companion_id.clone(),
                 },
                 boardstudio_core::model::CompanionPlacementTarget::Item {
                     item_kind: boardstudio_core::model::MirroredItemKind::Part,
-                    mirror_id: "matrix/paired-matrix/r0c0/led2".into(),
+                    mirror_id: second_mirror_companion_id.clone(),
                 },
             ],
         ),
@@ -412,17 +408,23 @@ fn companion_placement_projection_normalizes_layout_selections() {
         2,
         "only selected linked companions project"
     );
-    assert!(projection.mixed_mode);
-    assert!(projection.mode.is_none());
+    // The pair default covers both companions; only the sparse tweak differs.
+    assert!(!projection.mixed_mode);
+    assert_eq!(
+        projection.mode,
+        Some(boardstudio_core::model::MirroredCompanionMode::LiteralMirror)
+    );
+    assert!(projection.mixed_tweak);
+    assert!(projection.tweak.is_none());
     assert!(projection.targets.iter().any(|target| matches!(
         target,
         boardstudio_core::model::CompanionPlacementTarget::Item { mirror_id, .. }
-            if mirror_id == mirror_companion_id
+            if mirror_id == &mirror_companion_id
     )));
     assert!(projection.targets.iter().any(|target| matches!(
         target,
         boardstudio_core::model::CompanionPlacementTarget::Item { mirror_id, .. }
-            if mirror_id == "matrix/paired-matrix/r0c0/led2"
+            if mirror_id == &second_mirror_companion_id
     )));
 }
 
@@ -526,13 +528,25 @@ fn driving_constraint_lookup_finds_the_same_record_from_both_halves_and_rejects_
         { "id": "alpha/source", "definitionId": "part", "reference": "U1",
           "side": "front", "pose": { "at": { "x": 0.0, "y": 0.0 }, "rotation": 0.0 } },
         { "id": "alpha/target", "definitionId": "part", "reference": "U2",
-          "side": "front", "pose": { "at": { "x": 1.0, "y": 0.0 }, "rotation": 0.0 } },
-        { "id": "beta/source", "definitionId": "part", "reference": "U3",
-          "side": "front", "pose": { "at": { "x": 2.0, "y": 0.0 }, "rotation": 0.0 } },
-        { "id": "beta/target", "definitionId": "part", "reference": "U4",
-          "side": "front", "pose": { "at": { "x": 3.0, "y": 0.0 }, "rotation": 0.0 } }
+          "side": "front", "pose": { "at": { "x": 1.0, "y": 0.0 }, "rotation": 0.0 } }
     ]))
     .expect("the query fixture parts deserialize");
+    document.boards = serde_json::from_value(json!([
+        { "id": "alpha", "name": "Alpha",
+          "partIds": ["alpha/source", "alpha/target"],
+          "outlineIds": [], "netIds": [], "thickness": 1.6 },
+        { "id": "beta", "name": "Beta", "partIds": [],
+          "outlineIds": [], "netIds": [], "thickness": 1.6 }
+    ]))
+    .expect("the query fixture boards deserialize");
+    document.mirrored_pairs = serde_json::from_value(json!([{
+        "id": "pair/A",
+        "source": { "kind": "secondBoard", "id": "alpha" },
+        "destination": { "kind": "secondBoard", "id": "beta" },
+        "mapping": { "at": { "x": 20.0, "y": -7.0 }, "rotation": 36.86989764584402 },
+        "overrides": []
+    }]))
+    .expect("the query fixture pair deserializes");
     document.hardware = Some(
         serde_json::from_value(json!({
             "instances": [
@@ -551,11 +565,7 @@ fn driving_constraint_lookup_finds_the_same_record_from_both_halves_and_rejects_
                 },
                 "constructionSource": "alpha-instance",
                 "halves": {
-                    "sourceBoardId": "alpha", "mirrorBoardId": "beta",
-                    "correspondences": [
-                        { "kind": "part", "sourceId": "alpha/source", "mirrorId": "beta/source" },
-                        { "kind": "part", "sourceId": "alpha/target", "mirrorId": "beta/target" }
-                    ]
+                    "sourceBoardId": "alpha", "mirrorBoardId": "beta"
                 }
             }]
         }))
@@ -566,12 +576,14 @@ fn driving_constraint_lookup_finds_the_same_record_from_both_halves_and_rejects_
         source_part_id: source_part_id.into(),
         mirror_part_id: mirror_part_id.into(),
     };
+    // Derived through pair/A: `6/pair/A/part/<source>`.
+    let derived_target = "6/pair/A/part/alpha/target";
     let constraint = Constraint::Framed {
         id: "durable/constraint-7".into(),
         source: ConstraintEndpoint::Part {
             part_id: "alpha/source".into(),
         },
-        target: endpoint("beta/target", "alpha/target"),
+        target: endpoint(derived_target, "alpha/target"),
         relation: ConstraintRelation::Offset {
             offset: Vec2 { x: 5.0, y: -2.0 },
             rotation: 15.0,
@@ -579,7 +591,7 @@ fn driving_constraint_lookup_finds_the_same_record_from_both_halves_and_rejects_
     };
     document.constraints.push(constraint.clone());
 
-    for part_id in ["alpha/target", "beta/target"] {
+    for part_id in ["alpha/target", derived_target] {
         assert_eq!(
             document
                 .constraint_driving_part(part_id)
@@ -594,14 +606,14 @@ fn driving_constraint_lookup_finds_the_same_record_from_both_halves_and_rejects_
         source: ConstraintEndpoint::Part {
             part_id: "alpha/source".into(),
         },
-        target: endpoint("beta/target", "alpha/not-target"),
+        target: endpoint(derived_target, "alpha/not-target"),
         relation: ConstraintRelation::Offset {
             offset: Vec2 { x: 5.0, y: -2.0 },
             rotation: 15.0,
         },
     };
     assert!(
-        document.constraint_driving_part("beta/target").is_err(),
+        document.constraint_driving_part(derived_target).is_err(),
         "stale explicit endpoint bindings must refuse the lookup"
     );
 }
@@ -610,6 +622,8 @@ fn driving_constraint_lookup_finds_the_same_record_from_both_halves_and_rejects_
 fn inspector_projection_finds_a_driver_authored_against_the_selected_parts_linked_mirror() {
     use serde_json::json;
 
+    // The derived mirror of the selected part through pair/A.
+    const MIRROR: &str = "6/pair/A/part/selected-part";
     let (mut model, selected) = fixture();
     let snapshot = model.accepted.as_mut().expect("fixture snapshot");
     let document = Arc::make_mut(&mut snapshot.document);
@@ -617,16 +631,26 @@ fn inspector_projection_finds_a_driver_authored_against_the_selected_parts_linke
         .part_ids
         .retain(|part_id| part_id != "source-part");
     document.boards[0].part_ids.push("driver-part".into());
+    // The old authored mirror copy leaves the document: the mirror derives.
+    document.parts.retain(|part| part.id != "source-part");
     document.boards.push(Board {
         id: "mirror-board".into(),
         name: "Mirror board".into(),
         outline_ids: vec![],
-        part_ids: vec!["source-part".into()],
+        part_ids: vec![],
         net_ids: vec![],
         thickness: 1.6,
         traces: vec![],
         vias: vec![],
     });
+    document.mirrored_pairs = serde_json::from_value(json!([{
+        "id": "pair/A",
+        "source": { "kind": "secondBoard", "id": "board" },
+        "destination": { "kind": "secondBoard", "id": "mirror-board" },
+        "mapping": { "at": { "x": 20.0, "y": -7.0 }, "rotation": 36.86989764584402 },
+        "overrides": []
+    }]))
+    .expect("the linked pair fixture deserializes");
     let mut driver = document.parts[0].clone();
     driver.id = "driver-part".into();
     driver.reference = "U3".into();
@@ -649,10 +673,7 @@ fn inspector_projection_finds_a_driver_authored_against_the_selected_parts_linke
                 },
                 "constructionSource": "alpha-instance",
                 "halves": {
-                    "sourceBoardId": "board", "mirrorBoardId": "mirror-board",
-                    "correspondences": [
-                        { "kind": "part", "sourceId": "selected-part", "mirrorId": "source-part" }
-                    ]
+                    "sourceBoardId": "board", "mirrorBoardId": "mirror-board"
                 }
             }]
         }))
@@ -666,7 +687,7 @@ fn inspector_projection_finds_a_driver_authored_against_the_selected_parts_linke
         target: ConstraintEndpoint::LinkedMirror {
             pair_id: "pair/A".into(),
             source_part_id: "selected-part".into(),
-            mirror_part_id: "source-part".into(),
+            mirror_part_id: MIRROR.into(),
         },
         relation: ConstraintRelation::MirrorLine {
             at: Vec2 { x: 12.0, y: -9.0 },
@@ -682,7 +703,7 @@ fn inspector_projection_finds_a_driver_authored_against_the_selected_parts_linke
         .as_ref()
         .expect("linked half projects");
     assert_eq!(half.pair_id, "pair/A");
-    assert_eq!(half.mirror_id, "source-part");
+    assert_eq!(half.mirror_id, MIRROR);
     assert_eq!(
         half.state,
         boardstudio_core::model::HalfExceptionState::Linked,
@@ -695,14 +716,14 @@ fn inspector_projection_finds_a_driver_authored_against_the_selected_parts_linke
     );
     let local_edit = mirrored_half_state_resolver(
         "pair/A".into(),
-        "source-part".into(),
+        MIRROR.into(),
         boardstudio_core::model::HalfExceptionState::Local,
     )
     .resolve(model.accepted.as_ref().unwrap());
     let boardstudio_application::Resolution::Submit(local_command) = local_edit else {
         panic!("a linked item resolves to one typed Local edit");
     };
-    assert_eq!(local_command.target_ids, ["pair/A", "source-part"]);
+    assert_eq!(local_command.target_ids, ["pair/A", MIRROR]);
     assert!(matches!(
         local_command.operation,
         boardstudio_core::model::EditOperation::SetHalfException {
@@ -710,16 +731,16 @@ fn inspector_projection_finds_a_driver_authored_against_the_selected_parts_linke
             kind: boardstudio_core::model::MirroredItemKind::Part,
             mirror_id,
             state: boardstudio_core::model::HalfExceptionState::Local,
-        } if pair_id == "pair/A" && mirror_id == "source-part"
+        } if pair_id == "pair/A" && mirror_id == MIRROR
     ));
 
     let mut mirror_model = model.clone();
     mirror_model.active_board_id = "mirror-board".into();
-    mirror_model.selected_part_ids = vec!["source-part".into()];
-    mirror_model.selection_anchor_id = Some("source-part".into());
+    mirror_model.selected_part_ids = vec![MIRROR.into()];
+    mirror_model.selection_anchor_id = Some(MIRROR.into());
     let mut mirror_selected = selected.clone();
     mirror_selected.scope.board_id = "mirror-board".into();
-    mirror_selected.context = objects::context_for_part(&mirror_model, "source-part")
+    mirror_selected.context = objects::context_for_part(&mirror_model, MIRROR)
         .expect("the linked counterpart has a current mirror-board context");
     let mirror_projection =
         layout_component_inspector_projection(&mirror_model, Some(&mirror_selected), 8, 3)
@@ -729,7 +750,7 @@ fn inspector_projection_finds_a_driver_authored_against_the_selected_parts_linke
         .as_ref()
         .expect("the linked counterpart projects its half state");
     assert_eq!(mirror_half.pair_id, "pair/A");
-    assert_eq!(mirror_half.mirror_id, "source-part");
+    assert_eq!(mirror_half.mirror_id, MIRROR);
     assert_eq!(
         mirror_half.state,
         boardstudio_core::model::HalfExceptionState::Linked,
@@ -742,29 +763,28 @@ fn inspector_projection_finds_a_driver_authored_against_the_selected_parts_linke
     );
 
     let mut local_model = model.clone();
-    Arc::make_mut(
+    let local_document = Arc::make_mut(
         &mut local_model
             .accepted
             .as_mut()
             .expect("fixture snapshot")
             .document,
-    )
-    .hardware
-    .as_mut()
-    .unwrap()
-    .pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .exceptions
-        .push(boardstudio_core::model::MirroredException {
-            companion_mode: None,
-            companion_tweak: None,
-            kind: boardstudio_core::model::MirroredItemKind::Part,
-            mirror_id: "source-part".into(),
-            state: boardstudio_core::model::MirroredExceptionState::Local,
-            removed_copper: None,
-        });
+    );
+    let mut local_part = local_document
+        .parts
+        .iter()
+        .find(|part| part.id == "selected-part")
+        .expect("fixture source part")
+        .clone();
+    local_part.id = MIRROR.into();
+    let local_override = serde_json::from_value(json!({
+        "sourceId": "selected-part",
+        "state": { "kind": "local", "payload": serde_json::to_value(&local_part).unwrap() }
+    }))
+    .expect("the local override deserializes");
+    local_document.mirrored_pairs[0]
+        .overrides
+        .push(local_override);
     assert_eq!(
         mirrored_half_projection(
             &local_model.accepted.as_ref().unwrap().document,
@@ -784,12 +804,7 @@ fn inspector_projection_finds_a_driver_authored_against_the_selected_parts_linke
             .expect("fixture snapshot")
             .document,
     );
-    stale_document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .correspondences[0]
-        .source_id = "removed-authority".into();
+    stale_document.mirrored_pairs.clear();
     assert!(
         layout_component_inspector_projection(&stale_model, Some(&selected), 9, 3).is_none(),
         "an invalid stored binding fails closed at the inspector projection"

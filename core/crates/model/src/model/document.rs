@@ -364,11 +364,14 @@ pub enum CompanionPlacementTarget {
     },
 }
 
-/// Which boards a mirrored pair relates, and how their items correspond.
+/// Which boards a mirrored pair relates. Two-board mirror items are derived
+/// deterministically from `ProjectDoc.mirrored_pairs` (see
+/// `crate::mirrored_half`); this record only names the boards and the default
+/// companion placement.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MirroredHalves {
-    /// Default for companion correspondences without a per-item override. Absent in older v5 documents.
+    /// Default for derived companions without a per-item override. Absent in older v5 documents.
     #[serde(
         default,
         skip_serializing_if = "MirroredCompanionMode::is_literal_mirror"
@@ -378,69 +381,16 @@ pub struct MirroredHalves {
     pub source_board_id: String,
     /// The board that reflects the source.
     pub mirror_board_id: String,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub correspondences: Vec<MirroredCorrespondence>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub exceptions: Vec<MirroredException>,
 }
 
-/// The mirror of one source item. Each side is unique per kind.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MirroredCorrespondence {
-    /// Overrides the pair default for this companion only.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub companion_mode: Option<MirroredCompanionMode>,
-    /// Retained per item; only valid with the effective `literal-mirror-with-tweak` mode.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub companion_tweak: Option<MirroredCompanionTweak>,
-    pub kind: MirroredItemKind,
-    pub source_id: String,
-    pub mirror_id: String,
-}
-
-/// A state overlay on a mirror item: kept `local` or `omitted`. The item's identity stays in its
-/// correspondence; an exception with no matching correspondence is a legacy, unassociated record
-/// whose mirror item is present and has no inferred source. An exception never changes the source
-/// or a neighbouring item.
+/// A state overlay on a same-board layout mirror item: kept `local` or `omitted`.
+/// An exception never changes the source or a neighbouring item.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MirroredException {
-    /// Retained when a companion becomes local or omitted, for a later Rejoin.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub companion_mode: Option<MirroredCompanionMode>,
-    /// Retained per item; only valid with the effective `literal-mirror-with-tweak` mode.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub companion_tweak: Option<MirroredCompanionTweak>,
     pub kind: MirroredItemKind,
     pub mirror_id: String,
     pub state: MirroredExceptionState,
-    /// Mirror-board copper removed with an Omitted item, kept so a Rejoin can restore it while the
-    /// source pads still line up. Only valid on an Omitted exception that overlays a correspondence.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub removed_copper: Option<OmittedCopper>,
-}
-
-/// Board copper that belonged only to an Omitted mirror item, and where its pads stood.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OmittedCopper {
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub traces: Vec<CopperTrace>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub vias: Vec<CopperVia>,
-    /// World position of each omitted pad when the copper was removed.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub pads: Vec<OmittedPad>,
-}
-
-/// A mirror pad's world position at the moment its copper was saved.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OmittedPad {
-    pub part_id: String,
-    pub pad_id: String,
-    pub at: Vec2,
 }
 
 /// The kinds of item a mirrored half reflects.

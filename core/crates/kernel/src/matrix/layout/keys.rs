@@ -511,9 +511,6 @@ pub fn add_local_matrix_exception(doc: &mut ProjectDoc, mirror_id: &str) -> Resu
         kind: MirroredItemKind::Matrix,
         mirror_id: mirror_id.to_string(),
         state: MirroredExceptionState::Local,
-        companion_mode: None,
-        companion_tweak: None,
-        removed_copper: None,
     });
     Ok(())
 }

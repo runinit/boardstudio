@@ -171,7 +171,7 @@ pub fn reflected(
 /// relative-negate rules apply to the resolved aggregate pose, never per
 /// part. A missing counterpart for any part refuses naming the layout.
 pub(super) fn remap_anchor(
-    correspondences: &[MirroredCorrespondence],
+    correspondences: &[LayoutLinkPair],
     anchor: &MatrixAnchor,
     to_mirror: bool,
     layout_id: &str,
@@ -206,7 +206,7 @@ pub(super) fn remap_anchor(
 /// silently retargeting. `to_mirror` selects source→mirror (true) or
 /// mirror→source (false); a missing counterpart refuses naming the layout.
 pub(super) fn remap_anchor_target(
-    correspondences: &[MirroredCorrespondence],
+    correspondences: &[LayoutLinkPair],
     anchor_matrix_id: &str,
     to_mirror: bool,
     layout_id: &str,
@@ -567,15 +567,9 @@ pub fn exception_state(
         .iter()
         .filter_map(|layout| layout.mirror_link.as_ref())
         .flat_map(|link| &link.exceptions)
-        .chain(
-            doc.hardware
-                .iter()
-                .flat_map(|hardware| &hardware.pairs)
-                .filter_map(|pair| pair.halves.as_ref())
-                .flat_map(|halves| &halves.exceptions),
-        )
         .find(|exception| exception.kind == kind && exception.mirror_id == id)
         .map(|exception| exception.state)
+        .or_else(|| boardstudio_model::mirrored_half::derived_override_state(doc, kind, id))
 }
 
 pub fn omitted(doc: &ProjectDoc, matrix_id: &str, key_id: &str) -> bool {
@@ -600,10 +594,7 @@ pub fn omitted(doc: &ProjectDoc, matrix_id: &str, key_id: &str) -> bool {
 /// mirrored pair, with the carrier layout id. The Inspector toggle and the
 /// mirror-side edit path both resolve through here; the hardware-halves store
 /// belongs to the two-board flow and never carries these records.
-pub fn part_correspondence(
-    doc: &ProjectDoc,
-    part_id: &str,
-) -> Option<(String, MirroredCorrespondence)> {
+pub fn part_correspondence(doc: &ProjectDoc, part_id: &str) -> Option<(String, LayoutLinkPair)> {
     for layout in &doc.layouts {
         if let Some(link) = layout.mirror_link.as_ref()
             && let Some(record) = link.correspondences.iter().find(|record| {

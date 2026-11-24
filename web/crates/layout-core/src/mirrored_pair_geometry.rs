@@ -1,7 +1,6 @@
 //! Private geometry for projecting a mirrored pair before Core commits the source matrix.
 use boardstudio_model::model::{
-    Layout, LayoutMirrorLink, Matrix, MatrixScene, Mirror, MirroredCorrespondence,
-    MirroredItemKind, Vec2,
+    Layout, LayoutLinkPair, LayoutMirrorLink, Matrix, MatrixScene, Mirror, MirroredItemKind, Vec2,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -66,10 +65,8 @@ pub fn preview_cells(scene: &MatrixScene, matrix: &Matrix) -> Vec<PairPreviewCel
 pub fn matrix_pair_correspondences(
     source_matrix_id: &str,
     mirror_matrix_id: &str,
-) -> Vec<MirroredCorrespondence> {
-    vec![MirroredCorrespondence {
-        companion_mode: None,
-        companion_tweak: None,
+) -> Vec<LayoutLinkPair> {
+    vec![LayoutLinkPair {
         kind: MirroredItemKind::Matrix,
         source_id: source_matrix_id.to_owned(),
         mirror_id: mirror_matrix_id.to_owned(),
@@ -370,9 +367,7 @@ mod tests {
             .expect("the mirrored pair carries a link");
         assert_eq!(
             link.correspondences,
-            vec![boardstudio_model::model::MirroredCorrespondence {
-                companion_mode: None,
-                companion_tweak: None,
+            vec![boardstudio_model::model::LayoutLinkPair {
                 kind: boardstudio_model::model::MirroredItemKind::Matrix,
                 source_id: "left-matrix".into(),
                 mirror_id: "right-matrix".into(),

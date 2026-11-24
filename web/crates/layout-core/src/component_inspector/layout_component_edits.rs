@@ -643,19 +643,12 @@ pub fn companion_placement_resolver(
         move |accepted: &AcceptedSnapshot| {
             let pairs: Vec<_> = accepted
                 .document
-                .hardware
-                .as_ref()
-                .into_iter()
-                .flat_map(|hardware| &hardware.pairs)
+                .mirrored_pairs
+                .iter()
                 .filter(|pair| pair.id == pair_id)
                 .collect();
-            let [pair] = pairs.as_slice() else {
+            if pairs.len() != 1 {
                 return Resolution::Retire("The mirrored pair is unavailable or ambiguous.".into());
-            };
-            if pair.halves.is_none() {
-                return Resolution::Retire(
-                    "The mirrored pair no longer links matrix items.".into(),
-                );
             }
             if targets.is_empty() {
                 return Resolution::Retire(

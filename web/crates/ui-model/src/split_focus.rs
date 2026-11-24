@@ -165,8 +165,8 @@ pub fn context_half(document: &ProjectDoc, context: &TreeContext) -> Option<Spli
 mod tests {
     use super::*;
     use boardstudio_model::model::{
-        Board, Layout, LayoutMirrorLink, Matrix, MirroredCorrespondence, MirroredItemKind, Part,
-        Pose2, Side, Vec2,
+        Board, Layout, LayoutLinkPair, LayoutMirrorLink, Matrix, MirroredItemKind, Part, Pose2,
+        Side, Vec2,
     };
 
     fn matrix(id: &str, origin_x: f64, part_ids: Vec<&str>) -> Matrix {
@@ -233,9 +233,7 @@ mod tests {
             matrix_ids: vec!["paired".into()],
             part_ids: vec![],
             mirror_link: Some(LayoutMirrorLink {
-                correspondences: vec![MirroredCorrespondence {
-                    companion_mode: None,
-                    companion_tweak: None,
+                correspondences: vec![LayoutLinkPair {
                     kind: MirroredItemKind::Matrix,
                     source_id: "matrix".into(),
                     mirror_id: "paired".into(),

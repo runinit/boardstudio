@@ -1,7 +1,8 @@
 use crate::mechanical::pair;
+use crate::mirrored_half::{self, MirrorOverride};
 use crate::model::{
-    ConstraintRelation, MechanicalMirrorPair, MirroredCompanionMode, MirroredCorrespondence,
-    MirroredExceptionState, MirroredHalves, MirroredItemKind, PartKind, Pose2, ProjectDoc, Vec2,
+    ConstraintRelation, MechanicalMirrorPair, MirroredCompanionMode, MirroredExceptionState,
+    PartKind, Pose2, ProjectDoc, Vec2,
 };
 use serde::{Deserialize, Serialize};
 
@@ -59,57 +60,52 @@ fn legacy_endpoint(
     let located =
         |message: String| format!("Constraint {constraint_id} {}: {message}", side.name());
     let has_part = document.parts.iter().any(|part| part.id == part_id);
-    let pairs = document
-        .hardware
-        .as_ref()
-        .map(|hardware| hardware.pairs.as_slice())
-        .unwrap_or_default();
     let mut matched = None;
-    for pair in pairs {
-        let Some(halves) = &pair.halves else {
+    for mirror in &document.mirrored_pairs {
+        let Some((source_id, state)) = mirrored_half::pair_derivation(document, mirror, part_id)
+        else {
             continue;
         };
-        for correspondence in halves.correspondences.iter().filter(|correspondence| {
-            correspondence.kind == MirroredItemKind::Part && correspondence.mirror_id == part_id
-        }) {
-            if matched.is_some() {
-                return Err(located(format!(
-                    "part {part_id} belongs to more than one mirrored pair"
-                )));
-            }
-            matched = Some((pair, halves, correspondence));
-        }
-    }
-    if let Some((pair, halves, correspondence)) = matched {
-        if let Some(exception) = halves.overlay_of(correspondence) {
-            return match exception.state {
-                MirroredExceptionState::Local if has_part => Ok(ConstraintEndpoint::Part {
-                    part_id: part_id.to_owned(),
-                }),
-                MirroredExceptionState::Local => Err(located(format!(
-                    "references a missing Local part {part_id}"
-                ))),
-                MirroredExceptionState::Omitted => Err(located(format!(
-                    "part {part_id} is omitted in pair {}",
-                    pair.id
-                ))),
-            };
-        }
-        if !has_part
-            || !document
-                .parts
-                .iter()
-                .any(|part| part.id == correspondence.source_id)
-        {
+        if matched.is_some() {
             return Err(located(format!(
-                "references a missing linked endpoint {part_id}"
+                "part {part_id} belongs to more than one mirrored pair"
             )));
         }
-        return Ok(ConstraintEndpoint::LinkedMirror {
-            pair_id: pair.id.clone(),
-            source_part_id: correspondence.source_id.clone(),
-            mirror_part_id: part_id.to_owned(),
-        });
+        matched = Some((mirror, source_id, state));
+    }
+    if let Some((mirror, source_id, state)) = matched {
+        match state {
+            Some(MirrorOverride::Local(_)) if has_part => {
+                return Ok(ConstraintEndpoint::Part {
+                    part_id: part_id.to_owned(),
+                });
+            }
+            Some(MirrorOverride::Local(_)) => {
+                return Err(located(format!(
+                    "references a missing Local part {part_id}"
+                )));
+            }
+            Some(MirrorOverride::Omitted) => {
+                return Err(located(format!(
+                    "part {part_id} is omitted in pair {}",
+                    mirror.id
+                )));
+            }
+            // A linked mirror part is derived, never authored: only the source
+            // must be present.
+            None | Some(MirrorOverride::CompanionPose(_)) => {
+                if !document.parts.iter().any(|part| part.id == source_id) {
+                    return Err(located(format!(
+                        "references a missing linked endpoint {part_id}"
+                    )));
+                }
+                return Ok(ConstraintEndpoint::LinkedMirror {
+                    pair_id: mirror.id.clone(),
+                    source_part_id: source_id.to_owned(),
+                    mirror_part_id: part_id.to_owned(),
+                });
+            }
+        }
     }
     if has_part {
         Ok(ConstraintEndpoint::Part {
@@ -490,13 +486,14 @@ fn source_mapping(pair: &MechanicalMirrorPair) -> Result<Pose2, String> {
 /// the mirror never produces: it is refused here rather than projected as an independent part.
 fn linked_frame(
     document: &ProjectDoc,
-    halves: &MirroredHalves,
-    correspondence: &MirroredCorrespondence,
+    default_mode: MirroredCompanionMode,
+    tweak: Option<(f64, f64, f64)>,
     source_part_id: &str,
     mapping: Pose2,
 ) -> Result<(EndpointFrame, Option<String>), String> {
-    // The rule choice below mirrors `mirrored_half::derive::companion_assembly`, which is the
-    // authority for companion placement: keep the two in step.
+    // The rule choice below mirrors the derived projector's companion handling:
+    // an explicit per-item pose override is the switch-local adjustment, and
+    // the pair default only applies without one.
     for matrix in &document.matrices {
         for cell in &matrix.cells {
             let key_id = crate::matrix::member_id(&matrix.id, cell.row, cell.column);
@@ -517,24 +514,17 @@ fn linked_frame(
                     "the key {key_id} of companion {source_part_id} is missing"
                 ));
             }
-            let mode = correspondence
-                .companion_mode
-                .unwrap_or(halves.companion_mode);
             let rule = if crate::mirrored_half::SYMMETRIC_DEFINITIONS
                 .contains(&assembly.definition_id.as_str())
             {
                 CompanionRule::Stabiliser
+            } else if let Some((u, v, w)) = tweak {
+                CompanionRule::Tweaked { u, v, w }
             } else {
-                match (mode, correspondence.companion_tweak) {
-                    (MirroredCompanionMode::DuplicatePosition, _) => CompanionRule::Duplicate,
-                    (MirroredCompanionMode::LiteralMirrorWithTweak, Some(tweak)) => {
-                        CompanionRule::Tweaked {
-                            u: tweak.x,
-                            v: tweak.y,
-                            w: tweak.rotation,
-                        }
-                    }
-                    _ => CompanionRule::Literal,
+                match default_mode {
+                    MirroredCompanionMode::DuplicatePosition => CompanionRule::Duplicate,
+                    MirroredCompanionMode::LiteralMirror
+                    | MirroredCompanionMode::LiteralMirrorWithTweak => CompanionRule::Literal,
                 }
             };
             return Ok((
@@ -573,38 +563,32 @@ fn linked_frame(
     Ok((EndpointFrame::LinkedMirror { mapping }, None))
 }
 
-/// The pair and correspondence that derive `part_id` while linked: a part correspondence names
-/// it as the mirror and no Local or Omitted overlay sits on it. Such a part is not authored.
+/// The pair and authored source that derive `part_id` while linked: a derived
+/// pair names it as the mirror and no Local or Omitted override sits on it.
+/// Such a part is not authored.
 fn derived_from<'a>(
     document: &'a ProjectDoc,
     part_id: &str,
-) -> Option<(&'a MechanicalMirrorPair, &'a MirroredCorrespondence)> {
-    let pairs = document
+) -> Option<(&'a MechanicalMirrorPair, &'a str)> {
+    let (mirror, source_id) = mirrored_half::linked_source(document, part_id)?;
+    let pair = document
         .hardware
-        .as_ref()
-        .map(|hardware| hardware.pairs.as_slice())
-        .unwrap_or_default();
-    pairs.iter().find_map(|pair| {
-        let halves = pair.halves.as_ref()?;
-        let correspondence = halves.correspondences.iter().find(|correspondence| {
-            correspondence.kind == MirroredItemKind::Part
-                && correspondence.mirror_id == part_id
-                && halves.overlay_of(correspondence).is_none()
-        })?;
-        Some((pair, correspondence))
-    })
+        .as_ref()?
+        .pairs
+        .iter()
+        .find(|pair| pair.id == mirror.id)?;
+    Some((pair, source_id))
 }
 
-/// The part that owns `part_id`'s geometry: its source while a live part correspondence derives
-/// it, otherwise the part itself. A Local or Omitted mirror is not derived, so it owns itself.
+/// The part that owns `part_id`'s geometry: its source while a live derived
+/// pair derives it, otherwise the part itself. A Local or Omitted mirror is
+/// not derived, so it owns itself.
 pub(crate) fn authoritative_part<'a>(document: &'a ProjectDoc, part_id: &'a str) -> &'a str {
-    derived_from(document, part_id).map_or(part_id, |(_, correspondence)| {
-        correspondence.source_id.as_str()
-    })
+    derived_from(document, part_id).map_or(part_id, |(_, source_id)| source_id)
 }
 
 /// Binds one authored endpoint to the document as it stands. Nothing is cached: a later
-/// pair map, correspondence or exception change is read again on the next resolution.
+/// pair map or derived-pair override change is read again on the next resolution.
 pub fn resolve_endpoint(
     document: &ProjectDoc,
     constraint_id: &str,
@@ -620,16 +604,18 @@ pub fn resolve_endpoint(
         .unwrap_or_default();
     match endpoint {
         ConstraintEndpoint::Part { part_id } => {
-            if !has_part(part_id) {
-                return Err(located(format!("references a missing part {part_id}")));
-            }
-            // A part that a live correspondence derives is not authored: it is addressed
+            // A part that a live derived pair derives is not authored: it is addressed
             // through its source so the relation survives the mirror being regenerated.
+            // Derived mirrors are never authored parts, so this refusal runs before
+            // the presence check.
             if let Some((pair, _)) = derived_from(document, part_id) {
                 return Err(located(format!(
                     "part {part_id} is a linked mirror in pair {}; address it with a linked-mirror endpoint",
                     pair.id
                 )));
+            }
+            if !has_part(part_id) {
+                return Err(located(format!("references a missing part {part_id}")));
             }
             Ok(ResolvedEndpoint {
                 visible_id: part_id.clone(),
@@ -647,37 +633,53 @@ pub fn resolve_endpoint(
                 .iter()
                 .find(|pair| pair.id == *pair_id)
                 .ok_or_else(|| located(format!("names unknown pair {pair_id}")))?;
-            let halves = pair
-                .halves
-                .as_ref()
-                .ok_or_else(|| located(format!("pair {pair_id} has no mirrored halves")))?;
-            let correspondence = halves
-                .correspondences
+            let mirror = document
+                .mirrored_pairs
                 .iter()
-                .find(|correspondence| {
-                    correspondence.kind == MirroredItemKind::Part
-                        && correspondence.source_id == *source_part_id
-                        && correspondence.mirror_id == *mirror_part_id
-                })
-                .ok_or_else(|| {
-                    located(format!(
-                        "{mirror_part_id} does not match a current part correspondence of {source_part_id} in pair {pair_id}"
-                    ))
-                })?;
-            if let Some(exception) = halves.overlay_of(correspondence) {
+                .find(|mirror| mirror.id == *pair_id)
+                .ok_or_else(|| located(format!("pair {pair_id} has no derived mirror pair")))?;
+            if mirrored_half::mirrored_part_id(document, mirror, source_part_id) != *mirror_part_id
+            {
                 return Err(located(format!(
-                    "mirror {mirror_part_id} is {} and is not a linked endpoint",
-                    state_name(exception.state)
+                    "{mirror_part_id} is not the derived mirror of {source_part_id} in pair {pair_id}"
                 )));
             }
-            for id in [source_part_id, mirror_part_id] {
-                if !has_part(id) {
-                    return Err(located(format!("references a missing part {id}")));
+            match mirrored_half::override_of(mirror, source_part_id) {
+                Some(MirrorOverride::Omitted) => {
+                    return Err(located(format!(
+                        "mirror {mirror_part_id} is {} and is not a linked endpoint",
+                        state_name(MirroredExceptionState::Omitted)
+                    )));
                 }
+                Some(MirrorOverride::Local(_)) => {
+                    return Err(located(format!(
+                        "mirror {mirror_part_id} is {} and is not a linked endpoint",
+                        state_name(MirroredExceptionState::Local)
+                    )));
+                }
+                None | Some(MirrorOverride::CompanionPose(_)) => {}
+            }
+            // The mirror side is derived, never authored: only the source must
+            // be present.
+            if !has_part(source_part_id) {
+                return Err(located(format!(
+                    "references a missing part {source_part_id}"
+                )));
             }
             let mapping = source_mapping(pair)?;
+            let tweak = match mirrored_half::override_of(mirror, source_part_id) {
+                Some(MirrorOverride::CompanionPose(pose)) => {
+                    Some((pose.at.x, pose.at.y, pose.rotation))
+                }
+                _ => None,
+            };
+            let default_mode = pair
+                .halves
+                .as_ref()
+                .map(|halves| halves.companion_mode)
+                .unwrap_or(MirroredCompanionMode::LiteralMirror);
             let (frame, owner) =
-                linked_frame(document, halves, correspondence, source_part_id, mapping)
+                linked_frame(document, default_mode, tweak, source_part_id, mapping)
                     .map_err(located)?;
             Ok(ResolvedEndpoint {
                 visible_id: mirror_part_id.clone(),

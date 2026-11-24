@@ -4,8 +4,7 @@ use super::companion_placement::{layout_relationship_summary, part_anchor_summar
 use super::inspector_types as inspector;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, ReadModel, Resolution};
 use boardstudio_model::model::{
-    EditOperation, HalfExceptionState, MirroredExceptionState, MirroredItemKind, PartKind,
-    PartOutline,
+    EditOperation, HalfExceptionState, MirroredItemKind, PartKind, PartOutline,
 };
 use boardstudio_web_ui_model::tree as objects;
 use std::collections::{BTreeMap, BTreeSet};
@@ -281,38 +280,46 @@ pub fn mirrored_half_projection(
     document: &boardstudio_model::model::ProjectDoc,
     part_id: &str,
 ) -> Option<inspector::MirroredHalfProjection> {
-    let hardware = document.hardware.as_ref()?;
-    for pair in &hardware.pairs {
-        let Some(halves) = pair.halves.as_ref() else {
-            continue;
-        };
-        let Some(link) = halves.correspondences.iter().find(|link| {
-            link.kind == MirroredItemKind::Part
-                && (link.source_id == part_id || link.mirror_id == part_id)
-        }) else {
-            continue;
-        };
-        let state = halves
-            .exceptions
-            .iter()
-            .find(|exception| {
-                exception.kind == MirroredItemKind::Part && exception.mirror_id == link.mirror_id
-            })
-            .map(|exception| match exception.state {
-                MirroredExceptionState::Local => HalfExceptionState::Local,
-                MirroredExceptionState::Omitted => HalfExceptionState::Omitted,
-            })
-            .unwrap_or(HalfExceptionState::Linked);
-        return Some(inspector::MirroredHalfProjection {
-            pair_id: pair.id.clone(),
-            mirror_id: link.mirror_id.clone(),
-            state,
-        });
+    use boardstudio_model::mirrored_half::MirrorOverride;
+    for pair in &document.mirrored_pairs {
+        // Mirror side: the derivation names the authored source.
+        if let Some((source_id, state)) =
+            boardstudio_model::mirrored_half::pair_derivation(document, pair, part_id)
+        {
+            let state = match state {
+                Some(MirrorOverride::Local(_)) => HalfExceptionState::Local,
+                Some(MirrorOverride::Omitted) => HalfExceptionState::Omitted,
+                None | Some(MirrorOverride::CompanionPose(_)) => HalfExceptionState::Linked,
+            };
+            return Some(inspector::MirroredHalfProjection {
+                pair_id: pair.id.clone(),
+                mirror_id: boardstudio_model::mirrored_half::mirrored_part_id(
+                    document, pair, source_id,
+                ),
+                state,
+            });
+        }
+        // Source side: an authored source reports its derived mirror and the
+        // source's own override state.
+        if boardstudio_model::mirrored_half::owns_part(document, &pair.source, part_id) {
+            let state = match boardstudio_model::mirrored_half::override_of(pair, part_id) {
+                Some(MirrorOverride::Local(_)) => HalfExceptionState::Local,
+                Some(MirrorOverride::Omitted) => HalfExceptionState::Omitted,
+                None | Some(MirrorOverride::CompanionPose(_)) => HalfExceptionState::Linked,
+            };
+            return Some(inspector::MirroredHalfProjection {
+                pair_id: pair.id.clone(),
+                mirror_id: boardstudio_model::mirrored_half::mirrored_part_id(
+                    document, pair, part_id,
+                ),
+                state,
+            });
+        }
     }
     None
 }
 
-/// Resolve a linked part's exception against the accepted mirrored-half record.
+/// Resolve a linked part's exception against the accepted derived pair.
 pub fn mirrored_half_state_resolver(
     pair_id: String,
     mirror_id: String,
@@ -323,37 +330,30 @@ pub fn mirrored_half_state_resolver(
         move |accepted: &AcceptedSnapshot| {
             let Some(pair) = accepted
                 .document
-                .hardware
-                .as_ref()
-                .and_then(|hardware| hardware.pairs.iter().find(|pair| pair.id == pair_id))
+                .mirrored_pairs
+                .iter()
+                .find(|pair| pair.id == pair_id)
             else {
                 return Resolution::Retire("The mirrored pair no longer exists.".into());
             };
-            let Some(halves) = pair.halves.as_ref() else {
-                return Resolution::Retire("The mirrored pair no longer links items.".into());
-            };
-            if !halves
-                .correspondences
-                .iter()
-                .any(|link| link.kind == MirroredItemKind::Part && link.mirror_id == mirror_id)
-            {
+            let Some((_, override_state)) = boardstudio_model::mirrored_half::pair_derivation(
+                &accepted.document,
+                pair,
+                &mirror_id,
+            ) else {
                 return Resolution::Retire("The linked part no longer exists.".into());
-            }
-            let current = halves
-                .exceptions
-                .iter()
-                .find(|exception| {
-                    exception.kind == MirroredItemKind::Part && exception.mirror_id == mirror_id
-                })
-                .map(|exception| match exception.state {
-                    boardstudio_model::model::MirroredExceptionState::Local => {
-                        HalfExceptionState::Local
-                    }
-                    boardstudio_model::model::MirroredExceptionState::Omitted => {
-                        HalfExceptionState::Omitted
-                    }
-                })
-                .unwrap_or(HalfExceptionState::Linked);
+            };
+            let current = match override_state {
+                Some(boardstudio_model::mirrored_half::MirrorOverride::Local(_)) => {
+                    HalfExceptionState::Local
+                }
+                Some(boardstudio_model::mirrored_half::MirrorOverride::Omitted) => {
+                    HalfExceptionState::Omitted
+                }
+                None | Some(boardstudio_model::mirrored_half::MirrorOverride::CompanionPose(_)) => {
+                    HalfExceptionState::Linked
+                }
+            };
             if current == state {
                 return Resolution::Unchanged;
             }

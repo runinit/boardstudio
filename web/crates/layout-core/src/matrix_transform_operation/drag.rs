@@ -32,18 +32,19 @@ pub fn matrix_drag_transport(document: &ProjectDoc, matrix_id: &str) -> MatrixDr
             };
         }
     }
-    if let Some(hardware) = &document.hardware {
-        for pair in &hardware.pairs {
-            if pair.halves.as_ref().is_some_and(|halves| {
-                halves.correspondences.iter().any(|record| {
-                    record.kind == MirroredItemKind::Matrix && record.mirror_id == matrix_id
-                })
-            }) {
-                return MatrixDragTransport::Reflected {
-                    translation: pair.mapping.at,
-                    rotation: pair.mapping.rotation,
-                };
-            }
+    if let Some((derived, _, _)) =
+        boardstudio_model::mirrored_half::derived_matrix(document, matrix_id)
+    {
+        if let Some(pair) = document
+            .hardware
+            .iter()
+            .flat_map(|hardware| &hardware.pairs)
+            .find(|pair| pair.id == derived.id)
+        {
+            return MatrixDragTransport::Reflected {
+                translation: pair.mapping.at,
+                rotation: pair.mapping.rotation,
+            };
         }
     }
     MatrixDragTransport::World

@@ -165,7 +165,6 @@ pub(super) fn apply_change(
         | MechanicalChange::LinkMirrorPair { .. }
         | MechanicalChange::UnlinkMirrorPair { .. }
         | MechanicalChange::RemovePhysicalInstance
-        | MechanicalChange::MaterializeLegacyConstruction { .. }
         | MechanicalChange::MakeFeatureLocal { .. }
         | MechanicalChange::OmitFeatureMember { .. }
         | MechanicalChange::RejoinFeatureMember { .. } => {

@@ -432,27 +432,30 @@ fn rigid_translation_available(
         .layouts
         .iter()
         .filter_map(|layout| layout.mirror_link.as_ref())
-        .map(|link| &link.correspondences)
-        .chain(
-            doc.hardware
-                .iter()
-                .flat_map(|hardware| &hardware.pairs)
-                .filter_map(|pair| pair.halves.as_ref())
-                .map(|halves| &halves.correspondences),
-        );
+        .map(|link| &link.correspondences);
+    let derived = boardstudio_model::mirrored_half::matrix_counterparts(doc, &matrix.id);
     let mut matrices = vec![matrix.id.as_str()];
     for record in links
         .flatten()
         .filter(|record| record.kind == MirroredItemKind::Matrix)
     {
         let counterpart = if record.source_id == matrix.id {
-            &record.mirror_id
+            record.mirror_id.as_str()
         } else if record.mirror_id == matrix.id {
-            &record.source_id
+            record.source_id.as_str()
         } else {
             continue;
         };
         if super::layout::exception_state(doc, MirroredItemKind::Matrix, counterpart).is_none() {
+            matrices.push(counterpart);
+        }
+    }
+    // A derived two-board counterpart follows the source unless the pair
+    // stores an overlay for it.
+    for counterpart in &derived {
+        if super::layout::exception_state(doc, MirroredItemKind::Matrix, counterpart).is_none()
+            && !matrices.contains(&counterpart.as_str())
+        {
             matrices.push(counterpart);
         }
     }
