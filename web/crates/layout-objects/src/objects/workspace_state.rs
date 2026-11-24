@@ -36,8 +36,8 @@ pub struct MatrixTransformInspectorOwner {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MirroredPairOwner {
-    pub editor_instance_id: u64,
-    pub open_id: u64,
+    // `scope_generation` is read by the workbench selection wiring outside this
+    // crate; retire it together with that consumer instead of here.
     pub scope_generation: u64,
     pub scope: Scope,
     pub board_id: String,

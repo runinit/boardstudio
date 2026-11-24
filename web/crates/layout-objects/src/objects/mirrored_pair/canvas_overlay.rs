@@ -24,7 +24,7 @@ pub fn MirroredPairCanvasOverlay(props: MirroredPairCanvasOverlayProps) -> Eleme
                 }
             },
             MirroredPairForm {
-                key: "{props.projection.owner.open_id}",
+                key: "{props.projection.owner.board_id}-{props.projection.owner.revision}",
                 projection: props.projection,
                 on_cancel: props.on_cancel,
                 on_preview: props.on_preview,
