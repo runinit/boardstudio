@@ -6,20 +6,18 @@ This document defines the **hard operating rules** for every orchestrator, imple
 
 ## The 10 Iron Laws
 
-### Law 1 — Hard Anti-Bloat Gate + Advisory LOC Reduction Targets
-Every track measures repository-wide deltas (`git diff <base> HEAD`) using [check_reduction.py](check_reduction.py), distinguishing **Hard Anti-Bloat Floors** from **Advisory Reduction Targets**:
+### Law 1 — Structural Hard Gates, Anti-Bloat Floor & Advisory LOC Only
+Every track measures repository-wide deltas (`git diff <base> HEAD`) using [check_reduction.py](check_reduction.py), distinguishing **Structural Hard Gates** from **Advisory/Observational LOC**:
 - **Hard Gate (pass/fail):**
-  - **Net Production Rust LOC** MUST satisfy the anti-bloat floor (`<= 0`, strictly negative on substantive refactoring tracks, never growing via wrappers or copy-paste folds).
-  - **Net Test Rust LOC** MUST NOT bloat (`<= 0`).
-  - **Net Scripts LOC** MUST be `<= 0` (and in Track 5, scripts collapse cleanly to single-browser verification).
-  - **Net Other LOC** (`.evidence/`, markdown inventories, JSON fixtures) MUST be `<= +200`.
-  - All `--must-delete`, `--forbid-symbol`, `--max-file-lines`, `--max-pattern`, and `--max-relocation-ratio` checks MUST pass with 0 violations.
+  - All `--must-delete`, `--forbid-symbol`, `--max-file-lines`, `--max-pattern`, `--max-relocation-ratio`, and automatic `LAYER-DIRECTION` checks MUST pass with 0 violations.
+  - **Refactoring waves:** simple anti-bloat floor (`<= 0` net Prod Rust, `<= 0` net Test Rust, `<= 0` net Scripts unless adding a new permanent gate script like `check-theme-contrast.py`, `<= +200` Other) — prevents wrapping/duplication without imposing hard negative LOC quotas.
+  - **Correctness/safety waves:** gated on structural/safety deliverables and zero wrapper bloat rather than `Prod Rust <= 0` (never chase artificial "Prod offsets" or omit error handling to cancel out legitimate safety code).
 - **A Fold Is Not a Simplification:** Deleting a controller/hook/adapter file and pasting its body into a sibling file (or renaming e.g. `owner.rs` -> `session.rs`, `adapter.rs` -> `edit.rs`) is a **hard rejection**, even if unrelated deletions make `--max-prod-delta 0` pass. Track lanes must enforce per-file line ceilings, zero obsolete pattern ceilings, and relocation ratio audits.
 - **Never Strip Invariant Comments:** [check_reduction.py](check_reduction.py) counts non-comment, non-blank Rust code lines for both LOC deltas and `--max-file-lines`; never delete invariant, ordering, safety, or "why" comments to pad metrics.
-- **Advisory Reduction Targets (`--target-prod-delta`, `--target-test-delta`, or `--advisory-loc`):**
-  - Per-track numeric targets (e.g., `-31,000`, `-12,500`, `-7,500`) are **stretch benchmarks** to measure whether legacy plumbing/controller/prop-bag boilerplate was genuinely removed — **never hard exit-1 blockers to be chased by amputating features or domain test invariants**.
+- **Advisory / Observational LOC Only (No Hard Negative LOC Quotas):**
+  - Per-track numeric targets (`--target-prod-delta`, `--target-test-delta`, `--advisory-loc`) are **observational benchmarks only** — **never hard exit-1 blockers to be chased by line-golfing, weakening error handling, or amputating features/domain test invariants**.
 
-**"Tests pass" does NOT override adding wrapper bloat or leaving deleted architecture behind; conversely, never sacrifice user-facing capabilities solely to cross an arbitrary line-count threshold.**
+**"Tests pass" does NOT override adding wrapper bloat or leaving deleted architecture behind; conversely, never sacrifice code clarity, safety, or user-facing capabilities to hit an arbitrary line-count threshold.**
 
 ### Law 2 — Delete First; Never Wrap, Layer, or Keep Dual Paths
 When replacing a subsystem, widget, controller, or format:
@@ -59,10 +57,10 @@ Moving 10,000 lines from `core/crates/mirrored-half` to `core/crates/engine` is 
 - **Keep Rust + Dioxus + `rust-ui.com` primitives.** Do not introduce JS frameworks, new B-Rep kernels, or unapproved crate dependencies (check [deny.toml](../../../deny.toml) before adding any crate).
 
 ### Law 9 — Performance & Bundle Non-Regression Floor
-Every completed wave MUST verify (at integration, not inside parallel lanes) that compared to `dev` (`5aae86ff4`):
-- Page WASM bytes `<= dev` (27.05 MB) and total shipped WASM bytes strictly **smaller** after Track 2 retires `core-worker.wasm` (−11.6 MB!).
-- Full `check.py` wall time `<= dev` (dropping toward `≤ 60–75s` by Track 5).
-- Cold startup and drag-to-save latency `<= dev`.
+Every completed wave MUST verify (at integration, not inside parallel lanes) that compared to the prior wave baseline (and original `dev` `5aae86ff4`):
+- Release page WASM bytes do not regress past the current baseline (`18.38 MiB` / `19,276,206 B` post-P2, down from `27.05 MB` on `5aae86ff4`, with zero `core-worker.wasm`).
+- Full `check.py` wall time stays `<= 60–75s` warm (post-Wave-6 baseline `42.7s`).
+- Cold startup and drag-to-save latency stay non-regressed (`<= 323 ms` cold startup, `<= 25 ms` drag-to-saved).
 
 ### Law 10 — Strict Orchestration & Worktree Hygiene
 - **Max 4 parallel subagent worktrees** at any time; zero overlapping file ownership between active lanes.
@@ -114,18 +112,19 @@ Exit codes:
 8. **No Copy-Paste Folds:** Did `--max-file-lines`, `--max-relocation-ratio`, and `git diff --stat` confirm deleted files were genuinely simplified rather than pasted into neighboring files or renamed (`owner.rs` -> `session.rs`)?
 9. **Zero Async Ceremony on Sync Edits:** Were `PendingSettlement`, polling `use_effect`s, `ProjectionIdentity` mirrors, and sync-edit generation/request-ID/prop-bag boilerplate deleted from `Runtime::commit` paths?
 10. **Ceiling & Signal Discipline:** Do touched UI files stay within their target LOC ceilings without piling `>5` scattered `use_signal`s instead of one cohesive state struct/enum?
-11. **Layer Direction:** Did workspaces (`layout_workspace`, `pcb_workspace`, etc.) avoid importing up into `workbench::editor_session` (shared canvas/adapter code must live downward under `presentation/editor/`)?
+11. **Layer Direction:** Did workspaces (`layout_workspace`, `pcb_workspace`, etc.) avoid importing up into `workbench::editor_session` (shared canvas/adapter code lives downward under `presentation/editor/`) and avoid sideways `-> case` dependencies (shared 3D viewer lives in `ui-shared::viewport_3d`)?
 12. **Invariant Comments Intact:** Did edits preserve all safety, ordering, sync-gate, ticket, and "why" comments instead of trimming comments to game LOC or file-size limits?
+13. **Permanent Safety, Listener & Theme Gates:** Is `#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]` intact across `core/crates/*` + `web/crates/runtime`, are there zero new UI `Closure::wrap`/`.forget()` leaks (using `ui_shared::DomEventListener`), and does `scripts/check-theme-contrast.py` pass with `FIRST_PAINT_THEME_HEAD` aligned to `web/tailwind.css`?
 
 ---
 
 ## Wave-End Gate Audit Contract (Neon High Auto-Approval)
 
-At the end of **each wave** (Waves 1, 2, and 3), the Orchestrator MUST dispatch one **read-only** audit delegate using `antigravity` / `gemini-4-neon` with `thought_level: "high"` (`role: "review"`).
+At the end of **each wave**, the Orchestrator MUST dispatch one **read-only** audit delegate using `antigravity` / `gemini-4-neon` with `thought_level: "high"` (`role: "review"`).
 
 ### What Neon High Compares Against the Plan
-1. **Plan Adherence:** Does the actual merged git diff implement the architecture specified in the wave's track plans (e.g., pure derived projector, no in-memory mirror bloat, no worker/wrapper leftovers), rather than a workaround or partial wrap?
-2. **Whole-Repo `check_reduction.py` Gate:** Did the combined wave commit exit `0` against the true wave base (with strictly negative Production Rust and Test Rust deltas matching the wave budget)?
+1. **Plan Adherence:** Does the actual merged git diff implement the architecture specified in the wave's plan (e.g., pure derived projector, no in-memory mirror bloat, no worker/wrapper leftovers, genuine simplification rather than copy-paste folds), rather than a workaround or partial wrap?
+2. **Structural Gate & Anti-Bloat (`check_reduction.py`):** Did the combined wave commit exit `0` against the true wave base on all structural hard gates (`--must-delete`, `--forbid-symbol`, `--max-file-lines`, `--max-pattern`, `--max-relocation-ratio`, `LAYER-DIRECTION`) and the wave's anti-bloat floor (treating numeric LOC targets as advisory/observational only — never failing a clean diff for not hitting an arbitrary negative LOC quota)?
 3. **Deleted Manifest & Forbidden Symbols:** Are 100% of `--must-delete` files gone from `git ls-files` and 0 `--forbid-symbol` hits present?
 4. **No Regressions / Bloat:** No new `*_trial.py` / `measure-*.py` scripts, no >100-line `.evidence/` inventories, no raw HTML controls left behind, and no WASM/startup/build regressions.
 5. **Test Suite Verification:** Did `cargo fmt --all --check` and full `python3 scripts/check.py` (including `run-drag-browser.py` where applicable) pass on the merged wave commit?

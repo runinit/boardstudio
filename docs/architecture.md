@@ -16,15 +16,15 @@ presentation calls typed methods and reads accepted state.
 | `core/crates/mirrored-half/` | Pure derived projector (`project_document`) plus `MirroredPair` mechanical validation and transitions |
 | `core/crates/model/` | Canonical format-8 `ProjectDoc`, document-format admission, operations and wire types |
 | `application/` | `Session`: owns the `CoreEngine`, applies `Event`s to accepted snapshots, emits host-owned `Effect`s |
-| `web/src/` (`boardstudio-web` bin) | Page shell (`presentation.rs` + `presentation/` workspaces), worker entry points (`lib.rs`: `cad-worker`, `service-worker`) |
+| `web/src/` (`boardstudio-web` bin) | Page shell (`presentation.rs`, downward `presentation/editor/` canvas/camera/selection layer, `presentation/` workspaces), worker entry points (`lib.rs`: `cad-worker`, `service-worker`) |
 | `web/crates/runtime/` | `Runtime`: drives a real `Session`, runs browser effects (`runtime.rs`, `runtime/effects.rs`), model delivery, presentation-independent operations; no Dioxus |
 | `web/crates/host/` | Browser storage, CAD worker clients, renderer host; IndexedDB and persistence contracts |
 | `web/crates/worker-host/` | Packaged worker surfaces: CAD worker client/jobs, offline manifest policy, renderer host page |
 | `web/crates/layout-core/` | Unified `CanvasInteraction` pointer/keyboard state machine and canvas projection |
 | `web/crates/ui-model/` | UI vocabulary shared by presentation code: tree contexts, selection, workspace and view state |
-| `web/crates/ui-shared/` | UI used by several workspaces: panels, canvas layers, layout camera, footprint graphics, model import |
+| `web/crates/ui-shared/` | Shared UI below all workspaces: declarative `inspector_fields`, RAII `DomEventListener`, unified `<Viewport3D />` (`viewport_3d/`), panels, canvas layers, layout camera, footprint graphics, model import |
 | `web/crates/catalogue/` | Bundled component catalogue loading, generator normalization, physical setup proposals; no Dioxus |
-| `web/crates/keycaps/`, `library/`, `keymap/`, `case/`, `parts/`, `pcb/`, `layout/`, `layout-objects/` | Workspace features: keycap fit and scenes; Library; Keymap editor; Case viewer and mechanical adapters; Parts browser and generators; PCB wiring and physical setup; Layout objects tree, outlines, placement, setup guide |
+| `web/crates/keycaps/`, `library/`, `keymap/`, `case/`, `parts/`, `pcb/`, `layout/`, `layout-objects/` | Workspace features (no sideways `-> case` deps): keycap fit, settings and 3D `<Viewport3D />` assembly viewer; Library; Keymap editor; Case viewport overlays and mechanical settings; Parts browser and generators; PCB wiring and physical setup; Layout objects tree, outlines, placement, setup guide |
 | `web/crates/test-runtime/` | Shared native fixtures and detached-task support for web tests (`new_native_runtime`, layout fixtures) |
 | `renderer/` | GPU scene rendering, picking and camera behavior |
 | `cad/` | CAD provider bindings and the pure-Rust CAD WASM kernel |

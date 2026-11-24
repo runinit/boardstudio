@@ -34,8 +34,25 @@ file holds the judgement calls that no check can make.
   events without cloning large `*Input` prop-bags or duplicating state in parallel `RefCell`s;
   dependencies flow downward (`workspace -> editor/canvas_adapter`, never
   `workspace -> workbench/editor_session`).
+- **No panicking unwraps in production core or runtime.** Non-test code across `core/crates/*` and
+  `web/crates/runtime` enforces `#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]`;
+  propagate typed errors cleanly rather than trapping the browser WASM instance.
+- **RAII DOM listeners only in UI code.** Never leak `Closure::wrap` + `.forget()` listeners in
+  Dioxus components; bind window/document listeners through `ui_shared::DomEventListener` (or
+  `host::renderer_host::Listener`-style RAII guards). Only permanent worker globals
+  (`service_worker.rs`, `cad_worker.rs`) and self-releasing `Closure::once_into_js` are exempt.
+- **Shared 3D viewport lives below workspaces.** `<Viewport3D />` and shared camera/scene helpers
+  live in `web/crates/ui-shared/src/viewport_3d/`. Workspace crates (`case`, `parts`, `layout`,
+  `pcb`, `keycaps`) must not depend sideways on `case`.
+- **Keep pre-paint theme and WCAG AA contrast in sync.** Any palette edit in `web/tailwind.css`
+  must pass `scripts/check-theme-contrast.py` across all four Theme × Appearance combinations and
+  keep `FIRST_PAINT_THEME_HEAD` (`--canvas`) aligned in `scripts/build-web.py`.
 
 ## Cargo & build performance
+
+- **Avoid redundant generic/component monomorphizations in release WASM.** Prefer concrete helpers
+  and non-generic inner views over deeply parameterized Dioxus components so release `.wasm` stays
+  lean alongside `strip = "debuginfo"` and `lto = "thin"`.
 
 - **Keep WASM dependency features unified.** Never add a private `web-sys` feature list (use
   `web-sys = { workspace = true }`). Before changing features or dependencies in `web/`,
